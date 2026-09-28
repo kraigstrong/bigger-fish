@@ -11,8 +11,8 @@ struct MathReefApp: App {
 }
 
 struct ContentView: View {
-    @State private var scene: ExponentScene = {
-        let scene = ExponentScene(size: CGSize(width: 852, height: 393))
+    @State private var scene: PracticeScene = {
+        let scene = PracticeScene(size: CGSize(width: 852, height: 393))
         scene.scaleMode = .resizeFill
         return scene
     }()

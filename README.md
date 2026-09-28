@@ -21,9 +21,16 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'p
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
-- `MathReef/` — **Math Reef** (`com.kraigstrong.mathreef`), the education app: exponent practice
-  (squares, cubes, mixed) where you swim into the right answer. Question and session logic is in
-  `Exponents.swift`, the scene in `ExponentScene.swift`, and tuning in `ReefTuning` at the top of that file.
+- `MathReef/` — **Math Reef** (`com.kraigstrong.mathreef`), the education app. Pick a world (Addition,
+  Subtraction, Mixed + −, Multiplication, Division, Mixed × ÷, Exponents; Fractions coming soon), then a
+  level, and swim into the right answer. Each level unlocks by mastering the one before it: every fact
+  correct twice, 18 of the last 20 correct, and no key-mistake answers in the last 10. Progress is saved
+  on the device.
+  - `MathFacts.swift` — facts, worked solutions, and misconception-based wrong answers
+  - `Curriculum.swift` — worlds, levels, and fact decks
+  - `Mastery.swift` — mastery rule and saved progress
+  - `PracticeSession.swift` — dealing and requeueing within a session
+  - `PracticeScene.swift` — menus and gameplay; tuning is `ReefTuning` at the top
 - `Packages/FishKit/` — shared fish engine used by both apps:
   the fish model and drawing, hold/release movement (`PlayerMotion` + `MotionTuning`), wrapped world,
   seeded RNG, swallow timing, and water textures.
