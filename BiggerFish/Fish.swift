@@ -38,6 +38,10 @@ final class Fish {
     var squash: CGFloat = 0
     var shrink: CGFloat = 1
     var struggle: CGFloat = 0
+    /// 0 = closed, 1 = wide open.
+    var mouth: CGFloat = 0
+    /// 0...1 chewing intensity during close-call swallows.
+    var chew: CGFloat = 0
 
     init(id: Int, isPlayer: Bool, position: CGPoint, radius: CGFloat) {
         self.id = id
@@ -78,7 +82,7 @@ enum GameRules {
     static func grownRadius(
         predator: CGFloat,
         prey: CGFloat,
-        efficiency: CGFloat = GameTuning.absorptionEfficiency
+        efficiency: CGFloat
     ) -> CGFloat {
         sqrt(predator * predator + efficiency * prey * prey)
     }

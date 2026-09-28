@@ -4,8 +4,6 @@ import CoreGraphics
 enum GameTuning {
     // MARK: Player movement
 
-    /// Seconds for the player to cross one screen width (spec target: 2.5–3 s).
-    static let screenCrossSeconds: CGFloat = 2.75
     /// Upward acceleration while holding (pt/s²).
     static let riseAcceleration: CGFloat = 1100
     /// Downward acceleration while released (pt/s²).
@@ -21,6 +19,16 @@ enum GameTuning {
     /// Where the player sits horizontally on screen (fraction of width).
     static let playerScreenX: CGFloat = 0.30
 
+    // MARK: Camera
+
+    /// The camera starts zooming out once the player is this many times its starting radius.
+    static let zoomStartSize: CGFloat = 1.3
+    /// Higher = on-screen player size grows more slowly (0 = no zoom, 1 = player never grows on screen).
+    static let zoomExponent: CGFloat = 0.65
+    static let minZoom: CGFloat = 0.4
+    /// How quickly the camera eases toward its target zoom (per second).
+    static let zoomEase: CGFloat = 1.5
+
     // MARK: World
 
     static let worldScreens: CGFloat = 4
@@ -31,12 +39,14 @@ enum GameTuning {
 
     /// Points of radius for a normalized size of 1.0 (the player's starting size).
     static let baseRadius: CGFloat = 16
-    static let absorptionEfficiency: CGFloat = 0.90
     /// Radii differing by less than this fraction bump apart instead of eating.
     static let nearEqualThreshold: CGFloat = 0.01
     /// Collision distance = (rA + rB) * collisionScale. Bodies are 1.35r long and 0.95r tall.
     static let collisionScale: CGFloat = 1.05
     static let growDuration: CGFloat = 0.35
+    /// Seconds for the mouth to open when a swallow begins, and to close after it ends.
+    static let mouthOpenSeconds: CGFloat = 0.06
+    static let mouthCloseSeconds: CGFloat = 0.14
     static let pulseDuration: CGFloat = 0.25
     static let pulseAmount: CGFloat = 0.15
 
@@ -61,8 +71,6 @@ enum GameTuning {
     static let aiFishCanEatEachOther = true
     /// AI-on-AI eating is suppressed for this long after a run starts so the opening is readable.
     static let aiEatingGracePeriod: CGFloat = 1.5
-    static let aiSpeedRange: ClosedRange<CGFloat> = 35...95
-    static let aiVerticalSpeed: CGFloat = 45
     static let aiMaxTilt: CGFloat = 0.15
     static let aiRetargetRange: ClosedRange<CGFloat> = 2...6
     static let aiTurnIntervalRange: ClosedRange<CGFloat> = 8...20
@@ -70,14 +78,6 @@ enum GameTuning {
     // MARK: Initial ecosystem
 
     static let spawnSeed: UInt64 = 20_260_927
-    /// Normalized radii (player = 1.0).
-    static let spawnGroups: [(count: Int, radii: ClosedRange<CGFloat>)] = [
-        (6, 0.30...0.55),
-        (5, 0.55...0.80),
-        (3, 0.90...1.15),
-        (2, 1.35...1.70),
-        (1, 2.10...2.50),
-    ]
     /// No fish spawn in this window (in screen widths) around the player's start.
     static let spawnClearBehind: CGFloat = 0.4
     static let spawnClearAheadSmall: CGFloat = 0.45
@@ -92,4 +92,41 @@ enum GameTuning {
     static let winSlowDuration: CGFloat = 1.2
     /// Seconds after a win/loss before a tap restarts (avoids accidental restarts from a held finger).
     static let restartDelay: CGFloat = 0.8
+
+    // MARK: Levels
+
+    /// Each level ramps several levers at once: fewer easy meals, more near-equal and larger fish,
+    /// faster fish, a faster player, and less growth per meal.
+    static let levels: [Level] = [
+        Level(
+            spawnGroups: [(6, 0.30...0.55), (5, 0.55...0.80), (3, 0.90...1.15), (2, 1.35...1.70), (1, 2.10...2.50)],
+            aiSpeedRange: 35...95, aiVerticalSpeed: 45, screenCrossSeconds: 2.75, absorptionEfficiency: 0.90
+        ),
+        Level(
+            spawnGroups: [(5, 0.35...0.58), (5, 0.58...0.82), (4, 0.88...1.12), (3, 1.30...1.70), (1, 2.10...2.50)],
+            aiSpeedRange: 45...115, aiVerticalSpeed: 55, screenCrossSeconds: 2.6, absorptionEfficiency: 0.86
+        ),
+        Level(
+            spawnGroups: [(4, 0.40...0.60), (5, 0.62...0.86), (5, 0.90...1.10), (3, 1.25...1.60), (2, 1.90...2.40)],
+            aiSpeedRange: 55...135, aiVerticalSpeed: 68, screenCrossSeconds: 2.45, absorptionEfficiency: 0.82
+        ),
+        Level(
+            spawnGroups: [(3, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08), (4, 1.20...1.60), (2, 2.00...2.60)],
+            aiSpeedRange: 65...155, aiVerticalSpeed: 80, screenCrossSeconds: 2.3, absorptionEfficiency: 0.78
+        ),
+        Level(
+            spawnGroups: [(3, 0.45...0.65), (4, 0.70...0.92), (6, 0.94...1.06), (4, 1.15...1.50), (3, 1.90...2.80)],
+            aiSpeedRange: 80...175, aiVerticalSpeed: 95, screenCrossSeconds: 2.15, absorptionEfficiency: 0.75
+        ),
+    ]
+}
+
+struct Level {
+    /// Normalized radii (player starts at 1.0).
+    let spawnGroups: [(count: Int, radii: ClosedRange<CGFloat>)]
+    let aiSpeedRange: ClosedRange<CGFloat>
+    let aiVerticalSpeed: CGFloat
+    /// Seconds for the player to cross one screen width.
+    let screenCrossSeconds: CGFloat
+    let absorptionEfficiency: CGFloat
 }

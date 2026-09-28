@@ -20,3 +20,5 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'p
 
 Every feel constant — movement, growth, swallow timing, AI behavior, spawn distribution,
 and the `aiFishCanEatEachOther` flag — lives in `BiggerFish/GameTuning.swift`.
+The five levels are defined in `GameTuning.levels`; each sets the spawn mix, fish speeds,
+player speed, and how much a meal grows you.
