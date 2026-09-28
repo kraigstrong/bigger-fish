@@ -1,19 +1,29 @@
 import Foundation
 
-// Passing a level: answer every question in a round and get at least 90% right
-// (right answers out of tries). Passing unlocks the next level in the world. Checkpoint levels are
-// skip tests: always playable, and passing one also passes every level before it.
+// Stars for a round (right answers out of tries): 60% ★ · 80% ★★ · 100% ★★★.
+// Two stars passes a level and unlocks the next one. Checkpoint levels are skip tests: always
+// playable, and passing one also passes every level before it.
 
 enum PassRule {
-    static let requiredAccuracy = 0.9
+    /// Minimum percent for 1, 2, and 3 stars.
+    static let starThresholds = [60, 80, 100]
+    static let starsToPass = 2
 
-    static func passes(correct: Int, attempts: Int) -> Bool {
-        attempts > 0 && Double(correct) / Double(attempts) >= requiredAccuracy
-    }
-
-    /// 0...100, rounded down so 89.9% never displays as a passing 90%.
+    /// 0...100, rounded down so 79.9% never displays (or counts) as 80%.
     static func percent(correct: Int, attempts: Int) -> Int {
         attempts == 0 ? 0 : correct * 100 / attempts
+    }
+
+    static func stars(percent: Int) -> Int {
+        starThresholds.filter { percent >= $0 }.count
+    }
+
+    static func stars(correct: Int, attempts: Int) -> Int {
+        stars(percent: percent(correct: correct, attempts: attempts))
+    }
+
+    static func passes(correct: Int, attempts: Int) -> Bool {
+        stars(correct: correct, attempts: attempts) >= starsToPass
     }
 }
 
@@ -22,26 +32,20 @@ struct LevelRecord: Codable, Equatable {
     /// Best round score, 0...100.
     var bestPercent = 0
     var hasPlayed = false
-    /// Rounds passed (a checkpoint skip passes a level without playing it).
-    var passCount = 0
-    /// A round with no misses.
-    var perfect = false
 
-    /// ★ pass the level · ★★ pass it again · ★★★ a perfect round.
+    /// From the best round; a level passed by a skip test counts as two stars.
     var stars: Int {
-        !passed ? 0 : perfect ? 3 : passCount >= 2 ? 2 : 1
+        max(PassRule.stars(percent: bestPercent), passed ? PassRule.starsToPass : 0)
     }
 }
 
 extension LevelRecord {
-    /// Records saved before stars existed are missing the newer fields.
+    /// Tolerates missing fields so older saved records keep loading.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         passed = try container.decodeIfPresent(Bool.self, forKey: .passed) ?? false
         bestPercent = try container.decodeIfPresent(Int.self, forKey: .bestPercent) ?? 0
         hasPlayed = try container.decodeIfPresent(Bool.self, forKey: .hasPlayed) ?? false
-        passCount = try container.decodeIfPresent(Int.self, forKey: .passCount) ?? 0
-        perfect = try container.decodeIfPresent(Bool.self, forKey: .perfect) ?? false
     }
 }
 
@@ -75,10 +79,6 @@ final class ProgressStore {
         record.passed = record.passed || passed
         record.bestPercent = max(record.bestPercent, PassRule.percent(correct: correct, attempts: attempts))
         record.hasPlayed = true
-        if passed {
-            record.passCount += 1
-            if correct == attempts { record.perfect = true }
-        }
         records[level.id] = record
         if passed && level.isCheckpoint {
             for earlier in world.levels.prefix(index) { records[earlier.id, default: LevelRecord()].passed = true }

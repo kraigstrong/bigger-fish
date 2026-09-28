@@ -295,7 +295,7 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = false
         let lines: [PanelLine] = level.intro.map { line in
             line.hasPrefix("= ") ? (String(line.dropFirst(2)), 26, true) : (line, 19, false)
-        } + [("Get 90% right to pass.", 18, false)]
+        } + [("Get 80% to unlock the next level.", 18, false)]
             + (store.isSkipTest(levelIndex, in: world) ? [("Passing this skips the levels before it.", 18, false)] : [])
         showPanel(
             title: "Level \(levelIndex + 1): \(level.title)",
@@ -428,17 +428,17 @@ final class PracticeScene: SKScene {
         let wasSkipTest = store.isSkipTest(levelIndex, in: world)
         let starsBefore = store.record(for: level).stars
         let passed = store.finishRound(levelIndex, in: world, correct: result.correctAnswers, attempts: result.totalAttempts)
-        let starsAfter = store.record(for: level).stars
+        let roundStars = PassRule.stars(correct: result.correctAnswers, attempts: result.totalAttempts)
         let outcome: String
         if passed && wasSkipTest {
             outcome = "You skipped ahead!"
         } else if passed {
             outcome = !hasNext ? "\(world.title) complete!" : alreadyUnlocked ? "Next level is open." : "Level \(levelIndex + 2) unlocked!"
         } else {
-            outcome = "Get 90% to pass."
+            outcome = "Get 80% to unlock the next level."
         }
         showPanel(
-            title: passed ? "Level passed!" : "Keep practicing",
+            title: passed ? "Level passed!" : roundStars > 0 ? "Nice try!" : "Keep practicing",
             lines: [
                 ("\(result.percent)%", 56, true),
                 ("\(result.correctAnswers) of \(result.totalAttempts) right", 20, false),
@@ -448,10 +448,10 @@ final class PracticeScene: SKScene {
             centerX: size.width / 2,
             style: passed ? .correct : .neutral
         )
-        if starsAfter > 0 { showStars(earned: starsAfter, new: starsAfter - starsBefore) }
+        if roundStars > 0 { showStars(earned: roundStars, new: max(0, roundStars - starsBefore)) }
     }
 
-    /// Stars sit on the top edge of the results panel; newly earned ones pop in.
+    /// This round's stars sit on the top edge of the results panel; ones that beat the best pop in.
     private func showStars(earned: Int, new: Int) {
         let top = panel.calculateAccumulatedFrame().maxY - panel.position.y
         for i in 0..<3 {

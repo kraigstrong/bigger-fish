@@ -177,12 +177,18 @@ struct CurriculumTests {
 }
 
 struct PassRuleTests {
-    @Test func needsNinetyPercent() {
-        #expect(PassRule.passes(correct: 9, attempts: 10))
-        #expect(PassRule.passes(correct: 10, attempts: 11))    // 90.9%
-        #expect(!PassRule.passes(correct: 16, attempts: 18))   // 88.9%
-        #expect(!PassRule.passes(correct: 0, attempts: 0))
-        #expect(PassRule.percent(correct: 16, attempts: 18) == 88)  // never rounds up to a pass
+    /// 60% ★ · 80% ★★ (passes) · 100% ★★★, never rounding up.
+    @Test func starsComeFromAccuracy() {
+        #expect(PassRule.stars(correct: 5, attempts: 10) == 0)
+        #expect(PassRule.stars(correct: 6, attempts: 10) == 1)
+        #expect(PassRule.stars(correct: 10, attempts: 13) == 1)   // 76.9%
+        #expect(PassRule.stars(correct: 8, attempts: 10) == 2)
+        #expect(PassRule.stars(correct: 10, attempts: 11) == 2)   // 90.9%
+        #expect(PassRule.stars(correct: 10, attempts: 10) == 3)
+        #expect(PassRule.stars(correct: 0, attempts: 0) == 0)
+        #expect(PassRule.passes(correct: 8, attempts: 10))
+        #expect(!PassRule.passes(correct: 79, attempts: 100))
+        #expect(PassRule.percent(correct: 79, attempts: 99) == 79)  // 79.8% never rounds up to a pass
     }
 }
 
@@ -199,9 +205,9 @@ struct ProgressStoreTests {
         let world = Curriculum.worlds.first { $0.id == "exponents" }!
         #expect(store.isUnlocked(0, in: world))
         #expect(!store.isUnlocked(1, in: world))
-        #expect(!store.finishRound(0, in: world, correct: 10, attempts: 12))  // 83%
+        #expect(!store.finishRound(0, in: world, correct: 10, attempts: 13))  // 76%: one star, still locked
         #expect(!store.isUnlocked(1, in: world))
-        #expect(store.finishRound(0, in: world, correct: 10, attempts: 11))   // 90%
+        #expect(store.finishRound(0, in: world, correct: 10, attempts: 12))   // 83%: two stars
         #expect(store.isUnlocked(1, in: world))
         #expect(!store.isUnlocked(2, in: world))
     }
@@ -211,7 +217,8 @@ struct ProgressStoreTests {
         let world = Curriculum.worlds.first { $0.id == "exponents" }!, level = world.levels[0]
         store.finishRound(0, in: world, correct: 10, attempts: 10)
         store.finishRound(0, in: world, correct: 10, attempts: 20)
-        #expect(store.record(for: level) == LevelRecord(passed: true, bestPercent: 100, hasPlayed: true, passCount: 1, perfect: true))
+        #expect(store.record(for: level) == LevelRecord(passed: true, bestPercent: 100, hasPlayed: true))
+        #expect(store.record(for: level).stars == 3)
     }
 
     /// Checkpoints are skip tests: always playable, and passing one passes everything before it.
@@ -221,47 +228,51 @@ struct ProgressStoreTests {
         #expect(!store.isUnlocked(5, in: world))
         #expect(store.isUnlocked(6, in: world) && store.isSkipTest(6, in: world))
         #expect(!store.isUnlocked(7, in: world))
-        #expect(!store.finishRound(6, in: world, correct: 12, attempts: 15))  // failed: nothing changes
+        #expect(!store.finishRound(6, in: world, correct: 12, attempts: 16))  // 75%: nothing skipped
         #expect(!store.record(for: world.levels[0]).passed)
-        #expect(store.finishRound(6, in: world, correct: 12, attempts: 13))
+        #expect(store.finishRound(6, in: world, correct: 12, attempts: 15))   // 80%
         #expect((0...6).allSatisfy { store.record(for: world.levels[$0]).passed })
+        #expect(store.record(for: world.levels[0]).stars == 2)  // skipped levels count as two stars
         #expect(store.isUnlocked(7, in: world) && !store.isSkipTest(6, in: world))
         #expect(!store.record(for: world.levels[7]).passed)
     }
 
-    /// ★ pass · ★★ pass again · ★★★ perfect round; silver crown = every level passed, gold = all ★★★.
+    /// Stars keep the best round; silver crown = every level passed, gold = ★★★ everywhere.
     @Test func starsAndCrowns() {
         let store = ProgressStore(defaults: freshDefaults())
         let world = Curriculum.worlds.first { $0.id == "exponents" }!
-        store.finishRound(0, in: world, correct: 10, attempts: 11)
+        store.finishRound(0, in: world, correct: 6, attempts: 10)
         #expect(store.record(for: world.levels[0]).stars == 1)
-        store.finishRound(0, in: world, correct: 10, attempts: 11)
+        store.finishRound(0, in: world, correct: 10, attempts: 12)
         #expect(store.record(for: world.levels[0]).stars == 2)
         store.finishRound(0, in: world, correct: 10, attempts: 10)
         #expect(store.record(for: world.levels[0]).stars == 3)
+        store.finishRound(0, in: world, correct: 5, attempts: 10)
+        #expect(store.record(for: world.levels[0]).stars == 3)  // a worse round never takes stars away
         #expect(store.crown(for: world) == .none)
-        store.finishRound(1, in: world, correct: 10, attempts: 11)
+        store.finishRound(1, in: world, correct: 10, attempts: 12)
         store.finishRound(2, in: world, correct: 13, attempts: 14)
         #expect(store.crown(for: world) == .silver)
-        #expect(store.stars(in: world) == (5, 9))
+        #expect(store.stars(in: world) == (7, 9))
         store.finishRound(1, in: world, correct: 10, attempts: 10)
         store.finishRound(2, in: world, correct: 13, attempts: 13)
         #expect(store.crown(for: world) == .gold)
     }
 
-    /// Records saved before stars existed still load (missing fields default to zero).
+    /// Saved records load even with missing or extra fields.
     @Test func decodesOlderRecords() throws {
-        let old = #"{"exp.1":{"passed":true,"bestPercent":92,"hasPlayed":true}}"#
+        let old = #"{"exp.1":{"passed":true,"bestPercent":92},"exp.2":{"passed":false,"bestPercent":100,"hasPlayed":true,"passCount":1}}"#
         let records = try JSONDecoder().decode([String: LevelRecord].self, from: Data(old.utf8))
-        #expect(records["exp.1"] == LevelRecord(passed: true, bestPercent: 92, hasPlayed: true, passCount: 0, perfect: false))
-        #expect(records["exp.1"]?.stars == 1)
+        #expect(records["exp.1"] == LevelRecord(passed: true, bestPercent: 92, hasPlayed: false))
+        #expect(records["exp.1"]?.stars == 2)
+        #expect(records["exp.2"]?.stars == 3)
     }
 
     @Test func persistsAcrossLaunches() {
         let defaults = freshDefaults()
         let world = Curriculum.worlds.first { $0.id == "exponents" }!, level = world.levels[0]
         ProgressStore(defaults: defaults).finishRound(0, in: world, correct: 9, attempts: 10)
-        #expect(ProgressStore(defaults: defaults).record(for: level) == LevelRecord(passed: true, bestPercent: 90, hasPlayed: true, passCount: 1))
+        #expect(ProgressStore(defaults: defaults).record(for: level) == LevelRecord(passed: true, bestPercent: 90, hasPlayed: true))
     }
 }
 
@@ -311,7 +322,7 @@ struct PracticeSessionTests {
         #expect(session.current == nil)
         #expect(session.result == SessionResult(correctAnswers: 12, totalAttempts: 14))
         #expect(session.result.percent == 85)
-        #expect(!session.result.passed)
+        #expect(session.result.passed)  // 85% earns two stars
     }
 
     @Test func missedFactReturnsAfterTwoOthers() {
