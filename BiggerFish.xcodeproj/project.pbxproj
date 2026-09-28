@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		BF00000000000000000000E2 /* FishKit in Frameworks */ = {isa = PBXBuildFile; productRef = BF00000000000000000000E3 /* FishKit */; };
+		CC0000000000000000000001 /* FishKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000000000000000000002 /* FishKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -18,11 +19,20 @@
 			remoteGlobalIDString = BF00000000000000000000C0;
 			remoteInfo = BiggerFish;
 		};
+		CC0000000000000000000050 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BF00000000000000000000A0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CC0000000000000000000040;
+			remoteInfo = MathReef;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		BF00000000000000000000B0 /* BiggerFish.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BiggerFish.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BF00000000000000000000B1 /* BiggerFishTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BiggerFishTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC0000000000000000000010 /* MathReef.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MathReef.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC0000000000000000000011 /* MathReefTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MathReefTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +44,16 @@
 		BF00000000000000000000A4 /* BiggerFishTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = BiggerFishTests;
+			sourceTree = "<group>";
+		};
+		CC0000000000000000000020 /* MathReef */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MathReef;
+			sourceTree = "<group>";
+		};
+		CC0000000000000000000021 /* MathReefTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MathReefTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -54,6 +74,21 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CC0000000000000000000030 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CC0000000000000000000001 /* FishKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000000000000000000031 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -62,6 +97,8 @@
 			children = (
 				BF00000000000000000000A3 /* BiggerFish */,
 				BF00000000000000000000A4 /* BiggerFishTests */,
+				CC0000000000000000000020 /* MathReef */,
+				CC0000000000000000000021 /* MathReefTests */,
 				BF00000000000000000000A2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -71,6 +108,8 @@
 			children = (
 				BF00000000000000000000B0 /* BiggerFish.app */,
 				BF00000000000000000000B1 /* BiggerFishTests.xctest */,
+				CC0000000000000000000010 /* MathReef.app */,
+				CC0000000000000000000011 /* MathReefTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -124,6 +163,52 @@
 			productReference = BF00000000000000000000B1 /* BiggerFishTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		CC0000000000000000000040 /* MathReef */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC0000000000000000000062 /* Build configuration list for PBXNativeTarget "MathReef" */;
+			buildPhases = (
+				CC0000000000000000000032 /* Sources */,
+				CC0000000000000000000030 /* Frameworks */,
+				CC0000000000000000000034 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CC0000000000000000000020 /* MathReef */,
+			);
+			name = MathReef;
+			packageProductDependencies = (
+				CC0000000000000000000002 /* FishKit */,
+			);
+			productName = MathReef;
+			productReference = CC0000000000000000000010 /* MathReef.app */;
+			productType = "com.apple.product-type.application";
+		};
+		CC0000000000000000000041 /* MathReefTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC0000000000000000000065 /* Build configuration list for PBXNativeTarget "MathReefTests" */;
+			buildPhases = (
+				CC0000000000000000000033 /* Sources */,
+				CC0000000000000000000031 /* Frameworks */,
+				CC0000000000000000000035 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CC0000000000000000000051 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CC0000000000000000000021 /* MathReefTests */,
+			);
+			name = MathReefTests;
+			packageProductDependencies = (
+			);
+			productName = MathReefTests;
+			productReference = CC0000000000000000000011 /* MathReefTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -140,6 +225,13 @@
 					BF00000000000000000000C1 = {
 						CreatedOnToolsVersion = 26.4;
 						TestTargetID = BF00000000000000000000C0;
+					};
+					CC0000000000000000000040 = {
+						CreatedOnToolsVersion = 26.4;
+					};
+					CC0000000000000000000041 = {
+						CreatedOnToolsVersion = 26.4;
+						TestTargetID = CC0000000000000000000040;
 					};
 				};
 			};
@@ -162,6 +254,8 @@
 			targets = (
 				BF00000000000000000000C0 /* BiggerFish */,
 				BF00000000000000000000C1 /* BiggerFishTests */,
+				CC0000000000000000000040 /* MathReef */,
+				CC0000000000000000000041 /* MathReefTests */,
 			);
 		};
 /* End PBXProject section */
@@ -175,6 +269,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		BF00000000000000000000D5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000000000000000000034 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000000000000000000035 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -198,6 +306,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CC0000000000000000000032 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000000000000000000033 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -205,6 +327,11 @@
 			isa = PBXTargetDependency;
 			target = BF00000000000000000000C0 /* BiggerFish */;
 			targetProxy = BF00000000000000000000E0 /* PBXContainerItemProxy */;
+		};
+		CC0000000000000000000051 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CC0000000000000000000040 /* MathReef */;
+			targetProxy = CC0000000000000000000050 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -341,6 +468,96 @@
 			};
 			name = Release;
 		};
+		CC0000000000000000000060 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MKACSCQ588;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Math Reef";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kraigstrong.mathreef;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		CC0000000000000000000061 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MKACSCQ588;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Math Reef";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kraigstrong.mathreef;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		CC0000000000000000000063 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MKACSCQ588;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kraigstrong.mathreefTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MathReef.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MathReef";
+			};
+			name = Debug;
+		};
+		CC0000000000000000000064 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MKACSCQ588;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kraigstrong.mathreefTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MathReef.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MathReef";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -371,6 +588,24 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		CC0000000000000000000062 /* Build configuration list for PBXNativeTarget "MathReef" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000000000000000000060 /* Debug */,
+				CC0000000000000000000061 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CC0000000000000000000065 /* Build configuration list for PBXNativeTarget "MathReefTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000000000000000000063 /* Debug */,
+				CC0000000000000000000064 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -382,6 +617,11 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		BF00000000000000000000E3 /* FishKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BF00000000000000000000E4 /* XCLocalSwiftPackageReference "Packages/FishKit" */;
+			productName = FishKit;
+		};
+		CC0000000000000000000002 /* FishKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = BF00000000000000000000E4 /* XCLocalSwiftPackageReference "Packages/FishKit" */;
 			productName = FishKit;
