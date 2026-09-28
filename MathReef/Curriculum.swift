@@ -32,7 +32,7 @@ enum Curriculum {
         World(id: "addition", title: "Addition", levels: [addFacts, addNoCarry, addCarry]),
         World(id: "subtraction", title: "Subtraction", levels: [subFacts, subNoBorrow, subBorrow]),
         World(id: "addsub", title: "Mixed + −", levels: [
-            mixed("addsub.1", "Facts", addFacts, subFacts),
+            mixed("addsub.1", "Up to 20", addFacts, subFacts),
             mixed("addsub.2", "2-digit", addNoCarry, subNoBorrow),
             mixed("addsub.3", "Carry & borrow", addCarry, subBorrow),
         ]),
@@ -50,7 +50,7 @@ enum Curriculum {
     // MARK: Addition
 
     static let addFacts = Level(
-        id: "add.1", title: "Facts to 20",
+        id: "add.1", title: "Up to 20",
         facts: pairs(.add, [(9, 2), (9, 4), (9, 7), (8, 3), (8, 5), (8, 7), (7, 4), (7, 6), (6, 5), (6, 8), (5, 7), (4, 9)])
     )
     static let addNoCarry = Level(
@@ -65,7 +65,7 @@ enum Curriculum {
     // MARK: Subtraction
 
     static let subFacts = Level(
-        id: "sub.1", title: "Facts to 20",
+        id: "sub.1", title: "Up to 20",
         facts: pairs(.subtract, [(11, 2), (13, 4), (16, 7), (11, 3), (13, 5), (15, 7), (11, 4), (13, 6), (11, 5), (14, 8), (12, 7), (13, 9)])
     )
     static let subNoBorrow = Level(
