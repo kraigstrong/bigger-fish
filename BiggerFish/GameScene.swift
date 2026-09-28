@@ -1,3 +1,4 @@
+import FishKit
 import SpriteKit
 import UIKit
 
@@ -351,22 +352,11 @@ final class GameScene: SKScene {
     }
 
     private func movePlayer(_ p: Fish, _ dt: CGFloat) {
-        var vy = p.velocity.dy
-        vy += (isHolding ? T.riseAcceleration : -T.fallAcceleration) / zoom * dt
-        vy *= exp(-T.verticalDamping * dt)
-        vy = vy.clamped(-T.maxFallSpeed / zoom, T.maxRiseSpeed / zoom)
-
-        var y = p.position.y + vy * dt
-        let minY = waterBottom + p.radius * 0.95
-        let maxY = waterTop - p.radius * 0.95
-        if y < minY {
-            y = minY
-            if vy < 0 { vy = -vy * T.boundaryBounce }
-        } else if y > maxY {
-            y = maxY
-            if vy > 0 { vy = -vy * T.boundaryBounce }
-        }
-
+        let (y, vy) = PlayerMotion.step(
+            y: p.position.y, vy: p.velocity.dy, holding: isHolding, dt: dt,
+            minY: waterBottom + p.radius * 0.95, maxY: waterTop - p.radius * 0.95,
+            zoom: zoom, tuning: T.motion
+        )
         p.velocity = CGVector(dx: playerSpeed, dy: vy)
         p.position = CGPoint(x: world.wrap(p.position.x + playerSpeed * dt), y: y)
         p.facing = 1
@@ -481,7 +471,7 @@ final class GameScene: SKScene {
         swallows.append(Swallow(
             predatorID: predator.id,
             preyID: prey.id,
-            duration: GameRules.swallowDuration(sizeRatio: ratio),
+            duration: SwallowTiming.duration(sizeRatio: ratio, curve: T.swallowDurationCurve),
             ratio: ratio,
             startOffset: CGVector(
                 dx: world.delta(from: predator.position.x, to: prey.position.x),
@@ -581,10 +571,10 @@ final class GameScene: SKScene {
             let stretchY = stretch * (1 - f.squash) * f.shrink
 
             let rawTilt = f.isPlayer
-                ? f.velocity.dy * zoom / T.maxRiseSpeed * T.maxTilt
+                ? f.velocity.dy * zoom / T.motion.maxRiseSpeed * T.motion.maxTilt
                 : f.velocity.dy / level.aiVerticalSpeed * T.aiMaxTilt
             let facingSign: CGFloat = f.facing >= 0 ? 1 : -1
-            let tilt = rawTilt.clamped(-T.maxTilt, T.maxTilt) * facingSign
+            let tilt = rawTilt.clamped(-T.motion.maxTilt, T.motion.maxTilt) * facingSign
                 + f.struggle * sin(realClock * 45) * 0.35
 
             // Close calls chew: the mouth works while the prey struggles.
@@ -619,7 +609,7 @@ final class GameScene: SKScene {
         backgroundLayer.removeAllChildren()
         specks.removeAll()
 
-        let gradient = SKSpriteNode(texture: GameScene.gradientTexture())
+        let gradient = SKSpriteNode(texture: WaterTextures.gradient())
         gradient.anchorPoint = .zero
         gradient.size = size
         backgroundLayer.addChild(gradient)
@@ -631,7 +621,7 @@ final class GameScene: SKScene {
         backgroundLayer.addChild(surface)
 
         var speckRNG = SeededGenerator(seed: 7)
-        let dot = GameScene.dotTexture()
+        let dot = WaterTextures.dot()
         for _ in 0..<55 {
             let parallax = CGFloat.random(in: 0.15...0.7, using: &speckRNG)
             let node = SKSpriteNode(texture: dot)
@@ -759,27 +749,5 @@ final class GameScene: SKScene {
         label.verticalAlignmentMode = .center
         label.horizontalAlignmentMode = .center
         return label
-    }
-
-    private static func gradientTexture() -> SKTexture {
-        let size = CGSize(width: 4, height: 256)
-        let image = UIGraphicsImageRenderer(size: size).image { ctx in
-            let colors = [
-                UIColor(red: 0.20, green: 0.62, blue: 0.80, alpha: 1).cgColor,
-                UIColor(red: 0.08, green: 0.35, blue: 0.60, alpha: 1).cgColor,
-                UIColor(red: 0.03, green: 0.12, blue: 0.30, alpha: 1).cgColor,
-            ] as CFArray
-            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.5, 1])!
-            ctx.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
-        }
-        return SKTexture(image: image)
-    }
-
-    private static func dotTexture() -> SKTexture {
-        let image = UIGraphicsImageRenderer(size: CGSize(width: 16, height: 16)).image { ctx in
-            UIColor.white.setFill()
-            ctx.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: 16, height: 16))
-        }
-        return SKTexture(image: image)
     }
 }

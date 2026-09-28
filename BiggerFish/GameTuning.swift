@@ -1,21 +1,19 @@
 import CoreGraphics
+import FishKit
 
 /// Every feel-related constant lives here so it can be tweaked quickly between device runs.
 enum GameTuning {
     // MARK: Player movement
 
-    /// Upward acceleration while holding (pt/s²).
-    static let riseAcceleration: CGFloat = 1100
-    /// Downward acceleration while released (pt/s²).
-    static let fallAcceleration: CGFloat = 1200
-    /// Exponential vertical damping per second; keeps motion controllable rather than ballistic.
-    static let verticalDamping: CGFloat = 1.2
-    static let maxRiseSpeed: CGFloat = 250
-    static let maxFallSpeed: CGFloat = 250
-    /// Fraction of vertical speed reflected when touching the top or bottom of the water.
-    static let boundaryBounce: CGFloat = 0.15
-    /// Maximum nose-up / nose-down tilt in radians.
-    static let maxTilt: CGFloat = 0.35
+    static let motion = MotionTuning(
+        riseAcceleration: 1100,  // pt/s² while holding
+        fallAcceleration: 1200,  // pt/s² while released
+        verticalDamping: 1.2,    // per second; controllable rather than ballistic
+        maxRiseSpeed: 250,
+        maxFallSpeed: 250,
+        boundaryBounce: 0.15,    // fraction of speed reflected at the top/bottom of the water
+        maxTilt: 0.35            // radians
+    )
     /// Where the player sits horizontally on screen (fraction of width).
     static let playerScreenX: CGFloat = 0.30
 

@@ -1,19 +1,28 @@
 import SpriteKit
 
 /// Purely cosmetic variation. Nothing here correlates with size or affects gameplay.
-struct FishStyle {
-    enum Pattern: CaseIterable { case plain, spots, stripes }
-    enum Tail: CaseIterable { case fork, fan, point }
+public struct FishStyle {
+    public enum Pattern: CaseIterable { case plain, spots, stripes }
+    public enum Tail: CaseIterable { case fork, fan, point }
 
-    var body: SKColor
-    var accent: SKColor
-    var pattern: Pattern
-    var tail: Tail
-    var eyeScale: CGFloat
-    var hasDorsalFin: Bool
+    public var body: SKColor
+    public var accent: SKColor
+    public var pattern: Pattern
+    public var tail: Tail
+    public var eyeScale: CGFloat
+    public var hasDorsalFin: Bool
+
+    public init(body: SKColor, accent: SKColor, pattern: Pattern, tail: Tail, eyeScale: CGFloat, hasDorsalFin: Bool) {
+        self.body = body
+        self.accent = accent
+        self.pattern = pattern
+        self.tail = tail
+        self.eyeScale = eyeScale
+        self.hasDorsalFin = hasDorsalFin
+    }
 
     /// The player's warm orange is deliberately absent from the AI palette so it's easy to track.
-    static let player = FishStyle(
+    public static let player = FishStyle(
         body: SKColor(red: 1.00, green: 0.62, blue: 0.16, alpha: 1),
         accent: SKColor(red: 1.00, green: 0.84, blue: 0.40, alpha: 1),
         pattern: .plain,
@@ -33,7 +42,7 @@ struct FishStyle {
         (SKColor(red: 0.80, green: 0.80, blue: 0.92, alpha: 1), SKColor(red: 0.45, green: 0.45, blue: 0.70, alpha: 1)),
     ]
 
-    static func random(using rng: inout SeededGenerator) -> FishStyle {
+    public static func random(using rng: inout SeededGenerator) -> FishStyle {
         let colors = palette.randomElement(using: &rng)!
         return FishStyle(
             body: colors.body,
@@ -48,8 +57,8 @@ struct FishStyle {
 
 /// A cartoony fish drawn at a fixed reference radius and scaled to any gameplay radius.
 /// Faces +x; the rig is mirrored for left-facing fish.
-final class FishNode: SKNode {
-    static let referenceRadius: CGFloat = 30
+public final class FishNode: SKNode {
+    public static let referenceRadius: CGFloat = 30
 
     private let rig = SKNode()
     private let tail: SKShapeNode
@@ -57,7 +66,7 @@ final class FishNode: SKNode {
     private let mouthLine: SKShapeNode
     private let mouthGape: SKShapeNode
 
-    init(style: FishStyle, isPlayer: Bool, tailPhase: CGFloat) {
+    public init(style: FishStyle, isPlayer: Bool, tailPhase: CGFloat) {
         let R = FishNode.referenceRadius
         let outline = isPlayer ? SKColor.white : style.body.darkened(0.35)
         let lineWidth: CGFloat = isPlayer ? 3 : 2
@@ -163,13 +172,13 @@ final class FishNode: SKNode {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     /// - Parameters:
     ///   - facing: -1...1; negative mirrors the fish to face left.
     ///   - stretchX/stretchY: squash-and-stretch multipliers.
     ///   - mouthOpen: 0 closed ... 1 wide open.
-    func apply(radius: CGFloat, facing: CGFloat, tilt: CGFloat, stretchX: CGFloat, stretchY: CGFloat, mouthOpen: CGFloat, time: CGFloat, tailRate: CGFloat) {
+    public func apply(radius: CGFloat, facing: CGFloat, tilt: CGFloat, stretchX: CGFloat, stretchY: CGFloat, mouthOpen: CGFloat, time: CGFloat, tailRate: CGFloat) {
         let s = radius / FishNode.referenceRadius
         let flip = (facing < 0 ? -1 : 1) * max(abs(facing), 0.05)
         rig.xScale = s * stretchX * flip
@@ -239,7 +248,7 @@ final class FishNode: SKNode {
     }
 }
 
-extension SKColor {
+public extension SKColor {
     func darkened(_ amount: CGFloat) -> SKColor {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         getRed(&r, green: &g, blue: &b, alpha: &a)

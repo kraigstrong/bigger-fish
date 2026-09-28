@@ -1,31 +1,7 @@
 import CoreGraphics
+import FishKit
 import Testing
 @testable import BiggerFish
-
-struct WrappedWorldTests {
-    let world = WrappedWorld(width: 1000)
-
-    @Test func wrapsIntoRange() {
-        #expect(world.wrap(1010) == 10)
-        #expect(world.wrap(-10) == 990)
-        #expect(world.wrap(1000) == 0)
-        #expect(world.wrap(0) == 0)
-    }
-
-    @Test func shortestDeltaCrossesSeam() {
-        #expect(world.delta(from: 990, to: 10) == 20)
-        #expect(world.delta(from: 10, to: 990) == -20)
-        #expect(world.delta(from: 100, to: 300) == 200)
-        #expect(world.delta(from: 300, to: 100) == -200)
-    }
-
-    @Test func distanceCrossesSeam() {
-        let d = world.distance(CGPoint(x: 995, y: 0), CGPoint(x: 5, y: 0))
-        #expect(abs(d - 10) < 1e-9)
-        let diagonal = world.distance(CGPoint(x: 997, y: 0), CGPoint(x: 1, y: 3))
-        #expect(abs(diagonal - 5) < 1e-9)
-    }
-}
 
 struct SizeRuleTests {
     @Test func largerFishEats() {
@@ -47,10 +23,13 @@ struct SizeRuleTests {
     }
 
     @Test func closeSwallowsTakeLonger() {
-        #expect(abs(GameRules.swallowDuration(sizeRatio: 0.3) - 0.12) < 1e-9)
-        #expect(abs(GameRules.swallowDuration(sizeRatio: 0.75) - 0.30) < 1e-9)
-        #expect(GameRules.swallowDuration(sizeRatio: 0.97) > 0.65)
-        #expect(GameRules.swallowDuration(sizeRatio: 0.9) > GameRules.swallowDuration(sizeRatio: 0.6))
+        func duration(_ ratio: CGFloat) -> CGFloat {
+            SwallowTiming.duration(sizeRatio: ratio, curve: GameTuning.swallowDurationCurve)
+        }
+        #expect(abs(duration(0.3) - 0.12) < 1e-9)
+        #expect(abs(duration(0.75) - 0.30) < 1e-9)
+        #expect(duration(0.97) > 0.65)
+        #expect(duration(0.9) > duration(0.6))
     }
 }
 

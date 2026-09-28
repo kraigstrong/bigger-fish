@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		BF00000000000000000000E2 /* FishKit in Frameworks */ = {isa = PBXBuildFile; productRef = BF00000000000000000000E3 /* FishKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		BF00000000000000000000E0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -39,6 +43,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BF00000000000000000000E2 /* FishKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +95,7 @@
 			);
 			name = BiggerFish;
 			packageProductDependencies = (
+				BF00000000000000000000E3 /* FishKit */,
 			);
 			productName = BiggerFish;
 			productReference = BF00000000000000000000B0 /* BiggerFish.app */;
@@ -146,6 +152,9 @@
 			);
 			mainGroup = BF00000000000000000000A1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				BF00000000000000000000E4 /* XCLocalSwiftPackageReference "Packages/FishKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BF00000000000000000000A2 /* Products */;
 			projectDirPath = "";
@@ -363,6 +372,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		BF00000000000000000000E4 /* XCLocalSwiftPackageReference "Packages/FishKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/FishKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BF00000000000000000000E3 /* FishKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BF00000000000000000000E4 /* XCLocalSwiftPackageReference "Packages/FishKit" */;
+			productName = FishKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = BF00000000000000000000A0 /* Project object */;
 }

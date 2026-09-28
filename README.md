@@ -16,6 +16,19 @@ Unit tests (wrapping, size rules, growth, win detection):
 xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
+## Layout
+
+- `BiggerFish/` — the arcade game: campaign rules, levels, tuning, and scene.
+- `Packages/FishKit/` — shared fish engine, used by Bigger Fish and the upcoming education app:
+  the fish model and drawing, hold/release movement (`PlayerMotion` + `MotionTuning`), wrapped world,
+  seeded RNG, swallow timing, and water textures.
+
+FishKit tests:
+
+```bash
+cd Packages/FishKit && xcodebuild test -scheme FishKit -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
+
 ## Tuning
 
 Every feel constant — movement, growth, swallow timing, AI behavior, spawn distribution,
