@@ -29,6 +29,9 @@ final class GameScene: SKScene {
     private var nodes: [Int: FishNode] = [:]
     private var swallows: [Swallow] = []
     private var player: Fish!
+    private var levelIndex = 0
+    private var level: Level { T.levels[levelIndex] }
+    private var isFinalLevel: Bool { levelIndex == T.levels.count - 1 }
     private var rng = SeededGenerator(seed: T.spawnSeed)
 
     private let backgroundLayer = SKNode()
@@ -41,6 +44,7 @@ final class GameScene: SKScene {
     private let messageNode = SKNode()
     private let pauseButton = SKNode()
     private let pauseMenu = SKNode()
+    private let levelIndicator = SKNode()
     private var resumeButton = SKShapeNode()
     private var restartButton = SKShapeNode()
 
@@ -61,9 +65,16 @@ final class GameScene: SKScene {
     private let eatenHaptic = UIImpactFeedbackGenerator(style: .heavy)
     private let eatenNotification = UINotificationFeedbackGenerator()
 
-    private var waterBottom: CGFloat { T.waterBottomMargin }
-    private var waterTop: CGFloat { size.height - T.waterTopMargin }
-    private var playerSpeed: CGFloat { size.width / T.screenCrossSeconds }
+    /// Camera scale: 1 at the start of a run, easing toward `minZoom` as the player grows.
+    /// World y equals screen y at zoom 1; zooming out makes the water taller in world units.
+    private var zoom: CGFloat = 1
+    private var screenWaterBottom: CGFloat { T.waterBottomMargin }
+    private var screenWaterTop: CGFloat { size.height - T.waterTopMargin }
+    private var waterCenter: CGFloat { (screenWaterBottom + screenWaterTop) / 2 }
+    private var waterBottom: CGFloat { waterCenter - (waterCenter - screenWaterBottom) / zoom }
+    private var waterTop: CGFloat { waterCenter + (screenWaterTop - waterCenter) / zoom }
+    /// Player movement is defined in screen points, so it feels the same at any zoom.
+    private var playerSpeed: CGFloat { size.width / level.screenCrossSeconds / zoom }
     private var isHolding: Bool { !holdTouches.isEmpty }
 
     // MARK: - Lifecycle
@@ -87,6 +98,7 @@ final class GameScene: SKScene {
             uiLayer.addChild(messageNode)
             uiLayer.addChild(pauseButton)
             uiLayer.addChild(pauseMenu)
+            uiLayer.addChild(levelIndicator)
             NotificationCenter.default.addObserver(
                 self, selector: #selector(appWillResignActive),
                 name: UIApplication.willResignActiveNotification, object: nil
@@ -132,12 +144,14 @@ final class GameScene: SKScene {
         timeScale = 1
         slowMoRemaining = 0
         simClock = 0
+        zoom = 1
 
         world = WrappedWorld(width: size.width * T.worldScreens)
-        rng = SeededGenerator(seed: T.spawnSeed)
+        rng = SeededGenerator(seed: T.spawnSeed &+ UInt64(levelIndex))
         spawnEcosystem()
         lastCameraX = player.position.x
         setPhase(startPlaying ? .playing : .ready)
+        buildLevelIndicator()
         render()
     }
 
@@ -149,7 +163,7 @@ final class GameScene: SKScene {
         add(p, style: .player)
 
         var nextID = 1
-        for group in T.spawnGroups {
+        for group in level.spawnGroups {
             for _ in 0..<group.count {
                 let normalized = CGFloat.random(in: group.radii, using: &rng)
                 let r = normalized * base
@@ -157,7 +171,7 @@ final class GameScene: SKScene {
                 let f = Fish(id: nextID, isPlayer: false, position: pos, radius: r)
                 nextID += 1
                 f.heading = Bool.random(using: &rng) ? 1 : -1
-                f.cruiseSpeed = CGFloat.random(in: T.aiSpeedRange, using: &rng)
+                f.cruiseSpeed = CGFloat.random(in: level.aiSpeedRange, using: &rng)
                 f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
                 f.facing = f.heading
                 f.targetY = pos.y
@@ -203,11 +217,16 @@ final class GameScene: SKScene {
         pauseMenu.isHidden = newPhase != .paused
         switch newPhase {
         case .ready:
-            showMessage("Bigger Fish", lines: ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish."])
+            if levelIndex == 0 {
+                showMessage("Bigger Fish", lines: ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish."])
+            } else {
+                showMessage("Level \(levelIndex + 1)", lines: ["Eat smaller fish. Avoid bigger fish."])
+            }
         case .playing, .paused:
             hideMessage()
         case .won:
-            showMessage("Biggest fish.", lines: ["Tap to swim again."], delay: 0.9)
+            let next = isFinalLevel ? "You beat every level. Tap to start over." : "Tap for level \(levelIndex + 2)."
+            showMessage("Biggest fish.", lines: [next], delay: 0.9)
         case .lost:
             showMessage("There was a bigger fish.", lines: ["Tap to try again."], delay: 0.35)
         }
@@ -230,7 +249,7 @@ final class GameScene: SKScene {
         slowMoRemaining = T.winSlowDuration
         dimNode.run(.fadeAlpha(to: 0.35, duration: 0.6))
 
-        let glow = SKShapeNode(circleOfRadius: player.radius * 1.8)
+        let glow = SKShapeNode(circleOfRadius: player.radius * zoom * 1.8)
         glow.strokeColor = SKColor(white: 1, alpha: 0.8)
         glow.fillColor = .clear
         glow.lineWidth = 3
@@ -270,7 +289,12 @@ final class GameScene: SKScene {
                 } else if restartButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     resetGame(startPlaying: false)
                 }
-            case .won, .lost:
+            case .won:
+                if realClock - endedAt >= T.restartDelay {
+                    levelIndex = isFinalLevel ? 0 : levelIndex + 1
+                    resetGame(startPlaying: false)
+                }
+            case .lost:
                 if realClock - endedAt >= T.restartDelay {
                     resetGame(startPlaying: true)
                     holdTouches.insert(touch)
@@ -309,7 +333,7 @@ final class GameScene: SKScene {
             break
         }
 
-        let cameraDelta = world.delta(from: lastCameraX, to: player.position.x)
+        let cameraDelta = world.delta(from: lastCameraX, to: player.position.x) * zoom
         lastCameraX = player.position.x
         updateSpecks(realDt: phase == .paused ? 0 : realDt, cameraDelta: cameraDelta)
         render()
@@ -317,6 +341,7 @@ final class GameScene: SKScene {
 
     private func simulate(_ dt: CGFloat) {
         simClock += dt
+        updateZoom(dt)
         for f in fish where f.isAlive {
             if f.isPlayer { movePlayer(f, dt) } else { moveAI(f, dt) }
         }
@@ -327,9 +352,9 @@ final class GameScene: SKScene {
 
     private func movePlayer(_ p: Fish, _ dt: CGFloat) {
         var vy = p.velocity.dy
-        vy += (isHolding ? T.riseAcceleration : -T.fallAcceleration) * dt
+        vy += (isHolding ? T.riseAcceleration : -T.fallAcceleration) / zoom * dt
         vy *= exp(-T.verticalDamping * dt)
-        vy = vy.clamped(-T.maxFallSpeed, T.maxRiseSpeed)
+        vy = vy.clamped(-T.maxFallSpeed / zoom, T.maxRiseSpeed / zoom)
 
         var y = p.position.y + vy * dt
         let minY = waterBottom + p.radius * 0.95
@@ -345,6 +370,13 @@ final class GameScene: SKScene {
         p.velocity = CGVector(dx: playerSpeed, dy: vy)
         p.position = CGPoint(x: world.wrap(p.position.x + playerSpeed * dt), y: y)
         p.facing = 1
+    }
+
+    private func updateZoom(_ dt: CGFloat) {
+        guard player.isAlive else { return }
+        let growth = player.radius / (T.baseRadius * T.zoomStartSize)
+        let target = growth > 1 ? max(T.minZoom, pow(1 / growth, T.zoomExponent)) : 1
+        zoom += (target - zoom) * min(1, dt * T.zoomEase)
     }
 
     private func moveAI(_ f: Fish, _ dt: CGFloat) {
@@ -364,7 +396,7 @@ final class GameScene: SKScene {
             f.retargetTimer = CGFloat.random(in: T.aiRetargetRange, using: &rng)
         }
         f.targetY = f.targetY.clamped(minY, maxY)
-        let desiredVY = ((f.targetY - f.position.y) * 0.9).clamped(-T.aiVerticalSpeed, T.aiVerticalSpeed)
+        let desiredVY = ((f.targetY - f.position.y) * 0.9).clamped(-level.aiVerticalSpeed, level.aiVerticalSpeed)
             + sin(simClock * 1.3 + f.phase) * 8
         var vy = f.velocity.dy + (desiredVY - f.velocity.dy) * min(1, dt * 2)
 
@@ -388,6 +420,11 @@ final class GameScene: SKScene {
                 f.radius = f.growFrom + (f.targetRadius - f.growFrom) * eased
             }
             if f.pulse > 0 { f.pulse = max(0, f.pulse - dt) }
+            if case .swallowing = f.state {
+                f.mouth = min(1, f.mouth + dt / T.mouthOpenSeconds)
+            } else {
+                f.mouth = max(0, f.mouth - dt / T.mouthCloseSeconds)
+            }
         }
     }
 
@@ -485,6 +522,7 @@ final class GameScene: SKScene {
             let closeness = ((s.ratio - 0.7) / 0.3).clamped(0, 1)
             prey.struggle = closeness * (1 - t)
             predator.squash = closeness * 0.09 * sin(s.elapsed * 30) * (1 - t)
+            predator.chew = closeness * (1 - t)
 
             if t >= 1 { finished.append(i) }
         }
@@ -504,7 +542,10 @@ final class GameScene: SKScene {
 
         predator.state = .swimming
         predator.squash = 0
-        predator.targetRadius = GameRules.grownRadius(predator: predator.targetRadius, prey: prey.radius)
+        predator.chew = 0
+        predator.targetRadius = GameRules.grownRadius(
+            predator: predator.targetRadius, prey: prey.radius, efficiency: level.absorptionEfficiency
+        )
         predator.growFrom = predator.radius
         predator.growElapsed = 0
         predator.pulse = T.pulseDuration
@@ -526,11 +567,11 @@ final class GameScene: SKScene {
         let anchorX = size.width * T.playerScreenX
         for f in fish {
             guard let node = nodes[f.id] else { continue }
-            let screenX = anchorX + world.delta(from: cameraX, to: f.position.x)
-            let margin = f.radius * 3
+            let screenX = anchorX + world.delta(from: cameraX, to: f.position.x) * zoom
+            let margin = f.radius * zoom * 3
             node.isHidden = screenX < -margin || screenX > size.width + margin
             if node.isHidden { continue }
-            node.position = CGPoint(x: screenX, y: f.position.y)
+            node.position = CGPoint(x: screenX, y: waterCenter + (f.position.y - waterCenter) * zoom)
 
             var stretch: CGFloat = 1
             if f.pulse > 0 {
@@ -540,15 +581,18 @@ final class GameScene: SKScene {
             let stretchY = stretch * (1 - f.squash) * f.shrink
 
             let rawTilt = f.isPlayer
-                ? f.velocity.dy / T.maxRiseSpeed * T.maxTilt
-                : f.velocity.dy / T.aiVerticalSpeed * T.aiMaxTilt
+                ? f.velocity.dy * zoom / T.maxRiseSpeed * T.maxTilt
+                : f.velocity.dy / level.aiVerticalSpeed * T.aiMaxTilt
             let facingSign: CGFloat = f.facing >= 0 ? 1 : -1
             let tilt = rawTilt.clamped(-T.maxTilt, T.maxTilt) * facingSign
                 + f.struggle * sin(realClock * 45) * 0.35
 
+            // Close calls chew: the mouth works while the prey struggles.
+            let mouth = f.mouth * (1 - 0.35 * f.chew * (0.5 + 0.5 * sin(realClock * 38)))
+
             node.apply(
-                radius: f.radius, facing: f.facing, tilt: tilt,
-                stretchX: stretchX, stretchY: stretchY,
+                radius: f.radius * zoom, facing: f.facing, tilt: tilt,
+                stretchX: stretchX, stretchY: stretchY, mouthOpen: mouth,
                 time: realClock, tailRate: f.isPlayer ? 14 : 9
             )
         }
@@ -582,7 +626,7 @@ final class GameScene: SKScene {
 
         let surface = SKSpriteNode(color: SKColor(white: 1, alpha: 0.22), size: CGSize(width: size.width, height: 2))
         surface.anchorPoint = .zero
-        surface.position = CGPoint(x: 0, y: waterTop + 4)
+        surface.position = CGPoint(x: 0, y: screenWaterTop + 4)
         surface.zPosition = 1
         backgroundLayer.addChild(surface)
 
@@ -610,6 +654,24 @@ final class GameScene: SKScene {
         messageNode.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
         buildPauseButton()
         buildPauseMenu()
+    }
+
+    /// Small "Level N" label with one pip per level, top-left.
+    private func buildLevelIndicator() {
+        levelIndicator.removeAllChildren()
+        let text = label("LEVEL \(levelIndex + 1)", fontSize: 13, heavy: true)
+        text.horizontalAlignmentMode = .left
+        text.alpha = 0.75
+        levelIndicator.addChild(text)
+        for i in 0..<T.levels.count {
+            let pip = SKShapeNode(circleOfRadius: 3.5)
+            pip.position = CGPoint(x: text.frame.width + 14 + CGFloat(i) * 11, y: 0)
+            pip.fillColor = i <= levelIndex ? SKColor(white: 1, alpha: 0.8) : .clear
+            pip.strokeColor = SKColor(white: 1, alpha: 0.5)
+            pip.lineWidth = 1
+            levelIndicator.addChild(pip)
+        }
+        levelIndicator.position = CGPoint(x: 64, y: size.height - 36)
     }
 
     private func buildPauseButton() {

@@ -54,12 +54,43 @@ final class FishNode: SKNode {
     private let rig = SKNode()
     private let tail: SKShapeNode
     private let tailPhase: CGFloat
+    private let mouthLine: SKShapeNode
+    private let mouthGape: SKShapeNode
 
     init(style: FishStyle, isPlayer: Bool, tailPhase: CGFloat) {
         let R = FishNode.referenceRadius
         let outline = isPlayer ? SKColor.white : style.body.darkened(0.35)
         let lineWidth: CGFloat = isPlayer ? 3 : 2
         self.tailPhase = tailPhase
+
+        let mouthPath = CGMutablePath()
+        mouthPath.move(to: CGPoint(x: 1.32 * R, y: -0.1 * R))
+        mouthPath.addQuadCurve(to: CGPoint(x: 1.0 * R, y: -0.25 * R), control: CGPoint(x: 1.2 * R, y: -0.28 * R))
+        mouthLine = SKShapeNode(path: mouthPath)
+        mouthLine.strokeColor = SKColor(white: 0.05, alpha: 0.8)
+        mouthLine.lineWidth = 2.5
+        mouthLine.lineCap = .round
+        mouthLine.zPosition = 3
+
+        // An open mouth is a jaw-like wedge cut into the nose, hinged at its inner point and
+        // scaled vertically by how open it is.
+        let gapePath = CGMutablePath()
+        gapePath.move(to: .zero)
+        gapePath.addLine(to: CGPoint(x: 0.68 * R, y: 0.26 * R))
+        gapePath.addQuadCurve(to: CGPoint(x: 0.68 * R, y: -0.36 * R), control: CGPoint(x: 0.82 * R, y: -0.05 * R))
+        gapePath.closeSubpath()
+        mouthGape = SKShapeNode(path: gapePath)
+        mouthGape.position = CGPoint(x: 0.74 * R, y: -0.14 * R)
+        mouthGape.fillColor = SKColor(red: 0.18, green: 0.03, blue: 0.08, alpha: 1)
+        mouthGape.strokeColor = outline
+        mouthGape.lineWidth = lineWidth
+        mouthGape.zPosition = 3
+        mouthGape.isHidden = true
+        let throat = SKShapeNode(ellipseOf: CGSize(width: 0.3 * R, height: 0.2 * R))
+        throat.position = CGPoint(x: 0.42 * R, y: -0.08 * R)
+        throat.fillColor = SKColor(red: 0.85, green: 0.35, blue: 0.45, alpha: 1)
+        throat.strokeColor = .clear
+        mouthGape.addChild(throat)
 
         tail = SKShapeNode(path: FishNode.tailPath(style.tail, R))
         tail.fillColor = style.accent
@@ -127,15 +158,8 @@ final class FishNode: SKNode {
         pupil.strokeColor = .clear
         eye.addChild(pupil)
 
-        let mouthPath = CGMutablePath()
-        mouthPath.move(to: CGPoint(x: 1.32 * R, y: -0.1 * R))
-        mouthPath.addQuadCurve(to: CGPoint(x: 1.0 * R, y: -0.25 * R), control: CGPoint(x: 1.2 * R, y: -0.28 * R))
-        let mouth = SKShapeNode(path: mouthPath)
-        mouth.strokeColor = SKColor(white: 0.05, alpha: 0.8)
-        mouth.lineWidth = 2.5
-        mouth.lineCap = .round
-        mouth.zPosition = 3
-        rig.addChild(mouth)
+        rig.addChild(mouthLine)
+        rig.addChild(mouthGape)
     }
 
     @available(*, unavailable)
@@ -144,13 +168,19 @@ final class FishNode: SKNode {
     /// - Parameters:
     ///   - facing: -1...1; negative mirrors the fish to face left.
     ///   - stretchX/stretchY: squash-and-stretch multipliers.
-    func apply(radius: CGFloat, facing: CGFloat, tilt: CGFloat, stretchX: CGFloat, stretchY: CGFloat, time: CGFloat, tailRate: CGFloat) {
+    ///   - mouthOpen: 0 closed ... 1 wide open.
+    func apply(radius: CGFloat, facing: CGFloat, tilt: CGFloat, stretchX: CGFloat, stretchY: CGFloat, mouthOpen: CGFloat, time: CGFloat, tailRate: CGFloat) {
         let s = radius / FishNode.referenceRadius
         let flip = (facing < 0 ? -1 : 1) * max(abs(facing), 0.05)
         rig.xScale = s * stretchX * flip
         rig.yScale = s * stretchY
         rig.zRotation = tilt
         tail.zRotation = sin(time * tailRate + tailPhase) * 0.28
+
+        mouthGape.isHidden = mouthOpen < 0.03
+        mouthGape.yScale = max(mouthOpen, 0.01)
+        mouthGape.xScale = 0.8 + 0.2 * mouthOpen
+        mouthLine.isHidden = mouthOpen > 0.3
     }
 
     private static func tailPath(_ tail: FishStyle.Tail, _ R: CGFloat) -> CGPath {
