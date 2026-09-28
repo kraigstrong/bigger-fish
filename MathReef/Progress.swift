@@ -1,7 +1,8 @@
 import Foundation
 
 // Passing a level: answer every question in a round and get at least 90% right
-// (right answers out of tries). Passing unlocks the next level in the world.
+// (right answers out of tries). Passing unlocks the next level in the world. Checkpoint levels are
+// skip tests: always playable, and passing one also passes every level before it.
 
 enum PassRule {
     static let requiredAccuracy = 0.9
@@ -43,21 +44,32 @@ final class ProgressStore {
         records[level.id] ?? LevelRecord()
     }
 
-    /// Saves a finished round; returns true if it passed. A pass is never taken away.
+    /// Saves a finished round; returns true if it passed. A pass is never taken away. Passing a
+    /// checkpoint also passes every earlier level in the world.
     @discardableResult
-    func finishRound(_ level: Level, correct: Int, attempts: Int) -> Bool {
+    func finishRound(_ index: Int, in world: World, correct: Int, attempts: Int) -> Bool {
+        let level = world.levels[index]
         var record = record(for: level)
         let passed = PassRule.passes(correct: correct, attempts: attempts)
         record.passed = record.passed || passed
         record.bestPercent = max(record.bestPercent, PassRule.percent(correct: correct, attempts: attempts))
         record.hasPlayed = true
         records[level.id] = record
+        if passed && level.isCheckpoint {
+            for earlier in world.levels.prefix(index) { records[earlier.id, default: LevelRecord()].passed = true }
+        }
         if let data = try? JSONEncoder().encode(records) { defaults.set(data, forKey: key) }
         return passed
     }
 
-    /// The first level of a world is always open; each later level needs the previous one passed.
+    /// Open if it's the first level, the previous level is passed, or it's a checkpoint (skip test).
     func isUnlocked(_ index: Int, in world: World) -> Bool {
-        index == 0 || (world.levels.indices.contains(index - 1) && record(for: world.levels[index - 1]).passed)
+        guard world.levels.indices.contains(index) else { return false }
+        return index == 0 || world.levels[index].isCheckpoint || record(for: world.levels[index - 1]).passed
+    }
+
+    /// Unlocked only because it's a checkpoint: playing it is a skip test.
+    func isSkipTest(_ index: Int, in world: World) -> Bool {
+        world.levels[index].isCheckpoint && index > 0 && !record(for: world.levels[index - 1]).passed
     }
 }

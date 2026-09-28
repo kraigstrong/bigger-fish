@@ -31,6 +31,8 @@ enum ReefTuning {
     // MARK: Sessions and answers
 
     static let requeueGap = 2
+    /// Questions from earlier levels in the world mixed into each round (about 70% new, 30% review).
+    static let reviewPerRound = 3
     /// Slower forward speed than Bigger Fish so there is time to read.
     static let screenCrossSeconds: CGFloat = 4.0
     /// Answer fish are all the same size and clearly smaller than the player.
@@ -229,6 +231,7 @@ final class PracticeScene: SKScene {
                 let unlocked = store.isUnlocked(index, in: world)
                 let record = store.record(for: level)
                 let status = record.passed ? "Passed · best \(record.bestPercent)%"
+                    : store.isSkipTest(index, in: world) ? "Skip test"
                     : !unlocked ? "Locked"
                     : record.hasPlayed ? "Best \(record.bestPercent)%"
                     : "New"
@@ -264,7 +267,13 @@ final class PracticeScene: SKScene {
         playerNode?.removeFromParent()
         // Fresh each round so order, lanes, and colors can't be memorized across replays.
         rng = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
-        session = PracticeSession(level: level, requeueGap: L.requeueGap, using: &rng)
+        session = PracticeSession(
+            level: level,
+            review: world.reviewPool(before: levelIndex),
+            reviewCount: level.isCheckpoint ? 0 : L.reviewPerRound,
+            requeueGap: L.requeueGap,
+            using: &rng
+        )
         timeScale = 1
 
         player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: size.height / 2), radius: L.playerRadius)
@@ -282,6 +291,7 @@ final class PracticeScene: SKScene {
         let lines: [PanelLine] = level.intro.map { line in
             line.hasPrefix("= ") ? (String(line.dropFirst(2)), 26, true) : (line, 19, false)
         } + [("Get 90% right to pass.", 18, false)]
+            + (store.isSkipTest(levelIndex, in: world) ? [("Passing this skips the levels before it.", 18, false)] : [])
         showPanel(
             title: "Level \(levelIndex + 1): \(level.title)",
             lines: lines,
@@ -410,9 +420,12 @@ final class PracticeScene: SKScene {
         let result = session.result
         let hasNext = levelIndex + 1 < world.levels.count
         let alreadyUnlocked = hasNext && store.isUnlocked(levelIndex + 1, in: world)
-        let passed = store.finishRound(level, correct: result.correctAnswers, attempts: result.totalAttempts)
+        let wasSkipTest = store.isSkipTest(levelIndex, in: world)
+        let passed = store.finishRound(levelIndex, in: world, correct: result.correctAnswers, attempts: result.totalAttempts)
         let outcome: String
-        if passed {
+        if passed && wasSkipTest {
+            outcome = "You skipped ahead!"
+        } else if passed {
             outcome = !hasNext ? "\(world.title) complete!" : alreadyUnlocked ? "Next level is open." : "Level \(levelIndex + 2) unlocked!"
         } else {
             outcome = "Get 90% to pass."
@@ -688,7 +701,7 @@ final class PracticeScene: SKScene {
         progressLabel.removeAllChildren()
         let result = session.result
         // Short enough to stay clear of the top-center prompt.
-        var text = "\(world.title.uppercased()) \(levelIndex + 1)  ·  \(result.correctAnswers)/\(level.roundLength)"
+        var text = "\(world.title.uppercased()) \(levelIndex + 1)  ·  \(result.correctAnswers)/\(session.targetCorrect)"
         if session.streak >= 2 { text += "   ·   streak \(session.streak)" }
         let label = label(text, fontSize: 14, heavy: true)
         label.horizontalAlignmentMode = .left
@@ -810,12 +823,16 @@ final class PracticeScene: SKScene {
         subtitleLabel.position = CGPoint(x: 0, y: panelHeight / 2 - 68)
         panel.addChild(subtitleLabel)
 
-        let columns = min(4, max(1, items.count))
+        // Worlds with many levels use a denser grid (until the reef map, issue #5, replaces this).
+        let compact = items.count > 8
+        let columns = items.count <= 4 ? max(1, items.count) : items.count <= 6 ? 3 : compact ? 5 : 4
         let rows = (items.count + columns - 1) / columns
-        let gap: CGFloat = 12, cardHeight: CGFloat = 64
+        let gap: CGFloat = compact ? 8 : 12, cardHeight: CGFloat = compact ? 50 : 64
         let cardWidth = min(200, (panelWidth - 40 - CGFloat(columns - 1) * gap) / CGFloat(columns))
         let gridHeight = CGFloat(rows) * cardHeight + CGFloat(rows - 1) * gap
-        let gridTop = (back == nil ? 0 : 22) + gridHeight / 2 - 8
+        // Centered between the subtitle and the Back button (or the panel bottom).
+        let gridCenter = ((panelHeight / 2 - 82) + (-panelHeight / 2 + (back == nil ? 20 : 58))) / 2
+        let gridTop = gridCenter + gridHeight / 2
 
         for (index, item) in items.enumerated() {
             let row = index / columns, column = index % columns
@@ -830,14 +847,14 @@ final class PracticeScene: SKScene {
             card.fillColor = SKColor(white: 1, alpha: item.enabled ? 0.92 : 0.18)
             card.strokeColor = .clear
             let textColor = item.enabled ? SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1) : SKColor(white: 1, alpha: 0.7)
-            let name = label(item.title, fontSize: 18, heavy: true, color: textColor)
+            let name = label(item.title, fontSize: compact ? 15 : 18, heavy: true, color: textColor)
             name.setScale(min(1, (cardWidth - 16) / max(name.frame.width, 1)))
-            name.position = CGPoint(x: 0, y: 10)
+            name.position = CGPoint(x: 0, y: compact ? 8 : 10)
             name.zPosition = 1
             card.addChild(name)
-            let status = label(item.subtitle, fontSize: 13, heavy: false, color: textColor.withAlphaComponent(0.8))
+            let status = label(item.subtitle, fontSize: compact ? 11 : 13, heavy: false, color: textColor.withAlphaComponent(0.8))
             status.setScale(min(1, (cardWidth - 16) / max(status.frame.width, 1)))
-            status.position = CGPoint(x: 0, y: -14)
+            status.position = CGPoint(x: 0, y: compact ? -11 : -14)
             status.zPosition = 1
             card.addChild(status)
             panel.addChild(card)

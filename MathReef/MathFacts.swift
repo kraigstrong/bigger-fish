@@ -56,13 +56,18 @@ struct Fact: Hashable {
     /// (forgetting to carry, adding instead of multiplying, 4² → 8, ...).
     var wrongCandidates: [Int] {
         let n = answer
+        // Place-value slips (forgetting to carry, flipping digits, off by ten) only make sense for real
+        // 2-digit work like 27 + 15 or 43 − 8, not 7 + 2 or 13 − 4.
+        let twoDigit = (op == .add && a >= 10) || (op == .subtract && a >= 20)
         switch op {
         case .add:
             let noCarry = (a / 10 + b / 10) * 10 + (a % 10 + b % 10) % 10
-            return [noCarry, n + 1, n - 1, n + 2, n - 2, n + 10, n - 10, abs(a - b)]
+            let slips = twoDigit ? [noCarry, n + 10, n - 10] : []
+            return slips + [n + 1, n - 1, n + 2, n - 2, abs(a - b)]
         case .subtract:
             let smallerFromLarger = (a / 10 - b / 10) * 10 + abs(a % 10 - b % 10)
-            return [smallerFromLarger, a + b, n + 1, n - 1, n + 2, n - 2, n + 10, n - 10]
+            let slips = twoDigit ? [smallerFromLarger, n + 10, n - 10] : []
+            return slips + [a + b, n + 1, n - 1, n + 2, n - 2]
         case .multiply:
             return [a + b, a * (b + 1), a * (b - 1), (a + 1) * b, (a - 1) * b, n + 1, n - 1]
         case .divide:
