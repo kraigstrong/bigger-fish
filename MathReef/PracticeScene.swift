@@ -30,7 +30,6 @@ enum ReefTuning {
 
     // MARK: Sessions and answers
 
-    static let targetCorrect = 10
     static let requeueGap = 2
     /// Slower forward speed than Bigger Fish so there is time to read.
     static let screenCrossSeconds: CGFloat = 4.0
@@ -67,7 +66,7 @@ private final class AnswerFish {
     let node: FishNode
     let numberLabel: SKNode
     let value: Int
-    let kind: AnswerKind
+    let isCorrect: Bool
     var baseY: CGFloat
     var swimSpeed: CGFloat = 0
     var bobAmplitude: CGFloat = 0
@@ -79,7 +78,7 @@ private final class AnswerFish {
         self.node = node
         self.numberLabel = numberLabel
         self.value = choice.value
-        self.kind = choice.kind
+        self.isCorrect = choice.isCorrect
         self.baseY = 0
     }
 }
@@ -114,13 +113,12 @@ final class PracticeScene: SKScene {
     private var level: Level { world.levels[levelIndex] }
     private var session = PracticeSession(facts: [], pool: [])
     private var currentFact: Fact?
-    private var masteredThisSession = false
     private var rng = SeededGenerator(seed: 0)
     private var player: Fish!
     private var playerNode: FishNode!
     private var answers: [AnswerFish] = []
     private var swallow: LabSwallow?
-    private var lastKind: AnswerKind = .correct
+    private var lastCorrect = true
     private var chosenValue = 0
     private var feedbackRemaining: CGFloat = 0
     private var sessionStart: CGFloat = 0
@@ -206,10 +204,10 @@ final class PracticeScene: SKScene {
             subtitle: "Pick a world.",
             items: Curriculum.worlds.indices.map { index in
                 let world = Curriculum.worlds[index]
-                let mastered = world.levels.filter { store.progress(for: $0).mastered }.count
+                let passed = world.levels.filter { store.record(for: $0).passed }.count
                 return MenuItem(
                     title: world.title,
-                    subtitle: world.comingSoon ? "Coming soon" : "\(mastered)/\(world.levels.count) mastered",
+                    subtitle: world.comingSoon ? "Coming soon" : "\(passed)/\(world.levels.count) passed",
                     enabled: !world.comingSoon
                 ) { [weak self] in
                     self?.worldIndex = index
@@ -225,15 +223,15 @@ final class PracticeScene: SKScene {
         enterMenu(.world)
         showMenu(
             title: world.title,
-            subtitle: "Master each level to unlock the next.",
+            subtitle: "Get 90% on a level to unlock the next one.",
             items: world.levels.indices.map { index in
                 let level = world.levels[index]
                 let unlocked = store.isUnlocked(index, in: world)
-                let progress = store.progress(for: level)
-                let coverage = Mastery.coverage(progress, level: level)
-                let status = progress.mastered ? "Mastered"
-                    : !unlocked ? "Master level \(index) first"
-                    : "Facts \(coverage.done)/\(coverage.total)"
+                let record = store.record(for: level)
+                let status = record.passed ? "Passed · best \(record.bestPercent)%"
+                    : !unlocked ? "Locked"
+                    : record.hasPlayed ? "Best \(record.bestPercent)%"
+                    : "New"
                 return MenuItem(title: "\(index + 1) · \(level.title)", subtitle: status, enabled: unlocked) { [weak self] in
                     self?.levelIndex = index
                     self?.showInstructions()
@@ -264,14 +262,9 @@ final class PracticeScene: SKScene {
     private func resetSession() {
         clearWave()
         playerNode?.removeFromParent()
-        // Facts not yet answered correctly enough come first.
-        let progress = store.progress(for: level)
-        let priority = Set(level.facts.map(\.id).filter { progress.correctCounts[$0, default: 0] < Mastery.correctPerFact })
-        // Fresh each session so order, lanes, and colors can't be memorized across replays.
+        // Fresh each round so order, lanes, and colors can't be memorized across replays.
         rng = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
-        session = PracticeSession(level: level, targetCorrect: L.targetCorrect, requeueGap: L.requeueGap,
-                                  priority: priority, using: &rng)
-        masteredThisSession = false
+        session = PracticeSession(level: level, requeueGap: L.requeueGap, using: &rng)
         timeScale = 1
 
         player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: size.height / 2), radius: L.playerRadius)
@@ -288,22 +281,13 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = false
         let lines: [PanelLine] = level.intro.map { line in
             line.hasPrefix("= ") ? (String(line.dropFirst(2)), 26, true) : (line, 19, false)
-        } + [masteryLine]
+        } + [("Get 90% right to pass.", 18, false)]
         showPanel(
             title: "Level \(levelIndex + 1): \(level.title)",
             lines: lines,
             buttons: [("Start", { [weak self] in self?.startSession() })]
         )
         render()
-    }
-
-    /// "Mastered" or current progress toward mastery.
-    private var masteryLine: PanelLine {
-        let progress = store.progress(for: level)
-        if progress.mastered { return ("Mastered", 17, true) }
-        let coverage = Mastery.coverage(progress, level: level)
-        let recent = Mastery.recentAccuracy(progress)
-        return ("Mastery: facts \(coverage.done)/\(coverage.total) · last \(Mastery.window): \(recent.correct)/\(recent.of)", 16, false)
     }
 
     private func nextLevel() {
@@ -333,7 +317,7 @@ final class PracticeScene: SKScene {
 
         // Lanes, distance ahead, speed, and bob are all random per fish, so none of them predicts
         // correctness.
-        let choices = fact.choices(keyMistake: level.keyMistake(for: fact), using: &rng)
+        let choices = fact.choices(using: &rng)
         let lanes = Array(L.laneFractions.indices).shuffled(using: &rng)
         for (choice, lane) in zip(choices, lanes) {
             let f = Fish(id: nextID, isPlayer: false, position: .zero, radius: L.answerRadius)
@@ -375,22 +359,20 @@ final class PracticeScene: SKScene {
 
     private func resolve(_ answer: AnswerFish) {
         guard let fact = currentFact else { return }
-        lastKind = answer.kind
+        lastCorrect = answer.isCorrect
         chosenValue = answer.value
-        session.record(answer.kind)
-        if store.record(answer.kind, fact: fact, level: level) { masteredThisSession = true }
+        session.record(correct: answer.isCorrect)
         phase = .feedback
         updateProgress()
 
         for other in answers where other !== answer { fadeOut(other) }
 
-        switch lastKind {
-        case .correct:
+        if lastCorrect {
             beginSwallow(answer, failing: false)
             positiveHaptic.notificationOccurred(.success)
             feedbackRemaining = L.correctFeedbackSeconds
             showPanel(title: "Yes!", lines: [(fact.solution, 28, true)], buttons: [], style: .correct)
-        case .keyMistake, .otherMistake:
+        } else {
             // The wrong-answer panel appears when the fish is spat out (see `spit`).
             beginSwallow(answer, failing: true)
             gentleHaptic.impactOccurred(intensity: 0.4)
@@ -398,7 +380,7 @@ final class PracticeScene: SKScene {
         }
     }
 
-    /// Identical for every wrong answer; the summary still counts key mistakes separately.
+    /// Identical for every wrong answer.
     private func showWrongFeedback() {
         guard let fact = currentFact else { return }
         let lines = fact.wrongAnswerFeedback(chosen: chosenValue)
@@ -425,38 +407,42 @@ final class PracticeScene: SKScene {
         updateProgress()
         closeButton.isHidden = true
 
-        var result = session.result
-        result.elapsedTime = TimeInterval(realClock - sessionStart)
-        let seconds = Int(result.elapsedTime.rounded())
-        var lines: [PanelLine] = [
-            ("\(result.correctAnswers) correct · \(result.totalAttempts) attempts · \(Int((result.accuracy * 100).rounded()))%", 20, true),
-            ("\(level.keyMistakeName): \(result.keyMistakes)", 18, false),
-            ("Other mistakes: \(result.otherMistakes)", 18, false),
-            ("Time: \(seconds / 60):\(String(format: "%02d", seconds % 60))", 18, false),
-        ]
-        if masteredThisSession {
-            let unlocked = levelIndex + 1 < world.levels.count ? "Level \(levelIndex + 2) unlocked!" : "\(world.title) complete!"
-            lines.append(("Level mastered! \(unlocked)", 22, true))
+        let result = session.result
+        let hasNext = levelIndex + 1 < world.levels.count
+        let alreadyUnlocked = hasNext && store.isUnlocked(levelIndex + 1, in: world)
+        let passed = store.finishRound(level, correct: result.correctAnswers, attempts: result.totalAttempts)
+        let outcome: String
+        if passed {
+            outcome = !hasNext ? "\(world.title) complete!" : alreadyUnlocked ? "Next level is open." : "Level \(levelIndex + 2) unlocked!"
         } else {
-            lines.append(masteryLine)
+            outcome = "Get 90% to pass."
         }
         showPanel(
-            title: masteredThisSession ? "Mastered!" : "Level \(levelIndex + 1) complete",
-            lines: lines,
-            buttons: summaryButtons,
+            title: passed ? "Level passed!" : "Keep practicing",
+            lines: [
+                ("\(result.percent)%", 56, true),
+                ("\(result.correctAnswers) of \(result.totalAttempts) right", 20, false),
+                (outcome, 20, true),
+            ],
+            buttons: summaryButtons(passed: passed),
             centerX: size.width / 2,
-            style: masteredThisSession ? .correct : .neutral
+            style: passed ? .correct : .neutral
         )
     }
 
-    private var summaryButtons: [(title: String, action: () -> Void)] {
-        var list: [(title: String, action: () -> Void)] = []
-        if levelIndex + 1 < world.levels.count && store.isUnlocked(levelIndex + 1, in: world) {
-            list.append(("Next: \(world.levels[levelIndex + 1].title)", { [weak self] in self?.nextLevel() }))
+    private func summaryButtons(passed: Bool) -> [(title: String, action: () -> Void)] {
+        let hasNext = levelIndex + 1 < world.levels.count
+        if passed && hasNext {
+            return [
+                ("Next level", { [weak self] in self?.nextLevel() }),
+                ("Play again", { [weak self] in self?.replay() }),
+                ("Levels", { [weak self] in self?.showWorld() }),
+            ]
         }
-        list.append(("Play Again", { [weak self] in self?.replay() }))
-        list.append(("Levels", { [weak self] in self?.showWorld() }))
-        return list
+        return [
+            (passed ? "Play again" : "Try again", { [weak self] in self?.replay() }),
+            ("Levels", { [weak self] in self?.showWorld() }),
+        ]
     }
 
     // MARK: - Input
@@ -495,7 +481,7 @@ final class PracticeScene: SKScene {
         realClock += realDt
 
         // Wrong answers: the struggle plays at full speed, then gameplay slows while the panel shows.
-        let slow = phase == .feedback && lastKind != .correct && swallow == nil
+        let slow = phase == .feedback && !lastCorrect && swallow == nil
         let targetScale = slow ? L.incorrectTimeScale : 1
         timeScale += (targetScale - timeScale) * min(1, realDt * 8)
 
@@ -702,7 +688,7 @@ final class PracticeScene: SKScene {
         progressLabel.removeAllChildren()
         let result = session.result
         // Short enough to stay clear of the top-center prompt.
-        var text = "\(world.title.uppercased()) \(levelIndex + 1)  ·  \(result.correctAnswers)/\(L.targetCorrect) correct"
+        var text = "\(world.title.uppercased()) \(levelIndex + 1)  ·  \(result.correctAnswers)/\(level.roundLength)"
         if session.streak >= 2 { text += "   ·   streak \(session.streak)" }
         let label = label(text, fontSize: 14, heavy: true)
         label.horizontalAlignmentMode = .left

@@ -3,18 +3,13 @@ import Foundation
 struct SessionResult: Equatable {
     var correctAnswers = 0
     var totalAttempts = 0
-    var keyMistakes = 0
-    var otherMistakes = 0
-    var elapsedTime: TimeInterval = 0
 
-    /// 0...1
-    var accuracy: Double {
-        totalAttempts == 0 ? 0 : Double(correctAnswers) / Double(totalAttempts)
-    }
+    var percent: Int { PassRule.percent(correct: correctAnswers, attempts: totalAttempts) }
+    var passed: Bool { PassRule.passes(correct: correctAnswers, attempts: totalAttempts) }
 }
 
-/// One short play session in a level: ends after `targetCorrect` correct answers.
-/// Missed facts return after at least `requeueGap` other facts.
+/// One round of a level: every fact at least once (and at least `Level.minimumRound` questions).
+/// It ends once `targetCorrect` answers are right; missed facts return after `requeueGap` others.
 struct PracticeSession {
     let targetCorrect: Int
     let requeueGap: Int
@@ -25,13 +20,10 @@ struct PracticeSession {
     private let pool: [Fact]
     private var fillerCursor = 0
 
-    /// Deals from shuffled decks, with `priority` facts (not yet mastered) first in the first deck.
-    init<G: RandomNumberGenerator>(
-        level: Level, targetCorrect: Int = 10, requeueGap: Int = 2, priority: Set<String> = [], using rng: inout G
-    ) {
+    init<G: RandomNumberGenerator>(level: Level, requeueGap: Int = 2, using rng: inout G) {
         self.init(
-            facts: Self.dealOrder(level.facts, count: targetCorrect, priority: priority, using: &rng),
-            pool: level.facts, targetCorrect: targetCorrect, requeueGap: requeueGap
+            facts: Self.dealOrder(level.facts, count: level.roundLength, using: &rng),
+            pool: level.facts, targetCorrect: level.roundLength, requeueGap: requeueGap
         )
     }
 
@@ -47,38 +39,24 @@ struct PracticeSession {
     var current: Fact? { isComplete ? nil : upcoming.first }
 
     /// Records an attempt at the current fact and advances the queue.
-    mutating func record(_ kind: AnswerKind) {
+    mutating func record(correct: Bool) {
         guard let fact = current else { return }
         result.totalAttempts += 1
         upcoming.removeFirst()
-        switch kind {
-        case .correct:
+        if correct {
             result.correctAnswers += 1
             streak += 1
-        case .keyMistake:
-            result.keyMistakes += 1
-            streak = 0
-            requeue(fact)
-        case .otherMistake:
-            result.otherMistakes += 1
+        } else {
             streak = 0
             requeue(fact)
         }
     }
 
     /// Shuffled decks: no fact repeats until every fact has been used, never twice in a row.
-    /// `priority` facts lead the first deck so unmastered facts come up sooner.
-    static func dealOrder<G: RandomNumberGenerator>(
-        _ facts: [Fact], count: Int, priority: Set<String> = [], using rng: inout G
-    ) -> [Fact] {
+    static func dealOrder<G: RandomNumberGenerator>(_ facts: [Fact], count: Int, using rng: inout G) -> [Fact] {
         var order: [Fact] = []
-        var first = true
         while order.count < count && !facts.isEmpty {
             var deck = facts.shuffled(using: &rng)
-            if first {
-                deck = deck.filter { priority.contains($0.id) } + deck.filter { !priority.contains($0.id) }
-                first = false
-            }
             if deck.count > 1, deck.first == order.last {
                 deck.swapAt(0, Int.random(in: 1..<deck.count, using: &rng))
             }
