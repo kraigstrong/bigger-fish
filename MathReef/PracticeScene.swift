@@ -220,7 +220,7 @@ final class PracticeScene: SKScene {
                 stars: stars.earned, maxStars: stars.total, crown: store.crown(for: world), comingSoon: world.comingSoon
             )
         }
-        let map = WorldMapNode(size: size, worlds: stops, focus: worldIndex, fishCrown: store.bestCrown(in: Curriculum.worlds))
+        let map = WorldMapNode(size: size, worlds: stops, focus: worldIndex, fishCrown: store.crown(for: world))
         map.onSelect = { [weak self] index in
             self?.worldIndex = index
             self?.showWorld()
@@ -245,8 +245,7 @@ final class PracticeScene: SKScene {
         let focus = stops.firstIndex { $0.state == .open } ?? max(0, stops.count - 1)
         let map = LevelMapNode(
             size: size, title: world.title, color: ReefStyle.color(for: world.id), levels: stops,
-            stars: store.stars(in: world), crown: store.crown(for: world), focus: focus,
-            fishCrown: store.bestCrown(in: Curriculum.worlds)
+            stars: store.stars(in: world), crown: store.crown(for: world), focus: focus
         )
         map.onSelect = { [weak self] index in
             self?.levelIndex = index
@@ -342,7 +341,7 @@ final class PracticeScene: SKScene {
             title: "Level passed!",
             lines: [("100%", 56, true), ("12 of 12 right", 20, false), ("\(world.title) complete!", 20, true)],
             buttons: [("Done", { [weak self] in self?.showHome() })],
-            passed: true, stars: 3, newStars: 3, newCrown: crown, wornAfter: crown
+            passed: true, stars: 3, newStars: 3, newCrown: crown
         )
     }
     #endif
@@ -379,7 +378,8 @@ final class PracticeScene: SKScene {
 
         player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: size.height / 2), radius: L.playerRadius)
         playerNode = FishNode(style: .player, isPlayer: true, tailPhase: 0)
-        playerNode.setHeadwear(fishCrown(store.bestCrown(in: Curriculum.worlds)))
+        // The fish wears a world's crown only inside that world.
+        playerNode.setHeadwear(fishCrown(store.crown(for: world)))
         playerNode.zPosition = 30
         fishLayer.addChild(playerNode)
     }
@@ -551,15 +551,14 @@ final class PracticeScene: SKScene {
             passed: passed,
             stars: roundStars,
             newStars: max(0, roundStars - starsBefore),
-            newCrown: crown != crownBefore && crown != .none ? crown : nil,
-            wornAfter: store.bestCrown(in: Curriculum.worlds)
+            newCrown: crown != crownBefore && crown != .none ? crown : nil
         )
     }
 
     /// The results panel, its stars, and (for a new or better crown) the crown presentation.
     private func showResults(
         title: String, lines: [PanelLine], buttons: [(title: String, action: () -> Void)],
-        passed: Bool, stars: Int, newStars: Int, newCrown: Crown?, wornAfter: Crown
+        passed: Bool, stars: Int, newStars: Int, newCrown: Crown?
     ) {
         // Right of center, like the in-game panels, so the player fish (and its crown) stays in view.
         showPanel(title: title, lines: lines, buttons: buttons, style: passed ? .correct : .neutral)
@@ -567,16 +566,16 @@ final class PracticeScene: SKScene {
         if let newCrown {
             panel.run(.sequence([
                 .wait(forDuration: Self.starRingTime(stars) + 0.2),
-                .run { [weak self] in self?.presentCrown(newCrown, wornAfter: wornAfter) },
+                .run { [weak self] in self?.presentCrown(newCrown) },
             ]))
         }
     }
 
     /// The biggest moment in the game, timed to the 2.8s sparkle: the panel dims, the crown drops in
     /// over turning rays and lands with a sparkle burst, its name pops in, then it flies onto the
-    /// player fish's head, where the fish wears `wornAfter` (its best crown) from then on.
+    /// player fish's head, where it stays whenever the fish is in this world.
     /// Everything is a child of the panel, so leaving the results screen cancels it.
-    private func presentCrown(_ crown: Crown, wornAfter: Crown) {
+    private func presentCrown(_ crown: Crown) {
         audio.play(.crown)
         let tint = crown == .gold ? ReefStyle.gold : ReefStyle.silver
         // Centered on screen, not on the panel.
@@ -638,12 +637,12 @@ final class PracticeScene: SKScene {
             .wait(forDuration: 2.6),
             .run { [weak self] in
                 for node in [scrim, rays, name, detail] { node.run(.fadeOut(withDuration: 0.3)) }
-                self?.crownFliesToFish(crownNode, wornAfter: wornAfter)
+                self?.crownFliesToFish(crownNode, crown: crown)
             },
         ]))
     }
 
-    private func crownFliesToFish(_ crownNode: SKNode, wornAfter: Crown) {
+    private func crownFliesToFish(_ crownNode: SKNode, crown: Crown) {
         guard let fish = playerNode, !fish.isHidden else {
             crownNode.run(.sequence([.fadeOut(withDuration: 0.3), .removeFromParent()]))
             return
@@ -658,7 +657,7 @@ final class PracticeScene: SKScene {
         crownNode.run(.sequence([
             fly,
             .run { [weak self] in
-                guard let self, let worn = fishCrown(wornAfter) else { return }
+                guard let self, let worn = fishCrown(crown) else { return }
                 fish.setHeadwear(worn)
                 worn.setScale(1.5)
                 worn.run(.scale(to: 1, duration: 0.2))
