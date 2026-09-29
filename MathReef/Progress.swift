@@ -83,8 +83,12 @@ final class ProgressStore {
         if passed && level.isCheckpoint {
             for earlier in world.levels.prefix(index) { records[earlier.id, default: LevelRecord()].passed = true }
         }
-        if let data = try? JSONEncoder().encode(records) { defaults.set(data, forKey: key) }
+        save()
         return passed
+    }
+
+    private func save() {
+        if let data = try? JSONEncoder().encode(records) { defaults.set(data, forKey: key) }
     }
 
     /// Open if it's the first level, the previous level is passed, or it's a checkpoint (skip test).
@@ -117,3 +121,36 @@ final class ProgressStore {
         world.levels[index].isCheckpoint && index > 0 && !record(for: world.levels[index - 1]).passed
     }
 }
+
+#if DEBUG
+/// Shortcuts to a world's crown states for testing on a device, from Settings in debug builds.
+/// Never compiled into App Store builds.
+enum DebugWorldSetup {
+    /// No progress at all.
+    case reset
+    /// Every level passed except the final Review, so passing it for real earns the silver crown.
+    case oneLevelFromSilver
+    /// Every level passed.
+    case silver
+    /// Three stars on every level.
+    case gold
+}
+
+extension ProgressStore {
+    func debugSetUp(_ setup: DebugWorldSetup, in world: World) {
+        for (index, level) in world.levels.enumerated() {
+            switch setup {
+            case .reset:
+                records[level.id] = nil
+            case .oneLevelFromSilver:
+                records[level.id] = index == world.levels.count - 1 ? nil : LevelRecord(passed: true, bestPercent: 80, hasPlayed: true)
+            case .silver:
+                records[level.id] = LevelRecord(passed: true, bestPercent: 80, hasPlayed: true)
+            case .gold:
+                records[level.id] = LevelRecord(passed: true, bestPercent: 100, hasPlayed: true)
+            }
+        }
+        save()
+    }
+}
+#endif

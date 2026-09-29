@@ -292,10 +292,14 @@ final class PracticeScene: SKScene {
         ]
         #if DEBUG
         // For seeing rare moments on a device. Debug builds only, so never in the App Store.
-        lines.append(("Previews (Xcode builds only)", 15, false))
+        lines.append(("Xcode builds only: crown previews, and Multiplication's saved progress", 15, false))
         buttons += [
-            ("Silver crown", { [weak self] in self?.previewCrown(.silver) }),
-            ("Gold crown", { [weak self] in self?.previewCrown(.gold) }),
+            ("Preview silver", { [weak self] in self?.previewCrown(.silver) }),
+            ("Preview gold", { [weak self] in self?.previewCrown(.gold) }),
+            ("× silver", { [weak self] in self?.debugSetUpMultiplication(.silver) }),
+            ("× gold", { [weak self] in self?.debugSetUpMultiplication(.gold) }),
+            ("× 1 from silver", { [weak self] in self?.debugSetUpMultiplication(.oneLevelFromSilver) }),
+            ("Reset ×", { [weak self] in self?.debugSetUpMultiplication(.reset) }),
         ]
         #endif
         showPanel(title: "Settings", lines: lines, buttons: buttons, centerX: size.width / 2)
@@ -318,6 +322,14 @@ final class PracticeScene: SKScene {
     }
 
     #if DEBUG
+    /// Rewrites Multiplication's saved progress, then shows the reef so the result is visible.
+    private func debugSetUpMultiplication(_ setup: DebugWorldSetup) {
+        guard let index = Curriculum.worlds.firstIndex(where: { $0.id == "multiplication" }) else { return }
+        store.debugSetUp(setup, in: Curriculum.worlds[index])
+        worldIndex = index
+        showHome()
+    }
+
     /// A perfect round that earns `crown` in the last world opened, without touching saved progress.
     private func previewCrown(_ crown: Crown) {
         isShowingSettings = false
@@ -1048,9 +1060,19 @@ final class PracticeScene: SKScene {
             label($0.title, fontSize: 19, heavy: true, color: SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1))
         }
         let buttonWidths = buttonLabels.map { max(140, $0.frame.width + 40) }
-        let buttonsWidth = buttonWidths.reduce(0, +) + CGFloat(max(0, newButtons.count - 1)) * buttonGap
+        // Buttons wrap onto more rows when one row would be wider than the screen allows.
+        let rowGap: CGFloat = 12
+        var rows: [[Int]] = []
+        for index in buttonWidths.indices {
+            let row = rows.last ?? []
+            let rowWidth = row.map { buttonWidths[$0] + buttonGap }.reduce(0, +) + buttonWidths[index]
+            if row.isEmpty || rowWidth > size.width - 100 { rows.append([index]) } else { rows[rows.count - 1].append(index) }
+        }
+        let rowWidth = { (row: [Int]) in row.map { buttonWidths[$0] }.reduce(0, +) + CGFloat(max(0, row.count - 1)) * buttonGap }
+        let buttonsWidth = rows.map(rowWidth).max() ?? 0
         let lineHeights = lines.map { $0.fontSize + 12 }
-        let height = 58 + lineHeights.reduce(0, +) + (newButtons.isEmpty ? 10 : 82)
+        let buttonsHeight = newButtons.isEmpty ? 10 : 82 + CGFloat(rows.count - 1) * (48 + rowGap)
+        let height = 58 + lineHeights.reduce(0, +) + buttonsHeight
         let width = max(titleLabel.frame.width, lineLabels.map(\.frame.width).max() ?? 0, buttonsWidth) + 60
 
         let backing = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
@@ -1082,18 +1104,22 @@ final class PracticeScene: SKScene {
         }
 
         panel.position = CGPoint(x: centerX ?? size.width * 0.6, y: size.height / 2)
-        var x = -buttonsWidth / 2
-        for ((_, action), (text, buttonWidth)) in zip(newButtons, zip(buttonLabels, buttonWidths)) {
-            let button = SKShapeNode(rectOf: CGSize(width: buttonWidth, height: 48), cornerRadius: 24)
-            button.fillColor = SKColor(white: 1, alpha: 0.92)
-            button.strokeColor = .clear
-            button.position = CGPoint(x: x + buttonWidth / 2, y: -height / 2 + 42)
-            text.zPosition = 1
-            button.addChild(text)
-            panel.addChild(button)
-            let center = CGPoint(x: panel.position.x + button.position.x, y: panel.position.y + button.position.y)
-            buttons.append((CGRect(x: center.x - buttonWidth / 2, y: center.y - 24, width: buttonWidth, height: 48), action))
-            x += buttonWidth + buttonGap
+        for (rowIndex, row) in rows.enumerated() {
+            var x = -rowWidth(row) / 2
+            let rowY = -height / 2 + 42 + CGFloat(rows.count - 1 - rowIndex) * (48 + rowGap)
+            for index in row {
+                let (text, buttonWidth, action) = (buttonLabels[index], buttonWidths[index], newButtons[index].action)
+                let button = SKShapeNode(rectOf: CGSize(width: buttonWidth, height: 48), cornerRadius: 24)
+                button.fillColor = SKColor(white: 1, alpha: 0.92)
+                button.strokeColor = .clear
+                button.position = CGPoint(x: x + buttonWidth / 2, y: rowY)
+                text.zPosition = 1
+                button.addChild(text)
+                panel.addChild(button)
+                let center = CGPoint(x: panel.position.x + button.position.x, y: panel.position.y + button.position.y)
+                buttons.append((CGRect(x: center.x - buttonWidth / 2, y: center.y - 24, width: buttonWidth, height: 48), action))
+                x += buttonWidth + buttonGap
+            }
         }
         panel.alpha = 0
         panel.run(.fadeIn(withDuration: 0.2))
