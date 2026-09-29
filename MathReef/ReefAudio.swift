@@ -20,13 +20,31 @@ enum ReefMusic: String, CaseIterable {
     case game = "game-music"
 }
 
+/// The parts of `AVAudioPlayer` that `ReefAudio` uses, so tests can swap in stand-ins that don't
+/// need an audio device.
+protocol AudioVoice: AnyObject {
+    var isPlaying: Bool { get }
+    var volume: Float { get set }
+    var currentTime: TimeInterval { get set }
+    var numberOfLoops: Int { get set }
+    @discardableResult func prepareToPlay() -> Bool
+    @discardableResult func play() -> Bool
+    func pause()
+    func stop()
+    func setVolume(_ volume: Float, fadeDuration: TimeInterval)
+}
+
+extension AVAudioPlayer: AudioVoice {}
+
 final class ReefAudio {
     /// Music sits under the effects; both tracks are normalized to -18 LUFS before this.
     static let musicVolume: Float = 0.45
 
-    private var players: [ReefSound: [AVAudioPlayer]] = [:]
-    private var musicPlayers: [ReefMusic: AVAudioPlayer] = [:]
-    private var currentMusic: ReefMusic?
+    private let defaults: UserDefaults
+    private var players: [ReefSound: [AudioVoice]] = [:]
+    private var musicPlayers: [ReefMusic: AudioVoice] = [:]
+    /// The track the current screen wants, even while sound is off.
+    private(set) var currentMusic: ReefMusic?
     /// Bumped on every music change so a stale delayed start or fade-out pause does nothing.
     private var musicGeneration = 0
     private static let soundOnKey = "mathReef.soundOn"
@@ -36,7 +54,7 @@ final class ReefAudio {
     var isSoundOn: Bool {
         didSet {
             guard isSoundOn != oldValue else { return }
-            UserDefaults.standard.set(isSoundOn, forKey: Self.soundOnKey)
+            defaults.set(isSoundOn, forKey: Self.soundOnKey)
             musicGeneration += 1
             if isSoundOn {
                 guard let player = currentMusic.flatMap({ musicPlayers[$0] }) else { return }
@@ -49,22 +67,24 @@ final class ReefAudio {
         }
     }
 
-    init() {
-        isSoundOn = UserDefaults.standard.object(forKey: Self.soundOnKey) as? Bool ?? true
+    /// - Parameters:
+    ///   - defaults: where the sound setting is remembered.
+    ///   - makeVoice: loads a sound file by name and extension; tests pass stand-ins.
+    init(defaults: UserDefaults = .standard, makeVoice: (String, String) -> AudioVoice? = ReefAudio.bundleVoice) {
+        self.defaults = defaults
+        isSoundOn = defaults.object(forKey: Self.soundOnKey) as? Bool ?? true
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, options: .mixWithOthers)
         try? session.setActive(true)
         for sound in ReefSound.allCases {
-            guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "caf") else { continue }
             players[sound] = (0..<sound.voices).compactMap { _ in
-                let player = try? AVAudioPlayer(contentsOf: url)
+                let player = makeVoice(sound.rawValue, "caf")
                 player?.prepareToPlay()
                 return player
             }
         }
         for music in ReefMusic.allCases {
-            guard let url = Bundle.main.url(forResource: music.rawValue, withExtension: "m4a"),
-                  let player = try? AVAudioPlayer(contentsOf: url) else { continue }
+            guard let player = makeVoice(music.rawValue, "m4a") else { continue }
             player.numberOfLoops = -1
             player.volume = 0
             player.prepareToPlay()
@@ -73,6 +93,10 @@ final class ReefAudio {
         let center = NotificationCenter.default
         center.addObserver(self, selector: #selector(pauseForBackground), name: UIApplication.willResignActiveNotification, object: nil)
         center.addObserver(self, selector: #selector(resumeFromBackground), name: UIApplication.didBecomeActiveNotification, object: nil)
+    }
+
+    static func bundleVoice(named name: String, extension ext: String) -> AudioVoice? {
+        Bundle.main.url(forResource: name, withExtension: ext).flatMap { try? AVAudioPlayer(contentsOf: $0) }
     }
 
     /// Plays on a free voice, or restarts the first one if they're all busy.
@@ -107,11 +131,11 @@ final class ReefAudio {
         }
     }
 
-    @objc private func pauseForBackground() {
+    @objc func pauseForBackground() {
         currentMusic.flatMap { musicPlayers[$0] }?.pause()
     }
 
-    @objc private func resumeFromBackground() {
+    @objc func resumeFromBackground() {
         guard isSoundOn, let player = currentMusic.flatMap({ musicPlayers[$0] }), player.volume > 0 else { return }
         player.play()
     }
