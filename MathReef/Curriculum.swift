@@ -5,8 +5,10 @@ import Foundation
 //
 // Addition and subtraction follow the usual fluency progression: foundation facts (+1/+2, pairs that
 // make 10, doubles), then derived facts (near doubles, crossing 10), then place value up to 2-digit
-// carrying/borrowing. Each level holds about 8 questions; `Level.isCheckpoint` levels are skip tests
-// that are always playable and pass every level before them.
+// carrying/borrowing. Multiplication and division go table by table, easy tables first and × 7 last
+// (by then it's mostly facts turned around), then × tens and 2-digit × 1-digit. Division never has
+// remainders, since every answer is one whole number. Each level holds about 8 questions;
+// `Level.isCheckpoint` levels are skip tests that are always playable and pass every level before them.
 //
 // Level IDs are the keys for saved progress; never rename them. Generated decks use fixed seeds so
 // they never change between launches.
@@ -42,12 +44,8 @@ enum Curriculum {
     static let worlds: [World] = [
         World(id: "addition", title: "Addition", levels: addition),
         World(id: "subtraction", title: "Subtraction", levels: subtraction),
-        World(id: "multiplication", title: "Multiplication", levels: [mulEasy, mulMedium, mulHard]),
-        World(id: "division", title: "Division", levels: [
-            divEasy, divMedium, divHard,
-            checkpoint("div.mixed", "× and ÷", sample(from: [mulEasy, mulMedium, mulHard], count: 6, seed: 30)
-                + sample(from: [divEasy, divMedium, divHard], count: 6, seed: 31)),
-        ]),
+        World(id: "multiplication", title: "Multiplication", levels: multiplication),
+        World(id: "division", title: "Division", levels: division),
         World(id: "exponents", title: "Exponents", levels: [squares, cubes, powersMixed]),
     ]
 
@@ -137,16 +135,76 @@ enum Curriculum {
                    + sample(from: [subOnes, subTens, sub2Digit, subBorrowOnes, subBorrow], count: 6, seed: 29)),
     ]
 
-    // MARK: Multiplication and division
+    // MARK: Multiplication
 
-    static let mulEasy = Level(id: "mul.1", title: "× 2, 5, 10", facts: products([2, 5, 10], by: [3, 4, 7, 8]))
-    static let mulMedium = Level(id: "mul.2", title: "× 3, 4, 6", facts: products([3, 4, 6], by: [4, 6, 7, 8]))
-    static let mulHard = Level(id: "mul.3", title: "× 7, 8, 9, 12", facts: pairs(.multiply, [
-        (7, 6), (7, 8), (7, 9), (8, 6), (8, 8), (8, 9), (9, 6), (9, 7), (9, 9), (12, 6), (12, 7), (12, 8),
+    static let mulX2 = Level(id: "mul.x2", title: "× 2", facts: table(2, seed: 40))
+    static let mulX10 = Level(id: "mul.x10", title: "× 10", facts: table(10, seed: 41))
+    static let mulX5 = Level(id: "mul.x5", title: "× 5", facts: table(5, seed: 42))
+    static let mulX01 = Level(id: "mul.x01", title: "× 0 and × 1", facts: pairs(.multiply, [
+        (7, 0), (0, 4), (9, 0), (0, 6), (6, 1), (1, 8), (5, 1), (1, 9),
     ]))
-    static let divEasy = Level(id: "div.1", title: "÷ 2, 5, 10", facts: quotients(of: mulEasy))
-    static let divMedium = Level(id: "div.2", title: "÷ 3, 4, 6", facts: quotients(of: mulMedium))
-    static let divHard = Level(id: "div.3", title: "÷ 7, 8, 9, 12", facts: quotients(of: mulHard))
+    static let mulX3 = Level(id: "mul.x3", title: "× 3", facts: table(3, seed: 43))
+    static let mulX4 = Level(id: "mul.x4", title: "× 4", facts: table(4, seed: 44))
+    static let mulSame = Level(id: "mul.same", title: "Same × same", facts: (3...10).map { Fact(op: .multiply, a: $0, b: $0) })
+    static let mulX9 = Level(id: "mul.x9", title: "× 9", facts: table(9, seed: 45))
+    static let mulX6 = Level(id: "mul.x6", title: "× 6", facts: table(6, seed: 46))
+    static let mulX8 = Level(id: "mul.x8", title: "× 8", facts: table(8, seed: 47))
+    static let mulX7 = Level(id: "mul.x7", title: "× 7", facts: table(7, seed: 48))
+    static let mulX1112 = Level(id: "mul.x1112", title: "× 11 and × 12",
+                                facts: table(11, by: [3, 5, 7, 9], seed: 49) + table(12, by: [3, 4, 6, 7, 8, 9], seed: 50))
+    static let mulTens = Level(id: "mul.tens", title: "× tens", facts: generated(.multiply, seed: 51, a: 2...9, b: 20...90) { _, b in
+        b % 10 == 0
+    })
+    static let mul2Digit = Level(id: "mul.2digit", title: "2-digit × 1", facts: generated(.multiply, seed: 52, a: 13...49, b: 2...4) { a, b in
+        a % 10 != 0 && (a % 10) * b < 10 && (a / 10) * b < 10
+    })
+    static let mulCarry = Level(id: "mul.carry", title: "Carry in ×", facts: generated(.multiply, seed: 53, a: 13...59, b: 3...9) { a, b in
+        a % 10 != 0 && (a % 10) * b >= 10
+    })
+
+    static let multiplication: [Level] = [
+        mulX2, mulX10, mulX5, mulX01, mulX3, mulX4,
+        checkpoint("mul.easy", "Easy tables", sample(from: [mulX2, mulX10, mulX5, mulX01, mulX3, mulX4], count: 12, seed: 54)),
+        mulSame, mulX9, mulX6, mulX8, mulX7, mulX1112,
+        checkpoint("mul.tables", "All the tables", sample(from: [mulSame, mulX9, mulX6, mulX8, mulX7, mulX1112], count: 12, seed: 55)),
+        mulTens, mul2Digit, mulCarry,
+        checkpoint("mul.review", "Multiplication review", sample(from: [mulTens, mul2Digit, mulCarry], count: 12, seed: 56)),
+    ]
+
+    // MARK: Division
+
+    static let divX2 = Level(id: "div.x2", title: "÷ 2", facts: dividing(table(2)))
+    static let divX10 = Level(id: "div.x10", title: "÷ 10", facts: dividing(table(10)))
+    static let divX5 = Level(id: "div.x5", title: "÷ 5", facts: dividing(table(5)))
+    static let divX3 = Level(id: "div.x3", title: "÷ 3", facts: dividing(table(3)))
+    static let divX4 = Level(id: "div.x4", title: "÷ 4", facts: dividing(table(4)))
+    static let divSame = Level(id: "div.same", title: "÷ same", facts: dividing(mulSame.facts))
+    static let divX9 = Level(id: "div.x9", title: "÷ 9", facts: dividing(table(9)))
+    static let divX6 = Level(id: "div.x6", title: "÷ 6", facts: dividing(table(6)))
+    static let divX8 = Level(id: "div.x8", title: "÷ 8", facts: dividing(table(8)))
+    static let divX7 = Level(id: "div.x7", title: "÷ 7", facts: dividing(table(7)))
+    static let divX1112 = Level(id: "div.x1112", title: "÷ 11 and ÷ 12",
+                                facts: dividing(table(11, by: [3, 5, 7, 9]) + table(12, by: [3, 4, 6, 7, 8, 9])))
+    static let divTens = Level(id: "div.tens", title: "÷ into tens", facts: dividing(generated(.multiply, seed: 71, a: 2...9, b: 20...90) { _, b in
+        b % 10 == 0
+    }))
+    static let div2Digit = Level(id: "div.2digit", title: "2-digit ÷ 1", facts: dividing(generated(.multiply, seed: 72, a: 2...4, b: 11...49) { a, b in
+        b % 10 != 0 && (b / 10) * a < 10 && (b % 10) * a < 10
+    }))
+    static let divRegroup = Level(id: "div.regroup", title: "Split and ÷", facts: dividing(generated(.multiply, seed: 73, a: 3...6, b: 12...29) { a, b in
+        b % 10 != 0 && (b * a) / 10 % a != 0 && b * a < 100
+    }))
+
+    static let division: [Level] = [
+        divX2, divX10, divX5, divX3, divX4,
+        checkpoint("div.easy", "Easy × and ÷", sample(from: [mulX2, mulX10, mulX5, mulX3, mulX4], count: 6, seed: 74)
+            + sample(from: [divX2, divX10, divX5, divX3, divX4], count: 6, seed: 75)),
+        divSame, divX9, divX6, divX8, divX7, divX1112,
+        checkpoint("div.tables", "All ÷ facts", sample(from: [divSame, divX9, divX6, divX8, divX7, divX1112], count: 12, seed: 76)),
+        divTens, div2Digit, divRegroup,
+        checkpoint("div.mixed", "× and ÷ review", sample(from: [mulTens, mul2Digit, mulCarry], count: 6, seed: 77)
+            + sample(from: [divTens, div2Digit, divRegroup], count: 6, seed: 78)),
+    ]
 
     // MARK: Exponents
 
@@ -168,13 +226,18 @@ enum Curriculum {
         list.map { Fact(op: op, a: $0.0, b: $0.1) }
     }
 
-    private static func products(_ factors: [Int], by others: [Int]) -> [Fact] {
-        factors.flatMap { f in others.map { Fact(op: .multiply, a: $0, b: f) } }
+    /// `n` times each of `others`, with `n` first. With a seed, some are turned around (7 × n) from
+    /// that fixed seed so kids see both orders; without one, `dividing` can rely on `n` coming first.
+    private static func table(_ n: Int, by others: [Int] = Array(2...9), seed: UInt64? = nil) -> [Fact] {
+        var rng = SeededGenerator(seed: seed ?? 0)
+        return others.map { other in
+            seed != nil && Bool.random(using: &rng) ? Fact(op: .multiply, a: other, b: n) : Fact(op: .multiply, a: n, b: other)
+        }
     }
 
-    /// 56 ÷ 8 for each 7 × 8.
-    private static func quotients(of level: Level) -> [Fact] {
-        level.facts.map { Fact(op: .divide, a: $0.answer, b: $0.b) }
+    /// 56 ÷ 7 for each 7 × 8: divide the product by the first factor.
+    private static func dividing(_ products: [Fact]) -> [Fact] {
+        products.map { Fact(op: .divide, a: $0.answer, b: $0.a) }
     }
 
     /// `count` distinct problems with `a` and `b` drawn from the ranges and matching `rule`, from a

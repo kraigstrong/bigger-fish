@@ -38,6 +38,11 @@ struct FactTests {
         #expect(fact(.multiply, 7, 8).wrongCandidates.contains(15))     // added instead
         #expect(fact(.divide, 56, 8).wrongCandidates.contains(48))      // subtracted instead
         #expect(fact(.power, 4, 2).wrongCandidates.contains(8))         // base × exponent
+        #expect(fact(.multiply, 47, 6).wrongCandidates.contains(242))   // forgot to carry
+        #expect(fact(.multiply, 47, 6).wrongCandidates.contains(240))   // only the tens
+        #expect(fact(.multiply, 4, 30).wrongCandidates.contains(12))    // dropped the zero
+        #expect(fact(.divide, 240, 6).wrongCandidates.contains(400))    // extra zero
+        #expect(fact(.divide, 72, 3).wrongCandidates.contains(20))      // each digit on its own
     }
 }
 
@@ -131,7 +136,42 @@ struct CurriculumTests {
         #expect(C.sub2Digit.facts.allSatisfy { $0.b >= 10 && $0.a % 10 >= $0.b % 10 })
         #expect(C.subBorrowOnes.facts.allSatisfy { $0.b < 10 && $0.a % 10 < $0.b && $0.answer > 0 })
         #expect(C.subBorrow.facts.allSatisfy { $0.b >= 10 && $0.a % 10 < $0.b % 10 && $0.answer > 0 })
-        #expect(C.divHard.facts.allSatisfy { $0.a % $0.b == 0 })
+        for (n, level) in [(2, C.mulX2), (10, C.mulX10), (5, C.mulX5), (3, C.mulX3), (4, C.mulX4),
+                           (9, C.mulX9), (6, C.mulX6), (8, C.mulX8), (7, C.mulX7)] {
+            #expect(level.facts.allSatisfy { $0.a == n || $0.b == n }, "\(level.id)")
+        }
+        for (n, level) in [(2, C.divX2), (10, C.divX10), (5, C.divX5), (3, C.divX3), (4, C.divX4),
+                           (9, C.divX9), (6, C.divX6), (8, C.divX8), (7, C.divX7)] {
+            #expect(level.facts.allSatisfy { $0.b == n && $0.answer <= 9 }, "\(level.id)")
+        }
+        #expect(C.mulX01.facts.allSatisfy { min($0.a, $0.b) <= 1 })
+        #expect(C.mulSame.facts.allSatisfy { $0.a == $0.b })
+        #expect(C.mulX1112.facts.allSatisfy { [11, 12].contains(max($0.a, $0.b)) })
+        #expect(C.mulTens.facts.allSatisfy { $0.a < 10 && $0.b % 10 == 0 && $0.b >= 20 })
+        #expect(C.mul2Digit.facts.allSatisfy { $0.a >= 13 && $0.b < 10 && ($0.a % 10) * $0.b < 10 })
+        #expect(C.mulCarry.facts.allSatisfy { $0.a >= 13 && $0.b < 10 && ($0.a % 10) * $0.b >= 10 })
+        #expect(C.divTens.facts.allSatisfy { $0.b < 10 && $0.answer % 10 == 0 && $0.answer >= 20 })
+        #expect(C.div2Digit.facts.allSatisfy { $0.answer >= 11 && $0.a / 10 % $0.b == 0 })
+        #expect(C.divRegroup.facts.allSatisfy { $0.answer >= 11 && $0.a / 10 % $0.b != 0 && $0.a < 100 })
+    }
+
+    /// Division never has remainders: every answer is one whole number.
+    @Test func divisionAlwaysComesOutEven() {
+        let divisions = Curriculum.worlds.flatMap(\.levels).flatMap(\.facts).filter { $0.op == .divide }
+        #expect(!divisions.isEmpty)
+        #expect(divisions.allSatisfy { $0.b > 0 && $0.a % $0.b == 0 })
+    }
+
+    /// Multiplication and division: easy tables, the rest of the tables, then multi-digit work.
+    @Test func multiplicationAndDivisionHaveGradualProgressions() {
+        let multiplication = Curriculum.worlds.first { $0.id == "multiplication" }!
+        #expect(multiplication.levels.count == 18)
+        #expect(multiplication.levels.indices.filter { multiplication.levels[$0].isCheckpoint } == [6, 13, 17])
+        #expect(multiplication.levels.last?.id == "mul.review")
+        let division = Curriculum.worlds.first { $0.id == "division" }!
+        #expect(division.levels.count == 17)
+        #expect(division.levels.indices.filter { division.levels[$0].isCheckpoint } == [5, 12, 16])
+        #expect(division.levels.last?.id == "div.mixed")
     }
 
     /// Addition and subtraction climb gradually: strategy levels, with checkpoints as skip tests.
@@ -172,7 +212,7 @@ struct CurriculumTests {
 
     @Test func mixedWorldsAreFoldedIn() {
         #expect(Curriculum.worlds[1].levels.last?.title == "+ and − review")
-        #expect(Curriculum.worlds[3].levels.last?.title == "× and ÷")
+        #expect(Curriculum.worlds[3].levels.last?.title == "× and ÷ review")
     }
 }
 
@@ -312,8 +352,8 @@ struct PracticeSessionTests {
 
     @Test func roundAsksEveryFactAndEndsWhenAllAreRight() {
         var rng = SeededGenerator(seed: 5)
-        var session = PracticeSession(level: Curriculum.mulHard, using: &rng)  // 12 facts
-        #expect(Set(session.upcoming) == Set(Curriculum.mulHard.facts))
+        var session = PracticeSession(level: Curriculum.multiplication[6], using: &rng)  // 12-fact checkpoint
+        #expect(Set(session.upcoming) == Set(Curriculum.multiplication[6].facts))
         for _ in 0..<2 { session.record(correct: false) }
         for _ in 0..<11 { session.record(correct: true) }
         #expect(!session.isComplete)
@@ -327,7 +367,7 @@ struct PracticeSessionTests {
 
     @Test func missedFactReturnsAfterTwoOthers() {
         var rng = SeededGenerator(seed: 8)
-        var session = PracticeSession(level: Curriculum.mulHard, using: &rng)
+        var session = PracticeSession(level: Curriculum.multiplication[6], using: &rng)
         let missed = session.current!
         session.record(correct: false)
         #expect(session.current != missed)
