@@ -90,11 +90,11 @@ struct ChoiceTests {
 }
 
 struct CurriculumTests {
-    @Test func worldsAreInOrderWithFractionsComingSoon() {
+    @Test func worldsAreInOrderAndAllPlayable() {
         #expect(Curriculum.worlds.map(\.title) == [
-            "Addition", "Subtraction", "Multiplication", "Division", "Fractions", "Exponents",
+            "Addition", "Subtraction", "Multiplication", "Division", "Exponents",
         ])
-        #expect(Curriculum.worlds.filter(\.comingSoon).map(\.id) == ["fractions"])
+        #expect(Curriculum.worlds.filter(\.comingSoon).isEmpty)
     }
 
     @Test func levelIDsAreUniqueAndDecksAreSmallAndValid() {

@@ -48,7 +48,6 @@ enum Curriculum {
             checkpoint("div.mixed", "× and ÷", sample(from: [mulEasy, mulMedium, mulHard], count: 6, seed: 30)
                 + sample(from: [divEasy, divMedium, divHard], count: 6, seed: 31)),
         ]),
-        World(id: "fractions", title: "Fractions", levels: []),
         World(id: "exponents", title: "Exponents", levels: [squares, cubes, powersMixed]),
     ]
 

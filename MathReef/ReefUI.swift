@@ -16,7 +16,6 @@ enum ReefStyle {
         case "subtraction": SKColor(red: 0.30, green: 0.58, blue: 0.98, alpha: 1)
         case "multiplication": SKColor(red: 0.62, green: 0.45, blue: 0.95, alpha: 1)
         case "division": SKColor(red: 0.16, green: 0.72, blue: 0.58, alpha: 1)
-        case "fractions": SKColor(red: 0.95, green: 0.66, blue: 0.22, alpha: 1)
         default: SKColor(red: 0.95, green: 0.40, blue: 0.70, alpha: 1)
         }
     }
@@ -27,7 +26,6 @@ enum ReefStyle {
         case "subtraction": "−"
         case "multiplication": "×"
         case "division": "÷"
-        case "fractions": "½"
         default: "x²"
         }
     }
