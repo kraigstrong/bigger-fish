@@ -240,6 +240,34 @@ struct ProgressStoreTests {
         return defaults
     }
 
+    /// The Settings shortcuts in debug builds land each crown state, and don't touch other worlds.
+    @Test func debugWorldSetupsReachEachCrownState() {
+        let defaults = freshDefaults()
+        let store = ProgressStore(defaults: defaults)
+        let multiplication = Curriculum.worlds.first { $0.id == "multiplication" }!
+        let addition = Curriculum.worlds.first { $0.id == "addition" }!
+        store.finishRound(0, in: addition, correct: 10, attempts: 10)
+
+        store.debugSetUp(.gold, in: multiplication)
+        #expect(store.crown(for: multiplication) == .gold)
+        #expect(store.bestCrown(in: Curriculum.worlds) == .gold)
+        store.debugSetUp(.silver, in: multiplication)
+        #expect(store.crown(for: multiplication) == .silver)
+        #expect(ProgressStore(defaults: defaults).crown(for: multiplication) == .silver)  // saved
+
+        store.debugSetUp(.oneLevelFromSilver, in: multiplication)
+        #expect(store.crown(for: multiplication) == .none)
+        let last = multiplication.levels.count - 1
+        #expect(store.finishRound(last, in: multiplication, correct: 10, attempts: 12))  // 83% on Review
+        #expect(store.crown(for: multiplication) == .silver)
+
+        store.debugSetUp(.reset, in: multiplication)
+        #expect(store.crown(for: multiplication) == .none)
+        #expect(store.stars(in: multiplication).earned == 0)
+        #expect(store.bestCrown(in: Curriculum.worlds) == .none)
+        #expect(store.record(for: addition.levels[0]).stars == 3)
+    }
+
     @Test func passingUnlocksTheNextLevel() {
         let store = ProgressStore(defaults: freshDefaults())
         let world = Curriculum.worlds.first { $0.id == "exponents" }!

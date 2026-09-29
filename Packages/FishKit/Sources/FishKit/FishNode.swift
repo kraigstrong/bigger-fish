@@ -65,6 +65,7 @@ public final class FishNode: SKNode {
     private let tailPhase: CGFloat
     private let mouthLine: SKShapeNode
     private let mouthGape: SKShapeNode
+    private var headwear: SKNode?
 
     public init(style: FishStyle, isPlayer: Bool, tailPhase: CGFloat) {
         let R = FishNode.referenceRadius
@@ -173,6 +174,22 @@ public final class FishNode: SKNode {
 
     @available(*, unavailable)
     public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// Something worn on top of the head, forward of the dorsal fin (Math Reef's crowns). Draw it at
+    /// the reference radius, centered on its own origin, about 0.8 radius wide; it scales, flips,
+    /// and tilts with the fish. Pass nil to take it off.
+    public func setHeadwear(_ node: SKNode?) {
+        headwear?.removeFromParent()
+        headwear = node
+        guard let node else { return }
+        node.position = FishNode.headwearAnchor
+        node.zRotation = -0.25
+        node.zPosition = 4
+        rig.addChild(node)
+    }
+
+    /// Where headwear sits, in this node's coordinates at the reference radius facing right.
+    public static let headwearAnchor = CGPoint(x: 0.55 * referenceRadius, y: 1.05 * referenceRadius)
 
     /// - Parameters:
     ///   - facing: -1...1; negative mirrors the fish to face left.

@@ -132,8 +132,6 @@ final class PracticeScene: SKScene {
     /// Top right of the maps; opens Settings (sound on/off).
     private let settingsButton = SKNode()
     private var isShowingSettings = false
-    /// Size of the panel's backing card, for things pinned to its edges.
-    private var panelSize = CGSize.zero
     private var buttons: [(frame: CGRect, action: () -> Void)] = []
     private var specks: [(node: SKSpriteNode, parallax: CGFloat)] = []
 
@@ -222,7 +220,7 @@ final class PracticeScene: SKScene {
                 stars: stars.earned, maxStars: stars.total, crown: store.crown(for: world), comingSoon: world.comingSoon
             )
         }
-        let map = WorldMapNode(size: size, worlds: stops, focus: worldIndex)
+        let map = WorldMapNode(size: size, worlds: stops, focus: worldIndex, fishCrown: store.bestCrown(in: Curriculum.worlds))
         map.onSelect = { [weak self] index in
             self?.worldIndex = index
             self?.showWorld()
@@ -247,7 +245,8 @@ final class PracticeScene: SKScene {
         let focus = stops.firstIndex { $0.state == .open } ?? max(0, stops.count - 1)
         let map = LevelMapNode(
             size: size, title: world.title, color: ReefStyle.color(for: world.id), levels: stops,
-            stars: store.stars(in: world), crown: store.crown(for: world), focus: focus
+            stars: store.stars(in: world), crown: store.crown(for: world), focus: focus,
+            fishCrown: store.bestCrown(in: Curriculum.worlds)
         )
         map.onSelect = { [weak self] index in
             self?.levelIndex = index
@@ -293,10 +292,14 @@ final class PracticeScene: SKScene {
         ]
         #if DEBUG
         // For seeing rare moments on a device. Debug builds only, so never in the App Store.
-        lines.append(("Previews (Xcode builds only)", 15, false))
+        lines.append(("Xcode builds only: crown previews, and Multiplication's saved progress", 15, false))
         buttons += [
-            ("Silver crown", { [weak self] in self?.previewCrown(.silver) }),
-            ("Gold crown", { [weak self] in self?.previewCrown(.gold) }),
+            ("Preview silver", { [weak self] in self?.previewCrown(.silver) }),
+            ("Preview gold", { [weak self] in self?.previewCrown(.gold) }),
+            ("× silver", { [weak self] in self?.debugSetUpMultiplication(.silver) }),
+            ("× gold", { [weak self] in self?.debugSetUpMultiplication(.gold) }),
+            ("× 1 from silver", { [weak self] in self?.debugSetUpMultiplication(.oneLevelFromSilver) }),
+            ("Reset ×", { [weak self] in self?.debugSetUpMultiplication(.reset) }),
         ]
         #endif
         showPanel(title: "Settings", lines: lines, buttons: buttons, centerX: size.width / 2)
@@ -319,17 +322,27 @@ final class PracticeScene: SKScene {
     }
 
     #if DEBUG
+    /// Rewrites Multiplication's saved progress, then shows the reef so the result is visible.
+    private func debugSetUpMultiplication(_ setup: DebugWorldSetup) {
+        guard let index = Curriculum.worlds.firstIndex(where: { $0.id == "multiplication" }) else { return }
+        store.debugSetUp(setup, in: Curriculum.worlds[index])
+        worldIndex = index
+        showHome()
+    }
+
     /// A perfect round that earns `crown` in the last world opened, without touching saved progress.
     private func previewCrown(_ crown: Crown) {
         isShowingSettings = false
         removeMaps()
+        resetSession()  // brings the player fish on screen to receive the crown
         audio.playMusic(nil, fade: 0.6)
         phase = .summary
+        render()
         showResults(
             title: "Level passed!",
             lines: [("100%", 56, true), ("12 of 12 right", 20, false), ("\(world.title) complete!", 20, true)],
             buttons: [("Done", { [weak self] in self?.showHome() })],
-            passed: true, stars: 3, newStars: 3, newCrown: crown
+            passed: true, stars: 3, newStars: 3, newCrown: crown, wornAfter: crown
         )
     }
     #endif
@@ -366,6 +379,7 @@ final class PracticeScene: SKScene {
 
         player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: size.height / 2), radius: L.playerRadius)
         playerNode = FishNode(style: .player, isPlayer: true, tailPhase: 0)
+        playerNode.setHeadwear(fishCrown(store.bestCrown(in: Curriculum.worlds)))
         playerNode.zPosition = 30
         fishLayer.addChild(playerNode)
     }
@@ -537,34 +551,37 @@ final class PracticeScene: SKScene {
             passed: passed,
             stars: roundStars,
             newStars: max(0, roundStars - starsBefore),
-            newCrown: crown != crownBefore && crown != .none ? crown : nil
+            newCrown: crown != crownBefore && crown != .none ? crown : nil,
+            wornAfter: store.bestCrown(in: Curriculum.worlds)
         )
     }
 
     /// The results panel, its stars, and (for a new or better crown) the crown presentation.
     private func showResults(
         title: String, lines: [PanelLine], buttons: [(title: String, action: () -> Void)],
-        passed: Bool, stars: Int, newStars: Int, newCrown: Crown?
+        passed: Bool, stars: Int, newStars: Int, newCrown: Crown?, wornAfter: Crown
     ) {
-        showPanel(title: title, lines: lines, buttons: buttons, centerX: size.width / 2, style: passed ? .correct : .neutral)
+        // Right of center, like the in-game panels, so the player fish (and its crown) stays in view.
+        showPanel(title: title, lines: lines, buttons: buttons, style: passed ? .correct : .neutral)
         if stars > 0 { showStars(earned: stars, new: newStars) }
         if let newCrown {
             panel.run(.sequence([
                 .wait(forDuration: Self.starRingTime(stars) + 0.2),
-                .run { [weak self] in self?.presentCrown(newCrown) },
+                .run { [weak self] in self?.presentCrown(newCrown, wornAfter: wornAfter) },
             ]))
         }
     }
 
     /// The biggest moment in the game, timed to the 2.8s sparkle: the panel dims, the crown drops in
-    /// over turning rays and lands with a sparkle burst, its name pops in, then it shrinks onto a
-    /// corner of the panel as a sticker. Everything is a child of the panel, so leaving the results
-    /// screen cancels it.
-    private func presentCrown(_ crown: Crown) {
+    /// over turning rays and lands with a sparkle burst, its name pops in, then it flies onto the
+    /// player fish's head, where the fish wears `wornAfter` (its best crown) from then on.
+    /// Everything is a child of the panel, so leaving the results screen cancels it.
+    private func presentCrown(_ crown: Crown, wornAfter: Crown) {
         audio.play(.crown)
         let tint = crown == .gold ? ReefStyle.gold : ReefStyle.silver
-        // The panel is centered on screen, so the screen's center is the panel's origin.
+        // Centered on screen, not on the panel.
         let stage = SKNode()
+        stage.position = CGPoint(x: size.width / 2 - panel.position.x, y: size.height / 2 - panel.position.y)
         stage.zPosition = 10
         panel.addChild(stage)
 
@@ -615,21 +632,39 @@ final class PracticeScene: SKScene {
             ]))
         }
 
-        // Hold, then clear the stage and leave the crown as a sticker on the panel's bottom-left
-        // corner (the top edge already holds the title and stars).
-        let corner = CGPoint(x: -panelSize.width / 2 + 8, y: -panelSize.height / 2 + 10)
-        let settle = SKAction.group([
-            .move(to: corner, duration: 0.4),
-            .scale(to: 0.36, duration: 0.4),
-            .rotate(toAngle: 0.3, duration: 0.4),
-        ])
-        settle.timingMode = .easeInEaseOut
+        // Hold, then clear the stage and fly the crown onto the fish, which stays still while the
+        // results show.
         stage.run(.sequence([
             .wait(forDuration: 2.6),
-            .run {
+            .run { [weak self] in
                 for node in [scrim, rays, name, detail] { node.run(.fadeOut(withDuration: 0.3)) }
-                crownNode.run(settle)
+                self?.crownFliesToFish(crownNode, wornAfter: wornAfter)
             },
+        ]))
+    }
+
+    private func crownFliesToFish(_ crownNode: SKNode, wornAfter: Crown) {
+        guard let fish = playerNode, !fish.isHidden else {
+            crownNode.run(.sequence([.fadeOut(withDuration: 0.3), .removeFromParent()]))
+            return
+        }
+        let head = crownNode.parent.map { $0.convert(FishNode.headwearAnchor, from: fish) } ?? .zero
+        let fly = SKAction.group([
+            .move(to: head, duration: 0.5),
+            .scale(to: 24 / 130, duration: 0.5),
+            .rotate(toAngle: -0.25, duration: 0.5),
+        ])
+        fly.timingMode = .easeInEaseOut
+        crownNode.run(.sequence([
+            fly,
+            .run { [weak self] in
+                guard let self, let worn = fishCrown(wornAfter) else { return }
+                fish.setHeadwear(worn)
+                worn.setScale(1.5)
+                worn.run(.scale(to: 1, duration: 0.2))
+                self.positiveHaptic.notificationOccurred(.success)
+            },
+            .removeFromParent(),
         ]))
     }
 
@@ -1025,11 +1060,20 @@ final class PracticeScene: SKScene {
             label($0.title, fontSize: 19, heavy: true, color: SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1))
         }
         let buttonWidths = buttonLabels.map { max(140, $0.frame.width + 40) }
-        let buttonsWidth = buttonWidths.reduce(0, +) + CGFloat(max(0, newButtons.count - 1)) * buttonGap
+        // Buttons wrap onto more rows when one row would be wider than the screen allows.
+        let rowGap: CGFloat = 12
+        var rows: [[Int]] = []
+        for index in buttonWidths.indices {
+            let row = rows.last ?? []
+            let rowWidth = row.map { buttonWidths[$0] + buttonGap }.reduce(0, +) + buttonWidths[index]
+            if row.isEmpty || rowWidth > size.width - 100 { rows.append([index]) } else { rows[rows.count - 1].append(index) }
+        }
+        let rowWidth = { (row: [Int]) in row.map { buttonWidths[$0] }.reduce(0, +) + CGFloat(max(0, row.count - 1)) * buttonGap }
+        let buttonsWidth = rows.map(rowWidth).max() ?? 0
         let lineHeights = lines.map { $0.fontSize + 12 }
-        let height = 58 + lineHeights.reduce(0, +) + (newButtons.isEmpty ? 10 : 82)
+        let buttonsHeight = newButtons.isEmpty ? 10 : 82 + CGFloat(rows.count - 1) * (48 + rowGap)
+        let height = 58 + lineHeights.reduce(0, +) + buttonsHeight
         let width = max(titleLabel.frame.width, lineLabels.map(\.frame.width).max() ?? 0, buttonsWidth) + 60
-        panelSize = CGSize(width: width, height: height)
 
         let backing = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
         switch style {
@@ -1060,18 +1104,22 @@ final class PracticeScene: SKScene {
         }
 
         panel.position = CGPoint(x: centerX ?? size.width * 0.6, y: size.height / 2)
-        var x = -buttonsWidth / 2
-        for ((_, action), (text, buttonWidth)) in zip(newButtons, zip(buttonLabels, buttonWidths)) {
-            let button = SKShapeNode(rectOf: CGSize(width: buttonWidth, height: 48), cornerRadius: 24)
-            button.fillColor = SKColor(white: 1, alpha: 0.92)
-            button.strokeColor = .clear
-            button.position = CGPoint(x: x + buttonWidth / 2, y: -height / 2 + 42)
-            text.zPosition = 1
-            button.addChild(text)
-            panel.addChild(button)
-            let center = CGPoint(x: panel.position.x + button.position.x, y: panel.position.y + button.position.y)
-            buttons.append((CGRect(x: center.x - buttonWidth / 2, y: center.y - 24, width: buttonWidth, height: 48), action))
-            x += buttonWidth + buttonGap
+        for (rowIndex, row) in rows.enumerated() {
+            var x = -rowWidth(row) / 2
+            let rowY = -height / 2 + 42 + CGFloat(rows.count - 1 - rowIndex) * (48 + rowGap)
+            for index in row {
+                let (text, buttonWidth, action) = (buttonLabels[index], buttonWidths[index], newButtons[index].action)
+                let button = SKShapeNode(rectOf: CGSize(width: buttonWidth, height: 48), cornerRadius: 24)
+                button.fillColor = SKColor(white: 1, alpha: 0.92)
+                button.strokeColor = .clear
+                button.position = CGPoint(x: x + buttonWidth / 2, y: rowY)
+                text.zPosition = 1
+                button.addChild(text)
+                panel.addChild(button)
+                let center = CGPoint(x: panel.position.x + button.position.x, y: panel.position.y + button.position.y)
+                buttons.append((CGRect(x: center.x - buttonWidth / 2, y: center.y - 24, width: buttonWidth, height: 48), action))
+                x += buttonWidth + buttonGap
+            }
         }
         panel.alpha = 0
         panel.run(.fadeIn(withDuration: 0.2))
