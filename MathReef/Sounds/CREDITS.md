@@ -34,8 +34,7 @@ stored as 16-bit PCM `.caf` so it plays without decoding delay. Source URLs take
 
 ## Music
 
-Both tracks are placeholders while we ask Mixkit about licensing Ahjay Stelino's *Playground Fun* and
-*Just Kidding*. Neither is registered with YouTube Content ID, so videos of the game won't draw
+Neither track is registered with YouTube Content ID, so videos of the game won't draw
 copyright claims. Each is loudness-normalized to -18 LUFS, gets a 50ms fade-in and a 300ms fade-out so
 the loop doesn't click, and is encoded as 128 kbps AAC with `afconvert`. Playback volume is
 `ReefAudio.musicVolume`.
