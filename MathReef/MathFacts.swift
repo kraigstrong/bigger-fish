@@ -43,13 +43,13 @@ struct Fact: Hashable {
         op == .power ? "\(prompt) = \(factors) = \(answer)" : "\(prompt) = \(answer)"
     }
 
-    /// Shown after a wrong answer: "Not 12" then the solution. Exponents also restate what the
-    /// small number means, since that's the notation itself rather than a tip.
-    func wrongAnswerFeedback(chosen: Int) -> [String] {
+    /// Shown after a wrong answer: a gentle "Oops!" then the solution. Exponents also restate what
+    /// the small number means, since that's the notation itself rather than a tip.
+    func wrongAnswerFeedback() -> [String] {
         if op == .power {
-            return ["Not \(chosen)", "\(Self.superscript(b)) means \(Self.countWord(b)) \(a)s:", "\(factors) = \(answer)"]
+            return ["Oops!", "\(Self.superscript(b)) means \(Self.countWord(b)) \(a)s:", "\(factors) = \(answer)"]
         }
-        return ["Not \(chosen)", solution]
+        return ["Oops!", solution]
     }
 
     /// Plausible wrong answers, including the classic slips for each operation
