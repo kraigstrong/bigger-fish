@@ -247,6 +247,9 @@ final class PracticeScene: SKScene {
         if !hasPlayedJingle || ![.home, .world].contains(phase) {
             audio.play(.mapJingle)
             hasPlayedJingle = true
+            audio.playMusic(nil)
+            // The music fades in as the jingle rings out.
+            audio.playMusic(.menu, after: 3.0, fade: 1.5)
         }
         clearWave()
         removeMaps()
@@ -319,6 +322,7 @@ final class PracticeScene: SKScene {
     }
 
     private func startSession() {
+        audio.playMusic(.game)
         hidePanel()
         closeButton.isHidden = false
         sessionStart = realClock
@@ -424,6 +428,8 @@ final class PracticeScene: SKScene {
     }
 
     private func finishSession() {
+        // Quiet for the stars and crown.
+        audio.playMusic(nil, fade: 0.6)
         phase = .summary
         holdTouches.removeAll()
         setPrompt(nil)
