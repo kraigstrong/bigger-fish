@@ -132,6 +132,8 @@ final class PracticeScene: SKScene {
     /// Top right of the maps; opens Settings (sound on/off).
     private let settingsButton = SKNode()
     private var isShowingSettings = false
+    /// Size of the panel's backing card, for things pinned to its edges.
+    private var panelSize = CGSize.zero
     private var buttons: [(frame: CGRect, action: () -> Void)] = []
     private var specks: [(node: SKSpriteNode, parallax: CGFloat)] = []
 
@@ -183,6 +185,13 @@ final class PracticeScene: SKScene {
         buildCloseButton()
         buildSettingsButton()
         showHome()
+        #if DEBUG
+        // `-previewCrown gold` (or `silver`) in the scheme's launch arguments opens on the crown.
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-previewCrown"), args.indices.contains(i + 1) {
+            previewCrown(args[i + 1] == "gold" ? .gold : .silver)
+        }
+        #endif
     }
 
     /// The scene is created before the view knows its real size; rebuild the layout when it arrives.
@@ -277,15 +286,20 @@ final class PracticeScene: SKScene {
     private func showSettings() {
         isShowingSettings = true
         holdTouches.removeAll()
-        showPanel(
-            title: "Settings",
-            lines: [("Sound effects and music", 18, false)],
-            buttons: [
-                (audio.isSoundOn ? "Sound: On" : "Sound: Off", { [weak self] in self?.toggleSound() }),
-                ("Done", { [weak self] in self?.hideSettings() }),
-            ],
-            centerX: size.width / 2
-        )
+        var lines: [PanelLine] = [("Sound effects and music", 18, false)]
+        var buttons: [(title: String, action: () -> Void)] = [
+            (audio.isSoundOn ? "Sound: On" : "Sound: Off", { [weak self] in self?.toggleSound() }),
+            ("Done", { [weak self] in self?.hideSettings() }),
+        ]
+        #if DEBUG
+        // For seeing rare moments on a device. Debug builds only, so never in the App Store.
+        lines.append(("Previews (Xcode builds only)", 15, false))
+        buttons += [
+            ("Silver crown", { [weak self] in self?.previewCrown(.silver) }),
+            ("Gold crown", { [weak self] in self?.previewCrown(.gold) }),
+        ]
+        #endif
+        showPanel(title: "Settings", lines: lines, buttons: buttons, centerX: size.width / 2)
         // Dim the map behind the panel.
         let scrim = SKSpriteNode(color: SKColor(white: 0, alpha: 0.35), size: CGSize(width: size.width * 2, height: size.height * 2))
         scrim.zPosition = -2
@@ -303,6 +317,22 @@ final class PracticeScene: SKScene {
         isShowingSettings = false
         hidePanel()
     }
+
+    #if DEBUG
+    /// A perfect round that earns `crown` in the last world opened, without touching saved progress.
+    private func previewCrown(_ crown: Crown) {
+        isShowingSettings = false
+        removeMaps()
+        audio.playMusic(nil, fade: 0.6)
+        phase = .summary
+        showResults(
+            title: "Level passed!",
+            lines: [("100%", 56, true), ("12 of 12 right", 20, false), ("\(world.title) complete!", 20, true)],
+            buttons: [("Done", { [weak self] in self?.showHome() })],
+            passed: true, stars: 3, newStars: 3, newCrown: crown
+        )
+    }
+    #endif
 
     private func removeMaps() {
         settingsButton.isHidden = true
@@ -495,7 +525,8 @@ final class PracticeScene: SKScene {
         } else {
             outcome = "Get 80% to unlock the next level."
         }
-        showPanel(
+        let crown = store.crown(for: world)
+        showResults(
             title: passed ? "Level passed!" : roundStars > 0 ? "Nice try!" : "Keep practicing",
             lines: [
                 ("\(result.percent)%", 56, true),
@@ -503,15 +534,136 @@ final class PracticeScene: SKScene {
                 (outcome, 20, true),
             ],
             buttons: summaryButtons(passed: passed),
-            centerX: size.width / 2,
-            style: passed ? .correct : .neutral
+            passed: passed,
+            stars: roundStars,
+            newStars: max(0, roundStars - starsBefore),
+            newCrown: crown != crownBefore && crown != .none ? crown : nil
         )
-        if roundStars > 0 { showStars(earned: roundStars, new: max(0, roundStars - starsBefore)) }
-        let crown = store.crown(for: world)
-        if crown != crownBefore && crown != .none {
+    }
+
+    /// The results panel, its stars, and (for a new or better crown) the crown presentation.
+    private func showResults(
+        title: String, lines: [PanelLine], buttons: [(title: String, action: () -> Void)],
+        passed: Bool, stars: Int, newStars: Int, newCrown: Crown?
+    ) {
+        showPanel(title: title, lines: lines, buttons: buttons, centerX: size.width / 2, style: passed ? .correct : .neutral)
+        if stars > 0 { showStars(earned: stars, new: newStars) }
+        if let newCrown {
             panel.run(.sequence([
-                .wait(forDuration: Self.starRingTime(roundStars) + 0.2),
-                .run { [weak self] in self?.audio.play(.crown) },
+                .wait(forDuration: Self.starRingTime(stars) + 0.2),
+                .run { [weak self] in self?.presentCrown(newCrown) },
+            ]))
+        }
+    }
+
+    /// The biggest moment in the game, timed to the 2.8s sparkle: the panel dims, the crown drops in
+    /// over turning rays and lands with a sparkle burst, its name pops in, then it shrinks onto a
+    /// corner of the panel as a sticker. Everything is a child of the panel, so leaving the results
+    /// screen cancels it.
+    private func presentCrown(_ crown: Crown) {
+        audio.play(.crown)
+        let tint = crown == .gold ? ReefStyle.gold : ReefStyle.silver
+        // The panel is centered on screen, so the screen's center is the panel's origin.
+        let stage = SKNode()
+        stage.zPosition = 10
+        panel.addChild(stage)
+
+        let scrim = SKSpriteNode(color: SKColor(white: 0, alpha: 0.55), size: CGSize(width: size.width * 2, height: size.height * 2))
+        scrim.alpha = 0
+        stage.addChild(scrim)
+        scrim.run(.fadeIn(withDuration: 0.25))
+
+        let center = CGPoint(x: 0, y: 22)
+        let rays = crownRays(radius: max(size.width, size.height) * 0.6, color: tint)
+        rays.position = center
+        rays.alpha = 0
+        rays.zPosition = 1
+        stage.addChild(rays)
+        rays.run(.group([.fadeAlpha(to: 0.35, duration: 0.4), .repeatForever(.rotate(byAngle: .pi / 3, duration: 4))]))
+
+        let crownNode = crownShape(width: 130, crown: crown)
+        crownNode.position = CGPoint(x: center.x, y: size.height / 2 + 120)
+        crownNode.zPosition = 3
+        stage.addChild(crownNode)
+        let drop = SKAction.move(to: center, duration: 0.45)
+        drop.timingMode = .easeIn
+        crownNode.run(.sequence([
+            drop,
+            .run { [weak self] in
+                self?.positiveHaptic.notificationOccurred(.success)
+                self?.sparkleBurst(at: center, in: stage)
+            },
+            .scaleX(to: 1.15, y: 0.85, duration: 0.08),
+            .scale(to: 1.05, duration: 0.12),
+            .scale(to: 1, duration: 0.1),
+        ]))
+
+        let name = label(crown == .gold ? "Gold crown!" : "Silver crown!", fontSize: 34, heavy: true, color: tint)
+        let detail = label(
+            crown == .gold ? "3 stars on every \(world.title) level" : "Every \(world.title) level passed",
+            fontSize: 18, heavy: false
+        )
+        for (node, y) in [(name, center.y - 88), (detail, center.y - 116)] {
+            node.position = CGPoint(x: center.x, y: y)
+            node.zPosition = 3
+            node.setScale(0)
+            stage.addChild(node)
+            node.run(.sequence([
+                .wait(forDuration: 0.55),
+                .scale(to: 1.15, duration: 0.15),
+                .scale(to: 1, duration: 0.1),
+            ]))
+        }
+
+        // Hold, then clear the stage and leave the crown as a sticker on the panel's bottom-left
+        // corner (the top edge already holds the title and stars).
+        let corner = CGPoint(x: -panelSize.width / 2 + 8, y: -panelSize.height / 2 + 10)
+        let settle = SKAction.group([
+            .move(to: corner, duration: 0.4),
+            .scale(to: 0.36, duration: 0.4),
+            .rotate(toAngle: 0.3, duration: 0.4),
+        ])
+        settle.timingMode = .easeInEaseOut
+        stage.run(.sequence([
+            .wait(forDuration: 2.6),
+            .run {
+                for node in [scrim, rays, name, detail] { node.run(.fadeOut(withDuration: 0.3)) }
+                crownNode.run(settle)
+            },
+        ]))
+    }
+
+    /// Soft light rays behind the crown, in its color.
+    private func crownRays(radius: CGFloat, color: SKColor) -> SKNode {
+        let path = CGMutablePath()
+        let count = 12
+        for i in 0..<count {
+            let a = CGFloat(i) * 2 * .pi / CGFloat(count), half = CGFloat.pi / CGFloat(count) * 0.45
+            path.move(to: .zero)
+            path.addLine(to: CGPoint(x: cos(a - half) * radius, y: sin(a - half) * radius))
+            path.addLine(to: CGPoint(x: cos(a + half) * radius, y: sin(a + half) * radius))
+            path.closeSubpath()
+        }
+        let rays = SKShapeNode(path: path)
+        rays.fillColor = color
+        rays.strokeColor = .clear
+        return rays
+    }
+
+    /// Little stars flying out from where the crown lands.
+    private func sparkleBurst(at point: CGPoint, in parent: SKNode) {
+        for i in 0..<14 {
+            let angle = CGFloat(i) / 14 * 2 * .pi + CGFloat.random(in: -0.15...0.15)
+            let distance = CGFloat.random(in: 110...170)
+            let sparkle = starShape(radius: CGFloat.random(in: 5...9), filled: true)
+            sparkle.position = point
+            sparkle.zPosition = 2
+            parent.addChild(sparkle)
+            let fly = SKAction.move(by: CGVector(dx: cos(angle) * distance, dy: sin(angle) * distance), duration: 0.7)
+            fly.timingMode = .easeOut
+            sparkle.run(.sequence([
+                .group([fly, .rotate(byAngle: .pi, duration: 0.7), .sequence([.wait(forDuration: 0.35), .fadeOut(withDuration: 0.35)])]),
+                .removeFromParent(),
             ]))
         }
     }
@@ -877,6 +1029,7 @@ final class PracticeScene: SKScene {
         let lineHeights = lines.map { $0.fontSize + 12 }
         let height = 58 + lineHeights.reduce(0, +) + (newButtons.isEmpty ? 10 : 82)
         let width = max(titleLabel.frame.width, lineLabels.map(\.frame.width).max() ?? 0, buttonsWidth) + 60
+        panelSize = CGSize(width: width, height: height)
 
         let backing = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
         switch style {
