@@ -67,27 +67,27 @@ enum ReefTuning {
     static var promptPillHeight: CGFloat { promptFontSize + 14 }
     /// The question's center sits this far above (or below) the player fish's center.
     static let promptOffset: CGFloat = playerRadius + 30
-    /// The question moves below the fish once, above, it would come closer than this to the top.
-    static let promptTopClearance: CGFloat = 6
-    /// It moves back above only after the fish drops this much further, so bobbing at the edge
-    /// can't make it flip back and forth.
-    static let promptFlipHysteresis: CGFloat = 50
+    /// The question switches sides once, where it is, it would come closer than this to the top
+    /// or bottom of the screen.
+    static let promptEdgeClearance: CGFloat = 6
     static let promptFlipFadeSeconds: CGFloat = 0.08
 }
 
-/// Which side of the player fish the question rides on: above, except near the top of the water,
-/// where above would be cut off. Hysteresis keeps it from flipping back and forth at the edge.
+/// Which side of the player fish the question rides on. It starts above and stays on its side until
+/// that side would be cut off: it moves below near the top of the water, and back above only near
+/// the bottom. Switching only at the far edges means it can't flip back and forth as the fish bobs.
 struct PromptPlacement {
     private(set) var below = false
 
     /// Returns true when the side changes.
     mutating func update(playerY: CGFloat, screenHeight: CGFloat) -> Bool {
         typealias L = ReefTuning
-        let topWhenAbove = playerY + L.promptOffset + L.promptPillHeight / 2
-        let limit = screenHeight - L.promptTopClearance
-        let next = below ? topWhenAbove >= limit - L.promptFlipHysteresis : topWhenAbove > limit
-        defer { below = next }
-        return next != below
+        let reach = L.promptOffset + L.promptPillHeight / 2
+        let cutOff = below
+            ? playerY - reach < L.promptEdgeClearance
+            : playerY + reach > screenHeight - L.promptEdgeClearance
+        if cutOff { below.toggle() }
+        return cutOff
     }
 }
 
