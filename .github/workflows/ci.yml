@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Math Reef
+            dir: .
+            target: -project BiggerFish.xcodeproj -scheme MathReef
+          - name: Bigger Fish
+            dir: .
+            target: -project BiggerFish.xcodeproj -scheme BiggerFish
+          - name: FishKit
+            dir: Packages/FishKit
+            target: -scheme FishKit
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select the newest Xcode 26
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Pick an iPhone simulator
+        run: |
+          xcrun simctl list devices available -j > "$RUNNER_TEMP/devices.json"
+          id=$(python3 - "$RUNNER_TEMP/devices.json" <<'EOF'
+          import json, re, sys
+          devices = json.load(open(sys.argv[1]))["devices"]
+          def version(runtime):
+              return [int(n) for n in re.findall(r"\d+", runtime.split("iOS")[-1])]
+          ios = sorted((r for r in devices if "iOS" in r), key=version, reverse=True)
+          print(next(d["udid"] for r in ios for d in devices[r] if d["name"].startswith("iPhone")))
+          EOF
+          )
+          xcrun simctl list devices | grep "$id"
+          echo "SIMULATOR_ID=$id" >> "$GITHUB_ENV"
+
+      - name: Test
+        working-directory: ${{ matrix.dir }}
+        run: |
+          xcodebuild test ${{ matrix.target }} \
+            -destination "id=$SIMULATOR_ID" \
+            -enableCodeCoverage YES \
+            -resultBundlePath "$RUNNER_TEMP/tests.xcresult" \
+            -quiet \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          [ -d "$RUNNER_TEMP/tests.xcresult" ] || exit 0
+          xcrun xccov view --report --json "$RUNNER_TEMP/tests.xcresult" > "$RUNNER_TEMP/coverage.json"
+          python3 - "$RUNNER_TEMP/coverage.json" "${{ matrix.name }}" >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          import json, sys
+          report = json.load(open(sys.argv[1]))
+          print(f"### {sys.argv[2]} coverage\n")
+          print("| Target | File | Lines covered |")
+          print("|---|---|---|")
+          for target in report["targets"]:
+              if "Tests" in target["name"]:
+                  continue
+              name, total = target["name"], target["lineCoverage"]
+              print(f"| **{name}** | | **{total:.0%}** |")
+              for f in sorted(target["files"], key=lambda f: f["name"]):
+                  file, pct, covered, lines = f["name"], f["lineCoverage"], f["coveredLines"], f["executableLines"]
+                  print(f"| | {file} | {pct:.0%} ({covered}/{lines}) |")
+          EOF
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }} test results
+          path: ${{ runner.temp }}/tests.xcresult
