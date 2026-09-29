@@ -41,6 +41,9 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   *sound effects* license covers games; Mixkit's *music* license does not, so no Mixkit music in
   the apps.
 - **Privacy:** Math Reef is a kids' app. Don't add third-party analytics, ads, or tracking SDKs.
+- **Links out of Math Reef go behind the parental gate** (`MathReef/ParentalGate.swift`), as the
+  App Store's Kids category requires: web pages, email, and App Store links alike. Today that's the
+  privacy policy and support pages on brightbench.app, reached from Settings > For grown-ups.
 
 ## Pull requests
 

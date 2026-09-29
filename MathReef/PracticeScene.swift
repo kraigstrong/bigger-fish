@@ -127,9 +127,12 @@ final class PracticeScene: SKScene {
     private let progressLabel = SKNode()
     private let panel = SKNode()
     private let closeButton = SKNode()
-    /// Top right of the maps; opens Settings (sound on/off).
+    /// Top right of the maps; opens Settings (sound on/off, and links for grown-ups).
     private let settingsButton = SKNode()
+    /// Settings or one of its grown-up screens is open over the map.
     private var isShowingSettings = false
+    /// The question on screen while the parental gate is open.
+    private var parentalGate: ParentalGate?
     private var buttons: [(frame: CGRect, action: () -> Void)] = []
     private var specks: [(node: SKSpriteNode, parallax: CGFloat)] = []
 
@@ -279,12 +282,12 @@ final class PracticeScene: SKScene {
 
     // MARK: - Settings
 
-    private func showSettings() {
-        isShowingSettings = true
-        holdTouches.removeAll()
+    private func showSettings(animated: Bool = true) {
+        parentalGate = nil
         var lines: [PanelLine] = [("Sound effects and music", 18, false)]
         var buttons: [(title: String, action: () -> Void)] = [
             (audio.isSoundOn ? "Sound: On" : "Sound: Off", { [weak self] in self?.toggleSound() }),
+            ("For grown-ups", { [weak self] in self?.showParentalGate() }),
             ("Done", { [weak self] in self?.hideSettings() }),
         ]
         #if DEBUG
@@ -299,23 +302,90 @@ final class PracticeScene: SKScene {
             ("Reset ×", { [weak self] in self?.debugSetUpMultiplication(.reset) }),
         ]
         #endif
-        showPanel(title: "Settings", lines: lines, buttons: buttons, centerX: size.width / 2)
-        // Dim the map behind the panel.
+        showSettingsPanel(title: "Settings", lines: lines, buttons: buttons, animated: animated)
+    }
+
+    /// Settings and its grown-up screens: centered over the dimmed map. `animated: false` redraws in
+    /// place without the panel's fade-in, for a change on the same screen (a sound toggle, a digit).
+    private func showSettingsPanel(
+        title: String, lines: [PanelLine], buttons: [(title: String, action: () -> Void)],
+        buttonMinWidth: CGFloat = 140, animated: Bool
+    ) {
+        isShowingSettings = true
+        holdTouches.removeAll()
+        showPanel(title: title, lines: lines, buttons: buttons, centerX: size.width / 2, buttonMinWidth: buttonMinWidth)
         let scrim = SKSpriteNode(color: SKColor(white: 0, alpha: 0.35), size: CGSize(width: size.width * 2, height: size.height * 2))
         scrim.zPosition = -2
         panel.addChild(scrim)
+        if !animated {
+            panel.removeAllActions()
+            panel.alpha = 1
+        }
     }
 
     private func toggleSound() {
         audio.isSoundOn.toggle()
-        showSettings()
-        panel.removeAllActions()
-        panel.alpha = 1  // redraw in place, without the panel's fade-in
+        showSettings(animated: false)
     }
 
     private func hideSettings() {
         isShowingSettings = false
+        parentalGate = nil
         hidePanel()
+    }
+
+    // MARK: - For grown-ups
+
+    /// The privacy policy and support pages leave the app, so they sit behind a parental gate
+    /// (see ParentalGate.swift). A wrong answer goes back to Settings with no second try.
+    private func showParentalGate() {
+        parentalGate = ParentalGate()
+        drawParentalGate()
+    }
+
+    /// Redrawn in place for every digit, like the other screens reached from Settings.
+    private func drawParentalGate() {
+        guard let gate = parentalGate else { return }
+        let blanks = Array(repeating: "_", count: String(gate.answer).count - gate.entry.count)
+        let entry = (gate.entry.map(String.init) + blanks).joined(separator: " ")
+        var buttons: [(title: String, action: () -> Void)] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map { digit in
+            ("\(digit)", { [weak self] in self?.typeGateDigit(digit) })
+        }
+        buttons += [
+            ("Delete", { [weak self] in
+                self?.parentalGate?.deleteDigit()
+                self?.drawParentalGate()
+            }),
+            ("Cancel", { [weak self] in self?.showSettings(animated: false) }),
+        ]
+        showSettingsPanel(
+            title: "For grown-ups", lines: [(gate.question, 20, false), (entry, 30, true)],
+            buttons: buttons, buttonMinWidth: 56, animated: false
+        )
+    }
+
+    private func typeGateDigit(_ digit: Int) {
+        guard var gate = parentalGate else { return }
+        let result = gate.type(digit)
+        parentalGate = gate
+        switch result {
+        case .typing: drawParentalGate()
+        case .passed: showParentLinks()
+        case .failed: showSettings(animated: false)
+        }
+    }
+
+    private func showParentLinks() {
+        parentalGate = nil
+        showSettingsPanel(
+            title: "For grown-ups", lines: [("These open in Safari.", 18, false)],
+            buttons: [
+                ("Privacy policy", { UIApplication.shared.open(ParentLinks.privacy) }),
+                ("Support", { UIApplication.shared.open(ParentLinks.support) }),
+                ("Done", { [weak self] in self?.hideSettings() }),
+            ],
+            animated: false
+        )
     }
 
     #if DEBUG
@@ -1030,7 +1100,8 @@ final class PracticeScene: SKScene {
         lines: [(text: String, fontSize: CGFloat, heavy: Bool)],
         buttons newButtons: [(title: String, action: () -> Void)],
         centerX: CGFloat? = nil,
-        style: PanelStyle = .neutral
+        style: PanelStyle = .neutral,
+        buttonMinWidth: CGFloat = 140
     ) {
         hidePanel()
         let titleLabel = label(title, fontSize: 32, heavy: true)
@@ -1039,7 +1110,7 @@ final class PracticeScene: SKScene {
         let buttonLabels = newButtons.map {
             label($0.title, fontSize: 19, heavy: true, color: SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1))
         }
-        let buttonWidths = buttonLabels.map { max(140, $0.frame.width + 40) }
+        let buttonWidths = buttonLabels.map { max(buttonMinWidth, $0.frame.width + 40) }
         // Buttons wrap onto more rows when one row would be wider than the screen allows.
         let rowGap: CGFloat = 12
         var rows: [[Int]] = []
