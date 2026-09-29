@@ -115,6 +115,9 @@ final class WorldMapNode: SKNode {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    /// Where a world's stop sits on screen.
+    func screenPoint(ofWorld index: Int) -> CGPoint { centers[index] }
+
     func handleTap(at point: CGPoint) {
         guard let index = centers.indices.first(where: { hypot(centers[$0].x - point.x, centers[$0].y - point.y) < 54 }),
               playable[index] else { return }
@@ -193,6 +196,14 @@ final class LevelMapNode: SKNode {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     // MARK: Touches (scene coordinates; this node sits at the scene origin)
+
+    /// Where a level's stop sits on screen at the current scroll.
+    func screenPoint(ofLevel index: Int) -> CGPoint {
+        CGPoint(x: centers[index].x + content.position.x, y: centers[index].y)
+    }
+
+    /// How far the path is scrolled: 0 at the start, negative as later levels come into view.
+    var scrollOffset: CGFloat { content.position.x }
 
     func touchBegan(at point: CGPoint) {
         touchStart = point

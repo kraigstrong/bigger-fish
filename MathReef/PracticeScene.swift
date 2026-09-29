@@ -523,34 +523,19 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = true
 
         let result = session.result
-        let hasNext = levelIndex + 1 < world.levels.count
-        let alreadyUnlocked = hasNext && store.isUnlocked(levelIndex + 1, in: world)
-        let wasSkipTest = store.isSkipTest(levelIndex, in: world)
-        let starsBefore = store.record(for: level).stars
-        let crownBefore = store.crown(for: world)
-        let passed = store.finishRound(levelIndex, in: world, correct: result.correctAnswers, attempts: result.totalAttempts)
-        let roundStars = PassRule.stars(correct: result.correctAnswers, attempts: result.totalAttempts)
-        let outcome: String
-        if passed && wasSkipTest {
-            outcome = "You skipped ahead!"
-        } else if passed {
-            outcome = !hasNext ? "\(world.title) complete!" : alreadyUnlocked ? "Next level is open." : "Level \(levelIndex + 2) unlocked!"
-        } else {
-            outcome = "Get 80% to unlock the next level."
-        }
-        let crown = store.crown(for: world)
+        let summary = store.recordRound(levelIndex, in: world, correct: result.correctAnswers, attempts: result.totalAttempts)
         showResults(
-            title: passed ? "Level passed!" : roundStars > 0 ? "Nice try!" : "Keep practicing",
+            title: summary.title,
             lines: [
-                ("\(result.percent)%", 56, true),
-                ("\(result.correctAnswers) of \(result.totalAttempts) right", 20, false),
-                (outcome, 20, true),
+                ("\(summary.percent)%", 56, true),
+                ("\(summary.correct) of \(summary.attempts) right", 20, false),
+                (summary.outcome, 20, true),
             ],
-            buttons: summaryButtons(passed: passed),
-            passed: passed,
-            stars: roundStars,
-            newStars: max(0, roundStars - starsBefore),
-            newCrown: crown != crownBefore && crown != .none ? crown : nil
+            buttons: summaryButtons(passed: summary.passed),
+            passed: summary.passed,
+            stars: summary.stars,
+            newStars: summary.newStars,
+            newCrown: summary.newCrown
         )
     }
 

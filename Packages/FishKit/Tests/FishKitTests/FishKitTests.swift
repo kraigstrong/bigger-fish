@@ -1,4 +1,5 @@
 import CoreGraphics
+import SpriteKit
 import Testing
 @testable import FishKit
 
@@ -64,5 +65,31 @@ struct SeededGeneratorTests {
     @Test func isDeterministic() {
         var a = SeededGenerator(seed: 42), b = SeededGenerator(seed: 42)
         #expect((0..<5).map { _ in a.next() } == (0..<5).map { _ in b.next() })
+    }
+}
+
+/// Headwear (Math Reef's crowns) sits on the head and turns with the fish.
+@MainActor
+struct HeadwearTests {
+    @Test func wearingReplacingAndRemoving() {
+        let fish = FishNode(style: .player, isPlayer: true, tailPhase: 0)
+        let crown = SKNode(), hat = SKNode()
+        fish.setHeadwear(crown)
+        #expect(crown.parent != nil)
+        #expect(crown.position == FishNode.headwearAnchor)
+        fish.setHeadwear(hat)
+        #expect(crown.parent == nil && hat.parent != nil)
+        fish.setHeadwear(nil)
+        #expect(hat.parent == nil)
+    }
+
+    @Test func headwearFlipsAndScalesWithTheFish() {
+        let fish = FishNode(style: .player, isPlayer: true, tailPhase: 0)
+        let crown = SKNode()
+        fish.setHeadwear(crown)
+        fish.apply(radius: 60, facing: -1, tilt: 0, stretchX: 1, stretchY: 1, mouthOpen: 0, time: 0, tailRate: 0)
+        let onScreen = crown.convert(CGPoint.zero, to: fish)
+        #expect(abs(onScreen.x - -2 * FishNode.headwearAnchor.x) < 0.001)  // mirrored, at twice the size
+        #expect(abs(onScreen.y - 2 * FishNode.headwearAnchor.y) < 0.001)
     }
 }
