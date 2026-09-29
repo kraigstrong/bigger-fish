@@ -129,6 +129,9 @@ final class PracticeScene: SKScene {
     private let progressLabel = SKNode()
     private let panel = SKNode()
     private let closeButton = SKNode()
+    /// Top right of the maps; opens Settings (sound on/off).
+    private let settingsButton = SKNode()
+    private var isShowingSettings = false
     private var buttons: [(frame: CGRect, action: () -> Void)] = []
     private var specks: [(node: SKSpriteNode, parallax: CGFloat)] = []
 
@@ -163,9 +166,12 @@ final class PracticeScene: SKScene {
         addChild(backgroundLayer)
         addChild(fishLayer)
         addChild(uiLayer)
-        for node in [playerPrompt, topPrompt, progressLabel, panel, closeButton] {
+        for node in [playerPrompt, topPrompt, progressLabel, panel, closeButton, settingsButton] {
             uiLayer.addChild(node)
         }
+        // Above the maps, which share the UI layer (the scene ignores sibling order).
+        settingsButton.zPosition = 10
+        panel.zPosition = 20
         NotificationCenter.default.addObserver(
             self, selector: #selector(appWillResignActive),
             name: UIApplication.willResignActiveNotification, object: nil
@@ -175,6 +181,7 @@ final class PracticeScene: SKScene {
 
         buildBackground()
         buildCloseButton()
+        buildSettingsButton()
         showHome()
     }
 
@@ -186,6 +193,7 @@ final class PracticeScene: SKScene {
         specks.removeAll()
         buildBackground()
         buildCloseButton()
+        buildSettingsButton()
         showHome()
     }
 
@@ -259,10 +267,45 @@ final class PracticeScene: SKScene {
         setPrompt(nil)
         updateProgress()
         closeButton.isHidden = true
+        settingsButton.isHidden = false
+        isShowingSettings = false
         render()
     }
 
+    // MARK: - Settings
+
+    private func showSettings() {
+        isShowingSettings = true
+        holdTouches.removeAll()
+        showPanel(
+            title: "Settings",
+            lines: [("Sound effects and music", 18, false)],
+            buttons: [
+                (audio.isSoundOn ? "Sound: On" : "Sound: Off", { [weak self] in self?.toggleSound() }),
+                ("Done", { [weak self] in self?.hideSettings() }),
+            ],
+            centerX: size.width / 2
+        )
+        // Dim the map behind the panel.
+        let scrim = SKSpriteNode(color: SKColor(white: 0, alpha: 0.35), size: CGSize(width: size.width * 2, height: size.height * 2))
+        scrim.zPosition = -2
+        panel.addChild(scrim)
+    }
+
+    private func toggleSound() {
+        audio.isSoundOn.toggle()
+        showSettings()
+        panel.removeAllActions()
+        panel.alpha = 1  // redraw in place, without the panel's fade-in
+    }
+
+    private func hideSettings() {
+        isShowingSettings = false
+        hidePanel()
+    }
+
     private func removeMaps() {
+        settingsButton.isHidden = true
         worldMap?.removeFromParent()
         levelMap?.removeFromParent()
         worldMap = nil
@@ -521,8 +564,18 @@ final class PracticeScene: SKScene {
                 showWorld()
                 return
             }
+            if !settingsButton.isHidden && !isShowingSettings
+                && hypot(p.x - settingsButton.position.x, p.y - settingsButton.position.y) < 36 {
+                showSettings()
+                return
+            }
             if let hit = buttons.first(where: { $0.frame.insetBy(dx: -10, dy: -10).contains(p) }) {
                 hit.action()
+                return
+            }
+            // A tap outside the Settings panel closes it without reaching the map underneath.
+            if isShowingSettings {
+                hideSettings()
                 return
             }
             if phase == .answering || phase == .feedback {
@@ -534,7 +587,7 @@ final class PracticeScene: SKScene {
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard phase == .world, let touch = touches.first else { return }
+        guard phase == .world, !isShowingSettings, let touch = touches.first else { return }
         levelMap?.touchMoved(to: touch.location(in: self))
     }
 
@@ -877,13 +930,33 @@ final class PracticeScene: SKScene {
         buttons.removeAll()
     }
 
-    private func buildCloseButton() {
-        closeButton.removeAllChildren()
+    /// The small translucent circle behind the close and settings icons.
+    private func roundButtonBacking() -> SKShapeNode {
         let circle = SKShapeNode(circleOfRadius: 20)
         circle.fillColor = SKColor(white: 0, alpha: 0.25)
         circle.strokeColor = SKColor(white: 1, alpha: 0.5)
         circle.lineWidth = 1.5
-        closeButton.addChild(circle)
+        return circle
+    }
+
+    /// Same spot and style as the in-level close button, which it never appears alongside.
+    private func buildSettingsButton() {
+        settingsButton.removeAllChildren()
+        settingsButton.addChild(roundButtonBacking())
+        let config = UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
+        if let symbol = UIImage(systemName: "gearshape.fill", withConfiguration: config)?
+            .withTintColor(.white, renderingMode: .alwaysOriginal) {
+            let image = UIGraphicsImageRenderer(size: symbol.size).image { _ in symbol.draw(at: .zero) }
+            let gear = SKSpriteNode(texture: SKTexture(image: image))
+            gear.zPosition = 1
+            settingsButton.addChild(gear)
+        }
+        settingsButton.position = CGPoint(x: size.width - 64, y: size.height - 36)
+    }
+
+    private func buildCloseButton() {
+        closeButton.removeAllChildren()
+        closeButton.addChild(roundButtonBacking())
         let cross = label("✕", fontSize: 18, heavy: true)
         cross.zPosition = 1
         closeButton.addChild(cross)
