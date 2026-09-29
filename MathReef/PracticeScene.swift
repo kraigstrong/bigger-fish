@@ -125,7 +125,6 @@ final class PracticeScene: SKScene {
     private let fishLayer = SKNode()
     private let uiLayer = SKNode()
     private let playerPrompt = SKNode()
-    private let topPrompt = SKNode()
     private let progressLabel = SKNode()
     private let panel = SKNode()
     private let closeButton = SKNode()
@@ -166,7 +165,7 @@ final class PracticeScene: SKScene {
         addChild(backgroundLayer)
         addChild(fishLayer)
         addChild(uiLayer)
-        for node in [playerPrompt, topPrompt, progressLabel, panel, closeButton, settingsButton] {
+        for node in [playerPrompt, progressLabel, panel, closeButton, settingsButton] {
             uiLayer.addChild(node)
         }
         // Above the maps, which share the UI layer (the scene ignores sibling order).
@@ -983,23 +982,22 @@ final class PracticeScene: SKScene {
 
     // MARK: - UI
 
+    /// The question rides above the player fish.
     private func setPrompt(_ text: String?) {
-        for (node, fontSize) in [(playerPrompt, L.promptFontSize), (topPrompt, L.promptFontSize + 6)] {
-            node.removeAllChildren()
-            guard let text else { continue }
-            let label = outlinedLabel(text, fontSize: fontSize)
-            let pill = SKShapeNode(
-                rectOf: CGSize(width: label.calculateAccumulatedFrame().width + 28, height: fontSize + 14),
-                cornerRadius: (fontSize + 14) / 2
-            )
-            pill.fillColor = SKColor(white: 0, alpha: 0.35)
-            pill.strokeColor = .clear
-            pill.zPosition = 0
-            label.zPosition = 1
-            node.addChild(pill)
-            node.addChild(label)
-        }
-        topPrompt.position = CGPoint(x: size.width / 2, y: size.height - 34)
+        playerPrompt.removeAllChildren()
+        guard let text else { return }
+        let fontSize = L.promptFontSize
+        let label = outlinedLabel(text, fontSize: fontSize)
+        let pill = SKShapeNode(
+            rectOf: CGSize(width: label.calculateAccumulatedFrame().width + 28, height: fontSize + 14),
+            cornerRadius: (fontSize + 14) / 2
+        )
+        pill.fillColor = SKColor(white: 0, alpha: 0.35)
+        pill.strokeColor = .clear
+        pill.zPosition = 0
+        label.zPosition = 1
+        playerPrompt.addChild(pill)
+        playerPrompt.addChild(label)
     }
 
     private func updateProgress() {
