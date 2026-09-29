@@ -69,8 +69,25 @@ struct Fact: Hashable {
             let slips = twoDigit ? [smallerFromLarger, n + 10, n - 10] : []
             return slips + [a + b, n + 1, n - 1, n + 2, n - 2]
         case .multiply:
+            let (big, small) = (max(a, b), min(a, b))
+            if big >= 20, big % 10 == 0, small < 10 {
+                // 4 × 30: a zero dropped or doubled.
+                return [n / 10, n * 10, n + small * 10, n - small * 10, n + 10]
+            }
+            if big >= 13, small < 10 {
+                // 47 × 6: forgot the carry (242), only the tens (240), off by a ten.
+                let noCarry = (big / 10 * small) * 10 + (big % 10 * small) % 10
+                return [noCarry, big / 10 * 10 * small, n + 10, n - 10, n + small, n - small]
+            }
             return [a + b, a * (b + 1), a * (b - 1), (a + 1) * b, (a - 1) * b, n + 1, n - 1]
         case .divide:
+            if b < 10, n >= 10 {
+                // 240 ÷ 6: a zero dropped or doubled. 72 ÷ 3: each digit divided on its own (20).
+                let digitwise = (a / 10 / b) * 10 + (a % 10) / b
+                return a % 10 == 0 && n % 10 == 0
+                    ? [n / 10, n * 10, n + 10, n - 10]
+                    : [digitwise, n + 10, n - 10, n + 1, n - 1]
+            }
             return [a - b, n + 1, n - 1, n + 2, n - 2]
         case .power:
             let up = Fact(op: .power, a: a + 1, b: b).answer

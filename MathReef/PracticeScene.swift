@@ -138,6 +138,8 @@ final class PracticeScene: SKScene {
     private var timeScale: CGFloat = 1
     private var isBuilt = false
 
+    private let audio = ReefAudio()
+    private var hasPlayedJingle = false
     private let positiveHaptic = UINotificationFeedbackGenerator()
     private let gentleHaptic = UIImpactFeedbackGenerator(style: .soft)
 
@@ -240,6 +242,15 @@ final class PracticeScene: SKScene {
     }
 
     private func enterMenu(_ menu: Phase) {
+        // The jingle greets you at launch and on the way back from a level, not when moving
+        // between the reef and a world's level path.
+        if !hasPlayedJingle || ![.home, .world].contains(phase) {
+            audio.play(.mapJingle)
+            hasPlayedJingle = true
+            audio.playMusic(nil)
+            // The music fades in as the jingle rings out.
+            audio.playMusic(.menu, after: 3.0, fade: 1.5)
+        }
         clearWave()
         removeMaps()
         hidePanel()
@@ -311,6 +322,7 @@ final class PracticeScene: SKScene {
     }
 
     private func startSession() {
+        audio.playMusic(.game)
         hidePanel()
         closeButton.isHidden = false
         sessionStart = realClock
@@ -416,6 +428,8 @@ final class PracticeScene: SKScene {
     }
 
     private func finishSession() {
+        // Quiet for the stars and crown.
+        audio.playMusic(nil, fade: 0.6)
         phase = .summary
         holdTouches.removeAll()
         setPrompt(nil)
@@ -427,6 +441,7 @@ final class PracticeScene: SKScene {
         let alreadyUnlocked = hasNext && store.isUnlocked(levelIndex + 1, in: world)
         let wasSkipTest = store.isSkipTest(levelIndex, in: world)
         let starsBefore = store.record(for: level).stars
+        let crownBefore = store.crown(for: world)
         let passed = store.finishRound(levelIndex, in: world, correct: result.correctAnswers, attempts: result.totalAttempts)
         let roundStars = PassRule.stars(correct: result.correctAnswers, attempts: result.totalAttempts)
         let outcome: String
@@ -449,9 +464,20 @@ final class PracticeScene: SKScene {
             style: passed ? .correct : .neutral
         )
         if roundStars > 0 { showStars(earned: roundStars, new: max(0, roundStars - starsBefore)) }
+        let crown = store.crown(for: world)
+        if crown != crownBefore && crown != .none {
+            panel.run(.sequence([
+                .wait(forDuration: Self.starRingTime(roundStars) + 0.2),
+                .run { [weak self] in self?.audio.play(.crown) },
+            ]))
+        }
     }
 
-    /// This round's stars sit on the top edge of the results panel; ones that beat the best pop in.
+    /// When the bell for the star at `index` rings (the first star is index 0).
+    private static func starRingTime(_ index: Int) -> TimeInterval { 0.35 + Double(index) * 0.4 }
+
+    /// This round's stars sit on the top edge of the results panel. The bell rings once per earned
+    /// star; ones that beat the best pop in on their ring, and the rest pulse.
     private func showStars(earned: Int, new: Int) {
         let top = panel.calculateAccumulatedFrame().maxY - panel.position.y
         for i in 0..<3 {
@@ -459,14 +485,15 @@ final class PracticeScene: SKScene {
             star.position = CGPoint(x: CGFloat(i - 1) * 54, y: top + (i == 1 ? 8 : 0))
             star.zPosition = 5
             panel.addChild(star)
-            if i < earned && i >= earned - new {
-                star.setScale(0)
-                star.run(.sequence([
-                    .wait(forDuration: 0.35 + Double(i - (earned - new)) * 0.25),
-                    .scale(to: 1.35, duration: 0.18),
-                    .scale(to: 1, duration: 0.12),
-                ]))
-            }
+            guard i < earned else { continue }
+            let isNew = i >= earned - new
+            if isNew { star.setScale(0) }
+            star.run(.sequence([
+                .wait(forDuration: Self.starRingTime(i)),
+                .run { [weak self] in self?.audio.play(.star) },
+                .scale(to: isNew ? 1.35 : 1.15, duration: 0.18),
+                .scale(to: 1, duration: 0.12),
+            ]))
         }
     }
 
@@ -622,6 +649,7 @@ final class PracticeScene: SKScene {
             s.prey.node.isHidden = true
             player.state = .swimming
             player.pulse = L.pulseDuration
+            audio.play(.gulp)
         }
     }
 
@@ -652,6 +680,7 @@ final class PracticeScene: SKScene {
         answer.fish.struggle = 0
         bounce(answer)
         gentleHaptic.impactOccurred(intensity: 0.7)
+        audio.play(.wrong)
         showWrongFeedback()
     }
 
