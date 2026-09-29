@@ -33,6 +33,7 @@ final class WorldMapNode: SKNode {
     private let fish = FishNode(style: .player, isPlayer: true, tailPhase: 0)
     private var fishHome = CGPoint.zero
 
+    /// `fishCrown` is the focused world's crown, since the fish waits beside that world.
     init(size: CGSize, worlds: [WorldStop], focus: Int, fishCrown crown: Crown) {
         super.init()
         fish.setHeadwear(fishCrown(crown))
@@ -146,10 +147,10 @@ final class LevelMapNode: SKNode {
     private var dragging = false
 
     init(size: CGSize, title: String, color: SKColor, levels: [LevelStop], stars: (earned: Int, total: Int),
-         crown: Crown, focus: Int, fishCrown worn: Crown) {
+         crown: Crown, focus: Int) {
         backCenter = CGPoint(x: 46, y: size.height - 36)
         super.init()
-        fish.setHeadwear(fishCrown(worn))
+        fish.setHeadwear(fishCrown(crown))
 
         let bed = seabed(size: size)
         bed.zPosition = -2

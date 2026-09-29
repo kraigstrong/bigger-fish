@@ -250,7 +250,7 @@ struct ProgressStoreTests {
 
         store.debugSetUp(.gold, in: multiplication)
         #expect(store.crown(for: multiplication) == .gold)
-        #expect(store.bestCrown(in: Curriculum.worlds) == .gold)
+        #expect(store.crown(for: addition) == .none)  // crowns stay in their own world
         store.debugSetUp(.silver, in: multiplication)
         #expect(store.crown(for: multiplication) == .silver)
         #expect(ProgressStore(defaults: defaults).crown(for: multiplication) == .silver)  // saved
@@ -264,7 +264,6 @@ struct ProgressStoreTests {
         store.debugSetUp(.reset, in: multiplication)
         #expect(store.crown(for: multiplication) == .none)
         #expect(store.stars(in: multiplication).earned == 0)
-        #expect(store.bestCrown(in: Curriculum.worlds) == .none)
         #expect(store.record(for: addition.levels[0]).stars == 3)
     }
 
