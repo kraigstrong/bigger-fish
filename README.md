@@ -22,7 +22,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
 - `MathReef/` — **Math Reef** (`com.kraigstrong.mathreef`), the education app for grades 1–5. Pick a
-  world (Addition, Subtraction, Multiplication, Division, Exponents; Fractions coming soon), then a level,
+  world (Addition, Subtraction, Multiplication, Division, Exponents), then a level,
   and swim into the right answer. Addition and subtraction climb in small strategy steps (+1/+2, make 10,
   doubles, near doubles, past 10, then 2-digit up to carrying/borrowing). A round asks every question in
   the level plus 3 review questions from earlier levels. Stars come from accuracy (right answers out of
