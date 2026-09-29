@@ -36,6 +36,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   - `PracticeSession.swift` — dealing and requeueing within a round
   - `ReefMaps.swift` — the reef (world) map and the level path
   - `ReefUI.swift` — shared labels, stars, crowns, and world colors
+  - `ParentalGate.swift` — the grown-ups-only question guarding the privacy and support links
   - `PracticeScene.swift` — screen flow and gameplay; tuning is `ReefTuning` at the top
 - `Packages/FishKit/` — shared fish engine used by both apps:
   the fish model and drawing, hold/release movement (`PlayerMotion` + `MotionTuning`), wrapped world,
