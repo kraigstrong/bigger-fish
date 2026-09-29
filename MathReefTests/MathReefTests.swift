@@ -55,6 +55,21 @@ struct ChoiceTests {
         }
     }
 
+    /// Single-digit questions never get far-off answers like 19 for 7 + 2 (adding instead of
+    /// subtracting is the one exception: it's a real sign mix-up).
+    @Test func smallQuestionsGetCloseWrongAnswers() {
+        var rng = SeededGenerator(seed: 11)
+        for level in [Curriculum.addPlus12, Curriculum.addWithin10, Curriculum.subMinus12, Curriculum.subWithin10] {
+            for fact in level.facts {
+                for _ in 0..<20 {
+                    let signMixUp = fact.op == .subtract ? fact.a + fact.b : nil
+                    #expect(fact.choices(using: &rng).allSatisfy { abs($0.value - fact.answer) < 10 || $0.value == signMixUp },
+                            "\(fact.prompt)")
+                }
+            }
+        }
+    }
+
     /// The correct answer must not always be the biggest (or smallest) number on screen.
     @Test func correctAnswerIsNotAlwaysTheExtreme() {
         var rng = SeededGenerator(seed: 9)
@@ -77,7 +92,7 @@ struct ChoiceTests {
 struct CurriculumTests {
     @Test func worldsAreInOrderWithFractionsComingSoon() {
         #expect(Curriculum.worlds.map(\.title) == [
-            "Addition", "Subtraction", "Mixed + −", "Multiplication", "Division", "Mixed × ÷", "Fractions", "Exponents",
+            "Addition", "Subtraction", "Multiplication", "Division", "Fractions", "Exponents",
         ])
         #expect(Curriculum.worlds.filter(\.comingSoon).map(\.id) == ["fractions"])
     }
@@ -93,12 +108,51 @@ struct CurriculumTests {
         }
     }
 
-    @Test func twoDigitDecksMatchTheirSkill() {
-        #expect(Curriculum.addNoCarry.facts.allSatisfy { $0.a % 10 + $0.b % 10 < 10 })
-        #expect(Curriculum.addCarry.facts.allSatisfy { $0.a % 10 + $0.b % 10 >= 10 && $0.answer < 100 })
-        #expect(Curriculum.subNoBorrow.facts.allSatisfy { $0.a % 10 >= $0.b % 10 })
-        #expect(Curriculum.subBorrow.facts.allSatisfy { $0.a % 10 < $0.b % 10 && $0.answer > 0 })
-        #expect(Curriculum.divHard.facts.allSatisfy { $0.a % $0.b == 0 })
+    /// Each level's questions match the one strategy it practices.
+    @Test func decksMatchTheirSkill() {
+        typealias C = Curriculum
+        #expect(C.addPlus12.facts.allSatisfy { [1, 2].contains($0.b) && $0.answer <= 10 })
+        #expect(C.addMake10.facts.allSatisfy { $0.answer == 10 })
+        #expect(C.addDoubles.facts.allSatisfy { $0.a == $0.b })
+        #expect(C.addWithin10.facts.allSatisfy { $0.answer < 10 && $0.a >= 3 && $0.b >= 3 && $0.a != $0.b })
+        #expect(C.addNearDoubles.facts.allSatisfy { abs($0.a - $0.b) == 1 })
+        #expect(C.addCross10.facts.allSatisfy { $0.a < 10 && $0.b < 10 && $0.answer > 10 })
+        #expect(C.addOnes.facts.allSatisfy { $0.b < 10 && $0.a % 10 + $0.b < 10 })
+        #expect(C.addTens.facts.allSatisfy { $0.b % 10 == 0 && $0.answer < 100 })
+        #expect(C.add2Digit.facts.allSatisfy { $0.b >= 10 && $0.a % 10 + $0.b % 10 < 10 })
+        #expect(C.addCarryOnes.facts.allSatisfy { $0.b < 10 && $0.a % 10 + $0.b >= 10 && $0.answer < 100 })
+        #expect(C.addCarry.facts.allSatisfy { $0.b >= 10 && $0.a % 10 + $0.b % 10 >= 10 && $0.answer < 100 })
+        #expect(C.subMinus12.facts.allSatisfy { [1, 2].contains($0.b) })
+        #expect(C.subFrom10.facts.allSatisfy { $0.a == 10 })
+        #expect(C.subDoubles.facts.allSatisfy { $0.a == 2 * $0.b })
+        #expect(C.subBack10.facts.allSatisfy { $0.a > 10 && $0.answer < 10 })
+        #expect(C.subOnes.facts.allSatisfy { $0.b < 10 && $0.a % 10 >= $0.b })
+        #expect(C.subTens.facts.allSatisfy { $0.b % 10 == 0 && $0.answer > 0 })
+        #expect(C.sub2Digit.facts.allSatisfy { $0.b >= 10 && $0.a % 10 >= $0.b % 10 })
+        #expect(C.subBorrowOnes.facts.allSatisfy { $0.b < 10 && $0.a % 10 < $0.b && $0.answer > 0 })
+        #expect(C.subBorrow.facts.allSatisfy { $0.b >= 10 && $0.a % 10 < $0.b % 10 && $0.answer > 0 })
+        #expect(C.divHard.facts.allSatisfy { $0.a % $0.b == 0 })
+    }
+
+    /// Addition and subtraction climb gradually: strategy levels, with checkpoints as skip tests.
+    @Test func additionAndSubtractionHaveGradualProgressions() {
+        for id in ["addition", "subtraction"] {
+            let world = Curriculum.worlds.first { $0.id == id }!
+            #expect(world.levels.count == 13)
+            #expect(world.levels.indices.filter { world.levels[$0].isCheckpoint } == [6, 12])
+            #expect(world.levels[0].facts.allSatisfy { $0.answer <= 10 })
+        }
+    }
+
+    /// A checkpoint only asks questions from levels before it (subtraction's also mix in addition).
+    @Test func checkpointsReviewEarlierLevels() {
+        let addition = Curriculum.worlds[0], subtraction = Curriculum.worlds[1]
+        for (world, index) in [(addition, 6), (addition, 12), (subtraction, 6), (subtraction, 12)] {
+            let earlier = Set(world.reviewPool(before: index) + addition.levels.flatMap(\.facts))
+            let checkpoint = world.levels[index]
+            #expect(checkpoint.facts.count == 12)
+            #expect(checkpoint.facts.allSatisfy { earlier.contains($0) }, "\(checkpoint.id)")
+        }
     }
 
     @Test func exponentsAreSquaresThenCubesThenMixed() {
@@ -116,20 +170,25 @@ struct CurriculumTests {
         }
     }
 
-    @Test func roundsAskEveryFactAndAtLeastTen() {
-        #expect(Curriculum.cubes.roundLength == 10)           // 5 facts, each twice
-        #expect(Curriculum.addCarry.roundLength == 12)
-        #expect(Curriculum.powersMixed.roundLength == 13)
+    @Test func mixedWorldsAreFoldedIn() {
+        #expect(Curriculum.worlds[1].levels.last?.title == "+ and − review")
+        #expect(Curriculum.worlds[3].levels.last?.title == "× and ÷")
     }
 }
 
 struct PassRuleTests {
-    @Test func needsNinetyPercent() {
-        #expect(PassRule.passes(correct: 9, attempts: 10))
-        #expect(PassRule.passes(correct: 10, attempts: 11))    // 90.9%
-        #expect(!PassRule.passes(correct: 16, attempts: 18))   // 88.9%
-        #expect(!PassRule.passes(correct: 0, attempts: 0))
-        #expect(PassRule.percent(correct: 16, attempts: 18) == 88)  // never rounds up to a pass
+    /// 60% ★ · 80% ★★ (passes) · 100% ★★★, never rounding up.
+    @Test func starsComeFromAccuracy() {
+        #expect(PassRule.stars(correct: 5, attempts: 10) == 0)
+        #expect(PassRule.stars(correct: 6, attempts: 10) == 1)
+        #expect(PassRule.stars(correct: 10, attempts: 13) == 1)   // 76.9%
+        #expect(PassRule.stars(correct: 8, attempts: 10) == 2)
+        #expect(PassRule.stars(correct: 10, attempts: 11) == 2)   // 90.9%
+        #expect(PassRule.stars(correct: 10, attempts: 10) == 3)
+        #expect(PassRule.stars(correct: 0, attempts: 0) == 0)
+        #expect(PassRule.passes(correct: 8, attempts: 10))
+        #expect(!PassRule.passes(correct: 79, attempts: 100))
+        #expect(PassRule.percent(correct: 79, attempts: 99) == 79)  // 79.8% never rounds up to a pass
     }
 }
 
@@ -146,25 +205,73 @@ struct ProgressStoreTests {
         let world = Curriculum.worlds.first { $0.id == "exponents" }!
         #expect(store.isUnlocked(0, in: world))
         #expect(!store.isUnlocked(1, in: world))
-        #expect(!store.finishRound(world.levels[0], correct: 10, attempts: 12))  // 83%
+        #expect(!store.finishRound(0, in: world, correct: 10, attempts: 13))  // 76%: one star, still locked
         #expect(!store.isUnlocked(1, in: world))
-        #expect(store.finishRound(world.levels[0], correct: 10, attempts: 11))   // 90%
+        #expect(store.finishRound(0, in: world, correct: 10, attempts: 12))   // 83%: two stars
         #expect(store.isUnlocked(1, in: world))
         #expect(!store.isUnlocked(2, in: world))
     }
 
     @Test func keepsBestScoreAndNeverUnpasses() {
         let store = ProgressStore(defaults: freshDefaults())
-        let level = Curriculum.squares
-        store.finishRound(level, correct: 10, attempts: 10)
-        store.finishRound(level, correct: 10, attempts: 20)
+        let world = Curriculum.worlds.first { $0.id == "exponents" }!, level = world.levels[0]
+        store.finishRound(0, in: world, correct: 10, attempts: 10)
+        store.finishRound(0, in: world, correct: 10, attempts: 20)
         #expect(store.record(for: level) == LevelRecord(passed: true, bestPercent: 100, hasPlayed: true))
+        #expect(store.record(for: level).stars == 3)
+    }
+
+    /// Checkpoints are skip tests: always playable, and passing one passes everything before it.
+    @Test func checkpointsAreSkipTests() {
+        let store = ProgressStore(defaults: freshDefaults())
+        let world = Curriculum.worlds[0]
+        #expect(!store.isUnlocked(5, in: world))
+        #expect(store.isUnlocked(6, in: world) && store.isSkipTest(6, in: world))
+        #expect(!store.isUnlocked(7, in: world))
+        #expect(!store.finishRound(6, in: world, correct: 12, attempts: 16))  // 75%: nothing skipped
+        #expect(!store.record(for: world.levels[0]).passed)
+        #expect(store.finishRound(6, in: world, correct: 12, attempts: 15))   // 80%
+        #expect((0...6).allSatisfy { store.record(for: world.levels[$0]).passed })
+        #expect(store.record(for: world.levels[0]).stars == 2)  // skipped levels count as two stars
+        #expect(store.isUnlocked(7, in: world) && !store.isSkipTest(6, in: world))
+        #expect(!store.record(for: world.levels[7]).passed)
+    }
+
+    /// Stars keep the best round; silver crown = every level passed, gold = ★★★ everywhere.
+    @Test func starsAndCrowns() {
+        let store = ProgressStore(defaults: freshDefaults())
+        let world = Curriculum.worlds.first { $0.id == "exponents" }!
+        store.finishRound(0, in: world, correct: 6, attempts: 10)
+        #expect(store.record(for: world.levels[0]).stars == 1)
+        store.finishRound(0, in: world, correct: 10, attempts: 12)
+        #expect(store.record(for: world.levels[0]).stars == 2)
+        store.finishRound(0, in: world, correct: 10, attempts: 10)
+        #expect(store.record(for: world.levels[0]).stars == 3)
+        store.finishRound(0, in: world, correct: 5, attempts: 10)
+        #expect(store.record(for: world.levels[0]).stars == 3)  // a worse round never takes stars away
+        #expect(store.crown(for: world) == .none)
+        store.finishRound(1, in: world, correct: 10, attempts: 12)
+        store.finishRound(2, in: world, correct: 13, attempts: 14)
+        #expect(store.crown(for: world) == .silver)
+        #expect(store.stars(in: world) == (7, 9))
+        store.finishRound(1, in: world, correct: 10, attempts: 10)
+        store.finishRound(2, in: world, correct: 13, attempts: 13)
+        #expect(store.crown(for: world) == .gold)
+    }
+
+    /// Saved records load even with missing or extra fields.
+    @Test func decodesOlderRecords() throws {
+        let old = #"{"exp.1":{"passed":true,"bestPercent":92},"exp.2":{"passed":false,"bestPercent":100,"hasPlayed":true,"passCount":1}}"#
+        let records = try JSONDecoder().decode([String: LevelRecord].self, from: Data(old.utf8))
+        #expect(records["exp.1"] == LevelRecord(passed: true, bestPercent: 92, hasPlayed: false))
+        #expect(records["exp.1"]?.stars == 2)
+        #expect(records["exp.2"]?.stars == 3)
     }
 
     @Test func persistsAcrossLaunches() {
         let defaults = freshDefaults()
-        let level = Curriculum.squares
-        ProgressStore(defaults: defaults).finishRound(level, correct: 9, attempts: 10)
+        let world = Curriculum.worlds.first { $0.id == "exponents" }!, level = world.levels[0]
+        ProgressStore(defaults: defaults).finishRound(0, in: world, correct: 9, attempts: 10)
         #expect(ProgressStore(defaults: defaults).record(for: level) == LevelRecord(passed: true, bestPercent: 90, hasPlayed: true))
     }
 }
@@ -186,6 +293,23 @@ struct PracticeSessionTests {
         }
     }
 
+    /// About 70% new, 30% review: every level question once plus review from earlier levels.
+    @Test func roundMixesInReviewAndPadsToTen() {
+        var rng = SeededGenerator(seed: 4)
+        let world = Curriculum.worlds[0]
+        for _ in 0..<50 {
+            let review = world.reviewPool(before: 3)
+            let round = PracticeSession.roundOrder(world.levels[3].facts, review: review, reviewCount: 3, using: &rng)
+            #expect(round.count == 11)
+            #expect(Set(world.levels[3].facts).isSubset(of: Set(round)))
+            #expect(round.filter { !world.levels[3].facts.contains($0) }.count == 3)
+            #expect(round.allSatisfy { world.levels[3].facts.contains($0) || review.contains($0) })
+            #expect(!zip(round, round.dropFirst()).contains { $0 == $1 })
+        }
+        let first = PracticeSession.roundOrder(world.levels[0].facts, review: [], reviewCount: 3, using: &rng)
+        #expect(first.count == PracticeSession.minimumRound)  // 8 facts padded to 10, no review available
+    }
+
     @Test func roundAsksEveryFactAndEndsWhenAllAreRight() {
         var rng = SeededGenerator(seed: 5)
         var session = PracticeSession(level: Curriculum.mulHard, using: &rng)  // 12 facts
@@ -198,12 +322,12 @@ struct PracticeSessionTests {
         #expect(session.current == nil)
         #expect(session.result == SessionResult(correctAnswers: 12, totalAttempts: 14))
         #expect(session.result.percent == 85)
-        #expect(!session.result.passed)
+        #expect(session.result.passed)  // 85% earns two stars
     }
 
     @Test func missedFactReturnsAfterTwoOthers() {
         var rng = SeededGenerator(seed: 8)
-        var session = PracticeSession(level: Curriculum.addCarry, using: &rng)
+        var session = PracticeSession(level: Curriculum.mulHard, using: &rng)
         let missed = session.current!
         session.record(correct: false)
         #expect(session.current != missed)

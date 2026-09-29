@@ -8,8 +8,9 @@ struct SessionResult: Equatable {
     var passed: Bool { PassRule.passes(correct: correctAnswers, attempts: totalAttempts) }
 }
 
-/// One round of a level: every fact at least once (and at least `Level.minimumRound` questions).
-/// It ends once `targetCorrect` answers are right; missed facts return after `requeueGap` others.
+/// One round of a level: every question in the level once, plus a few review questions from earlier
+/// levels, and at least `minimumRound` questions. It ends once `targetCorrect` answers are right;
+/// missed questions return after `requeueGap` others.
 struct PracticeSession {
     let targetCorrect: Int
     let requeueGap: Int
@@ -20,11 +21,16 @@ struct PracticeSession {
     private let pool: [Fact]
     private var fillerCursor = 0
 
-    init<G: RandomNumberGenerator>(level: Level, requeueGap: Int = 2, using rng: inout G) {
-        self.init(
-            facts: Self.dealOrder(level.facts, count: level.roundLength, using: &rng),
-            pool: level.facts, targetCorrect: level.roundLength, requeueGap: requeueGap
-        )
+    static let minimumRound = 10
+
+    /// - Parameters:
+    ///   - review: questions from earlier levels; `reviewCount` of them are mixed into the round.
+    init<G: RandomNumberGenerator>(
+        level: Level, review: [Fact] = [], reviewCount: Int = 0, requeueGap: Int = 2, using rng: inout G
+    ) {
+        let round = Self.roundOrder(level.facts, review: review, reviewCount: reviewCount, using: &rng)
+        let pool = round.reduce(into: [Fact]()) { unique, fact in if !unique.contains(fact) { unique.append(fact) } }
+        self.init(facts: round, pool: pool, targetCorrect: round.count, requeueGap: requeueGap)
     }
 
     init(facts: [Fact], pool: [Fact], targetCorrect: Int = 10, requeueGap: Int = 2) {
@@ -50,6 +56,25 @@ struct PracticeSession {
             streak = 0
             requeue(fact)
         }
+    }
+
+    /// Every level question once, `reviewCount` distinct review questions, then extra level
+    /// questions up to `minimumRound`, shuffled so the same question never appears twice in a row.
+    static func roundOrder<G: RandomNumberGenerator>(
+        _ facts: [Fact], review: [Fact], reviewCount: Int, using rng: inout G
+    ) -> [Fact] {
+        let extras = review.filter { !facts.contains($0) }.shuffled(using: &rng).prefix(reviewCount)
+        var round = facts + extras
+        if round.count < minimumRound {
+            round += dealOrder(facts, count: minimumRound - round.count, using: &rng)
+        }
+        // Reshuffle until the same question never appears twice in a row (a repeat only exists when
+        // a tiny level is padded up to `minimumRound`, so this settles in a few tries).
+        var order = round.shuffled(using: &rng)
+        for _ in 0..<50 where zip(order, order.dropFirst()).contains(where: { $0 == $1 }) {
+            order.shuffle(using: &rng)
+        }
+        return order
     }
 
     /// Shuffled decks: no fact repeats until every fact has been used, never twice in a row.

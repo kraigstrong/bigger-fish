@@ -31,6 +31,8 @@ enum ReefTuning {
     // MARK: Sessions and answers
 
     static let requeueGap = 2
+    /// Questions from earlier levels in the world mixed into each round (about 70% new, 30% review).
+    static let reviewPerRound = 3
     /// Slower forward speed than Bigger Fish so there is time to read.
     static let screenCrossSeconds: CGFloat = 4.0
     /// Answer fish are all the same size and clearly smaller than the player.
@@ -98,14 +100,9 @@ final class PracticeScene: SKScene {
     private typealias L = ReefTuning
     private typealias PanelLine = (text: String, fontSize: CGFloat, heavy: Bool)
 
-    private struct MenuItem {
-        let title: String
-        let subtitle: String
-        let enabled: Bool
-        let action: () -> Void
-    }
-
     private let store = ProgressStore()
+    private var worldMap: WorldMapNode?
+    private var levelMap: LevelMapNode?
     private var phase: Phase = .home
     private var worldIndex = 0
     private var levelIndex = 0
@@ -196,59 +193,69 @@ final class PracticeScene: SKScene {
 
     // MARK: - Menus
 
-    /// World picker.
+    /// The reef: pick a world.
     private func showHome() {
         enterMenu(.home)
-        showMenu(
-            title: "Math Reef",
-            subtitle: "Pick a world.",
-            items: Curriculum.worlds.indices.map { index in
-                let world = Curriculum.worlds[index]
-                let passed = world.levels.filter { store.record(for: $0).passed }.count
-                return MenuItem(
-                    title: world.title,
-                    subtitle: world.comingSoon ? "Coming soon" : "\(passed)/\(world.levels.count) passed",
-                    enabled: !world.comingSoon
-                ) { [weak self] in
-                    self?.worldIndex = index
-                    self?.showWorld()
-                }
-            },
-            back: nil
-        )
+        let stops = Curriculum.worlds.map { world in
+            let stars = store.stars(in: world)
+            return WorldStop(
+                title: world.title, symbol: ReefStyle.symbol(for: world.id), color: ReefStyle.color(for: world.id),
+                stars: stars.earned, maxStars: stars.total, crown: store.crown(for: world), comingSoon: world.comingSoon
+            )
+        }
+        let map = WorldMapNode(size: size, worlds: stops, focus: worldIndex)
+        map.onSelect = { [weak self] index in
+            self?.worldIndex = index
+            self?.showWorld()
+        }
+        uiLayer.addChild(map)
+        worldMap = map
     }
 
-    /// Level picker for the current world; later levels unlock by mastering the one before.
+    /// The current world's level path; later levels unlock by passing the one before.
     private func showWorld() {
         enterMenu(.world)
-        showMenu(
-            title: world.title,
-            subtitle: "Get 90% on a level to unlock the next one.",
-            items: world.levels.indices.map { index in
-                let level = world.levels[index]
-                let unlocked = store.isUnlocked(index, in: world)
-                let record = store.record(for: level)
-                let status = record.passed ? "Passed · best \(record.bestPercent)%"
-                    : !unlocked ? "Locked"
-                    : record.hasPlayed ? "Best \(record.bestPercent)%"
-                    : "New"
-                return MenuItem(title: "\(index + 1) · \(level.title)", subtitle: status, enabled: unlocked) { [weak self] in
-                    self?.levelIndex = index
-                    self?.showInstructions()
-                }
-            },
-            back: { [weak self] in self?.showHome() }
+        let stops = world.levels.indices.map { index in
+            let level = world.levels[index], record = store.record(for: level)
+            let state: LevelStopState = record.passed ? .passed
+                : store.isSkipTest(index, in: world) ? .skipTest
+                : store.isUnlocked(index, in: world) ? .open
+                : .locked
+            return LevelStop(number: index + 1, title: level.title, stars: record.stars, state: state,
+                             isCheckpoint: level.isCheckpoint)
+        }
+        // The fish waits at the first level still to pass (or the last one, once all are passed).
+        let focus = stops.firstIndex { $0.state == .open } ?? max(0, stops.count - 1)
+        let map = LevelMapNode(
+            size: size, title: world.title, color: ReefStyle.color(for: world.id), levels: stops,
+            stars: store.stars(in: world), crown: store.crown(for: world), focus: focus
         )
+        map.onSelect = { [weak self] index in
+            self?.levelIndex = index
+            self?.showInstructions()
+        }
+        map.onBack = { [weak self] in self?.showHome() }
+        uiLayer.addChild(map)
+        levelMap = map
     }
 
     private func enterMenu(_ menu: Phase) {
         clearWave()
+        removeMaps()
+        hidePanel()
         phase = menu
         holdTouches.removeAll()
         setPrompt(nil)
         updateProgress()
         closeButton.isHidden = true
         render()
+    }
+
+    private func removeMaps() {
+        worldMap?.removeFromParent()
+        levelMap?.removeFromParent()
+        worldMap = nil
+        levelMap = nil
     }
 
     // MARK: - Session flow
@@ -264,7 +271,13 @@ final class PracticeScene: SKScene {
         playerNode?.removeFromParent()
         // Fresh each round so order, lanes, and colors can't be memorized across replays.
         rng = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
-        session = PracticeSession(level: level, requeueGap: L.requeueGap, using: &rng)
+        session = PracticeSession(
+            level: level,
+            review: world.reviewPool(before: levelIndex),
+            reviewCount: level.isCheckpoint ? 0 : L.reviewPerRound,
+            requeueGap: L.requeueGap,
+            using: &rng
+        )
         timeScale = 1
 
         player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: size.height / 2), radius: L.playerRadius)
@@ -274,6 +287,7 @@ final class PracticeScene: SKScene {
     }
 
     private func showInstructions() {
+        removeMaps()
         resetSession()
         phase = .instructions
         setPrompt(nil)
@@ -281,7 +295,8 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = false
         let lines: [PanelLine] = level.intro.map { line in
             line.hasPrefix("= ") ? (String(line.dropFirst(2)), 26, true) : (line, 19, false)
-        } + [("Get 90% right to pass.", 18, false)]
+        } + [("Get 80% to unlock the next level.", 18, false)]
+            + (store.isSkipTest(levelIndex, in: world) ? [("Passing this skips the levels before it.", 18, false)] : [])
         showPanel(
             title: "Level \(levelIndex + 1): \(level.title)",
             lines: lines,
@@ -410,15 +425,20 @@ final class PracticeScene: SKScene {
         let result = session.result
         let hasNext = levelIndex + 1 < world.levels.count
         let alreadyUnlocked = hasNext && store.isUnlocked(levelIndex + 1, in: world)
-        let passed = store.finishRound(level, correct: result.correctAnswers, attempts: result.totalAttempts)
+        let wasSkipTest = store.isSkipTest(levelIndex, in: world)
+        let starsBefore = store.record(for: level).stars
+        let passed = store.finishRound(levelIndex, in: world, correct: result.correctAnswers, attempts: result.totalAttempts)
+        let roundStars = PassRule.stars(correct: result.correctAnswers, attempts: result.totalAttempts)
         let outcome: String
-        if passed {
+        if passed && wasSkipTest {
+            outcome = "You skipped ahead!"
+        } else if passed {
             outcome = !hasNext ? "\(world.title) complete!" : alreadyUnlocked ? "Next level is open." : "Level \(levelIndex + 2) unlocked!"
         } else {
-            outcome = "Get 90% to pass."
+            outcome = "Get 80% to unlock the next level."
         }
         showPanel(
-            title: passed ? "Level passed!" : "Keep practicing",
+            title: passed ? "Level passed!" : roundStars > 0 ? "Nice try!" : "Keep practicing",
             lines: [
                 ("\(result.percent)%", 56, true),
                 ("\(result.correctAnswers) of \(result.totalAttempts) right", 20, false),
@@ -428,6 +448,26 @@ final class PracticeScene: SKScene {
             centerX: size.width / 2,
             style: passed ? .correct : .neutral
         )
+        if roundStars > 0 { showStars(earned: roundStars, new: max(0, roundStars - starsBefore)) }
+    }
+
+    /// This round's stars sit on the top edge of the results panel; ones that beat the best pop in.
+    private func showStars(earned: Int, new: Int) {
+        let top = panel.calculateAccumulatedFrame().maxY - panel.position.y
+        for i in 0..<3 {
+            let star = starShape(radius: 22, filled: i < earned)
+            star.position = CGPoint(x: CGFloat(i - 1) * 54, y: top + (i == 1 ? 8 : 0))
+            star.zPosition = 5
+            panel.addChild(star)
+            if i < earned && i >= earned - new {
+                star.setScale(0)
+                star.run(.sequence([
+                    .wait(forDuration: 0.35 + Double(i - (earned - new)) * 0.25),
+                    .scale(to: 1.35, duration: 0.18),
+                    .scale(to: 1, duration: 0.12),
+                ]))
+            }
+        }
     }
 
     private func summaryButtons(passed: Bool) -> [(title: String, action: () -> Void)] {
@@ -461,11 +501,19 @@ final class PracticeScene: SKScene {
             if phase == .answering || phase == .feedback {
                 holdTouches.insert(touch)
             }
+            if phase == .home { worldMap?.handleTap(at: p) }
+            if phase == .world { levelMap?.touchBegan(at: p) }
         }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard phase == .world, let touch = touches.first else { return }
+        levelMap?.touchMoved(to: touch.location(in: self))
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         holdTouches.subtract(touches)
+        if phase == .world, let touch = touches.first { levelMap?.touchEnded(at: touch.location(in: self)) }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -492,6 +540,8 @@ final class PracticeScene: SKScene {
             feedbackRemaining -= realDt
             if feedbackRemaining <= 0 { finishFeedback() }
         }
+        worldMap?.update(time: realClock)
+        levelMap?.update(time: realClock)
         render()
     }
 
@@ -688,7 +738,7 @@ final class PracticeScene: SKScene {
         progressLabel.removeAllChildren()
         let result = session.result
         // Short enough to stay clear of the top-center prompt.
-        var text = "\(world.title.uppercased()) \(levelIndex + 1)  ·  \(result.correctAnswers)/\(level.roundLength)"
+        var text = "\(world.title.uppercased()) \(levelIndex + 1)  ·  \(result.correctAnswers)/\(session.targetCorrect)"
         if session.streak >= 2 { text += "   ·   streak \(session.streak)" }
         let label = label(text, fontSize: 14, heavy: true)
         label.horizontalAlignmentMode = .left
@@ -792,78 +842,6 @@ final class PracticeScene: SKScene {
         panel.run(.fadeIn(withDuration: 0.2))
     }
 
-    /// Full-screen menu: title, subtitle, a grid of cards (up to 4 per row), and an optional Back.
-    private func showMenu(title: String, subtitle: String, items: [MenuItem], back: (() -> Void)?) {
-        hidePanel()
-        let panelWidth = size.width - 80, panelHeight = size.height - 40
-        let backing = SKShapeNode(rectOf: CGSize(width: panelWidth, height: panelHeight), cornerRadius: 24)
-        backing.fillColor = SKColor(white: 0, alpha: 0.45)
-        backing.strokeColor = .clear
-        backing.zPosition = -1
-        panel.addChild(backing)
-        panel.position = CGPoint(x: size.width / 2, y: size.height / 2)
-
-        let titleLabel = label(title, fontSize: 32, heavy: true)
-        titleLabel.position = CGPoint(x: 0, y: panelHeight / 2 - 36)
-        panel.addChild(titleLabel)
-        let subtitleLabel = label(subtitle, fontSize: 17, heavy: false)
-        subtitleLabel.position = CGPoint(x: 0, y: panelHeight / 2 - 68)
-        panel.addChild(subtitleLabel)
-
-        let columns = min(4, max(1, items.count))
-        let rows = (items.count + columns - 1) / columns
-        let gap: CGFloat = 12, cardHeight: CGFloat = 64
-        let cardWidth = min(200, (panelWidth - 40 - CGFloat(columns - 1) * gap) / CGFloat(columns))
-        let gridHeight = CGFloat(rows) * cardHeight + CGFloat(rows - 1) * gap
-        let gridTop = (back == nil ? 0 : 22) + gridHeight / 2 - 8
-
-        for (index, item) in items.enumerated() {
-            let row = index / columns, column = index % columns
-            let inRow = min(columns, items.count - row * columns)
-            let rowWidth = CGFloat(inRow) * cardWidth + CGFloat(inRow - 1) * gap
-            let center = CGPoint(
-                x: -rowWidth / 2 + cardWidth / 2 + CGFloat(column) * (cardWidth + gap),
-                y: gridTop - cardHeight / 2 - CGFloat(row) * (cardHeight + gap)
-            )
-            let card = SKShapeNode(rectOf: CGSize(width: cardWidth, height: cardHeight), cornerRadius: 18)
-            card.position = center
-            card.fillColor = SKColor(white: 1, alpha: item.enabled ? 0.92 : 0.18)
-            card.strokeColor = .clear
-            let textColor = item.enabled ? SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1) : SKColor(white: 1, alpha: 0.7)
-            let name = label(item.title, fontSize: 18, heavy: true, color: textColor)
-            name.setScale(min(1, (cardWidth - 16) / max(name.frame.width, 1)))
-            name.position = CGPoint(x: 0, y: 10)
-            name.zPosition = 1
-            card.addChild(name)
-            let status = label(item.subtitle, fontSize: 13, heavy: false, color: textColor.withAlphaComponent(0.8))
-            status.setScale(min(1, (cardWidth - 16) / max(status.frame.width, 1)))
-            status.position = CGPoint(x: 0, y: -14)
-            status.zPosition = 1
-            card.addChild(status)
-            panel.addChild(card)
-            if item.enabled {
-                let sceneCenter = CGPoint(x: panel.position.x + center.x, y: panel.position.y + center.y)
-                buttons.append((CGRect(x: sceneCenter.x - cardWidth / 2, y: sceneCenter.y - cardHeight / 2,
-                                       width: cardWidth, height: cardHeight), item.action))
-            }
-        }
-
-        if let back {
-            let button = SKShapeNode(rectOf: CGSize(width: 120, height: 40), cornerRadius: 20)
-            button.position = CGPoint(x: 0, y: -panelHeight / 2 + 34)
-            button.fillColor = SKColor(white: 1, alpha: 0.92)
-            button.strokeColor = .clear
-            let text = label("Back", fontSize: 17, heavy: true, color: SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1))
-            text.zPosition = 1
-            button.addChild(text)
-            panel.addChild(button)
-            let sceneCenter = CGPoint(x: panel.position.x, y: panel.position.y + button.position.y)
-            buttons.append((CGRect(x: sceneCenter.x - 60, y: sceneCenter.y - 20, width: 120, height: 40), back))
-        }
-        panel.alpha = 0
-        panel.run(.fadeIn(withDuration: 0.2))
-    }
-
     private func hidePanel() {
         panel.removeAllActions()
         panel.removeAllChildren()
@@ -907,31 +885,7 @@ final class PracticeScene: SKScene {
         }
     }
 
-    /// Superscript digits (², ³) are drawn as small raised digits: in the heavy display font the
-    /// Unicode superscript glyphs are large enough that "3²" can read as "32".
     private func label(_ text: String, fontSize: CGFloat, heavy: Bool, color: SKColor = .white) -> SKLabelNode {
-        let name = heavy ? "AvenirNext-Heavy" : "AvenirNext-DemiBold"
-        let font = UIFont(name: name, size: fontSize) ?? .systemFont(ofSize: fontSize, weight: heavy ? .heavy : .semibold)
-        let small = font.withSize(fontSize * 0.58)
-        let superscripts: [Character] = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"]
-
-        let styled = NSMutableAttributedString()
-        for character in text {
-            if let digit = superscripts.firstIndex(of: character) {
-                styled.append(NSAttributedString(string: "\(digit)", attributes: [
-                    .font: small, .foregroundColor: color, .baselineOffset: fontSize * 0.38,
-                ]))
-            } else {
-                styled.append(NSAttributedString(string: String(character), attributes: [
-                    .font: font, .foregroundColor: color,
-                ]))
-            }
-        }
-
-        let label = SKLabelNode()
-        label.attributedText = styled
-        label.verticalAlignmentMode = .center
-        label.horizontalAlignmentMode = .center
-        return label
+        reefLabel(text, fontSize: fontSize, heavy: heavy, color: color)
     }
 }
