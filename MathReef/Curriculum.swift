@@ -87,7 +87,7 @@ enum Curriculum {
         addPlus12, addMake10, addDoubles, addWithin10, addNearDoubles, addCross10,
         checkpoint("add.review20", "All to 20", sample(from: [addPlus12, addMake10, addDoubles, addWithin10, addNearDoubles, addCross10], count: 12, seed: 16)),
         addOnes, addTens, add2Digit, addCarryOnes, addCarry,
-        checkpoint("add.review", "Addition review", sample(from: [addOnes, addTens, add2Digit, addCarryOnes, addCarry], count: 12, seed: 17)),
+        checkpoint("add.review", "Review", sample(from: [addOnes, addTens, add2Digit, addCarryOnes, addCarry], count: 12, seed: 17)),
     ]
 
     // MARK: Subtraction
@@ -168,7 +168,7 @@ enum Curriculum {
         mulSame, mulX9, mulX6, mulX8, mulX7, mulX1112,
         checkpoint("mul.tables", "All the tables", sample(from: [mulSame, mulX9, mulX6, mulX8, mulX7, mulX1112], count: 12, seed: 55)),
         mulTens, mul2Digit, mulCarry,
-        checkpoint("mul.review", "Multiplication review", sample(from: [mulTens, mul2Digit, mulCarry], count: 12, seed: 56)),
+        checkpoint("mul.review", "Review", sample(from: [mulTens, mul2Digit, mulCarry], count: 12, seed: 56)),
     ]
 
     // MARK: Division
