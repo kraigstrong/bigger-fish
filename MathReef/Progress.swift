@@ -106,6 +106,12 @@ final class ProgressStore {
         return records.allSatisfy(\.passed) ? .silver : .none
     }
 
+    /// The best crown across `worlds`, which the player fish wears everywhere.
+    func bestCrown(in worlds: [World]) -> Crown {
+        let crowns = worlds.map { crown(for: $0) }
+        return crowns.contains(.gold) ? .gold : crowns.contains(.silver) ? .silver : .none
+    }
+
     /// Unlocked only because it's a checkpoint: playing it is a skip test.
     func isSkipTest(_ index: Int, in world: World) -> Bool {
         world.levels[index].isCheckpoint && index > 0 && !record(for: world.levels[index - 1]).passed

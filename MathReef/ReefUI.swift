@@ -113,6 +113,11 @@ func crownShape(width w: CGFloat, crown: Crown) -> SKShapeNode {
     return shape
 }
 
+/// The crown the player fish wears, sized for `FishNode.setHeadwear`; nil for no crown.
+func fishCrown(_ crown: Crown) -> SKNode? {
+    crown == .none ? nil : crownShape(width: 24, crown: crown)
+}
+
 /// A row of three stars, `earned` of them filled.
 func starRow(earned: Int, radius: CGFloat, spacing: CGFloat) -> SKNode {
     let row = SKNode()
