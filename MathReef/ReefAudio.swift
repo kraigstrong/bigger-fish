@@ -2,7 +2,9 @@ import AVFoundation
 import UIKit
 
 // Math Reef sound effects and music (sources and licenses in Sounds/CREDITS.md).
-// The ambient session respects the ring/silent switch and mixes with whatever else is playing.
+// Sound plays even when the phone is on silent: a kid handed a parent's phone won't know to flip the
+// switch, and the game feels dead without it. The volume buttons still work, and other apps' audio
+// (a podcast, music) keeps playing underneath.
 
 enum ReefSound: String, CaseIterable {
     case gulp, wrong, mapJingle = "map-jingle", star, crown
@@ -29,7 +31,9 @@ final class ReefAudio {
     private var musicGeneration = 0
 
     init() {
-        try? AVAudioSession.sharedInstance().setCategory(.ambient)
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, options: .mixWithOthers)
+        try? session.setActive(true)
         for sound in ReefSound.allCases {
             guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "caf") else { continue }
             players[sound] = (0..<sound.voices).compactMap { _ in
