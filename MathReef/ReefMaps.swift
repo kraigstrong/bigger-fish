@@ -46,8 +46,12 @@ final class WorldMapNode: SKNode {
         title.position = CGPoint(x: 40, y: size.height - 38)
         addChild(title)
 
+        // Clear of the Dynamic Island on either side (its landscape safe-area inset, the largest of any
+        // iPhone): the first stop's circle on the left, and on the right the fish, which sits 66
+        // past the last stop with its nose about 24 further.
         let count = worlds.count
-        let left: CGFloat = 90, right = size.width - 90
+        let edge: CGFloat = 62
+        let left = edge + 44, right = size.width - edge - 94
         centers = worlds.indices.map { i in
             CGPoint(
                 x: count > 1 ? left + (right - left) * CGFloat(i) / CGFloat(count - 1) : size.width / 2,

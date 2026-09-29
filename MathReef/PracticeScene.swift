@@ -116,7 +116,6 @@ final class PracticeScene: SKScene {
     private var answers: [AnswerFish] = []
     private var swallow: LabSwallow?
     private var lastCorrect = true
-    private var chosenValue = 0
     private var feedbackRemaining: CGFloat = 0
     private var sessionStart: CGFloat = 0
     private var nextID = 1
@@ -473,7 +472,6 @@ final class PracticeScene: SKScene {
     private func resolve(_ answer: AnswerFish) {
         guard let fact = currentFact else { return }
         lastCorrect = answer.isCorrect
-        chosenValue = answer.value
         session.record(correct: answer.isCorrect)
         phase = .feedback
         updateProgress()
@@ -496,7 +494,7 @@ final class PracticeScene: SKScene {
     /// Identical for every wrong answer.
     private func showWrongFeedback() {
         guard let fact = currentFact else { return }
-        let lines = fact.wrongAnswerFeedback(chosen: chosenValue)
+        let lines = fact.wrongAnswerFeedback()
         let rest: [PanelLine] = lines.dropFirst().enumerated().map { index, line in
             index == lines.count - 2 ? (line, 30, true) : (line, 22, false)
         }

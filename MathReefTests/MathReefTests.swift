@@ -25,10 +25,10 @@ struct FactTests {
 
     /// Wrong answers show just the solution; exponents also restate what the small number means.
     @Test func wrongAnswerFeedbackIsSimple() {
-        #expect(fact(.add, 9, 4).wrongAnswerFeedback(chosen: 12) == ["Not 12", "9 + 4 = 13"])
-        #expect(fact(.subtract, 52, 17).wrongAnswerFeedback(chosen: 45) == ["Not 45", "52 − 17 = 35"])
-        #expect(fact(.divide, 56, 8).wrongAnswerFeedback(chosen: 48) == ["Not 48", "56 ÷ 8 = 7"])
-        #expect(fact(.power, 4, 2).wrongAnswerFeedback(chosen: 8) == ["Not 8", "² means two 4s:", "4 × 4 = 16"])
+        #expect(fact(.add, 9, 4).wrongAnswerFeedback() == ["Oops!", "9 + 4 = 13"])
+        #expect(fact(.subtract, 52, 17).wrongAnswerFeedback() == ["Oops!", "52 − 17 = 35"])
+        #expect(fact(.divide, 56, 8).wrongAnswerFeedback() == ["Oops!", "56 ÷ 8 = 7"])
+        #expect(fact(.power, 4, 2).wrongAnswerFeedback() == ["Oops!", "² means two 4s:", "4 × 4 = 16"])
     }
 
     /// Classic slips are in the wrong-answer pool (they just aren't labeled specially).
