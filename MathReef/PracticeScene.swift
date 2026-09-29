@@ -61,6 +61,34 @@ enum ReefTuning {
     static let incorrectTimeScale: CGFloat = 0.3
     static let answerFontSize: CGFloat = 24
     static let promptFontSize: CGFloat = 34
+
+    // MARK: Question placement
+
+    static var promptPillHeight: CGFloat { promptFontSize + 14 }
+    /// The question's center sits this far above (or below) the player fish's center.
+    static let promptOffset: CGFloat = playerRadius + 30
+    /// The question moves below the fish once, above, it would come closer than this to the top.
+    static let promptTopClearance: CGFloat = 6
+    /// It moves back above only after the fish drops this much further, so bobbing at the edge
+    /// can't make it flip back and forth.
+    static let promptFlipHysteresis: CGFloat = 50
+    static let promptFlipFadeSeconds: CGFloat = 0.08
+}
+
+/// Which side of the player fish the question rides on: above, except near the top of the water,
+/// where above would be cut off. Hysteresis keeps it from flipping back and forth at the edge.
+struct PromptPlacement {
+    private(set) var below = false
+
+    /// Returns true when the side changes.
+    mutating func update(playerY: CGFloat, screenHeight: CGFloat) -> Bool {
+        typealias L = ReefTuning
+        let topWhenAbove = playerY + L.promptOffset + L.promptPillHeight / 2
+        let limit = screenHeight - L.promptTopClearance
+        let next = below ? topWhenAbove >= limit - L.promptFlipHysteresis : topWhenAbove > limit
+        defer { below = next }
+        return next != below
+    }
 }
 
 private final class AnswerFish {
@@ -124,6 +152,9 @@ final class PracticeScene: SKScene {
     private let fishLayer = SKNode()
     private let uiLayer = SKNode()
     private let playerPrompt = SKNode()
+    private var promptPlacement = PromptPlacement()
+    /// The side the question is drawn on, which follows `promptPlacement` after a quick fade.
+    private var promptBelow = false
     private let progressLabel = SKNode()
     private let panel = SKNode()
     private let closeButton = SKNode()
@@ -853,6 +884,7 @@ final class PracticeScene: SKScene {
 
         if phase == .answering || phase == .feedback {
             simulate(realDt * timeScale)
+            updatePromptPlacement()
         }
         if phase == .feedback {
             feedbackRemaining -= realDt
@@ -1019,7 +1051,7 @@ final class PracticeScene: SKScene {
             stretchX: stretch * (1 + player.squash), stretchY: stretch * (1 - player.squash), mouthOpen: mouth,
             time: realClock, tailRate: 14
         )
-        playerPrompt.position = CGPoint(x: anchorX, y: player.position.y + L.playerRadius + 30)
+        playerPrompt.position = CGPoint(x: anchorX, y: player.position.y + (promptBelow ? -1 : 1) * L.promptOffset)
 
         for answer in answers {
             let f = answer.fish
@@ -1035,15 +1067,21 @@ final class PracticeScene: SKScene {
 
     // MARK: - UI
 
-    /// The question rides above the player fish.
+    /// The question rides above the player fish, or below it near the top (see `PromptPlacement`).
     private func setPrompt(_ text: String?) {
         playerPrompt.removeAllChildren()
-        guard let text else { return }
-        let fontSize = L.promptFontSize
-        let label = outlinedLabel(text, fontSize: fontSize)
+        guard let text else {
+            // Between rounds: start the next one above, with no fade left half-done.
+            playerPrompt.removeAction(forKey: "flip")
+            playerPrompt.alpha = 1
+            promptPlacement = PromptPlacement()
+            promptBelow = false
+            return
+        }
+        let label = outlinedLabel(text, fontSize: L.promptFontSize)
         let pill = SKShapeNode(
-            rectOf: CGSize(width: label.calculateAccumulatedFrame().width + 28, height: fontSize + 14),
-            cornerRadius: (fontSize + 14) / 2
+            rectOf: CGSize(width: label.calculateAccumulatedFrame().width + 28, height: L.promptPillHeight),
+            cornerRadius: L.promptPillHeight / 2
         )
         pill.fillColor = SKColor(white: 0, alpha: 0.35)
         pill.strokeColor = .clear
@@ -1051,6 +1089,20 @@ final class PracticeScene: SKScene {
         label.zPosition = 1
         playerPrompt.addChild(pill)
         playerPrompt.addChild(label)
+    }
+
+    /// Fades the question out, moves it to the other side of the fish, and fades it back in.
+    private func updatePromptPlacement() {
+        guard promptPlacement.update(playerY: player.position.y, screenHeight: size.height) else { return }
+        let fade = TimeInterval(L.promptFlipFadeSeconds)
+        playerPrompt.run(.sequence([
+            .fadeOut(withDuration: fade),
+            .run { [weak self] in
+                guard let self else { return }
+                promptBelow = promptPlacement.below
+            },
+            .fadeIn(withDuration: fade * 1.5),
+        ]), withKey: "flip")
     }
 
     private func updateProgress() {
