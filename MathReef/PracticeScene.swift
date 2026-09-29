@@ -284,7 +284,7 @@ final class PracticeScene: SKScene {
 
     private func showSettings(animated: Bool = true) {
         parentalGate = nil
-        var lines: [PanelLine] = [("Sound effects and music", 18, false)]
+        var lines: [PanelLine] = []
         var buttons: [(title: String, action: () -> Void)] = [
             (audio.isSoundOn ? "Sound: On" : "Sound: Off", { [weak self] in self?.toggleSound() }),
             ("For grown-ups", { [weak self] in self?.showParentalGate() }),
