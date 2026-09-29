@@ -2,7 +2,9 @@ import AVFoundation
 import UIKit
 
 // Math Reef sound effects and music (sources and licenses in Sounds/CREDITS.md).
-// The ambient session respects the ring/silent switch and mixes with whatever else is playing.
+// Sound plays even when the phone is on silent: a kid handed a parent's phone won't know to flip the
+// switch, and the game feels dead without it. The volume buttons still work, and other apps' audio
+// (a podcast, music) keeps playing underneath.
 
 enum ReefSound: String, CaseIterable {
     case gulp, wrong, mapJingle = "map-jingle", star, crown
@@ -27,9 +29,31 @@ final class ReefAudio {
     private var currentMusic: ReefMusic?
     /// Bumped on every music change so a stale delayed start or fade-out pause does nothing.
     private var musicGeneration = 0
+    private static let soundOnKey = "mathReef.soundOn"
+
+    /// Parents can turn all sound off in Settings; remembered across launches. Turning it back on
+    /// resumes whatever music the current screen wants.
+    var isSoundOn: Bool {
+        didSet {
+            guard isSoundOn != oldValue else { return }
+            UserDefaults.standard.set(isSoundOn, forKey: Self.soundOnKey)
+            musicGeneration += 1
+            if isSoundOn {
+                guard let player = currentMusic.flatMap({ musicPlayers[$0] }) else { return }
+                player.play()
+                player.setVolume(Self.musicVolume, fadeDuration: 0.5)
+            } else {
+                players.values.joined().forEach { $0.stop() }
+                musicPlayers.values.forEach { $0.pause(); $0.volume = 0 }
+            }
+        }
+    }
 
     init() {
-        try? AVAudioSession.sharedInstance().setCategory(.ambient)
+        isSoundOn = UserDefaults.standard.object(forKey: Self.soundOnKey) as? Bool ?? true
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, options: .mixWithOthers)
+        try? session.setActive(true)
         for sound in ReefSound.allCases {
             guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "caf") else { continue }
             players[sound] = (0..<sound.voices).compactMap { _ in
@@ -53,7 +77,7 @@ final class ReefAudio {
 
     /// Plays on a free voice, or restarts the first one if they're all busy.
     func play(_ sound: ReefSound) {
-        guard let voices = players[sound], let first = voices.first else { return }
+        guard isSoundOn, let voices = players[sound], let first = voices.first else { return }
         let player = voices.first { !$0.isPlaying } ?? first
         player.currentTime = 0
         player.play()
@@ -61,6 +85,7 @@ final class ReefAudio {
 
     /// Fades to `music` (or to silence with nil). Asking for the track that's already playing does
     /// nothing, so moving between menus doesn't restart it. Each track resumes where it left off.
+    /// With sound off, this only records which track the screen wants.
     func playMusic(_ music: ReefMusic?, after delay: TimeInterval = 0, fade: TimeInterval = 1.0) {
         guard music != currentMusic else { return }
         musicGeneration += 1
@@ -76,7 +101,7 @@ final class ReefAudio {
         currentMusic = music
         guard let music, let player = musicPlayers[music] else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, self.musicGeneration == generation else { return }
+            guard let self, self.musicGeneration == generation, self.isSoundOn else { return }
             player.play()
             player.setVolume(Self.musicVolume, fadeDuration: fade)
         }
@@ -87,7 +112,7 @@ final class ReefAudio {
     }
 
     @objc private func resumeFromBackground() {
-        guard let player = currentMusic.flatMap({ musicPlayers[$0] }), player.volume > 0 else { return }
+        guard isSoundOn, let player = currentMusic.flatMap({ musicPlayers[$0] }), player.volume > 0 else { return }
         player.play()
     }
 }
