@@ -71,6 +71,23 @@ struct ReefAnalyticsTests {
         }
     }
 
+    /// The unlock funnel: each is reported once per install, however often the paywall is hit.
+    @Test func unlockMilestonesAreReportedOnce() {
+        withDefaults { defaults in
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
+            analytics.paywallShown()
+            analytics.paywallShown()
+            analytics.unlocked()
+            ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true).unlocked()
+            #expect(milestones(analytics) == ["paywall_shown", "unlocked"])
+
+            let off = ReefAnalytics(defaults: UserDefaults(suiteName: "off.\(UUID().uuidString)")!, sender: StubSender(), enabled: false)
+            off.paywallShown()
+            off.unlocked()
+            #expect(off.queue.isEmpty)
+        }
+    }
+
     @Test func levelPassedIsOnlyForThePlayedLevel() {
         withDefaults { defaults in
             let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)

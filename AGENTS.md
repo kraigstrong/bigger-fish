@@ -46,6 +46,10 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   allowlist test in `MathReefTests/ReefAnalyticsTests.swift`, the brightbench.app privacy policy
   (kraigstrong/BrightBench, `apps/marketing/app/math-reef/privacy/page.tsx`), and
   `MathReef/PrivacyInfo.xcprivacy` before sending is enabled.
+- **Purchases go behind the parental gate too.** Math Reef is free to try (`FreeSample` in
+  `MathReef/ReefUnlock.swift`) with a one-time unlock; the unlock screen is only reachable through the
+  gate. StoreKit test sessions can't run under `xcodebuild test`, so the purchase flow is checked by
+  hand in Xcode against `MathReef.storekit`.
 - **Links out of Math Reef go behind the parental gate** (`MathReef/ParentalGate.swift`), as the
   App Store's Kids category requires: web pages, email, and App Store links alike. Today that's the
   privacy policy and support pages on brightbench.app, reached from Settings > For grown-ups.

@@ -164,6 +164,9 @@ final class PracticeScene: SKScene {
     private var isShowingSettings = false
     /// The question on screen while the parental gate is open.
     private var parentalGate: ParentalGate?
+    /// Where passing the gate leads: the privacy and support links, or the unlock screen.
+    private var gateLeadsTo: GateDestination = .links
+    private enum GateDestination { case links, unlock }
     private var buttons: [(frame: CGRect, action: () -> Void)] = []
     private var specks: [(node: SKSpriteNode, parallax: CGFloat)] = []
 
@@ -175,6 +178,7 @@ final class PracticeScene: SKScene {
 
     private let audio = ReefAudio()
     private let analytics = ReefAnalytics()
+    private let purchases = ReefPurchases()
     private var hasPlayedJingle = false
     private let positiveHaptic = UINotificationFeedbackGenerator()
     private let gentleHaptic = UIImpactFeedbackGenerator(style: .soft)
@@ -194,6 +198,8 @@ final class PracticeScene: SKScene {
         guard !isBuilt, size.width > 1, size.height > 1 else { return }
         isBuilt = true
         analytics.appLaunched()
+        purchases.onChange = { [weak self] in self?.purchasesChanged() }
+        purchases.start()
 
         fishLayer.zPosition = 10
         uiLayer.zPosition = 100
@@ -287,22 +293,31 @@ final class PracticeScene: SKScene {
         enterMenu(.world)
         let stops = world.levels.indices.map { index in
             let level = world.levels[index], record = store.record(for: level)
-            let state: LevelStopState = record.passed ? .passed
+            let state: LevelStopState = FreeSample.needsUnlock(index, in: world, isUnlocked: purchases.isUnlocked) ? .needsUnlock
+                : record.passed ? .passed
                 : store.isSkipTest(index, in: world) ? .skipTest
                 : store.isUnlocked(index, in: world) ? .open
                 : .locked
             return LevelStop(number: index + 1, title: level.title, stars: record.stars, state: state,
                              isCheckpoint: level.isCheckpoint)
         }
-        // The fish waits at the first level still to pass (or the last one, once all are passed).
-        let focus = stops.firstIndex { $0.state == .open } ?? max(0, stops.count - 1)
+        // The fish waits at the first level still to pass, then at the first one needing the unlock,
+        // or at the last one once all are passed.
+        let focus = stops.firstIndex { $0.state == .open }
+            ?? stops.firstIndex { $0.state == .needsUnlock }
+            ?? max(0, stops.count - 1)
         let map = LevelMapNode(
             size: size, title: world.title, color: ReefStyle.color(for: world.id), levels: stops,
             stars: store.stars(in: world), crown: store.crown(for: world), focus: focus
         )
         map.onSelect = { [weak self] index in
-            self?.levelIndex = index
-            self?.showInstructions()
+            guard let self else { return }
+            if FreeSample.needsUnlock(index, in: world, isUnlocked: purchases.isUnlocked) {
+                showUnlockPrompt()
+            } else {
+                levelIndex = index
+                showInstructions()
+            }
         }
         map.onBack = { [weak self] in self?.showHome() }
         uiLayer.addChild(map)
@@ -339,7 +354,7 @@ final class PracticeScene: SKScene {
         var lines: [PanelLine] = []
         var buttons: [(title: String, action: () -> Void)] = [
             (audio.isSoundOn ? "Sound: On" : "Sound: Off", { [weak self] in self?.toggleSound() }),
-            ("For grown-ups", { [weak self] in self?.showParentalGate() }),
+            ("For grown-ups", { [weak self] in self?.showParentalGate(leadingTo: .links) }),
             ("Done", { [weak self] in self?.hideSettings() }),
         ]
         #if DEBUG
@@ -391,7 +406,8 @@ final class PracticeScene: SKScene {
 
     /// The privacy policy and support pages leave the app, so they sit behind a parental gate
     /// (see ParentalGate.swift). A wrong answer goes back to Settings with no second try.
-    private func showParentalGate() {
+    private func showParentalGate(leadingTo destination: GateDestination) {
+        gateLeadsTo = destination
         parentalGate = ParentalGate()
         drawParentalGate()
     }
@@ -409,7 +425,7 @@ final class PracticeScene: SKScene {
                 self?.parentalGate?.deleteDigit()
                 self?.drawParentalGate()
             }),
-            ("Cancel", { [weak self] in self?.showSettings(animated: false) }),
+            ("Cancel", { [weak self] in self?.leaveGate() }),
         ]
         showSettingsPanel(
             title: "For grown-ups", lines: [(gate.question, 20, false), (entry, 30, true)],
@@ -424,22 +440,132 @@ final class PracticeScene: SKScene {
         parentalGate = gate
         switch result {
         case .typing: drawParentalGate()
-        case .passed: showParentLinks()
-        case .failed: showSettings(animated: false)
+        case .passed:
+            parentalGate = nil
+            gateLeadsTo == .unlock ? showUnlockScreen() : showParentLinks()
+        case .failed:
+            leaveGate()
         }
+    }
+
+    /// Cancel or a wrong answer: back to Settings, or to the level path for the unlock.
+    private func leaveGate() {
+        parentalGate = nil
+        gateLeadsTo == .unlock ? hideSettings() : showSettings(animated: false)
     }
 
     private func showParentLinks() {
         parentalGate = nil
+        var buttons: [(title: String, action: () -> Void)] = [
+            ("Privacy policy", { UIApplication.shared.open(ParentLinks.privacy) }),
+            ("Support", { UIApplication.shared.open(ParentLinks.support) }),
+            ("Restore purchases", { [weak self] in self?.restorePurchases() }),
+        ]
+        if !purchases.isUnlocked {
+            buttons.append(("Unlock the whole reef", { [weak self] in self?.showUnlockScreen() }))
+        }
+        buttons.append(("Done", { [weak self] in self?.hideSettings() }))
         showSettingsPanel(
-            title: "For grown-ups", lines: [("These open in Safari.", 18, false)],
+            title: "For grown-ups", lines: [("Privacy and support open in Safari.", 18, false)],
+            buttons: buttons, animated: false
+        )
+    }
+
+    // MARK: - The unlock
+
+    /// A kid tapped a level past the free sample: send them to a grown-up.
+    private func showUnlockPrompt() {
+        analytics.paywallShown()
+        showSettingsPanel(
+            title: "More of the reef",
+            lines: [("You've played the free levels here.", 18, false),
+                    ("Ask a grown-up to unlock every level.", 18, false)],
             buttons: [
-                ("Privacy policy", { UIApplication.shared.open(ParentLinks.privacy) }),
-                ("Support", { UIApplication.shared.open(ParentLinks.support) }),
-                ("Done", { [weak self] in self?.hideSettings() }),
+                ("Grown-ups", { [weak self] in self?.showParentalGate(leadingTo: .unlock) }),
+                ("Not now", { [weak self] in self?.hideSettings() }),
+            ],
+            animated: true
+        )
+    }
+
+    /// Behind the parental gate: what the purchase includes, its price, and restore.
+    private func showUnlockScreen() {
+        let price = purchases.displayPrice
+        showSettingsPanel(
+            title: "Unlock the whole reef",
+            lines: [("Every level in all five worlds, for good.", 18, false),
+                    ("One purchase, shared with your family.", 18, false)],
+            buttons: [
+                (price.map { "Unlock for \($0)" } ?? "Unlock", { [weak self] in self?.buyUnlock() }),
+                ("Restore purchases", { [weak self] in self?.restorePurchases() }),
+                ("Not now", { [weak self] in self?.hideSettings() }),
             ],
             animated: false
         )
+        // The price loads in the background at launch; redraw once it arrives.
+        if price == nil {
+            Task { [weak self] in
+                await self?.purchases.loadProduct()
+                guard let self, purchases.displayPrice != nil, isShowingSettings else { return }
+                showUnlockScreen()
+            }
+        }
+    }
+
+    private func buyUnlock() {
+        showWaiting()
+        Task { [weak self] in
+            guard let self else { return }
+            switch await purchases.purchase() {
+            case .unlocked:
+                showUnlocked()
+            case .pending:
+                showUnlockMessage("Waiting for approval", "Once it's approved, every level unlocks.")
+            case .cancelled:
+                showUnlockScreen()
+            case .failed:
+                showUnlockMessage("Something went wrong", "The App Store didn't complete the purchase. Try again later.")
+            }
+        }
+    }
+
+    private func restorePurchases() {
+        showWaiting()
+        Task { [weak self] in
+            guard let self else { return }
+            if await purchases.restore() {
+                showUnlocked()
+            } else {
+                showUnlockMessage("Nothing to restore", "No unlock was found for this Apple Account or family.")
+            }
+        }
+    }
+
+    private func showWaiting() {
+        showSettingsPanel(title: "Talking to the App Store…", lines: [], buttons: [], animated: false)
+    }
+
+    private func showUnlocked() {
+        showUnlockMessage("The whole reef is open!", "Every level in every world is ready to play.")
+    }
+
+    private func showUnlockMessage(_ title: String, _ line: String) {
+        showSettingsPanel(
+            title: title, lines: [(line, 18, false)],
+            buttons: [("OK", { [weak self] in
+                guard let self else { return }
+                hideSettings()
+                if phase == .world { showWorld() }
+            })],
+            animated: false
+        )
+    }
+
+    /// A purchase, restore, Ask to Buy approval, Family Sharing change, or refund.
+    private func purchasesChanged() {
+        if purchases.isUnlocked { analytics.unlocked() }
+        // Redraw the padlocks, unless a panel is up (its OK button redraws after).
+        if phase == .world && !isShowingSettings { showWorld() }
     }
 
     #if DEBUG
@@ -526,6 +652,13 @@ final class PracticeScene: SKScene {
     }
 
     private func nextLevel() {
+        // Past the free sample, go to the level path (padlock in view) and ask for a grown-up,
+        // so dismissing the prompt lands on the map rather than an empty screen.
+        if FreeSample.needsUnlock(levelIndex + 1, in: world, isUnlocked: purchases.isUnlocked) {
+            showWorld()
+            showUnlockPrompt()
+            return
+        }
         levelIndex += 1
         showInstructions()
     }
