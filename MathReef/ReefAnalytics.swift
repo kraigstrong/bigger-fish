@@ -6,7 +6,9 @@ import Foundation
 // apart or linked. Milestones are reported once per install so the counts mean "how many players".
 //
 // While `isEnabled` is off, nothing is recorded or stored, let alone sent: play from before the
-// privacy policy describes analytics must never leave the device later.
+// privacy policy described analytics must never leave the device later. The policy
+// (brightbench.app/math-reef/privacy), `PrivacyInfo.xcprivacy`, and the App Store privacy label
+// describe exactly these events; change them together.
 
 /// One analytics event. The initializers are private so an event can only be one of the two shapes
 /// below; `ReefAnalyticsTests` pins the full set of keys a batch can contain.
@@ -53,19 +55,25 @@ struct AnalyticsBatch: Codable, Equatable {
 }
 
 protocol AnalyticsSender {
-    func send(_ batch: AnalyticsBatch)
+    /// Calls `completion` once the batch is sent or has failed, on any queue.
+    func send(_ batch: AnalyticsBatch, completion: @escaping () -> Void)
 }
 
 /// Records events at the right moments of play and queues them in UserDefaults until `flush()`.
 final class ReefAnalytics {
-    /// Off until the server exists and the privacy policy and `PrivacyInfo.xcprivacy` describe what's
-    /// sent. While off, every method does nothing: no queue, no milestones marked, no pending round.
-    static let isEnabled = false
-    /// Placeholder until the server ships.
+    /// On since the server, privacy policy, and `PrivacyInfo.xcprivacy` all describe what's sent.
+    /// While off, every method does nothing: no queue, no milestones marked, no pending round.
+    static let isEnabled = true
+    /// The test target runs inside the app, so a test run must never send batches to production.
+    static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || NSClassFromString("XCTestCase") != nil
+    }
+    /// brightbench.app's analytics endpoint (kraigstrong/BrightBench, `apps/marketing`).
     static let endpoint = URL(string: "https://brightbench.app/api/math-reef/events")!
     /// Sent as `X-App-Key` to filter out stray bots. Not a secret: anyone can pull it out of the
     /// binary. The server's strict validation of every field is the real protection.
-    static let appKey = "math-reef-placeholder-key"
+    static let appKey = "8ad64851546bc1608c872fb3f51f0149623f68fe6bde807dfa7d87dc959b56f0"
     /// The oldest events are dropped past this.
     static let queueLimit = 200
 
@@ -100,7 +108,7 @@ final class ReefAnalytics {
     init(
         defaults: UserDefaults = .standard,
         sender: AnalyticsSender = URLSessionAnalyticsSender(),
-        enabled: Bool = ReefAnalytics.isEnabled
+        enabled: Bool = ReefAnalytics.isEnabled && !ReefAnalytics.isRunningTests
     ) {
         self.defaults = defaults
         self.sender = sender
@@ -157,12 +165,20 @@ final class ReefAnalytics {
     }
 
     /// Saves a round in progress in case the app never comes back, then sends what's queued.
-    func appResignedActive() {
-        guard enabled else { return }
+    /// `completion` runs once sending is done (right away if there's nothing to send).
+    func appResignedActive(completion: @escaping () -> Void = {}) {
+        guard enabled else { return completion() }
         if let round, let data = try? JSONEncoder().encode(round) {
             defaults.set(data, forKey: pendingKey)
         }
-        flush()
+        flush(completion: completion)
+    }
+
+    /// The round ended without being played out or quit (the scene rebuilt itself mid-round), so it
+    /// counts as nothing rather than as abandoned later.
+    func roundDiscarded() {
+        round = nil
+        defaults.removeObject(forKey: pendingKey)
     }
 
     /// Back from the background with the round still going, so it isn't abandoned.
@@ -174,12 +190,12 @@ final class ReefAnalytics {
 
     /// Sends everything queued as one batch. Events leave the queue when sent, whether or not the
     /// request succeeds: a lost batch is dropped rather than retried forever.
-    func flush() {
-        guard enabled else { return }
+    func flush(completion: @escaping () -> Void = {}) {
+        guard enabled else { return completion() }
         let events = queue
-        guard !events.isEmpty else { return }
+        guard !events.isEmpty else { return completion() }
         defaults.removeObject(forKey: queueKey)
-        sender.send(AnalyticsBatch(appVersion: Self.appVersion, channel: Self.channel, events: events))
+        sender.send(AnalyticsBatch(appVersion: Self.appVersion, channel: Self.channel, events: events), completion: completion)
     }
 
     /// Milestones are remembered as reported as soon as they're queued, so each is counted once per
@@ -198,7 +214,7 @@ final class ReefAnalytics {
     }
 }
 
-/// POSTs a batch as JSON with no cookies, cache, or credentials, and ignores the response.
+/// POSTs a batch as JSON with no cookies, cache, or credentials. The response only signals completion.
 struct URLSessionAnalyticsSender: AnalyticsSender {
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
@@ -210,13 +226,13 @@ struct URLSessionAnalyticsSender: AnalyticsSender {
         return URLSession(configuration: configuration)
     }()
 
-    func send(_ batch: AnalyticsBatch) {
-        guard let body = try? JSONEncoder().encode(batch) else { return }
+    func send(_ batch: AnalyticsBatch, completion: @escaping () -> Void) {
+        guard let body = try? JSONEncoder().encode(batch) else { return completion() }
         var request = URLRequest(url: ReefAnalytics.endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(ReefAnalytics.appKey, forHTTPHeaderField: "X-App-Key")
         request.httpBody = body
-        Self.session.dataTask(with: request).resume()
+        Self.session.dataTask(with: request) { _, _, _ in completion() }.resume()
     }
 }

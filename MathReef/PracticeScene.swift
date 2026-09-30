@@ -239,12 +239,22 @@ final class PracticeScene: SKScene {
         buildBackground()
         buildCloseButton()
         buildSettingsButton()
+        // Any round in progress is gone, so it shouldn't count as abandoned later.
+        analytics.roundDiscarded()
         showHome()
     }
 
     @objc private func appWillResignActive() {
         holdTouches.removeAll()
-        analytics.appResignedActive()
+        // Ask for time to finish sending, since the app may be suspended right after this.
+        var task = UIBackgroundTaskIdentifier.invalid
+        let finish = {
+            guard task != .invalid else { return }
+            UIApplication.shared.endBackgroundTask(task)
+            task = .invalid
+        }
+        task = UIApplication.shared.beginBackgroundTask(withName: "Math Reef analytics", expirationHandler: finish)
+        analytics.appResignedActive { DispatchQueue.main.async(execute: finish) }
     }
 
     @objc private func appDidBecomeActive() {
