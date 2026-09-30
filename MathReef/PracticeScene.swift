@@ -478,8 +478,7 @@ final class PracticeScene: SKScene {
         analytics.paywallShown()
         showSettingsPanel(
             title: "More of the reef",
-            lines: [("You've played the free levels here.", 18, false),
-                    ("Ask a grown-up to unlock every level.", 18, false)],
+            lines: [("Ask a grown-up to unlock all the levels.", 18, false)],
             buttons: [
                 ("Grown-ups", { [weak self] in self?.showParentalGate(leadingTo: .unlock) }),
                 ("Not now", { [weak self] in self?.hideSettings() }),
