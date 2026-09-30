@@ -5,3 +5,8 @@ build/
 *.xcuserstate
 .swiftpm/
 .build/
+
+# Local secrets (e.g. a 1Password-mounted .env). Never commit these.
+.env
+.env.*
+!.env.example
