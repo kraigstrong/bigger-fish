@@ -614,22 +614,88 @@ final class PracticeScene: SKScene {
     #if DEBUG
     // MARK: - App Store capture
 
-    /// Swims for the store capture: toward the right answer, or a wrong one for the questions in
-    /// `autopilotMisses` (numbered from 0 within the round).
+    /// Swims for the store capture like a kid would: drifts around mid-water, sometimes eyes a
+    /// wrong answer first, and heads for the right one (or a wrong one, for the questions in
+    /// `autopilotMisses`, numbered from 0 within the round) once the wave gets close.
     private var autopilot = false
     private var autopilotMisses: Set<Int> = []
     private var questionNumber = 0
+    private var autopilotPlan = AutopilotPlan()
+    private var autopilotRNG = SeededGenerator(seed: 7)
+
+    private struct AutopilotPlan {
+        var question = -1
+        /// How far ahead (screen widths) the target is when the fish commits to it.
+        var commitAt: CGFloat = 0.5
+        /// Eyes this wrong answer first, from further out, if set.
+        var glanceAt: CGFloat?
+        /// Aims a little off the fish's center, as a thumb would.
+        var aimOffset: CGFloat = 0
+        var wanderPhase: CGFloat = 0
+    }
 
     private func autopilotHolds() -> Bool {
-        guard autopilot, phase == .answering else { return false }
-        let miss = autopilotMisses.contains(questionNumber)
+        guard autopilot, phase == .answering || phase == .feedback else { return false }
+        if autopilotPlan.question != questionNumber {
+            var rng = autopilotRNG
+            autopilotPlan = AutopilotPlan(
+                question: questionNumber,
+                commitAt: .random(in: 0.3...0.5, using: &rng),
+                glanceAt: Bool.random(using: &rng) ? .random(in: 0.65...0.8, using: &rng) : nil,
+                aimOffset: .random(in: -10...10, using: &rng),
+                wanderPhase: .random(in: 0...(2 * .pi), using: &rng)
+            )
+            autopilotRNG = rng
+        }
+        let plan = autopilotPlan
         let ahead = answers.filter { !$0.fading && $0.fish.position.x > player.position.x }
-        guard let target = ahead
-            .filter({ $0.isCorrect != miss })
-            .min(by: { $0.fish.position.x < $1.fish.position.x })
-        else { return false }
-        // Aim a little ahead of where the fish is heading, so it settles instead of overshooting.
-        return target.fish.position.y > player.position.y + player.velocity.dy * 0.25
+        let nearest = { (fish: [AnswerFish]) in fish.min { $0.fish.position.x < $1.fish.position.x } }
+        let miss = autopilotMisses.contains(questionNumber)
+        // Where the fish wants to be: idling around mid-water until the wave is close.
+        var goal = size.height * 0.5 + sin(realClock * 1.3 + plan.wanderPhase) * size.height * 0.14
+        if phase == .answering, let target = nearest(ahead.filter { $0.isCorrect != miss }) {
+            let distance = (target.fish.position.x - player.position.x) / size.width
+            if distance < plan.commitAt {
+                goal = target.fish.position.y + plan.aimOffset
+            } else if let glance = plan.glanceAt, distance < glance,
+                      let decoy = nearest(ahead.filter { $0 !== target }) {
+                // Leaning toward another answer before thinking again.
+                goal = goal * 0.4 + decoy.fish.position.y * 0.6
+            } else {
+                // Drifting toward the wave while it's still far off.
+                goal = goal * 0.7 + target.fish.position.y * 0.3
+            }
+        }
+        // Lead the motion a little, so it eases in and bobs rather than slamming into place.
+        return goal > player.position.y + player.velocity.dy * 0.3
+    }
+
+    /// Saves what the scene draws, at full resolution, to Documents/StoreCapture. Unlike a simulator
+    /// screenshot, it has no Dynamic Island drawn over it.
+    private func saveCaptureFrame(_ name: String) {
+        guard let view, let image = view.texture(from: self)?.cgImage() else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let dir = StoreCapture.framesDirectory
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try? UIImage(cgImage: image).pngData()?.write(to: dir.appendingPathComponent("\(name).png"))
+        }
+    }
+
+    /// Saves `count` frames `interval` seconds apart, starting after `delay`.
+    private func captureFrames(_ scene: StoreCapture.Scene, count: Int, every interval: TimeInterval, after delay: TimeInterval) {
+        let frames = (1...count).map { index in
+            SKAction.sequence([
+                .wait(forDuration: index == 1 ? delay : interval),
+                .run { [weak self] in self?.saveCaptureFrame(count == 1 ? scene.rawValue : String(format: "%@-%02d", scene.rawValue, index)) },
+            ])
+        }
+        run(.sequence(frames), withKey: "storeCapture")
+    }
+
+    /// The simulator draws the Dynamic Island over the right edge of a landscape screen; keep the
+    /// level path's stops out from under it.
+    private func keepPathClearOfIsland() {
+        levelMap?.debugKeepClear(ofX: size.width - StoreCapture.islandInset, clearance: 56)
     }
 
     private func stageCapture(_ scene: StoreCapture.Scene) {
@@ -671,10 +737,17 @@ final class PracticeScene: SKScene {
             showHome()
             run(.sequence([
                 .wait(forDuration: 2.5),
-                .run { [weak self] in self?.showWorld() },
+                .run { [weak self] in self?.showWorld(); self?.keepPathClearOfIsland() },
                 .wait(forDuration: 2.5),
                 .run { play(world: "multiplication", level: StoreCapture.videoLevel, misses: [2]) },
             ]))
+        }
+        switch scene {
+        case .home, .world: captureFrames(scene, count: 1, every: 0, after: 3)
+        case .play, .wrong, .addition, .exponents: captureFrames(scene, count: 60, every: 0.3, after: 2)
+        // The crown lands about 3 seconds in; catch every step of it.
+        case .crown: captureFrames(scene, count: 60, every: 0.1, after: 0.5)
+        case .video: break
         }
     }
     #else
@@ -700,8 +773,9 @@ final class PracticeScene: SKScene {
     private func resetSession() {
         clearWave()
         playerNode?.removeFromParent()
-        // Fresh each round so order, lanes, and colors can't be memorized across replays.
-        rng = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
+        // Fresh each round so order, lanes, and colors can't be memorized across replays (fixed in
+        // a store capture, so its shots can be retaken).
+        rng = SeededGenerator(seed: Self.isCapturing ? 2026 : UInt64.random(in: 0...UInt64.max))
         session = PracticeSession(
             level: level,
             review: world.reviewPool(before: levelIndex),

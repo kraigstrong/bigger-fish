@@ -201,6 +201,24 @@ final class LevelMapNode: SKNode {
         addChild(header(size: size, title: title, stars: stars, crown: crown))
     }
 
+    #if DEBUG
+    /// Slides the path the least distance that leaves no stop within `clearance` of `x`. The
+    /// simulator draws the Dynamic Island there, and a store capture fills it in from the water.
+    func debugKeepClear(ofX x: CGFloat, clearance: CGFloat) {
+        let start = content.position.x
+        for step in 0...120 {
+            for shift in [CGFloat(step), -CGFloat(step)] {
+                let offset = start + shift
+                guard offset <= 0, offset >= minOffset else { continue }
+                if !centers.contains(where: { abs($0.x + offset - x) < clearance }) {
+                    content.position.x = offset
+                    return
+                }
+            }
+        }
+    }
+    #endif
+
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 

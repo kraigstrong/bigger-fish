@@ -7,8 +7,8 @@
 # Builds a debug build and launches it with `-storeCapture <scene>` (see MathReef/StoreCapture.swift),
 # which stages believable progress in its own saved state and lets an autopilot swim.
 # Output goes to build/store-capture/:
-#   screenshots/<scene>[-NN].png  2868x1320 landscape PNGs (the 6.9" size). Play scenes are a burst of
-#                                 frames to pick from.
+#   screenshots/<scene>[-NN].png  2868x1320 landscape PNGs (the 6.9" size), drawn by the app. Play
+#                                 scenes and the crown are a burst of frames to pick from.
 #   video/raw.mov                 the simulator recording, as captured
 #   video/soundtrack.wav          the game's own sounds and music, rebuilt from the app's cue log
 #   video/full.mp4                1920x886, 30 fps, H.264 + stereo AAC: Apple's app preview format,
@@ -22,8 +22,9 @@ DERIVED="$ROOT/build/store-capture/DerivedData"
 DEVICE="${STORE_CAPTURE_DEVICE:-iPhone 17 Pro Max}"
 BUNDLE=com.kraigstrong.mathreef
 STATIC_SCENES=(home world crown)
-# The simulator draws the Dynamic Island into its frames (a device screenshot doesn't), so fill it in
-# from the water around it. Measured on the 17 Pro Max in landscape: x 2716-2825, y 472-847.
+# The simulator draws the Dynamic Island into its recordings (a device's don't), so the video fills
+# it in from the water around it; the level path keeps its stops clear of it. Measured on the
+# 17 Pro Max in landscape: x 2716-2825, y 472-847.
 TO_LANDSCAPE="transpose=1,delogo=x=2708:y=464:w=126:h=392"
 PLAY_SCENES=(play wrong addition exponents)
 
@@ -41,32 +42,30 @@ launch() {
     xcrun simctl launch "$DEVICE" "$BUNDLE" -storeCapture "$1" >/dev/null
 }
 
-# The simulator saves the portrait framebuffer; turn it to landscape and drop any alpha.
-shoot() {
-    local raw="$OUT/screenshots/.raw.png"
-    xcrun simctl io "$DEVICE" screenshot --mask=ignored "$raw" >/dev/null 2>&1
-    ffmpeg -v error -y -i "$raw" -vf "$TO_LANDSCAPE" -pix_fmt rgb24 "$1"
-}
-
+# Screenshot scenes save the frames the app draws (no Dynamic Island over them) in its Documents
+# folder: one for a still scene, a burst for play and the crown. Wait for the last, then collect.
 screenshots() {
     mkdir -p "$OUT/screenshots"
     local scenes=("$@")
     [ ${#scenes[@]} -eq 0 ] && scenes=("${STATIC_SCENES[@]}" "${PLAY_SCENES[@]}")
     for scene in "${scenes[@]}"; do
+        local last="$scene"
+        [[ " ${STATIC_SCENES[*]} " == *" $scene "* && $scene != crown ]] || last="$scene-60"
+        local frames
+        frames="$(xcrun simctl get_app_container "$DEVICE" "$BUNDLE" data)/Documents/StoreCapture"
+        xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
+        rm -rf "$frames"
         launch "$scene"
-        if [[ " ${PLAY_SCENES[*]} " == *" $scene "* ]]; then
-            pause 2
-            for i in $(seq -w 1 40); do shoot "$OUT/screenshots/$scene-$i.png"; pause 0.3; done
-        elif [ "$scene" = crown ]; then
-            # The crown lands about 3 seconds in, then flies onto the fish.
-            for i in $(seq -w 1 12); do pause 0.5; shoot "$OUT/screenshots/$scene-$i.png"; done
-        else
-            pause 4
-            shoot "$OUT/screenshots/$scene.png"
-        fi
+        local waited=0
+        until [ -f "$frames/$last.png" ] || [ $waited -gt 400 ]; do pause 0.1; waited=$((waited + 1)); done
+        pause 0.5
+        rm -f "$OUT/screenshots/$scene"*.png
+        for frame in "$frames/$scene"*.png; do
+            # App Store Connect rejects PNGs with an alpha channel.
+            ffmpeg -v error -y -i "$frame" -pix_fmt rgb24 "$OUT/screenshots/$(basename "$frame")"
+        done
         echo "captured $scene"
     done
-    rm -f "$OUT/screenshots/.raw.png"
 }
 
 video() {
