@@ -73,6 +73,9 @@ python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-
   sounds (the simulator records no audio). `store-preview.py` cuts the chosen clips (in seconds)
   into Apple's app preview format: 1920×886, 30 fps, H.264, stereo AAC, 15–30 seconds. The clip
   times shift a little between runs, so check them against the full recording.
+- **Framed versions:** `scripts/store-frames.py` puts each chosen shot (from
+  `build/store-capture/picks/`) on a world-color background under a caption in the game's font,
+  still 2868×1320. The shots, their order, and the captions are the `SHOTS` list at its top.
 - **Dynamic Island:** the simulator draws it into its video, so the video fills it in from the
   surrounding water and slides the level path so no stop sits under it.
 - **Autopilot:** it drifts around mid-water, sometimes eyes a wrong answer first, and heads for
