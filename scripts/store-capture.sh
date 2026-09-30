@@ -82,7 +82,7 @@ video() {
     xcrun simctl launch --console-pty "$DEVICE" "$BUNDLE" -storeCapture video >"$dir/cues.log" 2>&1 &
     local app=$!
     # The reef, the path, the instructions, a full round, then the results and crown.
-    pause "${STORE_CAPTURE_SECONDS:-75}"
+    pause "${STORE_CAPTURE_SECONDS:-86}"
     kill -INT "$recorder"
     wait "$recorder" || true
     kill "$app" 2>/dev/null || true
@@ -100,8 +100,16 @@ video() {
     echo "wrote $dir/full.mp4"
 }
 
+# Check the tools up front, not after the build or a minute and a half of recording.
+need_ffmpeg() {
+    command -v ffmpeg >/dev/null || { echo "needs ffmpeg: brew install ffmpeg" >&2; exit 1; }
+}
+need_numpy() {
+    python3 -c "import numpy" 2>/dev/null || { echo "video needs NumPy: python3 -m pip install numpy" >&2; exit 1; }
+}
+
 case "${1:-}" in
-    screenshots) shift; build; screenshots "$@" ;;
-    video) build; video ;;
+    screenshots) shift; need_ffmpeg; build; screenshots "$@" ;;
+    video) need_ffmpeg; need_numpy; build; video ;;
     *) sed -n '2,6p' "$0"; exit 1 ;;
 esac

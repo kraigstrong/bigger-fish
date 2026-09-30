@@ -57,7 +57,8 @@ cd Packages/FishKit && xcodebuild test -scheme FishKit -destination 'platform=iO
 `scripts/store-capture.sh` builds Math Reef in Debug, then launches it on the iPhone 17 Pro Max
 simulator with `-storeCapture <scene>`. That stages believable progress in its own saved state,
 leaving real progress, purchases, and analytics alone, and lets an autopilot play. Output goes to
-`build/store-capture/` (ignored by git).
+`build/store-capture/` (ignored by git). It needs ffmpeg (`brew install ffmpeg`), and the video
+also needs NumPy (`python3 -m pip install numpy`).
 
 ```bash
 scripts/store-capture.sh screenshots

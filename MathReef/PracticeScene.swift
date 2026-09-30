@@ -176,7 +176,7 @@ final class PracticeScene: SKScene {
     private var timeScale: CGFloat = 1
     private var isBuilt = false
 
-    private let audio = ReefAudio()
+    private let audio = ReefAudio(defaults: PracticeScene.savedState)
     private let analytics = PracticeScene.isCapturing ? ReefAnalytics(enabled: false) : ReefAnalytics()
     private let purchases = ReefPurchases(defaults: PracticeScene.savedState)
     private var hasPlayedJingle = false
