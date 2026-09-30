@@ -361,11 +361,12 @@ final class PracticeScene: SKScene {
     /// place without the panel's fade-in, for a change on the same screen (a sound toggle, a digit).
     private func showSettingsPanel(
         title: String, lines: [PanelLine], buttons: [(title: String, action: () -> Void)],
-        buttonMinWidth: CGFloat = 140, animated: Bool
+        buttonMinWidth: CGFloat = 140, rowStarts: Set<Int> = [], animated: Bool
     ) {
         isShowingSettings = true
         holdTouches.removeAll()
-        showPanel(title: title, lines: lines, buttons: buttons, centerX: size.width / 2, buttonMinWidth: buttonMinWidth)
+        showPanel(title: title, lines: lines, buttons: buttons, centerX: size.width / 2,
+                  buttonMinWidth: buttonMinWidth, rowStarts: rowStarts)
         let scrim = SKSpriteNode(color: SKColor(white: 0, alpha: 0.35), size: CGSize(width: size.width * 2, height: size.height * 2))
         scrim.zPosition = -2
         panel.addChild(scrim)
@@ -412,7 +413,8 @@ final class PracticeScene: SKScene {
         ]
         showSettingsPanel(
             title: "For grown-ups", lines: [(gate.question, 20, false), (entry, 30, true)],
-            buttons: buttons, buttonMinWidth: 56, animated: false
+            // A keypad: 1–5, 6–9 and 0, then Delete and Cancel, the same on every screen size.
+            buttons: buttons, buttonMinWidth: 56, rowStarts: [5, 10], animated: false
         )
     }
 
@@ -1178,7 +1180,9 @@ final class PracticeScene: SKScene {
         buttons newButtons: [(title: String, action: () -> Void)],
         centerX: CGFloat? = nil,
         style: PanelStyle = .neutral,
-        buttonMinWidth: CGFloat = 140
+        buttonMinWidth: CGFloat = 140,
+        /// Button indexes that always start a new row (rows also wrap when they run out of room).
+        rowStarts: Set<Int> = []
     ) {
         hidePanel()
         let titleLabel = label(title, fontSize: 32, heavy: true)
@@ -1194,7 +1198,7 @@ final class PracticeScene: SKScene {
         for index in buttonWidths.indices {
             let row = rows.last ?? []
             let rowWidth = row.map { buttonWidths[$0] + buttonGap }.reduce(0, +) + buttonWidths[index]
-            if row.isEmpty || rowWidth > size.width - 100 { rows.append([index]) } else { rows[rows.count - 1].append(index) }
+            if row.isEmpty || rowWidth > size.width - 100 || rowStarts.contains(index) { rows.append([index]) } else { rows[rows.count - 1].append(index) }
         }
         let rowWidth = { (row: [Int]) in row.map { buttonWidths[$0] }.reduce(0, +) + CGFloat(max(0, row.count - 1)) * buttonGap }
         let buttonsWidth = rows.map(rowWidth).max() ?? 0
