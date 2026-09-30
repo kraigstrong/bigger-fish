@@ -38,10 +38,15 @@ struct ContentAuditTests {
             let id = world.levels[index].id
             #expect(!questions.isEmpty, "\(id): empty round")
             for fact in questions {
-                #expect(fact.answer >= 0, "\(id): \(fact.prompt) has a negative answer")
+                // Check the divisor first: `answer` divides, so a zero divisor would crash the run.
                 if fact.op == .divide {
-                    #expect(fact.b != 0 && fact.a % fact.b == 0, "\(id): \(fact.prompt) doesn't divide evenly")
+                    guard fact.b != 0 else {
+                        Issue.record("\(id): \(fact.a) ÷ 0 divides by zero")
+                        continue
+                    }
+                    #expect(fact.a % fact.b == 0, "\(id): \(fact.prompt) doesn't divide evenly")
                 }
+                #expect(fact.answer >= 0, "\(id): \(fact.prompt) has a negative answer")
             }
         }
     }
