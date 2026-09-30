@@ -10,7 +10,10 @@ struct ReefAnalyticsTests {
 
     private final class StubSender: AnalyticsSender {
         var batches: [AnalyticsBatch] = []
-        func send(_ batch: AnalyticsBatch) { batches.append(batch) }
+        func send(_ batch: AnalyticsBatch, completion: @escaping () -> Void) {
+            batches.append(batch)
+            completion()
+        }
     }
 
     /// Fresh defaults for one test, removed afterwards.
@@ -250,8 +253,60 @@ struct ReefAnalyticsTests {
         }
     }
 
-    @Test func analyticsAreOffInThisBuild() {
-        #expect(!ReefAnalytics.isEnabled)
+    @Test func analyticsAreOnInThisBuild() {
+        #expect(ReefAnalytics.isEnabled)
+        #expect(ReefAnalytics.endpoint.absoluteString == "https://brightbench.app/api/math-reef/events")
+        #expect(ReefAnalytics.appKey != "math-reef-placeholder-key" && !ReefAnalytics.appKey.isEmpty)
+    }
+
+    /// The tests run inside the app, so the default recorder must stay off here and never reach
+    /// production.
+    @Test func testRunsNeverRecordOrSend() {
+        withDefaults { defaults in
+            #expect(ReefAnalytics.isRunningTests)
+            let analytics = ReefAnalytics(defaults: defaults)
+            analytics.appLaunched()
+            analytics.roundStarted(level: exponents.levels[0], target: 10)
+            analytics.appResignedActive()
+            #expect(analytics.queue.isEmpty)
+            #expect(defaults.dictionaryRepresentation().keys.allSatisfy { !$0.hasPrefix("mathReef.analytics.") })
+        }
+    }
+
+    @Test func aDiscardedRoundIsNeverReported() {
+        withDefaults { defaults in
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
+            analytics.roundStarted(level: exponents.levels[0], target: 10)
+            analytics.roundProgress(correct: 3)
+            analytics.appResignedActive()
+            analytics.roundDiscarded()
+            analytics.roundQuit()
+
+            let relaunched = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
+            relaunched.appLaunched()
+            #expect(rounds(relaunched).isEmpty)
+        }
+    }
+
+    /// The scene ends its background task from this completion, so it must always run.
+    @Test func resigningAlwaysCompletes() {
+        withDefaults { defaults in
+            var completions = 0
+            ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: false).appResignedActive { completions += 1 }
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
+            analytics.appResignedActive { completions += 1 }  // nothing queued
+            analytics.appLaunched()
+            analytics.appResignedActive { completions += 1 }  // a batch sent
+            #expect(completions == 3)
+        }
+    }
+
+    /// The server (kraigstrong/BrightBench, `math-reef-analytics.ts`) rejects rounds over 30 questions.
+    /// A round is a level's facts plus up to 3 review questions, and at least 10.
+    @Test func everyRoundFitsTheServersLimit() {
+        for level in Curriculum.worlds.flatMap(\.levels) {
+            #expect(max(PracticeSession.minimumRound, level.facts.count + ReefTuning.reviewPerRound) <= 30, "\(level.id)")
+        }
     }
 
     @Test func flushSendsOneBatchAndEmptiesTheQueue() {
