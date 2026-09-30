@@ -1,5 +1,6 @@
 import FishKit
 import SpriteKit
+import UIKit
 
 // The two map screens: the reef (pick a world) and a world's winding level path. Each is a
 // self-contained node built from progress data; the scene forwards touches and time to it.
@@ -14,7 +15,11 @@ struct WorldStop {
     let comingSoon: Bool
 }
 
-enum LevelStopState { case locked, open, passed, skipTest }
+enum LevelStopState {
+    case locked, open, passed, skipTest
+    /// Past the free sample and not yet unlocked: tapping asks for the unlock.
+    case needsUnlock
+}
 
 struct LevelStop {
     let number: Int
@@ -280,6 +285,14 @@ final class LevelMapNode: SKNode {
             circle.fillColor = SKColor(white: 1, alpha: 0.15)
             circle.strokeColor = SKColor(white: 1, alpha: 0.3)
             number = SKColor(white: 1, alpha: 0.5)
+        case .needsUnlock:
+            circle.fillColor = SKColor(white: 1, alpha: 0.25)
+            circle.strokeColor = level.isCheckpoint ? ReefStyle.gold : SKColor(white: 1, alpha: 0.6)
+            number = SKColor(white: 1, alpha: 0.7)
+            let lock = padlock(size: r * 0.8)
+            lock.position = CGPoint(x: r * 0.72, y: r * 0.72)
+            lock.zPosition = 2
+            stop.addChild(lock)
         }
         circle.lineWidth = 4
         stop.addChild(circle)
@@ -289,7 +302,7 @@ final class LevelMapNode: SKNode {
         stop.addChild(label)
 
         let name = reefLabel(level.title, fontSize: 12, heavy: false,
-                             color: SKColor(white: 1, alpha: level.state == .locked ? 0.55 : 0.95))
+                             color: SKColor(white: 1, alpha: level.state == .locked || level.state == .needsUnlock ? 0.55 : 0.95))
         name.position = CGPoint(x: 0, y: -r - 14)
         stop.addChild(name)
         if level.state == .skipTest {
@@ -350,4 +363,23 @@ final class LevelMapNode: SKNode {
         }
         return header
     }
+}
+
+/// A small padlock badge for levels that need the unlock.
+private func padlock(size: CGFloat) -> SKNode {
+    let node = SKNode()
+    let backing = SKShapeNode(circleOfRadius: size * 0.62)
+    backing.fillColor = ReefStyle.ink
+    backing.strokeColor = .white
+    backing.lineWidth = 2
+    node.addChild(backing)
+    let config = UIImage.SymbolConfiguration(pointSize: size * 0.62, weight: .bold)
+    if let symbol = UIImage(systemName: "lock.fill", withConfiguration: config)?
+        .withTintColor(.white, renderingMode: .alwaysOriginal) {
+        let image = UIGraphicsImageRenderer(size: symbol.size).image { _ in symbol.draw(at: .zero) }
+        let sprite = SKSpriteNode(texture: SKTexture(image: image))
+        sprite.zPosition = 1
+        node.addChild(sprite)
+    }
+    return node
 }

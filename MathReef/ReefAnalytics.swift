@@ -157,6 +157,19 @@ final class ReefAnalytics {
         }
     }
 
+    /// A locked level was tapped and the unlock prompt shown. Once per install.
+    func paywallShown() {
+        guard enabled else { return }
+        reportOnce("paywall_shown")
+    }
+
+    /// The full game became unlocked on this install: bought, restored, or through Family Sharing.
+    /// Once per install.
+    func unlocked() {
+        guard enabled else { return }
+        reportOnce("unlocked")
+    }
+
     /// The close button during a round. Does nothing if no round is in progress (the instructions).
     func roundQuit() {
         guard let round else { return }

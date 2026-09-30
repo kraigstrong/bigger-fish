@@ -1,0 +1,32 @@
+{
+  "identifier": "5E1D9C2A",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "4.99",
+      "familyShareable": true,
+      "internalID": "6739184201",
+      "localizations": [
+        {
+          "description": "Every level in all five worlds, for the whole family.",
+          "displayName": "The Whole Reef",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.kraigstrong.mathreef.fullreef",
+      "referenceName": "Unlock the whole reef",
+      "type": "NonConsumable"
+    }
+  ],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storeKitErrors": [],
+    "_storefront": "USA"
+  },
+  "subscriptionGroups": [],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}
