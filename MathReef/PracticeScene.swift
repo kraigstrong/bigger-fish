@@ -650,6 +650,13 @@ final class PracticeScene: SKScene {
     }
 
     private func nextLevel() {
+        // Past the free sample, go to the level path (padlock in view) and ask for a grown-up,
+        // so dismissing the prompt lands on the map rather than an empty screen.
+        if FreeSample.needsUnlock(levelIndex + 1, in: world, isUnlocked: purchases.isUnlocked) {
+            showWorld()
+            showUnlockPrompt()
+            return
+        }
         levelIndex += 1
         showInstructions()
     }
