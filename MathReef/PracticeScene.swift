@@ -174,6 +174,7 @@ final class PracticeScene: SKScene {
     private var isBuilt = false
 
     private let audio = ReefAudio()
+    private let analytics = ReefAnalytics()
     private var hasPlayedJingle = false
     private let positiveHaptic = UINotificationFeedbackGenerator()
     private let gentleHaptic = UIImpactFeedbackGenerator(style: .soft)
@@ -192,6 +193,7 @@ final class PracticeScene: SKScene {
         backgroundColor = SKColor(red: 0.04, green: 0.15, blue: 0.32, alpha: 1)
         guard !isBuilt, size.width > 1, size.height > 1 else { return }
         isBuilt = true
+        analytics.appLaunched()
 
         fishLayer.zPosition = 10
         uiLayer.zPosition = 100
@@ -207,6 +209,10 @@ final class PracticeScene: SKScene {
         NotificationCenter.default.addObserver(
             self, selector: #selector(appWillResignActive),
             name: UIApplication.willResignActiveNotification, object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(appDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification, object: nil
         )
         positiveHaptic.prepare()
         gentleHaptic.prepare()
@@ -238,6 +244,11 @@ final class PracticeScene: SKScene {
 
     @objc private func appWillResignActive() {
         holdTouches.removeAll()
+        analytics.appResignedActive()
+    }
+
+    @objc private func appDidBecomeActive() {
+        analytics.appBecameActive()
     }
 
     // MARK: - Menus
@@ -512,6 +523,7 @@ final class PracticeScene: SKScene {
         hidePanel()
         closeButton.isHidden = false
         sessionStart = realClock
+        analytics.roundStarted(level: level, target: session.targetCorrect)
         spawnWave()
     }
 
@@ -574,6 +586,7 @@ final class PracticeScene: SKScene {
         guard let fact = currentFact else { return }
         lastCorrect = answer.isCorrect
         session.record(correct: answer.isCorrect)
+        analytics.roundProgress(correct: session.result.correctAnswers)
         phase = .feedback
         updateProgress()
 
@@ -623,6 +636,7 @@ final class PracticeScene: SKScene {
 
         let result = session.result
         let summary = store.recordRound(levelIndex, in: world, correct: result.correctAnswers, attempts: result.totalAttempts)
+        analytics.roundFinished(summary, level: level, in: world)
         showResults(
             title: summary.title,
             lines: [
@@ -830,6 +844,7 @@ final class PracticeScene: SKScene {
         for touch in touches {
             let p = touch.location(in: self)
             if !closeButton.isHidden && hypot(p.x - closeButton.position.x, p.y - closeButton.position.y) < 36 {
+                analytics.roundQuit()
                 showWorld()
                 return
             }
