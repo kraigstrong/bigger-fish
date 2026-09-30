@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Math Reef (tinted): a big orange fish chasing a green fish numbered 2 above a coral reef">
+<defs>
+<linearGradient id="mr-bg-c" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#45c1e0"/>
+<stop offset="0.55" stop-color="#1a78b8"/>
+<stop offset="1" stop-color="#114a88"/>
+</linearGradient>
+</defs>
+
+
+<g stroke="#4a4a4a" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" fill="none">
+<path d="M 150 930 L 150 790"/>
+<path d="M 150 865 Q 92 850 92 782"/>
+<path d="M 150 832 Q 212 816 214 758"/>
+</g>
+<g stroke="#4a4a4a" stroke-width="40" stroke-linecap="round" stroke-linejoin="round" fill="none">
+<path d="M 880 930 L 880 805"/>
+<path d="M 880 868 Q 936 852 940 792"/>
+</g>
+<path d="M 0 880 C 260 840 520 900 760 865 C 880 848 960 860 1024 855 L 1024 1024 L 0 1024 Z" fill="#3a3a3a"/>
+
+<g transform="translate(830 470) scale(0.68)">
+<path d="M 100 0 L 180 -60 Q 160 0 180 60 Z" fill="#9a9a9a" stroke="#9a9a9a" stroke-width="10" stroke-linejoin="round"/>
+<ellipse cx="0" cy="0" rx="125" ry="95" fill="#8a8a8a"/>
+<ellipse cx="0" cy="42" rx="100" ry="42" fill="#9e9e9e"/>
+<circle cx="-65" cy="-25" r="28" fill="#ffffff" stroke="#2a2a2a" stroke-width="4"/>
+<circle cx="-73" cy="-23" r="15" fill="#111111"/>
+<circle cx="-78" cy="-30" r="5" fill="#ffffff"/>
+<ellipse cx="-106" cy="34" rx="9" ry="11" fill="#222222"/>
+<path d="M -6 -16 C -6 -44 64 -48 64 -14 C 64 10 32 24 -6 46 L 68 46" fill="none" stroke="#333333" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M -6 -16 C -6 -44 64 -48 64 -14 C 64 10 32 24 -6 46 L 68 46" fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+
+<g fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.75" stroke-width="7">
+<circle cx="640" cy="420" r="16"/>
+<circle cx="684" cy="335" r="26"/>
+</g>
+
+<g transform="translate(410 480) scale(0.9)">
+<g fill="#9a9a9a" stroke="#9a9a9a" stroke-width="44" stroke-linejoin="round">
+<path d="M -230 0 L -370 -140 Q -345 0 -370 140 Z"/>
+<path d="M -60 -195 Q 10 -270 100 -190 Z"/>
+<ellipse cx="0" cy="0" rx="260" ry="210"/>
+</g>
+<path d="M -230 0 L -370 -140 Q -345 0 -370 140 Z" fill="#e6e6e6" stroke="#e6e6e6" stroke-width="8" stroke-linejoin="round"/>
+<path d="M -60 -195 Q 10 -270 100 -190 Z" fill="#e6e6e6"/>
+<ellipse cx="0" cy="0" rx="260" ry="210" fill="#f4f4f4"/>
+<ellipse cx="10" cy="80" rx="220" ry="115" fill="#ffffff"/>
+<ellipse cx="-40" cy="30" rx="58" ry="40" fill="#d6d6d6" stroke="#ececec" stroke-width="8"/>
+<circle cx="130" cy="-45" r="64" fill="#ffffff" stroke="#2a2a2a" stroke-width="6"/>
+<circle cx="152" cy="-40" r="34" fill="#111111"/>
+<circle cx="140" cy="-55" r="11" fill="#ffffff"/>
+<ellipse cx="205" cy="75" rx="30" ry="27" fill="#3a3a3a"/>
+<ellipse cx="205" cy="89" rx="17" ry="9" fill="#8a8a8a"/>
+</g>
+</svg>
