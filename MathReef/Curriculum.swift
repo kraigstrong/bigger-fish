@@ -29,8 +29,18 @@ struct World: Equatable {
     let id: String
     let title: String
     let levels: [Level]
+    /// Whether rounds mix in review questions from earlier levels. Off where a level introduces new
+    /// notation and the earlier levels are a different kind of question (Exponents: squares in a
+    /// Cubes round read as mistakes, and its Mixed level already reviews both).
+    var mixesInReview = true
     /// Shown on the world picker but not playable yet.
     var comingSoon: Bool { levels.isEmpty }
+
+    /// Review questions mixed into a round of the level at `index`: none for checkpoints (they are
+    /// the review) or in worlds that don't mix in review.
+    func reviewCount(forLevelAt index: Int) -> Int {
+        levels[index].isCheckpoint || !mixesInReview ? 0 : ReefTuning.reviewPerRound
+    }
 
     /// Every question from the levels before `index`, for review mixed into later rounds.
     func reviewPool(before index: Int) -> [Fact] {
@@ -46,7 +56,7 @@ enum Curriculum {
         World(id: "subtraction", title: "Subtraction", levels: subtraction),
         World(id: "multiplication", title: "Multiplication", levels: multiplication),
         World(id: "division", title: "Division", levels: division),
-        World(id: "exponents", title: "Exponents", levels: [squares, cubes, powersMixed]),
+        World(id: "exponents", title: "Exponents", levels: [squares, cubes, powersMixed], mixesInReview: false),
     ]
 
     // MARK: Addition

@@ -25,7 +25,8 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   world (Addition, Subtraction, Multiplication, Division, Exponents), then a level,
   and swim into the right answer. Addition and subtraction climb in small strategy steps (+1/+2, make 10,
   doubles, near doubles, past 10, then 2-digit up to carrying/borrowing). A round asks every question in
-  the level plus 3 review questions from earlier levels. Stars come from accuracy (right answers out of
+  the level plus 3 review questions from earlier levels (none in Exponents, where squares in a Cubes round
+  would read as mistakes). Stars come from accuracy (right answers out of
   tries): 60% ★, 80% ★★, 100% ★★★; two stars unlocks the next level.
   Checkpoint levels are skip tests: always playable, and passing one passes everything before it.
   Worlds sit on a reef map and levels along a scrolling path. A world earns a silver crown when every

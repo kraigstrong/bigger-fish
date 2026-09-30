@@ -413,3 +413,32 @@ struct PracticeSessionTests {
         #expect(session.upcoming[2] == missed)
     }
 }
+
+struct ReviewMixTests {
+    private func world(_ id: String) -> World { Curriculum.worlds.first { $0.id == id }! }
+
+    /// Squares in a Cubes round read as mistakes, and Mixed already reviews both.
+    @Test func exponentsRoundsAreOnlyTheirOwnLevel() {
+        let exponents = world("exponents")
+        var rng = SeededGenerator(seed: 1)
+        for index in exponents.levels.indices {
+            #expect(exponents.reviewCount(forLevelAt: index) == 0)
+            let level = exponents.levels[index]
+            let session = PracticeSession(
+                level: level, review: exponents.reviewPool(before: index),
+                reviewCount: exponents.reviewCount(forLevelAt: index), using: &rng
+            )
+            #expect(session.upcoming.allSatisfy { level.facts.contains($0) }, "\(level.id)")
+        }
+    }
+
+    @Test func otherWorldsStillMixInReviewExceptCheckpoints() {
+        for world in Curriculum.worlds where world.id != "exponents" {
+            #expect(world.mixesInReview)
+            for index in world.levels.indices {
+                let expected = world.levels[index].isCheckpoint ? 0 : ReefTuning.reviewPerRound
+                #expect(world.reviewCount(forLevelAt: index) == expected, "\(world.levels[index].id)")
+            }
+        }
+    }
+}
