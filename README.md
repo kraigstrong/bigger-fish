@@ -41,6 +41,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   - `ReefUnlock.swift` — the free sample (first 3 levels per world, 1 in Exponents) and the one-time StoreKit unlock; `MathReef.storekit` at the repo root backs it when running from Xcode
   - `PracticeScene.swift` — screen flow and gameplay; tuning is `ReefTuning` at the top
   - `ReefAnalytics.swift` — anonymous first-party counts (milestones and round outcomes), queued on the device and sent in batches to brightbench.app (off during test runs)
+  - `StoreCapture.swift` — debug-only staged scenes and an autopilot for App Store screenshots and the preview video
 - `Packages/FishKit/` — shared fish engine used by both apps:
   the fish model and drawing, hold/release movement (`PlayerMotion` + `MotionTuning`), wrapped world,
   seeded RNG, swallow timing, and water textures.
@@ -50,6 +51,28 @@ FishKit tests:
 ```bash
 cd Packages/FishKit && xcodebuild test -scheme FishKit -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
+
+## App Store screenshots and preview
+
+`scripts/store-capture.sh` builds Math Reef in Debug, then launches it on the iPhone 17 Pro Max
+simulator with `-storeCapture <scene>`. That stages believable progress in its own saved state,
+leaving real progress, purchases, and analytics alone, and lets an autopilot play. Output goes to
+`build/store-capture/` (ignored by git).
+
+```bash
+scripts/store-capture.sh screenshots
+scripts/store-capture.sh video
+python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-capture/video/preview.mp4 1.8-3.8 4.0-6.0 6.1-7.3 7.3-12.0 17.2-23.0 67.8-77.2
+```
+
+- **Screenshots** are 2868×1320 PNGs (the 6.9" size) with no alpha. Play scenes save a burst of
+  frames to pick from.
+- **Video:** `video` records a full scripted run and rebuilds its soundtrack from the game's own
+  sounds (the simulator records no audio). `store-preview.py` cuts the chosen clips (in seconds)
+  into Apple's app preview format: 1920×886, 30 fps, H.264, stereo AAC, 15–30 seconds. The clip
+  times shift a little between runs, so check them against the full recording.
+- **Dynamic Island:** the simulator draws it into every frame, so both steps fill it in from the
+  surrounding water.
 
 ## Tuning
 
