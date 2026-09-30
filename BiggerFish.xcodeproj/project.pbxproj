@@ -33,6 +33,7 @@
 		BF00000000000000000000B1 /* BiggerFishTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BiggerFishTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC0000000000000000000010 /* MathReef.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MathReef.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC0000000000000000000011 /* MathReefTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MathReefTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC0000000000000000000099 /* MathReef.storekit */ = {isa = PBXFileReference; lastKnownFileType = text.json.storekit; path = MathReef.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -99,6 +100,7 @@
 				BF00000000000000000000A4 /* BiggerFishTests */,
 				CC0000000000000000000020 /* MathReef */,
 				CC0000000000000000000021 /* MathReefTests */,
+				CC0000000000000000000099 /* MathReef.storekit */,
 				BF00000000000000000000A2 /* Products */,
 			);
 			sourceTree = "<group>";
