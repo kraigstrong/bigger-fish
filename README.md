@@ -38,7 +38,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   - `ReefUI.swift` — shared labels, stars, crowns, and world colors
   - `ParentalGate.swift` — the grown-ups-only question guarding the privacy and support links
   - `PracticeScene.swift` — screen flow and gameplay; tuning is `ReefTuning` at the top
-  - `ReefAnalytics.swift` — anonymous first-party counts (milestones and round outcomes), queued on the device; sending is off for now
+  - `ReefAnalytics.swift` — anonymous first-party counts (milestones and round outcomes), queued on the device and sent in batches; off for now
 - `Packages/FishKit/` — shared fish engine used by both apps:
   the fish model and drawing, hold/release movement (`PlayerMotion` + `MotionTuning`), wrapped world,
   seeded RNG, swallow timing, and water textures.

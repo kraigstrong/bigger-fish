@@ -5,8 +5,8 @@ import Foundation
 // which answers were chosen or how long anything took. Batches from different installs can't be told
 // apart or linked. Milestones are reported once per install so the counts mean "how many players".
 //
-// Events are recorded and queued on the device either way; nothing is sent until
-// `isSendingEnabled` flips.
+// While `isEnabled` is off, nothing is recorded or stored, let alone sent: play from before the
+// privacy policy describes analytics must never leave the device later.
 
 /// One analytics event. The initializers are private so an event can only be one of the two shapes
 /// below; `ReefAnalyticsTests` pins the full set of keys a batch can contain.
@@ -59,8 +59,8 @@ protocol AnalyticsSender {
 /// Records events at the right moments of play and queues them in UserDefaults until `flush()`.
 final class ReefAnalytics {
     /// Off until the server exists and the privacy policy and `PrivacyInfo.xcprivacy` describe what's
-    /// sent. While off, `flush()` does nothing and events wait in the (capped) queue.
-    static let isSendingEnabled = false
+    /// sent. While off, every method does nothing: no queue, no milestones marked, no pending round.
+    static let isEnabled = false
     /// Placeholder until the server ships.
     static let endpoint = URL(string: "https://brightbench.app/api/math-reef/events")!
     /// Sent as `X-App-Key` to filter out stray bots. Not a secret: anyone can pull it out of the
@@ -90,7 +90,7 @@ final class ReefAnalytics {
 
     private let defaults: UserDefaults
     private let sender: AnalyticsSender
-    private let sendingEnabled: Bool
+    private let enabled: Bool
     private var round: Round?
 
     private let queueKey = "mathReef.analytics.queue"
@@ -100,11 +100,11 @@ final class ReefAnalytics {
     init(
         defaults: UserDefaults = .standard,
         sender: AnalyticsSender = URLSessionAnalyticsSender(),
-        sendingEnabled: Bool = ReefAnalytics.isSendingEnabled
+        enabled: Bool = ReefAnalytics.isEnabled
     ) {
         self.defaults = defaults
         self.sender = sender
-        self.sendingEnabled = sendingEnabled
+        self.enabled = enabled
     }
 
     var queue: [AnalyticsEvent] {
@@ -117,6 +117,7 @@ final class ReefAnalytics {
     /// Once per cold launch. A round still pending from last time was never finished or quit: the
     /// app was closed mid-round.
     func appLaunched() {
+        guard enabled else { return }
         reportOnce("first_launch")
         if let data = defaults.data(forKey: pendingKey),
            let pending = try? JSONDecoder().decode(Round.self, from: data) {
@@ -126,6 +127,7 @@ final class ReefAnalytics {
     }
 
     func roundStarted(level: Level, target: Int) {
+        guard enabled else { return }
         round = Round(level: level.id, target: target)
         reportOnce("first_round")
         reportOnce("level_started:\(level.id)")
@@ -137,6 +139,7 @@ final class ReefAnalytics {
 
     /// `level_passed` is for the level played; levels a checkpoint passes along the way don't count.
     func roundFinished(_ summary: RoundSummary, level: Level, in world: World) {
+        guard enabled else { return }
         let target = round?.target ?? summary.correct
         round = nil
         enqueue(.round(level: level.id, outcome: .finished, correct: summary.correct, target: target, stars: summary.stars))
@@ -155,6 +158,7 @@ final class ReefAnalytics {
 
     /// Saves a round in progress in case the app never comes back, then sends what's queued.
     func appResignedActive() {
+        guard enabled else { return }
         if let round, let data = try? JSONEncoder().encode(round) {
             defaults.set(data, forKey: pendingKey)
         }
@@ -171,7 +175,7 @@ final class ReefAnalytics {
     /// Sends everything queued as one batch. Events leave the queue when sent, whether or not the
     /// request succeeds: a lost batch is dropped rather than retried forever.
     func flush() {
-        guard sendingEnabled else { return }
+        guard enabled else { return }
         let events = queue
         guard !events.isEmpty else { return }
         defaults.removeObject(forKey: queueKey)

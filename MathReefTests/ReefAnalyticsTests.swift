@@ -3,7 +3,7 @@ import Testing
 @testable import MathReef
 
 /// Anonymous analytics: milestones once per install, one outcome per round, a capped local queue,
-/// and nothing sent while sending is off. The allowlist test pins every key a batch can contain.
+/// and nothing recorded or sent while analytics are off. The allowlist test pins every key a batch can contain.
 struct ReefAnalyticsTests {
     private let exponents = Curriculum.worlds.first { $0.id == "exponents" }!
     private let multiplication = Curriculum.worlds.first { $0.id == "multiplication" }!
@@ -48,7 +48,7 @@ struct ReefAnalyticsTests {
     @Test func milestonesAreReportedOncePerInstall() {
         withDefaults { defaults in
             let level = exponents.levels[0]
-            let analytics = ReefAnalytics(defaults: defaults)
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             analytics.appLaunched()
             analytics.roundStarted(level: level, target: 10)
             analytics.roundQuit()
@@ -57,7 +57,7 @@ struct ReefAnalyticsTests {
             analytics.appLaunched()
 
             // A relaunch on the same defaults.
-            let relaunched = ReefAnalytics(defaults: defaults)
+            let relaunched = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             relaunched.appLaunched()
             relaunched.roundStarted(level: level, target: 10)
             #expect(milestones(relaunched) == ["first_launch", "first_round", "level_started:exp.1"])
@@ -70,7 +70,7 @@ struct ReefAnalyticsTests {
 
     @Test func levelPassedIsOnlyForThePlayedLevel() {
         withDefaults { defaults in
-            let analytics = ReefAnalytics(defaults: defaults)
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             let store = ProgressStore(defaults: defaults)
             let checkpoint = multiplication.levels.firstIndex { $0.isCheckpoint && $0.id == "mul.easy" }!
             #expect(store.isSkipTest(checkpoint, in: multiplication))
@@ -88,7 +88,7 @@ struct ReefAnalyticsTests {
 
     @Test func crownsAreReportedForNewOrBetterCrownsOnly() {
         withDefaults { defaults in
-            let analytics = ReefAnalytics(defaults: defaults)
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             let store = ProgressStore(defaults: defaults)
             let last = exponents.levels.count - 1
             for index in 0..<last {
@@ -114,7 +114,7 @@ struct ReefAnalyticsTests {
 
     @Test func finishedRoundsCarryStars() {
         withDefaults { defaults in
-            let analytics = ReefAnalytics(defaults: defaults)
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             play(0, in: exponents, correct: 10, attempts: 12, store: ProgressStore(defaults: defaults), analytics: analytics)
             #expect(rounds(analytics) == [.round(level: "exp.1", outcome: .finished, correct: 10, target: 10, stars: 2)])
         }
@@ -122,7 +122,7 @@ struct ReefAnalyticsTests {
 
     @Test func quittingMidRoundRecordsHowFarItGot() {
         withDefaults { defaults in
-            let analytics = ReefAnalytics(defaults: defaults)
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             analytics.roundQuit()  // the close button on the instructions: not a round
             #expect(rounds(analytics).isEmpty)
 
@@ -137,27 +137,27 @@ struct ReefAnalyticsTests {
 
     @Test func closingTheAppMidRoundIsAbandonedOnNextLaunch() {
         withDefaults { defaults in
-            let analytics = ReefAnalytics(defaults: defaults)
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             analytics.appLaunched()
             analytics.roundStarted(level: exponents.levels[0], target: 10)
             analytics.roundProgress(correct: 3)
             analytics.appResignedActive()
             #expect(rounds(analytics).isEmpty)
 
-            let relaunched = ReefAnalytics(defaults: defaults)
+            let relaunched = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             relaunched.appLaunched()
             #expect(rounds(relaunched) == [.round(level: "exp.1", outcome: .abandoned, correct: 3, target: 10)])
             #expect(rounds(relaunched)[0].stars == nil)
 
             // Reported once, not again on the launch after.
-            ReefAnalytics(defaults: defaults).appLaunched()
+            ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true).appLaunched()
             #expect(rounds(relaunched).count == 1)
         }
     }
 
     @Test func comingBackMidRoundKeepsTheRoundGoing() {
         withDefaults { defaults in
-            let analytics = ReefAnalytics(defaults: defaults)
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             analytics.roundStarted(level: exponents.levels[0], target: 10)
             analytics.roundProgress(correct: 2)
             analytics.appResignedActive()
@@ -165,21 +165,23 @@ struct ReefAnalyticsTests {
             analytics.roundProgress(correct: 5)
             analytics.roundQuit()
 
-            ReefAnalytics(defaults: defaults).appLaunched()
+            ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true).appLaunched()
             #expect(rounds(analytics) == [.round(level: "exp.1", outcome: .quit, correct: 5, target: 10)])
         }
     }
 
     @Test func leavingTheAppOutsideARoundRecordsNothing() {
         withDefaults { defaults in
-            let analytics = ReefAnalytics(defaults: defaults)
+            let sender = StubSender()
+            let analytics = ReefAnalytics(defaults: defaults, sender: sender, enabled: true)
             analytics.appResignedActive()
             play(0, in: exponents, correct: 10, attempts: 10, store: ProgressStore(defaults: defaults), analytics: analytics)
             analytics.appResignedActive()
 
-            let relaunched = ReefAnalytics(defaults: defaults)
+            let relaunched = ReefAnalytics(defaults: defaults, sender: sender, enabled: true)
             relaunched.appLaunched()
-            #expect(rounds(relaunched).map(\.outcome) == [.finished])
+            let everything = sender.batches.flatMap(\.events) + relaunched.queue
+            #expect(everything.filter { $0.kind == .round }.map(\.outcome) == [.finished])
         }
     }
 
@@ -224,26 +226,38 @@ struct ReefAnalyticsTests {
 
     // MARK: Queue and sending
 
-    @Test func sendingDisabledSendsNothingAndKeepsTheQueue() {
+    /// Play from before analytics are disclosed must never be sent later, so while off nothing is
+    /// even stored.
+    @Test func disabledRecordsAndSendsNothing() {
         withDefaults { defaults in
             let sender = StubSender()
-            let analytics = ReefAnalytics(defaults: defaults, sender: sender, sendingEnabled: false)
+            let analytics = ReefAnalytics(defaults: defaults, sender: sender, enabled: false)
             analytics.appLaunched()
-            analytics.flush()
+            play(0, in: exponents, correct: 10, attempts: 12, store: ProgressStore(defaults: defaults), analytics: analytics)
+            analytics.roundStarted(level: exponents.levels[1], target: 12)
+            analytics.roundProgress(correct: 3)
             analytics.appResignedActive()
+            analytics.roundQuit()
+            analytics.flush()
             #expect(sender.batches.isEmpty)
-            #expect(analytics.queue == [.milestone("first_launch")])
+            #expect(analytics.queue.isEmpty)
+            #expect(defaults.dictionaryRepresentation().keys.allSatisfy { !$0.hasPrefix("mathReef.analytics.") })
+
+            // Turning it on later starts from nothing: no milestone is already marked reported.
+            let enabled = ReefAnalytics(defaults: defaults, sender: sender, enabled: true)
+            enabled.appLaunched()
+            #expect(enabled.queue == [.milestone("first_launch")])
         }
     }
 
-    @Test func sendingIsOffInThisBuild() {
-        #expect(!ReefAnalytics.isSendingEnabled)
+    @Test func analyticsAreOffInThisBuild() {
+        #expect(!ReefAnalytics.isEnabled)
     }
 
     @Test func flushSendsOneBatchAndEmptiesTheQueue() {
         withDefaults { defaults in
             let sender = StubSender()
-            let analytics = ReefAnalytics(defaults: defaults, sender: sender, sendingEnabled: true)
+            let analytics = ReefAnalytics(defaults: defaults, sender: sender, enabled: true)
             analytics.flush()
             #expect(sender.batches.isEmpty)
 
@@ -263,7 +277,7 @@ struct ReefAnalyticsTests {
 
     @Test func fullQueueDropsTheOldest() {
         withDefaults { defaults in
-            let analytics = ReefAnalytics(defaults: defaults)
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             let level = exponents.levels[0]
             for correct in 0..<(ReefAnalytics.queueLimit + 5) {
                 analytics.roundStarted(level: level, target: 500)
