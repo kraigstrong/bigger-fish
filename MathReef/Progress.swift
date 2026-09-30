@@ -146,5 +146,14 @@ extension ProgressStore {
         }
         save()
     }
+
+    /// Sets each level's best round to earn these stars (0 = not played). For App Store captures.
+    func debugSetStars(_ stars: [Int], in world: World) {
+        for (level, count) in zip(world.levels, stars) {
+            records[level.id] = count == 0 ? nil
+                : LevelRecord(passed: count >= PassRule.starsToPass, bestPercent: PassRule.starThresholds[count - 1], hasPlayed: true)
+        }
+        save()
+    }
 }
 #endif

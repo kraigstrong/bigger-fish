@@ -128,7 +128,7 @@ final class PracticeScene: SKScene {
     private typealias L = ReefTuning
     private typealias PanelLine = (text: String, fontSize: CGFloat, heavy: Bool)
 
-    private let store = ProgressStore()
+    private let store = ProgressStore(defaults: PracticeScene.savedState)
     private var worldMap: WorldMapNode?
     private var levelMap: LevelMapNode?
     private var phase: Phase = .home
@@ -176,9 +176,9 @@ final class PracticeScene: SKScene {
     private var timeScale: CGFloat = 1
     private var isBuilt = false
 
-    private let audio = ReefAudio()
-    private let analytics = ReefAnalytics()
-    private let purchases = ReefPurchases()
+    private let audio = ReefAudio(defaults: PracticeScene.savedState)
+    private let analytics = PracticeScene.isCapturing ? ReefAnalytics(enabled: false) : ReefAnalytics()
+    private let purchases = ReefPurchases(defaults: PracticeScene.savedState)
     private var hasPlayedJingle = false
     private let positiveHaptic = UINotificationFeedbackGenerator()
     private let gentleHaptic = UIImpactFeedbackGenerator(style: .soft)
@@ -188,6 +188,22 @@ final class PracticeScene: SKScene {
     private var playerMinY: CGFloat { waterBottom + L.playerRadius * 0.95 }
     private var playerMaxY: CGFloat { waterTop - L.playerRadius * 0.95 }
     private var playerSpeed: CGFloat { size.width / L.screenCrossSeconds }
+
+    /// Debug builds launched for App Store captures use their own saved state (see StoreCapture).
+    private static var isCapturing: Bool {
+        #if DEBUG
+        StoreCapture.scene != nil
+        #else
+        false
+        #endif
+    }
+
+    private static var savedState: UserDefaults {
+        #if DEBUG
+        if isCapturing { return StoreCapture.defaults }
+        #endif
+        return .standard
+    }
 
     // MARK: - Lifecycle
 
@@ -199,7 +215,8 @@ final class PracticeScene: SKScene {
         isBuilt = true
         analytics.appLaunched()
         purchases.onChange = { [weak self] in self?.purchasesChanged() }
-        purchases.start()
+        // A store capture keeps its staged unlock rather than checking real purchases.
+        if !Self.isCapturing { purchases.start() }
 
         fishLayer.zPosition = 10
         uiLayer.zPosition = 100
@@ -233,6 +250,7 @@ final class PracticeScene: SKScene {
         if let i = args.firstIndex(of: "-previewCrown"), args.indices.contains(i + 1) {
             previewCrown(args[i + 1] == "gold" ? .gold : .silver)
         }
+        if let scene = StoreCapture.scene { stageCapture(scene) }
         #endif
     }
 
@@ -593,6 +611,149 @@ final class PracticeScene: SKScene {
     }
     #endif
 
+    #if DEBUG
+    // MARK: - App Store capture
+
+    /// Swims for the store capture like a kid would: drifts around mid-water, sometimes eyes a
+    /// wrong answer first, and heads for the right one (or a wrong one, for the questions in
+    /// `autopilotMisses`, numbered from 0 within the round) once the wave gets close.
+    private var autopilot = false
+    private var autopilotMisses: Set<Int> = []
+    private var questionNumber = 0
+    private var autopilotPlan = AutopilotPlan()
+    private var autopilotRNG = SeededGenerator(seed: 7)
+
+    private struct AutopilotPlan {
+        var question = -1
+        /// How far ahead (screen widths) the target is when the fish commits to it.
+        var commitAt: CGFloat = 0.5
+        /// Eyes this wrong answer first, from further out, if set.
+        var glanceAt: CGFloat?
+        /// Aims a little off the fish's center, as a thumb would.
+        var aimOffset: CGFloat = 0
+        var wanderPhase: CGFloat = 0
+    }
+
+    private func autopilotHolds() -> Bool {
+        guard autopilot, phase == .answering || phase == .feedback else { return false }
+        if autopilotPlan.question != questionNumber {
+            var rng = autopilotRNG
+            autopilotPlan = AutopilotPlan(
+                question: questionNumber,
+                commitAt: .random(in: 0.3...0.5, using: &rng),
+                glanceAt: Bool.random(using: &rng) ? .random(in: 0.65...0.8, using: &rng) : nil,
+                aimOffset: .random(in: -10...10, using: &rng),
+                wanderPhase: .random(in: 0...(2 * .pi), using: &rng)
+            )
+            autopilotRNG = rng
+        }
+        let plan = autopilotPlan
+        let ahead = answers.filter { !$0.fading && $0.fish.position.x > player.position.x }
+        let nearest = { (fish: [AnswerFish]) in fish.min { $0.fish.position.x < $1.fish.position.x } }
+        let miss = autopilotMisses.contains(questionNumber)
+        // Where the fish wants to be: idling around mid-water until the wave is close.
+        var goal = size.height * 0.5 + sin(realClock * 1.3 + plan.wanderPhase) * size.height * 0.14
+        if phase == .answering, let target = nearest(ahead.filter { $0.isCorrect != miss }) {
+            let distance = (target.fish.position.x - player.position.x) / size.width
+            if distance < plan.commitAt {
+                goal = target.fish.position.y + plan.aimOffset
+            } else if let glance = plan.glanceAt, distance < glance,
+                      let decoy = nearest(ahead.filter { $0 !== target }) {
+                // Leaning toward another answer before thinking again.
+                goal = goal * 0.4 + decoy.fish.position.y * 0.6
+            } else {
+                // Drifting toward the wave while it's still far off.
+                goal = goal * 0.7 + target.fish.position.y * 0.3
+            }
+        }
+        // Lead the motion a little, so it eases in and bobs rather than slamming into place.
+        return goal > player.position.y + player.velocity.dy * 0.3
+    }
+
+    /// Saves what the scene draws, at full resolution, to Documents/StoreCapture. Unlike a simulator
+    /// screenshot, it has no Dynamic Island drawn over it.
+    private func saveCaptureFrame(_ name: String) {
+        guard let view, let image = view.texture(from: self)?.cgImage() else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let dir = StoreCapture.framesDirectory
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try? UIImage(cgImage: image).pngData()?.write(to: dir.appendingPathComponent("\(name).png"))
+        }
+    }
+
+    /// Saves `count` frames `interval` seconds apart, starting after `delay`.
+    private func captureFrames(_ scene: StoreCapture.Scene, count: Int, every interval: TimeInterval, after delay: TimeInterval) {
+        let frames = (1...count).map { index in
+            SKAction.sequence([
+                .wait(forDuration: index == 1 ? delay : interval),
+                .run { [weak self] in self?.saveCaptureFrame(count == 1 ? scene.rawValue : String(format: "%@-%02d", scene.rawValue, index)) },
+            ])
+        }
+        run(.sequence(frames), withKey: "storeCapture")
+    }
+
+    /// The simulator draws the Dynamic Island over the right edge of a landscape screen; keep the
+    /// level path's stops out from under it.
+    private func keepPathClearOfIsland() {
+        levelMap?.debugKeepClear(ofX: size.width - StoreCapture.islandInset, clearance: 56)
+    }
+
+    private func stageCapture(_ scene: StoreCapture.Scene) {
+        for world in Curriculum.worlds {
+            store.debugSetStars(StoreCapture.stars(for: world, in: scene), in: world)
+        }
+        let multiplication = Curriculum.worlds.firstIndex { $0.id == "multiplication" } ?? 0
+        func play(world: String, level: Int, misses: Set<Int> = []) {
+            worldIndex = Curriculum.worlds.firstIndex { $0.id == world } ?? 0
+            levelIndex = level
+            autopilot = true
+            autopilotMisses = misses
+            questionNumber = 0
+            showInstructions()
+            run(.wait(forDuration: 1)) { [weak self] in self?.startSession() }
+        }
+        switch scene {
+        case .home:
+            worldIndex = multiplication
+            showHome()
+        case .world:
+            worldIndex = multiplication
+            showWorld()
+        case .play:
+            play(world: "multiplication", level: StoreCapture.videoLevel)
+        case .wrong:
+            play(world: "multiplication", level: StoreCapture.videoLevel, misses: [1])
+        case .addition:
+            play(world: "addition", level: 4)
+        case .exponents:
+            play(world: "exponents", level: 0)
+        case .crown:
+            worldIndex = multiplication
+            levelIndex = StoreCapture.videoLevel
+            previewCrown(.gold)
+        case .video:
+            // The reef, then Multiplication's path, then a round of × 7 with one wrong answer.
+            worldIndex = multiplication
+            showHome()
+            run(.sequence([
+                .wait(forDuration: 2.5),
+                .run { [weak self] in self?.showWorld(); self?.keepPathClearOfIsland() },
+                .wait(forDuration: 2.5),
+                .run { play(world: "multiplication", level: StoreCapture.videoLevel, misses: [2]) },
+            ]))
+        }
+        switch scene {
+        case .home, .world: captureFrames(scene, count: 1, every: 0, after: 3)
+        case .play, .wrong, .addition, .exponents: captureFrames(scene, count: 60, every: 0.3, after: 2)
+        // The crown lands about 3 seconds in; catch every step of it.
+        case .crown: captureFrames(scene, count: 60, every: 0.1, after: 0.5)
+        case .video: break
+        }
+    }
+    #else
+    private func autopilotHolds() -> Bool { false }
+    #endif
+
     private func removeMaps() {
         settingsButton.isHidden = true
         worldMap?.removeFromParent()
@@ -612,8 +773,9 @@ final class PracticeScene: SKScene {
     private func resetSession() {
         clearWave()
         playerNode?.removeFromParent()
-        // Fresh each round so order, lanes, and colors can't be memorized across replays.
-        rng = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
+        // Fresh each round so order, lanes, and colors can't be memorized across replays (fixed in
+        // a store capture, so its shots can be retaken).
+        rng = SeededGenerator(seed: Self.isCapturing ? 2026 : UInt64.random(in: 0...UInt64.max))
         session = PracticeSession(
             level: level,
             review: world.reviewPool(before: levelIndex),
@@ -729,6 +891,10 @@ final class PracticeScene: SKScene {
     private func resolve(_ answer: AnswerFish) {
         guard let fact = currentFact else { return }
         lastCorrect = answer.isCorrect
+        #if DEBUG
+        if !answer.isCorrect { autopilotMisses.remove(questionNumber) }
+        questionNumber += 1
+        #endif
         session.record(correct: answer.isCorrect)
         analytics.roundProgress(correct: session.result.correctAnswers)
         phase = .feedback
@@ -1056,7 +1222,7 @@ final class PracticeScene: SKScene {
 
     private func simulate(_ dt: CGFloat) {
         let (y, vy) = PlayerMotion.step(
-            y: player.position.y, vy: player.velocity.dy, holding: !holdTouches.isEmpty, dt: dt,
+            y: player.position.y, vy: player.velocity.dy, holding: !holdTouches.isEmpty || autopilotHolds(), dt: dt,
             minY: playerMinY, maxY: playerMaxY, tuning: L.motion
         )
         player.velocity = CGVector(dx: playerSpeed, dy: vy)

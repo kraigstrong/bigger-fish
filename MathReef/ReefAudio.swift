@@ -105,6 +105,7 @@ final class ReefAudio {
         let player = voices.first { !$0.isPlaying } ?? first
         player.currentTime = 0
         player.play()
+        logForCapture("sound \(sound.rawValue)")
     }
 
     /// Fades to `music` (or to silence with nil). Asking for the track that's already playing does
@@ -112,6 +113,7 @@ final class ReefAudio {
     /// With sound off, this only records which track the screen wants.
     func playMusic(_ music: ReefMusic?, after delay: TimeInterval = 0, fade: TimeInterval = 1.0) {
         guard music != currentMusic else { return }
+        logForCapture("music \(music?.rawValue ?? "none") \(delay) \(fade)")
         musicGeneration += 1
         let generation = musicGeneration
         if let old = currentMusic.flatMap({ musicPlayers[$0] }) {
@@ -129,6 +131,15 @@ final class ReefAudio {
             player.play()
             player.setVolume(Self.musicVolume, fadeDuration: fade)
         }
+    }
+
+    /// The simulator can't record sound, so a store capture logs each cue with its time and
+    /// `scripts/store-capture.sh` rebuilds the soundtrack from the same files.
+    private func logForCapture(_ cue: String) {
+        #if DEBUG
+        guard StoreCapture.scene != nil else { return }
+        print("STORE-CAPTURE-AUDIO \(Date().timeIntervalSince1970) \(cue)")
+        #endif
     }
 
     @objc func pauseForBackground() {
