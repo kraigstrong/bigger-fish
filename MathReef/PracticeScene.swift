@@ -490,7 +490,7 @@ final class PracticeScene: SKScene {
         session = PracticeSession(
             level: level,
             review: world.reviewPool(before: levelIndex),
-            reviewCount: level.isCheckpoint ? 0 : L.reviewPerRound,
+            reviewCount: world.reviewCount(forLevelAt: levelIndex),
             requeueGap: L.requeueGap,
             using: &rng
         )
