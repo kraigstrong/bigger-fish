@@ -1,8 +1,8 @@
 import Foundation
 
 // Kids-category apps must put links that leave the app behind a parental gate (App Review
-// Guideline 1.3). The gate asks a multiplication written in words, harder than anything in the
-// game, answered on a number pad: easy for a grown-up, hard for a kid to reason out or guess.
+// Guideline 1.3). The gate asks multiplication written in words, answered on a number pad.
+// Keep the mental arithmetic manageable for parents; a wrong answer ends the attempt.
 
 /// Pages for grown-ups on brightbench.app, opened in Safari once the gate is passed.
 enum ParentLinks {
@@ -11,8 +11,9 @@ enum ParentLinks {
 }
 
 struct ParentalGate {
-    /// Both factors come from here, so the product has three digits (169...361).
+    /// A teen number times two or three: parents shouldn't need a calculator.
     static let factorRange = 13...19
+    static let multiplierRange = 2...3
 
     let a: Int
     let b: Int
@@ -20,7 +21,7 @@ struct ParentalGate {
 
     init<G: RandomNumberGenerator>(using rng: inout G) {
         a = Int.random(in: Self.factorRange, using: &rng)
-        b = Int.random(in: Self.factorRange, using: &rng)
+        b = Int.random(in: Self.multiplierRange, using: &rng)
     }
 
     init() {
