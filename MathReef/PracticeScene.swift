@@ -1,11 +1,14 @@
 import FishKit
 import SpriteKit
+import StoreKit
 import UIKit
 
 // Math Reef: math practice built on the FishKit engine. Pick a world and a level, then swim into
 // the right answer. Answer correctness replaces Bigger Fish's relative-size rule.
 
 enum ReefTuning {
+    /// One later review opportunity, after another successful round at least 90 days later.
+    static let reviewRetryInterval: TimeInterval = 90 * 24 * 60 * 60
     // MARK: Movement (same feel as Bigger Fish to start)
 
     static let motion = MotionTuning(
@@ -129,6 +132,7 @@ final class PracticeScene: SKScene {
     private typealias PanelLine = (text: String, fontSize: CGFloat, heavy: Bool)
 
     private let store = ProgressStore(defaults: PracticeScene.savedState)
+    private let review = ReefReview(defaults: PracticeScene.savedState)
     private var worldMap: WorldMapNode?
     private var levelMap: LevelMapNode?
     private var phase: Phase = .home
@@ -461,6 +465,7 @@ final class PracticeScene: SKScene {
         case .passed:
             parentalGate = nil
             gateLeadsTo == .unlock ? showUnlockScreen() : showParentLinks()
+            if gateLeadsTo == .links { requestPendingReview() }
         case .failed:
             leaveGate()
         }
@@ -482,11 +487,30 @@ final class PracticeScene: SKScene {
         if !purchases.isUnlocked {
             buttons.append(("Unlock the whole reef", { [weak self] in self?.showUnlockScreen() }))
         }
+        #if DEBUG
+        buttons.append(("Preview review prompt", { [weak self] in
+            guard let scene = self?.view?.window?.windowScene else { return }
+            AppStore.requestReview(in: scene)
+        }))
+        #endif
         buttons.append(("Done", { [weak self] in self?.hideSettings() }))
         showSettingsPanel(
             title: "For grown-ups", lines: [("Privacy and support open in Safari.", 18, false)],
             buttons: buttons, animated: false
         )
+    }
+
+    private func requestPendingReview() {
+        // TestFlight cannot display the sheet; don't spend either release opportunity there.
+        // Xcode builds use the gated preview above without changing the saved request count.
+        #if !DEBUG
+        guard !Self.isCapturing,
+              Bundle.main.appStoreReceiptURL?.lastPathComponent != "sandboxReceipt",
+              let scene = view?.window?.windowScene, scene.activationState == .foregroundActive,
+              review.shouldRequest() else { return }
+        review.didRequest()
+        AppStore.requestReview(in: scene)
+        #endif
     }
 
     // MARK: - The unlock
@@ -947,6 +971,12 @@ final class PracticeScene: SKScene {
         let result = session.result
         let summary = store.recordRound(levelIndex, in: world, correct: result.correctAnswers, attempts: result.totalAttempts)
         analytics.roundFinished(summary, level: level, in: world)
+        if !Self.isCapturing {
+            review.finishedRound(
+                passed: summary.passed,
+                hasCrown: Curriculum.worlds.contains { store.crown(for: $0) != .none }
+            )
+        }
         showResults(
             title: summary.title,
             lines: [
