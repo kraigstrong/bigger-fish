@@ -1,7 +1,7 @@
 import Foundation
 
 // Kids-category apps must put links that leave the app behind a parental gate (App Review
-// Guideline 1.3). The gate asks multiplication written in words, answered on a number pad.
+// Guideline 1.3). The gate asks addition written in words, answered on a number pad.
 // Keep the mental arithmetic manageable for parents; a wrong answer ends the attempt.
 
 /// Pages for grown-ups on brightbench.app, opened in Safari once the gate is passed.
@@ -11,17 +11,16 @@ enum ParentLinks {
 }
 
 struct ParentalGate {
-    /// A teen number times two or three: parents shouldn't need a calculator.
-    static let factorRange = 13...19
-    static let multiplierRange = 2...3
+    /// Two-digit addition: parents shouldn't need a calculator.
+    static let numberRange = 10...99
 
     let a: Int
     let b: Int
     private(set) var entry = ""
 
     init<G: RandomNumberGenerator>(using rng: inout G) {
-        a = Int.random(in: Self.factorRange, using: &rng)
-        b = Int.random(in: Self.multiplierRange, using: &rng)
+        a = Int.random(in: Self.numberRange, using: &rng)
+        b = Int.random(in: Self.numberRange, using: &rng)
     }
 
     init() {
@@ -29,10 +28,10 @@ struct ParentalGate {
         self.init(using: &rng)
     }
 
-    var answer: Int { a * b }
+    var answer: Int { a + b }
 
-    /// "What is fourteen times sixteen?"
-    var question: String { "What is \(Self.words(a)) times \(Self.words(b))?" }
+    /// "What is forty-two plus thirty-seven?"
+    var question: String { "What is \(Self.words(a)) plus \(Self.words(b))?" }
 
     enum Result { case typing, passed, failed }
 
