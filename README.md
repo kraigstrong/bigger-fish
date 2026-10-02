@@ -173,7 +173,32 @@ rules. It optimistically ignores geometry and future AI competition and checks s
 without active swallows. If it still cannot eat all remaining fish, the current food chain needs
 an AI/hazard change to progress. This does not prove the whole level impossible: hazards can kill
 fish. Threat/cleanup metrics concern fish danger, not jelly danger. Thresholds such as five-second
-early deaths and eight-second cleanup tails are review flags, not a validated universal fun score.
+early deaths are descriptive; fast deaths can be desirable opening tension. Cleanup tails are
+review signals, not a validated universal fun score.
 Compare them with player feedback, especially the favorite Shallow Reef level 4 recordings.
 Diagnostics are offline and do not alter gameplay. New recordings include the effective tuning
 and both seeds, so changes on the phone remain attributable.
+
+### Simulate food races locally (Debug only)
+
+The five Jelly Bloom profiles were selected with 1,642 real-scene rollouts. Read
+[the balance study](docs/jelly-bloom-balance.md) for the growth-area calculation, pass-based
+recovery measurements, selected seeds, and limits of bot-based evaluation. Three phone sizes
+have demonstrated winning routes for every shipped level. Horizontal AI speeds are eased on
+smaller Bloom viewports; tuning controls specify the nominal reference-width speeds.
+
+To repeat the final validation:
+
+```sh
+python3 scripts/study-arcade-balance.py \
+  --profiles docs/jelly-bloom-study-profiles.json --seeds 0,7,13,23 --passes 0 \
+  --sizes 874x402,852x393,667x375 --limit 90 --run \
+  --output build/arcade-development/studies/validation
+```
+
+Use `--passes 0,1,2` to test skipped circuits or `--meal-limits=-1,0,1,2,3,4,5,6`
+for first-pass meal caps. Requests, raw results, summaries, and logs stay under ignored `build/`.
+The study uses simulator tests, does not render or record runs, and cannot write campaign
+progress. Its activation marker is removed by the command afterward. Normal test runs skip
+large studies unless that marker was explicitly prepared. Shut down the simulator after a batch
+if you are done testing.

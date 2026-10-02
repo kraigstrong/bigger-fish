@@ -12,7 +12,7 @@ struct ArcadeTuningTests {
         tuning.jellyCount = 0
         tuning.seedOffset = -1
         let value = tuning.sanitized
-        #expect(value.groups[0].count == 8)
+        #expect(value.groups[0].count == 12)
         #expect(value.groups[0].maximum == 2)
         #expect(value.aiMaximum == 150)
         #expect(value.absorption == 0.78)

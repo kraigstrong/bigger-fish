@@ -130,38 +130,51 @@ enum GameTuning {
     static let bloomFoodRefillCount = 2
     static let bloomFoodRadiusFraction: ClosedRange<CGFloat> = 0.45...0.65
 
-    /// These remain separate from the five original levels so their feel stays intact.
-    // Levels 2–5 use Shallow Reef Level 4's food chain with seeded, uneven jelly obstacles.
+    /// World 1 remains intact. Bloom's curve varies the food-race window, not chase AI.
+    /// Profiles were selected by real-scene simulations; see docs/jelly-bloom-balance.md.
     static let bloomLevels: [Level] = [
         Level(spawnGroups: [(9, 0.30...0.65), (5, 0.65...0.85)],
               aiSpeedRange: 30...80, aiVerticalSpeed: 35, screenCrossSeconds: 3.1,
               absorptionEfficiency: 0.90,
               jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6)),
-        Level(spawnGroups: [(3, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08), (4, 1.20...1.60), (2, 2.00...2.60)],
-              aiSpeedRange: 65...155, aiVerticalSpeed: 80, screenCrossSeconds: 3.1,
-              absorptionEfficiency: 0.78,
-              jellies: JellyLayout(count: 5, radius: 44, tentacleLength: 70, sway: 6, maintainsFloorLane: true,
-                                  heights: [0.38, 0.55, 0.38, 0.55, 0.38]),
-              bounceFoodPockets: true, sidePocketExperiment: true, roamingFoodChain: true),
-        Level(spawnGroups: [(3, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08), (4, 1.20...1.60), (2, 2.00...2.60)],
-              aiSpeedRange: 65...155, aiVerticalSpeed: 80, screenCrossSeconds: 3.05,
-              absorptionEfficiency: 0.78,
-              jellies: JellyLayout(count: 6, radius: 46, tentacleLength: 75, sway: 6, maintainsFloorLane: true,
-                                  heights: [0.32, 0.42, 0.54, 0.68, 0.54, 0.42]),
-              bounceFoodPockets: true, roamingFoodChain: true),
-        Level(spawnGroups: [(3, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08), (4, 1.20...1.60), (2, 2.00...2.60)],
-              aiSpeedRange: 65...155, aiVerticalSpeed: 80, screenCrossSeconds: 3.05,
-              absorptionEfficiency: 0.78,
-              jellies: JellyLayout(count: 6, radius: 46, tentacleLength: 75, sway: 6, night: true,
-                                  maintainsFloorLane: true, heights: [0.42, 0.65, 0.42, 0.65, 0.42, 0.65]),
-              bounceFoodPockets: true, roamingFoodChain: true),
-        Level(spawnGroups: [(3, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08), (4, 1.20...1.60), (2, 2.00...2.60)],
-              aiSpeedRange: 65...155, aiVerticalSpeed: 80, screenCrossSeconds: 3.0,
-              absorptionEfficiency: 0.78,
-              jellies: JellyLayout(count: 7, radius: 48, tentacleLength: 80, sway: 6, maintainsFloorLane: true,
-                                  heights: [0.35, 0.52, 0.69, 0.52, 0.35, 0.52, 0.69]),
-              bounceFoodPockets: true, roamingFoodChain: true),
+        bloomRaceLevel(foodCount: 7, giants: 1, speed: 30...80, vertical: 35,
+                       efficiency: 0.88, jellyCount: 5, jellyRadius: 44, tentacles: 70,
+                       sidePocket: true, compactSpeedScale: 0.65),
+        bloomRaceLevel(foodCount: 3, giants: 2, speed: 45...110, vertical: 55,
+                       efficiency: 0.78, jellyCount: 6, jellyRadius: 46, tentacles: 75,
+                       seedOffset: 1, compactSpeedScale: 0.65),
+        bloomRaceLevel(foodCount: 3, giants: 2, speed: 65...155, vertical: 80,
+                       efficiency: 0.78, jellyCount: 6, jellyRadius: 46, tentacles: 75,
+                       night: true, compactSpeedScale: 0.50),
+        bloomRaceLevel(foodCount: 7, giants: 2, speed: 65...155, vertical: 80,
+                       efficiency: 0.82, jellyCount: 7, jellyRadius: 48, tentacles: 75,
+                       seedOffset: 1, compactSpeedScale: 0.763, mediumSpeedMultiplier: 0.85),
     ]
+
+    private static func bloomRaceLevel(foodCount: Int, giants: Int, speed: ClosedRange<CGFloat>,
+                                       vertical: CGFloat, efficiency: CGFloat, jellyCount: Int,
+                                       jellyRadius: CGFloat, tentacles: CGFloat, sidePocket: Bool = false,
+                                       night: Bool = false, seedOffset: UInt64 = 0, compactSpeedScale: CGFloat = 1,
+                                       mediumSpeedMultiplier: CGFloat = 1) -> Level {
+        Level(spawnGroups: [(foodCount, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08),
+                            (4, 1.20...1.60), (giants, 2.00...2.60)],
+              aiSpeedRange: speed, aiVerticalSpeed: vertical, screenCrossSeconds: 3.1,
+              absorptionEfficiency: efficiency,
+              jellies: JellyLayout(count: jellyCount, radius: jellyRadius, tentacleLength: tentacles,
+                                  sway: 6, night: night, maintainsFloorLane: true),
+              bounceFoodPockets: true, sidePocketExperiment: sidePocket, roamingFoodChain: true,
+              ecosystemSeedOffset: seedOffset, compactAISpeedScale: compactSpeedScale,
+              mediumAISpeedMultiplier: mediumSpeedMultiplier)
+    }
+
+    /// Compact worlds have more encounters per circuit. Ease horizontal AI speed to
+    /// retain recovery routes; three phone sizes were checked with actual scene rollouts.
+    static func bloomAISpeedScale(width: CGFloat, level: Level) -> CGFloat {
+        let fraction = ((width - 667) / (874 - 667)).clamped(0, 1)
+        let scale = level.compactAISpeedScale + (1 - level.compactAISpeedScale) * fraction
+        let mediumWeight = (width <= 852 ? (width - 667) / (852 - 667) : (874 - width) / (874 - 852)).clamped(0, 1)
+        return scale * (1 + (level.mediumAISpeedMultiplier - 1) * mediumWeight)
+    }
 
     // MARK: Levels
 
@@ -206,4 +219,8 @@ struct Level {
     var bounceFoodPockets: Bool = false
     var sidePocketExperiment: Bool = false
     var roamingFoodChain: Bool = false
+    /// Fixed per-level seed selection keeps retries consistent. Debug studies perturb this seed.
+    var ecosystemSeedOffset: UInt64 = 0
+    var compactAISpeedScale: CGFloat = 1
+    var mediumAISpeedMultiplier: CGFloat = 1
 }

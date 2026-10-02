@@ -40,7 +40,7 @@ struct ArcadeTuning: Codable, Equatable {
         roam = level.roamingFoodChain
         unevenJellies = level.roamingFoodChain
         layoutVariation = 1
-        seedOffset = 0
+        seedOffset = Int(level.ecosystemSeedOffset)
     }
 
     /// Bound saved and edited settings before they reach physics or spawn ranges.
@@ -51,7 +51,7 @@ struct ArcadeTuning: Codable, Equatable {
         }
         result.groups = Array(groups.prefix(5)).map {
             let lo = bound($0.minimum, 0.25...3, fallback: 0.5)
-            return Group(count: min(8, max(0, $0.count)), minimum: lo,
+            return Group(count: min(12, max(0, $0.count)), minimum: lo,
                          maximum: bound($0.maximum, lo...3, fallback: lo))
         }
         result.aiMinimum = bound(aiMinimum, 10...200, fallback: 65)
@@ -84,6 +84,9 @@ struct ArcadeTuning: Codable, Equatable {
         result.bounceFoodPockets = base.bounceFoodPockets && result.jellies != nil
         result.sidePocketExperiment = base.sidePocketExperiment && value.jellyCount > GameTuning.bloomSidePocketJellyIndex
         result.roamingFoodChain = value.roam
+        result.ecosystemSeedOffset = UInt64(value.seedOffset)
+        result.compactAISpeedScale = base.compactAISpeedScale
+        result.mediumAISpeedMultiplier = base.mediumAISpeedMultiplier
         return result
     }
 }
@@ -130,7 +133,8 @@ final class ArcadeTuningStore: ObservableObject {
     }
     static func sceneOverride(world: ArcadeWorld, index: Int) -> ArcadeTuning? {
         guard NSClassFromString("XCTestCase") == nil,
-              ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return nil }
+              ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
+              !ProcessInfo.processInfo.arguments.contains("-arcadeDisableTuning") else { return nil }
         return ArcadeTuningStore().override(world, index)
     }
 }
@@ -168,7 +172,7 @@ struct ArcadeTuningPanel: View {
                 Section("Fish — size is relative to your starting radius") {
                     ForEach(draft.groups.indices, id: \.self) { i in
                         VStack(alignment: .leading) {
-                            Stepper("Group \(i + 1): \(draft.groups[i].count) fish", value: $draft.groups[i].count, in: 0...8)
+                            Stepper("Group \(i + 1): \(draft.groups[i].count) fish", value: $draft.groups[i].count, in: 0...12)
                             slider("Group \(i + 1) minimum size", value: $draft.groups[i].minimum, range: 0.25...3, step: 0.05)
                             slider("Group \(i + 1) maximum size", value: $draft.groups[i].maximum, range: 0.25...3, step: 0.05)
                         }

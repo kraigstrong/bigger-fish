@@ -116,7 +116,7 @@ struct BounceCampaignBalanceTests {
             let grown = sqrt(1 + foodArea * level.absorptionEfficiency)
             // Easy food opens up the medium fish, but cannot erase the giants immediately.
             #expect(GameRules.encounter(grown, 1.60) == .firstEatsSecond)
-            #expect(GameRules.encounter(grown, 2.00) == .secondEatsFirst)
+            #expect(GameRules.encounter(grown, level.spawnGroups.last!.radii.upperBound) == .secondEatsFirst)
             var radius = grown
             for group in level.spawnGroups where group.radii.upperBound >= 1 {
                 #expect(GameRules.encounter(radius, group.radii.upperBound) == .firstEatsSecond)

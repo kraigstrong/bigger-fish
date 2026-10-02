@@ -147,7 +147,7 @@ def report(results):
         stalled = sum(r['deadlockSeconds'] >= 2 for r in finished)
         lines.append(f'- {world} level {level}, settings {config}: {wins}/{len(finished)} wins; {early} early deaths; {stalled} endings with no edible growth path.')
         if len(finished) >= 5 and early >= len(finished) / 2:
-            lines.append('  - Review opening fairness: at least half of recorded attempts died before five seconds.')
+            lines.append('  - At least half of attempts ended within five seconds; compare with player feedback about the opening risk.')
     lines += ['', '## Flags', '']
     for r in results:
         if r['alerts']:

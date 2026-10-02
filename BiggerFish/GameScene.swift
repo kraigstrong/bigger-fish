@@ -84,9 +84,9 @@ final class GameScene: SKScene {
     }
     private var seedOffset: UInt64 {
         #if DEBUG
-        return UInt64(activeDebugTuning?.seedOffset ?? 0)
+        return activeDebugTuning.map { UInt64($0.seedOffset) } ?? level.ecosystemSeedOffset
         #else
-        return 0
+        return level.ecosystemSeedOffset
         #endif
     }
     private var isFinalLevel: Bool { levelIndex == arcadeWorld.levels.count - 1 }
@@ -104,6 +104,28 @@ final class GameScene: SKScene {
     private var mapButton = SKShapeNode()
     private var resultPanel: ArcadeResultPanel?
     #if DEBUG
+    private var simulationTuning: ArcadeTuning?
+    private var simulationHolding: Bool?
+    private var simulationStats = ArcadeSimulation.Stats()
+    private var simulationEcologyProbe = false
+    private var simulationLaps: CGFloat = 0
+    private var simulationDelayedPasses: CGFloat = 0
+    private var simulationFirstPassMealLimit: Int?
+    private var simulationSkippedFishIDs: Set<Int> = []
+
+    private func simulationCanEat(_ prey: Fish) -> Bool {
+        simulationMayFeed && !(simulationLaps < 1 && simulationSkippedFishIDs.contains(prey.id))
+    }
+
+    private var simulationMayFeed: Bool {
+        guard simulationTuning != nil else { return true }
+        if simulationLaps < simulationDelayedPasses { return false }
+        if simulationLaps < 1, let limit = simulationFirstPassMealLimit {
+            let committed = swallows.filter { $0.predatorID == player.id }.count
+            return mealsEaten + committed < limit
+        }
+        return true
+    }
     private var activeDebugTuning: ArcadeTuning?
     var debugPracticeRun = false
     var debugHasTuningOverride: Bool { activeDebugTuning != nil }
@@ -113,7 +135,7 @@ final class GameScene: SKScene {
     private var runRecorder: ArcadeRunRecorder?
     private var recordingStartedAt: CGFloat = 0
     #endif
-    private let audio = ArcadeAudio()
+    private lazy var audio = ArcadeAudio()
 
     init(size: CGSize, world: ArcadeWorld = .shallowReef, levelIndex: Int = 0,
          showsJellyLesson: Bool = true) {
@@ -169,7 +191,22 @@ final class GameScene: SKScene {
     private var waterTop: CGFloat { waterCenter + (screenWaterTop - waterCenter) / zoom }
     /// Player movement is defined in screen points, so it feels the same at any zoom.
     private var playerSpeed: CGFloat { size.width / level.screenCrossSeconds / zoom }
-    private var isHolding: Bool { !holdTouches.isEmpty }
+    private var aiSpeedScale: CGFloat {
+        arcadeWorld == .jellyBloom ? T.bloomAISpeedScale(width: size.width, level: level) : 1
+    }
+    private var isHolding: Bool {
+        #if DEBUG
+        return simulationHolding ?? !holdTouches.isEmpty
+        #else
+        return !holdTouches.isEmpty
+        #endif
+    }
+    private func playSound(_ effect: ArcadeAudio.Effect) {
+        #if DEBUG
+        if simulationTuning != nil { return }
+        #endif
+        audio.play(effect)
+    }
 
     // MARK: - Lifecycle
 
@@ -200,6 +237,7 @@ final class GameScene: SKScene {
                 name: UIApplication.willResignActiveNotification, object: nil
             )
         }
+        _ = audio // Warm normal gameplay audio; headless studies never create the player pool.
         closeCallHaptic.prepare()
         eatenHaptic.prepare()
         if !isBuilt { build() }
@@ -236,7 +274,7 @@ final class GameScene: SKScene {
     private func resetGame(startPlaying: Bool) {
         #if DEBUG
         finishRunRecording("restart")
-        activeDebugTuning = ArcadeTuningStore.sceneOverride(world: arcadeWorld, index: levelIndex)
+        activeDebugTuning = simulationTuning ?? ArcadeTuningStore.sceneOverride(world: arcadeWorld, index: levelIndex)
         #endif
         for node in nodes.values { node.removeFromParent() }
         nodes.removeAll()
@@ -331,7 +369,7 @@ final class GameScene: SKScene {
         let f = Fish(id: nextFishID, isPlayer: false, position: position, radius: radius)
         nextFishID += 1
         f.heading = Bool.random(using: &rng) ? 1 : -1
-        f.cruiseSpeed = CGFloat.random(in: level.aiSpeedRange, using: &rng)
+        f.cruiseSpeed = CGFloat.random(in: level.aiSpeedRange, using: &rng) * aiSpeedScale
         f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
         f.facing = f.heading
         f.targetY = position.y
@@ -364,14 +402,18 @@ final class GameScene: SKScene {
         let clearBehind = size.width * T.spawnClearBehind
         let clearAhead = size.width * (dangerous ? T.spawnClearAheadDanger : T.spawnClearAheadSmall)
         let halfWidth = pocketHalfWidth ?? T.bloomFoodPocketHalfWidth
-        for _ in 0..<500 {
-            let x = preferredX.map {
-                world.wrap($0 + (preferredY != nil ? CGFloat.random(in: -halfWidth...halfWidth, using: &rng) : 0))
+        // Try the authored pocket first, then widen it before using open water. A crowded
+        // pocket must not silently remove food from the level's growth budget.
+        for attempt in 0..<1500 {
+            let expansion: CGFloat = attempt < 500 ? 1 : 2
+            let usePocket = attempt < 1000
+            let x = (usePocket ? preferredX : nil).map {
+                world.wrap($0 + (preferredY != nil ? CGFloat.random(in: (-halfWidth * expansion)...(halfWidth * expansion), using: &rng) : 0))
             } ?? CGFloat.random(in: 0..<world.width, using: &rng)
             let minY = waterBottom + r, maxY = waterTop - r
-            let pocketY = preferredY?.clamped(minY + T.bloomFoodPocketHalfHeight, maxY - T.bloomFoodPocketHalfHeight)
-            let lowerY = pocketY.map { max(minY, $0 - T.bloomFoodPocketHalfHeight) } ?? minY
-            let upperY = pocketY.map { min(maxY, $0 + T.bloomFoodPocketHalfHeight) } ?? maxY
+            let pocketY = (usePocket ? preferredY : nil)?.clamped(minY + T.bloomFoodPocketHalfHeight, maxY - T.bloomFoodPocketHalfHeight)
+            let lowerY = pocketY.map { max(minY, $0 - T.bloomFoodPocketHalfHeight * expansion) } ?? minY
+            let upperY = pocketY.map { min(maxY, $0 + T.bloomFoodPocketHalfHeight * expansion) } ?? maxY
             let y = CGFloat.random(in: lowerY...upperY, using: &rng)
             let dx = world.delta(from: player.position.x, to: x)
             if dx > -clearBehind && dx < clearAhead { continue }
@@ -495,7 +537,7 @@ final class GameScene: SKScene {
         finishRunRecording("won")
         #endif
         onClear?(levelIndex, Double(simClock))
-        audio.play(.clear)
+        playSound(.clear)
         setPhase(.won)
         endedAt = realClock
         slowMoFactor = T.winSlowFactor
@@ -520,7 +562,7 @@ final class GameScene: SKScene {
         #if DEBUG
         finishRunRecording("lost", fields: ["reason": lossReason])
         #endif
-        audio.play(.lose)
+        playSound(.lose)
         setPhase(.lost)
         endedAt = realClock
     }
@@ -754,6 +796,9 @@ final class GameScene: SKScene {
         for urchin in urchins {
             let center = CGPoint(x: urchin.x, y: waterBottom + T.urchinRadius * 0.55)
             for f in fish.filter({ $0.isAlive }) {
+                #if DEBUG
+                if simulationEcologyProbe && f.isPlayer { continue }
+                #endif
                 let p = CGPoint(x: world.delta(from: center.x, to: f.position.x), y: f.position.y - center.y)
                 let old = previousFish[f.id] ?? f.position
                 let previous = CGPoint(x: p.x - world.delta(from: old.x, to: f.position.x),
@@ -785,6 +830,9 @@ final class GameScene: SKScene {
             }
             let jelly = jellies[i]
             for f in fish.filter({ $0.isAlive }) {
+                #if DEBUG
+                if simulationEcologyProbe && f.isPlayer { continue }
+                #endif
                 guard let old = previousFish[f.id] else { continue }
                 let p = CGPoint(x: world.delta(from: jelly.position.x, to: f.position.x),
                                 y: f.position.y - jelly.position.y)
@@ -809,6 +857,7 @@ final class GameScene: SKScene {
                                        contactY + f.velocity.dy * remaining)
                     jelly.node.bounce()
                     #if DEBUG
+                    if simulationTuning != nil && f.isPlayer { simulationStats.bounces += 1 }
                     recordRunEvent("bounce", fields: ["fishID": f.id, "jellyID": i, "remainingFrame": remaining,
                                                      "x": f.position.x, "y": f.position.y, "vy": f.velocity.dy])
                     #endif
@@ -817,7 +866,7 @@ final class GameScene: SKScene {
                         bounceCooldown = T.jellyBounceCooldown
                         f.pulse = T.pulseDuration
                         closeCallHaptic.impactOccurred(intensity: 0.55)
-                        audio.play(.bounce)
+                        playSound(.bounce)
                     }
                 case .tentacles:
                     removeByTentacles(f)
@@ -829,6 +878,7 @@ final class GameScene: SKScene {
 
     private func removeByTentacles(_ victim: Fish, reason: String = "Caught in the tentacles.") {
         #if DEBUG
+        if simulationTuning != nil && !victim.isPlayer { simulationStats.aiHazardDeaths += 1 }
         recordRunEvent("hazard_death", fields: ["fishID": victim.id, "reason": reason,
                                                "x": victim.position.x, "y": victim.position.y, "radius": victim.radius])
         #endif
@@ -914,7 +964,12 @@ final class GameScene: SKScene {
     // MARK: - Collisions and swallowing
 
     private func resolveCollisions() {
-        let candidates = fish.filter { $0.state == .swimming }
+        let candidates = fish.filter { f in
+            #if DEBUG
+            if simulationEcologyProbe && f.isPlayer { return false }
+            #endif
+            return f.state == .swimming
+        }
         guard candidates.count > 1 else { return }
         let aiMayEat = T.aiFishCanEatEachOther && level.aiCanEat && simClock >= T.aiEatingGracePeriod
 
@@ -929,6 +984,10 @@ final class GameScene: SKScene {
                 let reach = (a.radius + b.radius) * T.collisionScale
                 guard dx * dx + dy * dy < reach * reach else { continue }
 
+                #if DEBUG
+                if a.isPlayer && !simulationCanEat(b) && GameRules.encounter(a.radius, b.radius) == .firstEatsSecond { continue }
+                if b.isPlayer && !simulationCanEat(a) && GameRules.encounter(b.radius, a.radius) == .firstEatsSecond { continue }
+                #endif
                 switch GameRules.encounter(a.radius, b.radius) {
                 case .firstEatsSecond: beginSwallow(predator: a, prey: b)
                 case .secondEatsFirst: beginSwallow(predator: b, prey: a)
@@ -958,6 +1017,12 @@ final class GameScene: SKScene {
     }
 
     private func beginSwallow(predator: Fish, prey: Fish) {
+        #if DEBUG
+        if simulationTuning != nil && predator.isPlayer {
+            simulationStats.mealStartLaps.append(Double(simulationLaps))
+            simulationStats.mealStartFishIDs.append(prey.id)
+        }
+        #endif
         #if DEBUG
         recordRunEvent("swallow_start", fields: ["predatorID": predator.id, "preyID": prey.id,
                                                 "predatorRadius": predator.radius, "preyRadius": prey.radius])
@@ -1039,6 +1104,20 @@ final class GameScene: SKScene {
         predator.growElapsed = 0
         predator.pulse = T.pulseDuration
         #if DEBUG
+        if simulationTuning != nil {
+            if predator.isPlayer {
+                simulationStats.playerMeals += 1
+                simulationStats.mealLaps.append(Double(simulationLaps))
+                simulationStats.mealRatios.append(Double(s.ratio))
+                simulationStats.mealFishIDs.append(prey.id)
+                if s.ratio >= T.closeCallRatio { simulationStats.closeMeals += 1 }
+                if fish.contains(where: { !$0.isPlayer && $0.id != prey.id && $0.state == .swimming &&
+                    GameRules.encounter(predator.radius, $0.radius) == .secondEatsFirst &&
+                    world.distance(predator.position, $0.position) - predator.radius - $0.radius < size.width * 0.20 / zoom }) {
+                    simulationStats.contestedMeals += 1
+                }
+            } else if !prey.isPlayer { simulationStats.aiMeals += 1 }
+        }
         recordRunEvent("eat", fields: ["predatorID": predator.id, "preyID": prey.id,
                                       "preyRadius": prey.radius, "radiusAfter": predator.targetRadius])
         #endif
@@ -1046,7 +1125,7 @@ final class GameScene: SKScene {
         if predator.isPlayer {
             mealsEaten += 1
             updateMealIndicator()
-            audio.play(.eat)
+            playSound(.eat)
         }
         if predator.isPlayer && s.ratio >= T.closeCallRatio {
             closeCallHaptic.impactOccurred()
@@ -1317,7 +1396,7 @@ final class GameScene: SKScene {
                 "bounceSpeed": bounceSpeed, "jellyRadius": level.jellies?.radius ?? 0,
                 "tentacleLength": level.jellies?.tentacleLength ?? 0,
                 "jellySway": level.jellies?.sway ?? 0, "jellyHeights": level.jellies?.heights ?? [],
-                "aiSpeedMin": level.aiSpeedRange.lowerBound, "aiSpeedMax": level.aiSpeedRange.upperBound,
+                "aiSpeedScale": aiSpeedScale, "aiSpeedMin": level.aiSpeedRange.lowerBound * aiSpeedScale, "aiSpeedMax": level.aiSpeedRange.upperBound * aiSpeedScale,
                 "aiVerticalSpeed": level.aiVerticalSpeed, "foodPocketLift": T.bloomFoodPocketLift,
                 "foodPatrolScreens": T.bloomFoodPatrolScreens,
                 "sidePocketOffset": T.bloomSidePocketOffset, "sidePocketDrop": T.bloomSidePocketDrop,
@@ -1349,6 +1428,78 @@ final class GameScene: SKScene {
         summary["fishRemaining"] = fish.filter { !$0.isPlayer && $0.state != .removed }.count
         runRecorder.finish(outcome: outcome, time: Double(realClock - recordingStartedAt), simulationTime: Double(simClock), fields: summary)
         self.runRecorder = nil
+    }
+
+    /// Advances the real scene without presentation, audio, recording, or touches.
+    func debugSimulate(candidate: String, tuning: ArcadeTuning, policy: ArcadeSimulation.Policy,
+                       seed: Int, limit: CGFloat = 75, delayedPasses: CGFloat = 0, ecologyProbe: Bool = false, firstPassMealLimit: Int? = nil, skippedFirstPassFishIDs: [Int] = []) -> ArcadeSimulation.Result {
+        simulationEcologyProbe = ecologyProbe
+        simulationStats = ArcadeSimulation.Stats()
+        simulationLaps = 0
+        simulationDelayedPasses = delayedPasses
+        simulationFirstPassMealLimit = firstPassMealLimit
+        simulationSkippedFishIDs = Set(skippedFirstPassFishIDs)
+        simulationTuning = tuning.sanitized
+        simulationTuning!.seedOffset = min(999, max(0, tuning.seedOffset + seed))
+        simulationHolding = false
+        resetGame(startPlaying: true)
+        let spawned = fish.count - 1
+        let initiallyViable = ArcadeSimulation.hasGrowthPath(player: player.radius,
+            radii: fish.filter { !$0.isPlayer }.map(\.radius), efficiency: level.absorptionEfficiency)
+        var nextDecision: CGFloat = 0, nextSample: CGFloat = 0
+        var previouslyViable = initiallyViable
+        while phase == .playing && simClock < limit {
+            if !ecologyProbe && simClock >= nextDecision {
+                let visible = fish.filter { !$0.isPlayer && $0.state == .swimming &&
+                    abs(world.delta(from: player.position.x, to: $0.position.x)) < size.width * 0.80 / zoom }
+                func swimmer(_ f: Fish) -> ArcadeSimulation.Swimmer {
+                    .init(canEat: simulationCanEat(f), x: f.position.x, y: f.position.y, vx: f.velocity.dx, vy: f.velocity.dy, radius: f.radius)
+                }
+                let bells = jellies.filter { abs(world.delta(from: player.position.x, to: $0.position.x)) < size.width / zoom }
+                    .map { ArcadeSimulation.Bell(x: $0.position.x, y: $0.position.y,
+                        radius: level.jellies!.radius, tentacles: level.jellies!.tentacleLength) }
+                simulationHolding = ArcadeSimulation.holding(.init(player: swimmer(player), fish: visible.map(swimmer),
+                    bells: bells, width: world.width, screenWidth: size.width, zoom: zoom,
+                    bottom: waterBottom, top: waterTop, speed: playerSpeed, bouncing: bounceRemaining > 0,
+                    bounceSpeed: bounceSpeed), policy: policy, feeding: simulationMayFeed && !ecologyProbe)
+                nextDecision = simClock + (policy == .collector ? 0.16 : (policy == .cautious ? 0.10 : 0.08))
+            }
+            let realDt: CGFloat = 1.0 / 60
+            realClock += realDt
+            if slowMoRemaining > 0 { slowMoRemaining -= realDt; timeScale = slowMoFactor }
+            else { timeScale = min(1, timeScale + realDt * 2.5) }
+            let oldX = player.position.x
+            simulate(realDt * timeScale)
+            simulationLaps += max(0, world.delta(from: oldX, to: player.position.x)) / world.width
+            if simClock >= nextSample && phase == .playing {
+                let others = fish.filter { !$0.isPlayer && $0.state == .swimming }
+                let threats = others.filter { GameRules.encounter(player.radius, $0.radius) == .secondEatsFirst }
+                if !threats.isEmpty {
+                    simulationStats.threatSeconds += 0.2
+                    simulationStats.lastThreat = Double(simClock)
+                    let gap = threats.map { world.distance(player.position, $0.position) - player.radius - $0.radius }.min()!
+                    simulationStats.minimumThreatClearance = min(simulationStats.minimumThreatClearance, Double(gap))
+                    if gap < size.width * 0.15 / zoom { simulationStats.nearbyThreatSeconds += 0.2 }
+                }
+                if fish.allSatisfy({ $0.state == .swimming }) && !others.isEmpty {
+                    let viable = ArcadeSimulation.hasGrowthPath(player: max(player.radius, player.targetRadius),
+                        radii: others.map { max($0.radius, $0.targetRadius) }, efficiency: level.absorptionEfficiency)
+                    if !viable {
+                        simulationStats.stalledSeconds += 0.2
+                        if simulationStats.firstStallLap == nil { simulationStats.firstStallLap = Double(simulationLaps) }
+                        if previouslyViable { simulationStats.lastStallLap = Double(simulationLaps) }
+                    } else if !previouslyViable { simulationStats.recoveredPaths += 1 }
+                    previouslyViable = viable
+                }
+                nextSample = simClock + 0.2
+            }
+        }
+        return .init(candidate: candidate, level: levelIndex + 1, policy: policy, seed: simulationTuning!.seedOffset, width: Double(size.width), skippedFirstPassFishIDs: skippedFirstPassFishIDs, firstPassMealLimit: firstPassMealLimit, delayedPasses: Double(delayedPasses), ecologyProbe: ecologyProbe,
+            laps: Double(simulationLaps), outcome: phase == .won ? "won" : (phase == .lost ? "lost" : "timeout"),
+            reason: phase == .lost ? lossReason : "", seconds: Double(simClock),
+            remaining: fish.filter { !$0.isPlayer }.count, playerRadius: Double(player.radius),
+            spawned: spawned, configured: level.spawnGroups.reduce(0) { $0 + $1.count }, initialGrowthPath: initiallyViable,
+            stats: simulationStats, tuning: simulationTuning!)
     }
 
     // Integration-test fixtures exercise the real scene update and hazard resolution.
