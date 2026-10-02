@@ -65,7 +65,7 @@ Pause/resume and resets discard pending time. Catch-up is bounded to 0.25 second
 per display frame; longer stalls intentionally discard the excess rather than
 running an unbounded backlog. Consequently equal inputs at equal simulation ticks
 repeat across frame schedules within that bound, while long stalls and different
-input timing can still change a run. No render interpolation is added in this phase.
+input timing can still change a run. Drawing now interpolates between the previous and current gameplay states, including fractional real-time ticks. Fish poses, camera zoom, jelly positions, swallowing, and growth are smoothed without writing back into the simulation. Previous drawing state is synchronized on pause/resume and reset. Like standard interpolation, this presents motion up to one gameplay step behind the simulation (about 17 ms normally, longer during slow motion).
 
 Regression checks compare complete fish state, player state, camera zoom, and world
 bounds after eight seconds at 10, 30, 60, and 120 FPS and alternating short/long

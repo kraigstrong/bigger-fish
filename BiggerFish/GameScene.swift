@@ -168,6 +168,9 @@ final class GameScene: SKScene {
     private var lastUpdate: TimeInterval?
     private var frameAccumulator: CGFloat = 0
     private var simulationAccumulator: CGFloat = 0
+    private var previousPresentation: [Int: FishPresentation] = [:]
+    private var previousJellyPositions: [CGPoint] = []
+    private var previousZoom: CGFloat = 1
     private var realClock: CGFloat = 0
     /// Simulated seconds since the current run started playing.
     private var simClock: CGFloat = 0
@@ -312,6 +315,7 @@ final class GameScene: SKScene {
         spawnJellies()
         spawnEcosystem()
         lastCameraX = player.position.x
+        capturePresentation()
         setPhase(startPlaying ? .playing : .ready)
         buildLevelIndicator()
         render()
@@ -459,6 +463,7 @@ final class GameScene: SKScene {
             frameAccumulator = 0
             simulationAccumulator = 0
             if newPhase == .ready || newPhase == .paused || phase == .paused { lastUpdate = nil }
+            capturePresentation()
         }
         phase = newPhase
         pauseButton.isHidden = newPhase != .playing
@@ -655,10 +660,10 @@ final class GameScene: SKScene {
         lastUpdate = currentTime
         advanceFrame(realDt)
 
-        let cameraDelta = world.delta(from: lastCameraX, to: player.position.x) * zoom
-        lastCameraX = player.position.x
+        let presentation = render()
+        let cameraDelta = world.delta(from: lastCameraX, to: presentation.cameraX) * presentation.zoom
+        lastCameraX = presentation.cameraX
         updateSpecks(realDt: phase == .paused ? 0 : realDt, cameraDelta: cameraDelta)
-        render()
     }
 
     /// Display frames only contribute elapsed time. Both real-time slow motion and
@@ -681,6 +686,7 @@ final class GameScene: SKScene {
             while simulationAccumulator + epsilon >= step {
                 simulationAccumulator = max(0, simulationAccumulator - step)
                 beforeStep?()
+                capturePresentation()
                 simulate(step)
             }
         }
@@ -931,19 +937,22 @@ final class GameScene: SKScene {
         }
     }
 
-    private func renderJellies() {
+    private func renderJellies(cameraX: CGFloat, zoom: CGFloat, fraction: CGFloat, time: CGFloat) {
         for urchin in urchins {
-            let x = size.width * T.playerScreenX + world.delta(from: player.position.x, to: urchin.x) * zoom
+            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: urchin.x) * zoom
             urchin.node.isHidden = x < -30 || x > size.width + 30
             urchin.node.position = CGPoint(x: x, y: screenWaterBottom + T.urchinRadius * 0.55 * zoom)
             urchin.node.setScale(zoom)
         }
-        for jelly in jellies {
-            let x = size.width * T.playerScreenX + world.delta(from: player.position.x, to: jelly.position.x) * zoom
+        for (index, jelly) in jellies.enumerated() {
+            let position = index < previousJellyPositions.count
+                ? PresentationInterpolation.position(from: previousJellyPositions[index], to: jelly.position,
+                    fraction: fraction, world: world) : jelly.position
+            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: position.x) * zoom
             jelly.node.isHidden = x < -100 || x > size.width + 100
-            jelly.node.position = CGPoint(x: x, y: waterCenter + (jelly.position.y - waterCenter) * zoom)
+            jelly.node.position = CGPoint(x: x, y: waterCenter + (position.y - waterCenter) * zoom)
             jelly.node.setScale(zoom)
-            jelly.node.animate(time: realClock)
+            jelly.node.animate(time: time)
         }
     }
 
@@ -1164,44 +1173,65 @@ final class GameScene: SKScene {
 
     // MARK: - Rendering
 
-    private func render() {
-        let cameraX = player.position.x
+    private func capturePresentation() {
+        previousPresentation = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, FishPresentation($0)) })
+        previousJellyPositions = jellies.map(\.position)
+        previousZoom = zoom
+    }
+
+    private var presentationFraction: CGFloat {
+        PresentationInterpolation.fraction(simulationRemainder: simulationAccumulator,
+            frameRemainder: frameAccumulator, timeScale: timeScale, step: T.simulationStep)
+    }
+
+    private func presentationPose(_ fish: Fish, fraction: CGFloat) -> FishPresentation {
+        let current = FishPresentation(fish)
+        return previousPresentation[fish.id]?.interpolated(to: current, fraction: fraction, world: world) ?? current
+    }
+
+    private func render() -> (cameraX: CGFloat, zoom: CGFloat) {
+        let fraction = presentationFraction
+        let zoom = previousZoom + (self.zoom - previousZoom) * fraction
+        let time = realClock + frameAccumulator
+        let cameraX = presentationPose(player, fraction: fraction).position.x
         let anchorX = size.width * T.playerScreenX
-        renderJellies()
+        renderJellies(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
         for f in fish {
             guard let node = nodes[f.id] else { continue }
-            let screenX = anchorX + world.delta(from: cameraX, to: f.position.x) * zoom
-            let margin = f.radius * zoom * 3
+            let pose = presentationPose(f, fraction: fraction)
+            let screenX = anchorX + world.delta(from: cameraX, to: pose.position.x) * zoom
+            let margin = pose.radius * zoom * 3
             node.isHidden = screenX < -margin || screenX > size.width + margin
             if node.isHidden { continue }
-            node.position = CGPoint(x: screenX, y: waterCenter + (f.position.y - waterCenter) * zoom)
+            node.position = CGPoint(x: screenX, y: waterCenter + (pose.position.y - waterCenter) * zoom)
 
             var stretch: CGFloat = 1
-            if f.pulse > 0 {
-                stretch += sin((1 - f.pulse / T.pulseDuration) * .pi) * T.pulseAmount
+            if pose.pulse > 0 {
+                stretch += sin((1 - pose.pulse / T.pulseDuration) * .pi) * T.pulseAmount
             }
-            let stretchX = stretch * (1 + f.squash) * f.shrink
-            let stretchY = stretch * (1 - f.squash) * f.shrink
+            let stretchX = stretch * (1 + pose.squash) * pose.shrink
+            let stretchY = stretch * (1 - pose.squash) * pose.shrink
 
             let rawTilt = f.isPlayer
-                ? f.velocity.dy * zoom / T.motion.maxRiseSpeed * T.motion.maxTilt
-                : f.velocity.dy / level.aiVerticalSpeed * T.aiMaxTilt
-            let facingSign: CGFloat = f.facing >= 0 ? 1 : -1
+                ? pose.velocity.dy * zoom / T.motion.maxRiseSpeed * T.motion.maxTilt
+                : pose.velocity.dy / level.aiVerticalSpeed * T.aiMaxTilt
+            let facingSign: CGFloat = pose.facing >= 0 ? 1 : -1
             let tilt = rawTilt.clamped(-T.motion.maxTilt, T.motion.maxTilt) * facingSign
-                + f.struggle * sin(realClock * 45) * 0.35
+                + pose.struggle * sin(time * 45) * 0.35
 
             // Close calls chew: the mouth works while the prey struggles.
-            let mouth = f.mouth * (1 - 0.35 * f.chew * (0.5 + 0.5 * sin(realClock * 38)))
+            let mouth = pose.mouth * (1 - 0.35 * pose.chew * (0.5 + 0.5 * sin(time * 38)))
 
             node.apply(
-                radius: f.radius * zoom, facing: f.facing, tilt: tilt,
+                radius: pose.radius * zoom, facing: pose.facing, tilt: tilt,
                 stretchX: stretchX, stretchY: stretchY, mouthOpen: mouth,
-                time: realClock, tailRate: f.isPlayer ? 14 : 9
+                time: time, tailRate: f.isPlayer ? 14 : 9
             )
         }
         if let glow = winGlow, let playerNode = nodes[player.id] {
             glow.position = playerNode.position
         }
+        return (cameraX, zoom)
     }
 
     private func updateSpecks(realDt: CGFloat, cameraDelta: CGFloat) {
@@ -1558,6 +1588,34 @@ final class GameScene: SKScene {
                       targetY: Double($0.targetY), retargetTimer: Double($0.retargetTimer),
                       turnTimer: Double($0.turnTimer), state: String(describing: $0.state))
             })
+    }
+
+    func debugCheckPresentationIsolation() -> Bool {
+        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationEcologyProbe = true
+        simulationHolding = false
+        resetGame(startPlaying: true)
+        advanceFrame(T.simulationStep)
+        let position = player.position
+        let radius = player.radius
+        let clock = simClock
+        var controlRNG = rng
+        let randomControl = controlRNG.next()
+        _ = render()
+        let firstY = nodes[player.id]!.position.y
+        frameAccumulator = T.simulationStep / 2
+        _ = render()
+        let secondY = nodes[player.id]!.position.y
+        var afterRenderRNG = rng
+        guard abs(firstY - secondY) > 1e-6, player.position == position,
+              player.radius == radius, simClock == clock, afterRenderRNG.next() == randomControl else { return false }
+        setPhase(.paused)
+        _ = render()
+        let pausedY = waterCenter + (position.y - waterCenter) * zoom
+        guard abs(nodes[player.id]!.position.y - pausedY) < 1e-4 else { return false }
+        resetGame(startPlaying: true)
+        _ = render()
+        return previousPresentation.count == fish.count && abs(nodes[player.id]!.position.y - player.position.y) < 1e-4
     }
 
     func debugCheckFixedTimingLifecycle() -> Bool {
