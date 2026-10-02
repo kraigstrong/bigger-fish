@@ -2,8 +2,16 @@
 
 There's always a bigger fish.
 
-V0 prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
+Arcade prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
+
+The world map opens **Shallow Reef** (the original five levels) and **Jelly Bloom** (five new levels).
+Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
+adds safe dome bounces, lethal tentacles, and, after its introductory level, urchin beds. Its predators
+can briefly chase and prey can flee; Shallow Reef keeps the original drift behavior and tuning.
+
+This playable slice has no purchases, endless mode, pearls, or shop yet. See
+[`docs/bigger-fish-playable-scope.md`](docs/bigger-fish-playable-scope.md) for the accepted scope and deferred vision.
 
 ## Running
 
@@ -21,6 +29,11 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'p
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
+  - `ArcadeMaps.swift` — world selection and the five-stop level paths
+  - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and local campaign saves
+  - `Jellyfish.swift` / `ArcadeArt.swift` — arcade-only hazard rules and procedural artwork
+  - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them
+  - `ArcadePlaytest.swift` — debug-only isolated level launches for playtesting
 - `MathReef/` — **Math Reef** (`com.kraigstrong.mathreef`), the education app for grades 1–5. Pick a
   world (Addition, Subtraction, Multiplication, Division, Exponents), then a level,
   and swim into the right answer. Addition and subtraction climb in small strategy steps (+1/+2, make 10,
@@ -93,5 +106,10 @@ python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-
 
 Every feel constant — movement, growth, swallow timing, AI behavior, spawn distribution,
 and the `aiFishCanEatEachOther` flag — lives in `BiggerFish/GameTuning.swift`.
-The five levels are defined in `GameTuning.levels`; each sets the spawn mix, fish speeds,
-player speed, and how much a meal grows you.
+Shallow Reef's five levels are defined in `GameTuning.levels`; Jelly Bloom's five are in
+`GameTuning.bloomLevels`. Each sets the spawn mix, fish speeds, player speed, and meal growth;
+Bloom also sets jelly count, tentacle length, sway, urchin beds, and its night palette.
+
+For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4` in Xcode (world ID
+plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save.
+Remove the arguments to return to the normal world map and real campaign progress.

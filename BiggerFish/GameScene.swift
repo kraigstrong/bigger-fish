@@ -13,6 +13,19 @@ private struct Swallow {
     let startOffset: CGVector
 }
 
+private struct BloomJelly {
+    let node: JellyfishNode
+    let origin: CGPoint
+    var position: CGPoint
+    let phase: CGFloat
+}
+
+private struct BloomBrain {
+    let aggressive: Bool
+    var chaseRemaining: CGFloat = 0
+    var cooldown: CGFloat = 0
+}
+
 private struct Speck {
     let node: SKSpriteNode
     let parallax: CGFloat
@@ -30,13 +43,38 @@ final class GameScene: SKScene {
     private var nodes: [Int: FishNode] = [:]
     private var swallows: [Swallow] = []
     private var player: Fish!
-    private var levelIndex = 0
-    private var level: Level { T.levels[levelIndex] }
-    private var isFinalLevel: Bool { levelIndex == T.levels.count - 1 }
+    let arcadeWorld: ArcadeWorld
+    private var levelIndex: Int
+    private var level: Level { arcadeWorld.levels[levelIndex] }
+    private var isFinalLevel: Bool { levelIndex == arcadeWorld.levels.count - 1 }
+    var onClear: ((Int, Double) -> Void)?
+    var onExit: (() -> Void)?
+    var onJellyLesson: (() -> Void)?
+    private var showsJellyLesson: Bool
+    private var lossReason = "There was a bigger fish."
+    private var jellies: [BloomJelly] = []
+    private var urchins: [(x: CGFloat, node: SKNode)] = []
+    private var brains: [Int: BloomBrain] = [:]
+    private var bounceRemaining: CGFloat = 0
+    private var bounceCooldown: CGFloat = 0
+    private var mapButton = SKShapeNode()
+    private let audio = ArcadeAudio()
+
+    init(size: CGSize, world: ArcadeWorld = .shallowReef, levelIndex: Int = 0,
+         showsJellyLesson: Bool = true) {
+        arcadeWorld = world
+        self.levelIndex = min(max(0, levelIndex), world.levels.count - 1)
+        self.showsJellyLesson = showsJellyLesson
+        super.init(size: size)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     private var rng = SeededGenerator(seed: T.spawnSeed)
 
     private let backgroundLayer = SKNode()
     private let fishLayer = SKNode()
+    private let hazardLayer = SKNode()
     private let uiLayer = SKNode()
     private let dimNode = SKSpriteNode(color: .black, size: CGSize(width: 1, height: 1))
     private var specks: [Speck] = []
@@ -94,6 +132,8 @@ final class GameScene: SKScene {
             uiLayer.zPosition = 100
             addChild(backgroundLayer)
             addChild(dimNode)
+            hazardLayer.zPosition = 8
+            addChild(hazardLayer)
             addChild(fishLayer)
             addChild(uiLayer)
             uiLayer.addChild(messageNode)
@@ -137,6 +177,13 @@ final class GameScene: SKScene {
         fish.removeAll()
         fishByID.removeAll()
         swallows.removeAll()
+        hazardLayer.removeAllChildren()
+        jellies.removeAll()
+        urchins.removeAll()
+        brains.removeAll()
+        bounceRemaining = 0
+        bounceCooldown = 0
+        lossReason = "There was a bigger fish."
         winGlow?.removeFromParent()
         winGlow = nil
         dimNode.removeAllActions()
@@ -148,7 +195,8 @@ final class GameScene: SKScene {
         zoom = 1
 
         world = WrappedWorld(width: size.width * T.worldScreens)
-        rng = SeededGenerator(seed: T.spawnSeed &+ UInt64(levelIndex))
+        rng = SeededGenerator(seed: T.spawnSeed &+ UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)))
+        spawnJellies()
         spawnEcosystem()
         lastCameraX = player.position.x
         setPhase(startPlaying ? .playing : .ready)
@@ -180,6 +228,9 @@ final class GameScene: SKScene {
                 f.turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &rng)
                 f.phase = CGFloat.random(in: 0...(2 * .pi), using: &rng)
                 add(f, style: FishStyle.random(using: &rng))
+                if level.jellies != nil {
+                    brains[f.id] = BloomBrain(aggressive: CGFloat.random(in: 0...1, using: &rng) < T.bloomAggressiveFraction)
+                }
             }
         }
     }
@@ -196,7 +247,15 @@ final class GameScene: SKScene {
             let overlaps = fish.contains {
                 world.distance($0.position, point) < ($0.radius + r) * T.collisionScale + T.spawnPadding
             }
-            if !overlaps { return point }
+            let inJelly = jellies.contains { jelly in
+                guard let layout = level.jellies else { return false }
+                let relative = CGPoint(x: world.delta(from: jelly.position.x, to: point.x),
+                                       y: point.y - jelly.position.y)
+                return JellyRules.contact(at: relative, previous: relative, fishRadius: r,
+                                          domeRadius: layout.radius + T.spawnPadding,
+                                          tentacleLength: layout.tentacleLength + T.spawnPadding) != .none
+            }
+            if !overlaps && !inJelly { return point }
         }
         return nil
     }
@@ -218,32 +277,47 @@ final class GameScene: SKScene {
         pauseMenu.isHidden = newPhase != .paused
         switch newPhase {
         case .ready:
-            if levelIndex == 0 {
-                showMessage("Bigger Fish", lines: ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish."])
-            } else {
-                showMessage("Level \(levelIndex + 1)", lines: ["Eat smaller fish. Avoid bigger fish."])
-            }
+            let lines = arcadeWorld == .jellyBloom
+                ? (showsJellyLesson ? ["Bounce the tops.", "Never touch the bottoms.", "Eat fish or let the jellies clear them."]
+                                   : ["Eat smaller fish. Avoid bigger fish.", "Bounce domes. Dodge tentacles."])
+                : ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish."]
+            showMessage(arcadeWorld.levelTitles[levelIndex], lines: lines)
+            let start = label("Tap anywhere to swim", fontSize: 12, heavy: false)
+            start.alpha = 0.7
+            start.position = CGPoint(x: 0, y: -77)
+            messageNode.addChild(start)
+            addMapButton(to: messageNode, y: -111)
         case .playing, .paused:
             hideMessage()
         case .won:
-            let next = isFinalLevel ? "You beat every level. Tap to start over." : "Tap for level \(levelIndex + 2)."
+            let next = isFinalLevel ? "\(arcadeWorld.title) complete! Tap to see the map."
+                                   : "Tap for \(arcadeWorld.levelTitles[levelIndex + 1])."
             showMessage("Biggest fish.", lines: [next], delay: 0.9)
+            addMapButton(to: messageNode, y: -82)
         case .lost:
-            showMessage("There was a bigger fish.", lines: ["Tap to try again."], delay: 0.35)
+            showMessage(lossReason, lines: ["Tap to try again."], delay: 0.35)
+            addMapButton(to: messageNode, y: -82)
         }
     }
 
     private func startRun() {
+        if arcadeWorld == .jellyBloom && showsJellyLesson {
+            onJellyLesson?()
+            showsJellyLesson = false
+        }
         simClock = 0
         setPhase(.playing)
     }
 
     private func pauseRun() {
+        buildPauseMenu()
         setPhase(.paused)
         holdTouches.removeAll()
     }
 
     private func win() {
+        onClear?(levelIndex, Double(simClock))
+        audio.play(.clear)
         setPhase(.won)
         endedAt = realClock
         slowMoFactor = T.winSlowFactor
@@ -265,6 +339,7 @@ final class GameScene: SKScene {
     }
 
     private func lose() {
+        audio.play(.lose)
         setPhase(.lost)
         endedAt = realClock
     }
@@ -276,6 +351,9 @@ final class GameScene: SKScene {
             let p = touch.location(in: self)
             switch phase {
             case .ready:
+                if let parent = mapButton.parent, mapButton.contains(parent.convert(p, from: self)) {
+                    onExit?(); return
+                }
                 startRun()
                 holdTouches.insert(touch)
             case .playing:
@@ -289,14 +367,23 @@ final class GameScene: SKScene {
                     setPhase(.playing)
                 } else if restartButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     resetGame(startPlaying: false)
+                } else if mapButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
+                    onExit?()
+                    return
                 }
             case .won:
                 if realClock - endedAt >= T.restartDelay {
-                    levelIndex = isFinalLevel ? 0 : levelIndex + 1
+                    if mapButton.contains(messageNode.convert(p, from: self)) || isFinalLevel {
+                        onExit?()
+                        return
+                    }
+                    levelIndex += 1
+                    layoutStatic()
                     resetGame(startPlaying: false)
                 }
             case .lost:
                 if realClock - endedAt >= T.restartDelay {
+                    if mapButton.contains(messageNode.convert(p, from: self)) { onExit?(); return }
                     resetGame(startPlaying: true)
                     holdTouches.insert(touch)
                 }
@@ -343,19 +430,34 @@ final class GameScene: SKScene {
     private func simulate(_ dt: CGFloat) {
         simClock += dt
         updateZoom(dt)
+        let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
         for f in fish where f.isAlive {
             if f.isPlayer { movePlayer(f, dt) } else { moveAI(f, dt) }
         }
+        if phase == .playing {
+            updateJellies(dt, previousFish: previous)
+            if phase == .playing { updateUrchins(previousFish: previous) }
+        }
         advanceSwallows(dt)
         advanceGrowth(dt)
-        resolveCollisions()
+        if phase == .playing {
+            resolveCollisions()
+            if GameRules.isWin(fish) { win() }
+        }
     }
 
     private func movePlayer(_ p: Fish, _ dt: CGFloat) {
+        bounceRemaining = max(0, bounceRemaining - dt)
+        bounceCooldown = max(0, bounceCooldown - dt)
+        var motion = T.motion
+        if bounceRemaining > 0 {
+            motion.maxRiseSpeed = T.jellyBounceSpeed
+            motion.fallAcceleration *= 0.35
+        }
         let (y, vy) = PlayerMotion.step(
             y: p.position.y, vy: p.velocity.dy, holding: isHolding, dt: dt,
             minY: waterBottom + p.radius * 0.95, maxY: waterTop - p.radius * 0.95,
-            zoom: zoom, tuning: T.motion
+            zoom: zoom, tuning: motion
         )
         p.velocity = CGVector(dx: playerSpeed, dy: vy)
         p.position = CGPoint(x: world.wrap(p.position.x + playerSpeed * dt), y: y)
@@ -370,6 +472,7 @@ final class GameScene: SKScene {
     }
 
     private func moveAI(_ f: Fish, _ dt: CGFloat) {
+        if level.jellies != nil, moveBloomAI(f, dt) { return }
         f.turnTimer -= dt
         if f.turnTimer <= 0 {
             f.heading *= -1
@@ -401,6 +504,185 @@ final class GameScene: SKScene {
         f.facing = (vx / 20).clamped(-1, 1)
     }
 
+    // MARK: - Jelly Bloom (arcade-only; no shared engine changes)
+
+    private func spawnJellies() {
+        guard let layout = level.jellies else { return }
+        for i in 0..<layout.count {
+            // A safe opening, then alternating bell heights create a route through the field.
+            let x = size.width * 0.85 + CGFloat(i) * (world.width - size.width) / CGFloat(layout.count)
+            let fraction: CGFloat = i.isMultiple(of: 2) ? 0.37 : 0.68
+            let y = max(waterBottom + layout.tentacleLength + 12,
+                        waterBottom + (waterTop - waterBottom) * fraction)
+            let origin = CGPoint(x: world.wrap(x), y: y)
+            let phase = CGFloat(i) * 1.7
+            let node = JellyfishNode(radius: layout.radius, tentacleLength: layout.tentacleLength, phase: phase)
+            hazardLayer.addChild(node)
+            jellies.append(BloomJelly(node: node, origin: origin, position: origin, phase: phase))
+        }
+        for i in 0..<layout.urchinBeds {
+            let center = size.width * 1.1 + CGFloat(i) * (world.width - size.width * 1.4) / CGFloat(max(1, layout.urchinBeds - 1))
+            for offset in -2...2 {
+                let node = ArcadeArt.urchin(radius: T.urchinRadius)
+                hazardLayer.addChild(node)
+                urchins.append((x: world.wrap(center + CGFloat(offset) * T.urchinRadius * 1.6), node: node))
+            }
+        }
+    }
+
+    private func updateUrchins(previousFish: [Int: CGPoint]) {
+        for urchin in urchins {
+            let center = CGPoint(x: urchin.x, y: waterBottom + T.urchinRadius * 0.55)
+            for f in fish.filter({ $0.isAlive }) {
+                let p = CGPoint(x: world.delta(from: center.x, to: f.position.x), y: f.position.y - center.y)
+                let old = previousFish[f.id] ?? f.position
+                let previous = CGPoint(x: p.x - world.delta(from: old.x, to: f.position.x),
+                                       y: old.y - center.y)
+                let delta = CGVector(dx: p.x - previous.x, dy: p.y - previous.y)
+                let length = delta.dx * delta.dx + delta.dy * delta.dy
+                let t = length > 0 ? (-(previous.x * delta.dx + previous.y * delta.dy) / length).clamped(0, 1) : 0
+                let closest = CGPoint(x: previous.x + delta.dx * t, y: previous.y + delta.dy * t)
+                if hypot(closest.x, closest.y) < (T.urchinRadius + f.radius) * T.hazardHitboxScale {
+                    removeByTentacles(f, reason: "Caught on the urchins.")
+                    if f.isPlayer { return }
+                }
+            }
+        }
+    }
+
+    private func updateJellies(_ dt: CGFloat, previousFish: [Int: CGPoint]) {
+        guard let layout = level.jellies else { return }
+        for i in jellies.indices {
+            let previousJelly = jellies[i].position
+            jellies[i].position = CGPoint(
+                x: world.wrap(jellies[i].origin.x + sin(simClock * 0.45 + jellies[i].phase) * layout.sway),
+                y: jellies[i].origin.y + sin(simClock * 0.65 + jellies[i].phase) * layout.sway
+            )
+            let jelly = jellies[i]
+            for f in fish.filter({ $0.isAlive }) {
+                guard let old = previousFish[f.id] else { continue }
+                let p = CGPoint(x: world.delta(from: jelly.position.x, to: f.position.x),
+                                y: f.position.y - jelly.position.y)
+                // Keep both endpoints on the same wrapped branch. Independently wrapping them
+                // can draw a fictitious sweep through a jelly on the other side of the world.
+                let movement = world.delta(from: old.x, to: f.position.x)
+                    - world.delta(from: previousJelly.x, to: jelly.position.x)
+                let previous = CGPoint(x: p.x - movement, y: old.y - previousJelly.y)
+                switch JellyRules.contact(at: p, previous: previous, fishRadius: f.radius,
+                                          domeRadius: layout.radius, tentacleLength: layout.tentacleLength) {
+                case .none: break
+                case .bounce:
+                    guard !f.isPlayer || bounceCooldown <= 0 else { continue }
+                    let x = min(1, abs(p.x) / (layout.radius + f.radius * T.hazardHitboxScale))
+                    let surface = layout.radius * 0.65 * sqrt(max(0, 1 - x * x))
+                    f.position.y = jelly.position.y + surface + f.radius * T.hazardHitboxScale + 2
+                    f.velocity.dy = T.jellyBounceSpeed / zoom
+                    jelly.node.bounce()
+                    if f.isPlayer {
+                        bounceRemaining = T.jellyBounceSeconds
+                        bounceCooldown = T.jellyBounceCooldown
+                        f.pulse = T.pulseDuration
+                        closeCallHaptic.impactOccurred(intensity: 0.55)
+                        audio.play(.bounce)
+                    }
+                case .tentacles:
+                    removeByTentacles(f)
+                    if f.isPlayer { return }
+                }
+            }
+        }
+    }
+
+    private func removeByTentacles(_ victim: Fish, reason: String = "Caught in the tentacles.") {
+        // If a predator hits a curtain mid-swallow, its prey escapes rather than getting stuck.
+        for swallow in swallows where swallow.predatorID == victim.id || swallow.preyID == victim.id {
+            let otherID = swallow.predatorID == victim.id ? swallow.preyID : swallow.predatorID
+            if let survivor = fishByID[otherID], survivor.state != .removed {
+                survivor.state = .swimming
+                survivor.shrink = 1
+                survivor.struggle = 0
+                survivor.chew = 0
+                survivor.squash = 0
+            }
+        }
+        swallows.removeAll { $0.predatorID == victim.id || $0.preyID == victim.id }
+        victim.state = .removed
+        nodes[victim.id]?.run(.sequence([.fadeOut(withDuration: 0.18), .removeFromParent()]))
+        if victim.isPlayer {
+            lossReason = reason
+            eatenNotification.notificationOccurred(.error)
+            lose()
+        } else {
+            fish.removeAll { $0.id == victim.id }
+            fishByID[victim.id] = nil
+            brains[victim.id] = nil
+            nodes[victim.id] = nil
+        }
+    }
+
+    private func renderJellies() {
+        for urchin in urchins {
+            let x = size.width * T.playerScreenX + world.delta(from: player.position.x, to: urchin.x) * zoom
+            urchin.node.isHidden = x < -30 || x > size.width + 30
+            urchin.node.position = CGPoint(x: x, y: screenWaterBottom + T.urchinRadius * 0.55 * zoom)
+            urchin.node.setScale(zoom)
+        }
+        for jelly in jellies {
+            let x = size.width * T.playerScreenX + world.delta(from: player.position.x, to: jelly.position.x) * zoom
+            jelly.node.isHidden = x < -100 || x > size.width + 100
+            jelly.node.position = CGPoint(x: x, y: waterCenter + (jelly.position.y - waterCenter) * zoom)
+            jelly.node.setScale(zoom)
+            jelly.node.animate(time: realClock)
+        }
+    }
+
+    /// Bloom gets a limited commitment chase and short-range fleeing; Shallow Reef keeps its drift AI.
+    private func moveBloomAI(_ f: Fish, _ dt: CGFloat) -> Bool {
+        guard var brain = brains[f.id], player.isAlive else { return false }
+        let dx = world.delta(from: f.position.x, to: player.position.x)
+        let dy = player.position.y - f.position.y
+        let distance = hypot(dx, dy) * zoom
+        let predator = GameRules.encounter(f.radius, player.radius) == .firstEatsSecond
+        brain.cooldown = max(0, brain.cooldown - dt)
+        if !predator || distance > T.bloomGiveUpRadius {
+            if brain.chaseRemaining > 0 { brain.cooldown = 2 }
+            brain.chaseRemaining = 0
+        }
+        if predator && brain.aggressive && brain.chaseRemaining <= 0 && brain.cooldown <= 0,
+           distance < T.bloomAggroRadius {
+            brain.chaseRemaining = T.bloomChaseSeconds
+            let warning = label("!", fontSize: 19, heavy: true)
+            warning.name = "chase-warning"
+            warning.fontColor = SKColor(red: 1, green: 0.9, blue: 0.5, alpha: 1)
+            warning.position = CGPoint(x: 0, y: f.radius * zoom + 12)
+            warning.run(.sequence([.scale(to: 1.3, duration: 0.12), .scale(to: 1, duration: 0.12),
+                                   .wait(forDuration: 0.4), .fadeOut(withDuration: 0.2), .removeFromParent()]))
+            nodes[f.id]?.addChild(warning)
+        }
+        let chasing = brain.chaseRemaining > 0
+        let fleeing = !predator && GameRules.encounter(player.radius, f.radius) == .firstEatsSecond
+            && distance < T.bloomFleeRadius
+        if chasing {
+            brain.chaseRemaining = max(0, brain.chaseRemaining - dt)
+            if brain.chaseRemaining == 0 { brain.cooldown = 2 }
+        }
+        brains[f.id] = brain
+        guard chasing || fleeing else { return false }
+        let targetVX: CGFloat = chasing
+            ? playerSpeed + (dx * 0.8).clamped(-100 / zoom, 100 / zoom)
+            : -(dx >= 0 ? CGFloat(1) : CGFloat(-1)) * max(f.cruiseSpeed * 1.3, playerSpeed * 0.6)
+        let targetVY = (dy * (chasing ? 1 : -1)).clamped(-T.motion.maxRiseSpeed * 0.85 / zoom,
+                                                       T.motion.maxRiseSpeed * 0.85 / zoom)
+        let steer = min(1, dt * T.bloomChaseTurnRate)
+        f.velocity.dx += (targetVX - f.velocity.dx) * steer
+        f.velocity.dy += (targetVY - f.velocity.dy) * steer
+        let minY = waterBottom + f.radius, maxY = max(minY, waterTop - f.radius)
+        f.position.x = world.wrap(f.position.x + f.velocity.dx * dt)
+        f.position.y = (f.position.y + f.velocity.dy * dt).clamped(minY, maxY)
+        f.facing = (f.velocity.dx / 20).clamped(-1, 1)
+        return true
+    }
+
     private func advanceGrowth(_ dt: CGFloat) {
         for f in fish {
             if f.growElapsed < T.growDuration {
@@ -423,7 +705,7 @@ final class GameScene: SKScene {
     private func resolveCollisions() {
         let candidates = fish.filter { $0.state == .swimming }
         guard candidates.count > 1 else { return }
-        let aiMayEat = T.aiFishCanEatEachOther && simClock >= T.aiEatingGracePeriod
+        let aiMayEat = T.aiFishCanEatEachOther && level.aiCanEat && simClock >= T.aiEatingGracePeriod
 
         for i in 0..<(candidates.count - 1) {
             for j in (i + 1)..<candidates.count {
@@ -540,6 +822,7 @@ final class GameScene: SKScene {
         predator.growElapsed = 0
         predator.pulse = T.pulseDuration
 
+        if predator.isPlayer { audio.play(.eat) }
         if predator.isPlayer && s.ratio >= T.closeCallRatio {
             closeCallHaptic.impactOccurred()
         }
@@ -555,6 +838,7 @@ final class GameScene: SKScene {
     private func render() {
         let cameraX = player.position.x
         let anchorX = size.width * T.playerScreenX
+        renderJellies()
         for f in fish {
             guard let node = nodes[f.id] else { continue }
             let screenX = anchorX + world.delta(from: cameraX, to: f.position.x) * zoom
@@ -609,7 +893,9 @@ final class GameScene: SKScene {
         backgroundLayer.removeAllChildren()
         specks.removeAll()
 
-        let gradient = SKSpriteNode(texture: WaterTextures.gradient())
+        let gradient = SKSpriteNode(texture: arcadeWorld == .jellyBloom
+                                    ? ArcadeArt.bloomWater(night: level.jellies?.night == true)
+                                    : WaterTextures.gradient())
         gradient.anchorPoint = .zero
         gradient.size = size
         backgroundLayer.addChild(gradient)
@@ -649,11 +935,11 @@ final class GameScene: SKScene {
     /// Small "Level N" label with one pip per level, top-left.
     private func buildLevelIndicator() {
         levelIndicator.removeAllChildren()
-        let text = label("LEVEL \(levelIndex + 1)", fontSize: 13, heavy: true)
+        let text = label("\(arcadeWorld.title.uppercased()) · \(levelIndex + 1)/5", fontSize: 13, heavy: true)
         text.horizontalAlignmentMode = .left
-        text.alpha = 0.75
+        text.alpha = 0.9
         levelIndicator.addChild(text)
-        for i in 0..<T.levels.count {
+        for i in 0..<arcadeWorld.levels.count {
             let pip = SKShapeNode(circleOfRadius: 3.5)
             pip.position = CGPoint(x: text.frame.width + 14 + CGFloat(i) * 11, y: 0)
             pip.fillColor = i <= levelIndex ? SKColor(white: 1, alpha: 0.8) : .clear
@@ -687,13 +973,21 @@ final class GameScene: SKScene {
         pauseMenu.addChild(shade)
 
         let title = label("Paused", fontSize: 36, heavy: true)
-        title.position = CGPoint(x: size.width / 2, y: size.height / 2 + 70)
+        title.position = CGPoint(x: size.width / 2, y: size.height / 2 + 90)
         pauseMenu.addChild(title)
 
         resumeButton = menuButton("Resume", at: CGPoint(x: size.width / 2, y: size.height / 2 + 5))
         restartButton = menuButton("Restart", at: CGPoint(x: size.width / 2, y: size.height / 2 - 60))
         pauseMenu.addChild(resumeButton)
         pauseMenu.addChild(restartButton)
+        addMapButton(to: pauseMenu, y: size.height / 2 - 120, x: size.width / 2)
+    }
+
+    private func addMapButton(to parent: SKNode, y: CGFloat, x: CGFloat = 0) {
+        mapButton.removeFromParent()
+        mapButton = menuButton("Level map", at: CGPoint(x: x, y: y))
+        mapButton.setScale(0.8)
+        parent.addChild(mapButton)
     }
 
     private func menuButton(_ text: String, at position: CGPoint) -> SKShapeNode {
@@ -713,6 +1007,10 @@ final class GameScene: SKScene {
 
         let titleLabel = label(title, fontSize: 40, heavy: true)
         let lineLabels = lines.map { label($0, fontSize: 19, heavy: false) }
+        let maxTextWidth = max(240, (size.width - messageNode.position.x - 28) * 2 - 70)
+        for text in [titleLabel] + lineLabels where text.frame.width > maxTextWidth {
+            text.fontSize *= maxTextWidth / text.frame.width
+        }
         let lineSpacing: CGFloat = 30
         let height = 60 + CGFloat(lines.count) * lineSpacing + 30
         let width = max(titleLabel.frame.width, lineLabels.map(\.frame.width).max() ?? 0) + 70
@@ -750,4 +1048,49 @@ final class GameScene: SKScene {
         label.horizontalAlignmentMode = .center
         return label
     }
+    #if DEBUG
+    // Integration-test fixtures exercise the real scene update and hazard resolution.
+    func debugStart() { startRun() }
+    func debugFallOntoDome() -> Bool {
+        guard let jelly = jellies.first, let layout = level.jellies else { return false }
+        player.position = CGPoint(x: jelly.position.x,
+                                  y: jelly.position.y + layout.radius * 0.65 + player.radius * T.hazardHitboxScale + 5)
+        player.velocity.dy = -180
+        simulate(1.0 / 30)
+        return phase == .playing && player.velocity.dy > T.motion.maxRiseSpeed && bounceRemaining > 0
+    }
+    func debugTouchTentacles(playerVictim: Bool) -> Bool {
+        guard let jelly = jellies.first,
+              let victim = playerVictim ? player : fish.first(where: { !$0.isPlayer && $0.isAlive }) else { return false }
+        victim.position = CGPoint(x: jelly.position.x, y: jelly.position.y - 40)
+        let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
+        updateJellies(0, previousFish: previous)
+        return playerVictim ? phase == .lost : fishByID[victim.id] == nil
+    }
+    func debugPassOppositeJelly() -> Bool {
+        guard let jelly = jellies.first else { return false }
+        let old = CGPoint(x: world.wrap(jelly.position.x + world.width / 2 - 2), y: jelly.position.y - 40)
+        player.position = CGPoint(x: world.wrap(old.x + 4), y: old.y)
+        updateJellies(0, previousFish: [player.id: old])
+        return phase == .playing
+    }
+    func debugPassOppositeUrchin() -> Bool {
+        guard let urchin = urchins.first else { return false }
+        let old = CGPoint(x: world.wrap(urchin.x + world.width / 2 - 2), y: waterBottom + T.urchinRadius)
+        player.position = CGPoint(x: world.wrap(old.x + 4), y: old.y)
+        updateUrchins(previousFish: [player.id: old])
+        return phase == .playing
+    }
+    func debugTouchUrchin() -> Bool {
+        guard let urchin = urchins.first else { return false }
+        player.position = CGPoint(x: urchin.x, y: waterBottom + T.urchinRadius)
+        updateUrchins(previousFish: [player.id: player.position])
+        return phase == .lost
+    }
+    func debugClearLevel() {
+        for f in fish where !f.isPlayer { f.state = .removed }
+        simulate(1.0 / 30)
+    }
+    #endif
+
 }
