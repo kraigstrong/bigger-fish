@@ -51,6 +51,32 @@ enum JellyRules {
         return .none
     }
 
+    /// Predict a curtain crossing and steer toward a safe vertical exit, turning away if too close.
+    /// This is steering only: the same lethal collision rules still apply to all fish.
+    static func avoidance(at p: CGPoint, velocity: CGVector, fishRadius: CGFloat,
+                          domeRadius: CGFloat, tentacleLength: CGFloat,
+                          minY: CGFloat, maxY: CGFloat, zoom: CGFloat) -> CGVector? {
+        let padding = fishRadius * GameTuning.hazardHitboxScale + GameTuning.bloomAvoidancePadding
+        let curtain = CGRect(x: -domeRadius * 0.72 - padding, y: -tentacleLength - padding,
+                             width: domeRadius * 1.44 + padding * 2, height: tentacleLength + padding * 2)
+        let ahead = CGPoint(x: p.x + velocity.dx * GameTuning.bloomAvoidanceLookAhead,
+                            y: p.y + velocity.dy * GameTuning.bloomAvoidanceLookAhead)
+        guard segmentIntersectsRect(from: p, to: ahead, rect: curtain) else { return nil }
+        let above = curtain.maxY + domeRadius * 0.65
+        let below = curtain.minY
+        let canGoBelow = below >= minY
+        let goUp = above <= maxY && (!canGoBelow || abs(above - p.y) <= abs(below - p.y))
+        let targetY = goUp ? above : (canGoBelow ? below : maxY)
+        let riseSpeed = GameTuning.bloomAvoidanceRiseSpeed / zoom
+        let vertical = targetY >= p.y ? riseSpeed : -riseSpeed
+        let exitTime = abs(targetY - p.y) / riseSpeed
+        let horizontalGap = max(0, abs(p.x) - curtain.maxX)
+        let arrivalTime = horizontalGap / max(1, abs(velocity.dx))
+        let horizontal = arrivalTime < exitTime + 0.2
+            ? (p.x >= 0 ? 1 : -1) * max(20, abs(velocity.dx)) : velocity.dx
+        return CGVector(dx: horizontal, dy: vertical)
+    }
+
     private static func segmentIntersectsRect(from a: CGPoint, to b: CGPoint, rect: CGRect) -> Bool {
         var low: CGFloat = 0, high: CGFloat = 1
         for (start, delta, minimum, maximum) in [

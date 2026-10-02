@@ -103,3 +103,28 @@ struct BloomMealTests {
         #expect(!GameRules.needsFood([player], mealsEaten: 0, requiredMeals: 8))
     }
 }
+
+struct BloomAvoidanceTests {
+    private func avoid(_ position: CGPoint, _ velocity: CGVector, radius: CGFloat = 16) -> CGVector? {
+        JellyRules.avoidance(at: position, velocity: velocity, fishRadius: radius,
+                             domeRadius: 36, tentacleLength: 115, minY: -160, maxY: 130, zoom: 1)
+    }
+
+    @Test func seesCrossingAheadButLeavesSafeRoutesAlone() {
+        let steering = avoid(CGPoint(x: -100, y: -40), CGVector(dx: 100, dy: 0))
+        #expect(steering != nil)
+        #expect((steering?.dy ?? 0) > 0)
+        #expect(avoid(CGPoint(x: -100, y: 80), CGVector(dx: 100, dy: 0)) == nil)
+        #expect(avoid(CGPoint(x: -100, y: -40), CGVector(dx: -100, dy: 0)) == nil)
+        #expect(avoid(CGPoint(x: -400, y: -40), CGVector(dx: 100, dy: 0)) == nil)
+    }
+
+    @Test func turnsAwayBeforeCurtainAndCanChooseBelow() {
+        let close = avoid(CGPoint(x: -60, y: -40), CGVector(dx: 100, dy: 0))
+        #expect((close?.dx ?? 0) < 0)
+        let below = avoid(CGPoint(x: -100, y: -110), CGVector(dx: 100, dy: 0))
+        #expect((below?.dy ?? 0) < 0)
+        let giant = avoid(CGPoint(x: -100, y: -40), CGVector(dx: 100, dy: 0), radius: 50)
+        #expect((giant?.dx ?? 0) < 0)
+    }
+}

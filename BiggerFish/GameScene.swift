@@ -49,7 +49,7 @@ final class GameScene: SKScene {
     private var foodRefillCooldown: CGFloat = 0
     private let mealIndicator = SKLabelNode(fontNamed: "AvenirNext-DemiBold")
     private var hasWon: Bool {
-        GameRules.isWin(fish, mealsEaten: mealsEaten, requiredMeals: level.requiredMeals)
+        GameRules.isWin(fish)
     }
     let arcadeWorld: ArcadeWorld
     private var levelIndex: Int
@@ -313,8 +313,8 @@ final class GameScene: SKScene {
             resultPanel = nil
             messageNode.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
             let lines = arcadeWorld == .jellyBloom
-                ? (showsJellyLesson ? ["Bounce the tops.", "Never touch the bottoms.", "Eat \(level.requiredMeals) fish, then clear the reef."]
-                                   : ["Eat \(level.requiredMeals) fish, then clear the reef.", "Bounce domes. Dodge tentacles."])
+                ? (showsJellyLesson ? ["Bounce the tops.", "Never touch the bottoms.", "Be the last fish swimming."]
+                                   : ["Be the last fish swimming.", "Bounce domes. Dodge tentacles."])
                 : ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish."]
             showMessage(arcadeWorld.levelTitles[levelIndex], lines: lines)
             let start = label("Tap anywhere to swim", fontSize: 12, heavy: false)
@@ -498,7 +498,7 @@ final class GameScene: SKScene {
         advanceGrowth(dt)
         if phase == .playing {
             resolveCollisions()
-            if hasWon { win() } else { replenishFood(dt) }
+            if hasWon { win() }
         }
     }
 
@@ -548,6 +548,14 @@ final class GameScene: SKScene {
         let desiredVY = ((f.targetY - f.position.y) * 0.9).clamped(-level.aiVerticalSpeed, level.aiVerticalSpeed)
             + sin(simClock * 1.3 + f.phase) * 8
         var vy = f.velocity.dy + (desiredVY - f.velocity.dy) * min(1, dt * 2)
+
+        if let avoidance = bloomAvoidance(for: f, velocity: CGVector(dx: vx, dy: vy)) {
+            let steer = min(1, dt * T.bloomAvoidanceTurnRate)
+            vx += (avoidance.dx - vx) * steer
+            vy += (avoidance.dy - vy) * steer
+            f.heading = avoidance.dx >= 0 ? 1 : -1
+            f.targetY = (f.position.y + avoidance.dy * T.bloomAvoidanceLookAhead).clamped(minY, maxY)
+        }
 
         var y = f.position.y + vy * dt
         if y < minY { y = minY; vy = abs(vy) * 0.3 }
@@ -690,6 +698,25 @@ final class GameScene: SKScene {
             jelly.node.setScale(zoom)
             jelly.node.animate(time: realClock)
         }
+    }
+
+    /// Only called on the ordinary drift path. Chases and panic fleeing retain baiting risk.
+    private func bloomAvoidance(for f: Fish, velocity: CGVector) -> CGVector? {
+        guard let layout = level.jellies else { return nil }
+        let nearby = jellies.sorted {
+            world.distance(f.position, $0.position) < world.distance(f.position, $1.position)
+        }
+        for jelly in nearby {
+            let relative = CGPoint(x: world.delta(from: jelly.position.x, to: f.position.x),
+                                   y: f.position.y - jelly.position.y)
+            if let velocity = JellyRules.avoidance(at: relative, velocity: velocity, fishRadius: f.radius,
+                                                  domeRadius: layout.radius, tentacleLength: layout.tentacleLength,
+                                                  minY: waterBottom + f.radius - jelly.position.y,
+                                                  maxY: waterTop - f.radius - jelly.position.y, zoom: zoom) {
+                return velocity
+            }
+        }
+        return nil
     }
 
     /// Bloom gets a limited commitment chase and short-range fleeing; Shallow Reef keeps its drift AI.
@@ -1015,6 +1042,7 @@ final class GameScene: SKScene {
             pip.lineWidth = 1
             levelIndicator.addChild(pip)
         }
+        // Retained for a later endless-mode HUD; campaign uses last-fish-alive wins.
         if level.requiredMeals > 0 {
             mealIndicator.fontSize = 13
             mealIndicator.fontColor = .white
@@ -1178,6 +1206,35 @@ final class GameScene: SKScene {
         let frame = panel.controls.first { $0.action == action }?.frame
         panel.handleTap(at: frame.map { CGPoint(x: $0.midX, y: $0.midY) } ?? CGPoint(x: 0, y: 80))
     }
+    func debugApproachJelly(chasing: Bool) -> Bool {
+        guard let jelly = jellies.first else { return false }
+        for f in fish.filter({ !$0.isPlayer }) { removeByTentacles(f) }
+        jellies = [jelly]
+        urchins.removeAll()
+        player.position = CGPoint(x: world.wrap(jelly.position.x + 130), y: jelly.position.y - 40)
+        let swimmer = Fish(id: nextFishID, isPlayer: false,
+                           position: CGPoint(x: world.wrap(jelly.position.x - 100), y: jelly.position.y - 40),
+                           radius: 28)
+        nextFishID += 1
+        swimmer.heading = 1
+        swimmer.cruiseSpeed = 100
+        swimmer.velocity = CGVector(dx: 100, dy: 0)
+        swimmer.targetY = swimmer.position.y
+        swimmer.turnTimer = 10
+        swimmer.retargetTimer = 10
+        add(swimmer, style: .player)
+        // Start the baiting fixture already committed; warning/reaction uses ordinary steering.
+        brains[swimmer.id] = BloomBrain(aggressive: chasing,
+                                       chaseRemaining: chasing ? T.bloomChaseSeconds : 0)
+        for _ in 0..<90 {
+            guard swimmer.isAlive else { break }
+            let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
+            moveAI(swimmer, 1.0 / 30)
+            updateJellies(0, previousFish: previous)
+        }
+        return swimmer.isAlive
+    }
+    var debugMealHUDVisible: Bool { mealIndicator.parent != nil && !mealIndicator.isHidden }
     var debugMealsEaten: Int { mealsEaten }
     var debugEdibleCount: Int {
         fish.filter { !$0.isPlayer && $0.isAlive && GameRules.encounter(player.radius, $0.radius) == .firstEatsSecond }.count
@@ -1194,7 +1251,6 @@ final class GameScene: SKScene {
         advanceSwallows(1)
     }
     func debugClearLevel() {
-        while mealsEaten < level.requiredMeals { debugEatMeal() }
         for f in fish where !f.isPlayer { f.state = .removed }
         simulate(1.0 / 30)
     }

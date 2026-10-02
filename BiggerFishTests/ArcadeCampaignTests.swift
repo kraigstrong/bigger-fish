@@ -110,25 +110,25 @@ struct ArcadeSceneTests {
         return (scene, view)
     }
 
-    @Test func gauntletCannotClearFromHazardsAloneAndReplenishesFood() {
+    @Test func campaignWinsWithoutMealQuotaOrReplenishment() {
         let (scene, view) = scene(level: 4)
         var clears = 0
         scene.onClear = { _, _ in clears += 1 }
-        scene.debugHazardWipeout()
-        #expect(clears == 0)
-        #expect(scene.debugMealsEaten == 0)
-        #expect(scene.debugResultTitles.isEmpty)
-        #expect(scene.debugEdibleCount == GameTuning.bloomFoodRefillCount)
-        for _ in 0..<7 { scene.debugEatMeal() }
-        #expect(scene.debugMealsEaten == 7)
-        #expect(clears == 0)
-        scene.debugEatMeal()
+        #expect(!scene.debugMealHUDVisible)
         scene.debugHazardWipeout()
         #expect(clears == 1)
-        #expect(scene.debugMealsEaten == 8)
-        scene.debugTapResult(.playAgain)
         #expect(scene.debugMealsEaten == 0)
+        #expect(scene.debugEdibleCount == 0)
+        #expect(scene.debugResultTitles == ["Play again", "Levels"])
         withExtendedLifetime(view) {}
+    }
+
+    @Test func ordinarySwimmersAvoidCurtainsButChasesCanBeBaited() {
+        let (ordinary, ordinaryView) = scene(level: 3)
+        #expect(ordinary.debugApproachJelly(chasing: false))
+        let (chaser, chaserView) = scene(level: 3)
+        #expect(!chaser.debugApproachJelly(chasing: true))
+        withExtendedLifetime((ordinaryView, chaserView)) {}
     }
 
     @Test func domeContactActuallyImpulsesThePlayer() {

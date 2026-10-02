@@ -49,7 +49,7 @@ enum GameRules {
         return mealsEaten < requiredMeals || !others.isEmpty
     }
 
-    /// Bloom also requires completed player meals; hazard and AI kills earn no credit.
+    /// Campaign wins use the default last-fish-alive rule. Optional meal goals are dormant.
     static func isWin(_ fish: [Fish], mealsEaten: Int = 0, requiredMeals: Int = 0) -> Bool {
         guard mealsEaten >= requiredMeals else { return false }
         guard let player = fish.first(where: \.isPlayer), player.isAlive else { return false }
