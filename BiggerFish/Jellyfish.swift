@@ -28,20 +28,23 @@ struct JellyLayout {
 /// Stable per-level obstacles, with room between bells and a clear opening.
 enum JellyPlacement {
     static func origins(layout: JellyLayout, screenWidth: CGFloat, waterBottom: CGFloat,
-                        waterTop: CGFloat, seed: UInt64) -> [CGPoint] {
+                        waterTop: CGFloat, seed: UInt64, variation: CGFloat = 1) -> [CGPoint] {
         guard layout.count > 0 else { return [] }
         var rng = SeededGenerator(seed: seed)
         let first = screenWidth * CGFloat.random(in: GameTuning.bloomJellyOpeningScreens, using: &rng)
         let last = screenWidth * CGFloat.random(in: GameTuning.bloomJellyLastScreens, using: &rng)
         let gaps = max(0, layout.count - 1)
         let minimum = layout.radius * 2 + layout.sway * 2 + GameTuning.bloomJellySpacingPadding
-        let weights = (0..<gaps).map { _ in CGFloat.random(in: GameTuning.bloomJellyGapWeight, using: &rng) }
+        let strength = min(1, max(0, variation))
+        let weights = (0..<gaps).map { _ in
+            1 + (CGFloat.random(in: GameTuning.bloomJellyGapWeight, using: &rng) - 1) * strength
+        }
         let weightSum = weights.reduce(0, +)
         let extra = max(0, last - first - CGFloat(gaps) * minimum)
         var x = first
         return (0..<layout.count).map { i in
             if i > 0 { x += minimum + extra * weights[i - 1] / weightSum }
-            let fraction = CGFloat.random(in: GameTuning.bloomJellyHeightRange, using: &rng)
+            let fraction = 0.52 + (CGFloat.random(in: GameTuning.bloomJellyHeightRange, using: &rng) - 0.52) * strength
             let floor = waterBottom + layout.tentacleLength
                 + GameRules.bloomFloorLaneClearance(fishRadius: GameTuning.baseRadius)
             return CGPoint(x: x, y: max(floor, waterBottom + (waterTop - waterBottom) * fraction))

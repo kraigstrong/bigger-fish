@@ -9,11 +9,16 @@ struct ContentView: View {
     #endif
     @State private var selectedWorld: ArcadeWorld?
     @State private var scene: GameScene?
+    #if DEBUG
+    @StateObject private var tuningStore = ArcadeTuningStore()
+    @State private var showsTuning = false
+    #endif
 
     var body: some View {
         Group {
             if let scene {
                 SpriteView(scene: scene, preferredFramesPerSecond: 120, options: [.ignoresSiblingOrder])
+                    .id(ObjectIdentifier(scene))
                     .ignoresSafeArea()
             } else if let world = selectedWorld {
                 ArcadeLevelMap(world: world, progress: progress,
@@ -22,6 +27,23 @@ struct ContentView: View {
                 ArcadeWorldMap(progress: progress, onSelect: { selectedWorld = $0 })
             }
         }
+        #if DEBUG
+        .overlay(alignment: .bottomTrailing) {
+            Button("Tuning", systemImage: "slider.horizontal.3") {
+                scene?.debugPauseForTuning()
+                showsTuning = true
+            }
+            .font(.caption.bold()).buttonStyle(.borderedProminent)
+            .padding(.trailing, 12).padding(.bottom, 4)
+        }
+        .sheet(isPresented: $showsTuning) {
+            ArcadeTuningPanel(store: tuningStore, world: scene?.arcadeWorld ?? selectedWorld ?? .jellyBloom,
+                              index: scene?.debugLevelIndex ?? 1) { world, index in
+                selectedWorld = world
+                play(world, index: index, practice: true)
+            }
+        }
+        #endif
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .onAppear {
@@ -35,17 +57,30 @@ struct ContentView: View {
         }
     }
 
-    private func play(_ world: ArcadeWorld, index: Int) {
+    private func play(_ world: ArcadeWorld, index: Int, practice: Bool = false) {
         #if DEBUG
-        guard progress.isOpen(world, index) || ArcadePlaytest.selection != nil else { return }
+        guard practice || progress.isOpen(world, index) || ArcadePlaytest.selection != nil else { return }
         #else
         guard progress.isOpen(world, index) else { return }
         #endif
         let game = GameScene(size: CGSize(width: 852, height: 393), world: world, levelIndex: index,
                              showsJellyLesson: !progress.save.hasSeenJellyLesson)
         game.scaleMode = .resizeFill
-        game.onClear = { index, seconds in progress.clear(world, index, seconds: seconds) }
-        game.onJellyLesson = { progress.sawJellyLesson() }
+        #if DEBUG
+        game.debugPracticeRun = practice
+        #endif
+        game.onClear = { [weak game] index, seconds in
+            #if DEBUG
+            guard let game, !game.debugPracticeRun, !game.debugHasTuningOverride else { return }
+            #endif
+            progress.clear(world, index, seconds: seconds)
+        }
+        game.onJellyLesson = { [weak game] in
+            #if DEBUG
+            guard let game, !game.debugPracticeRun, !game.debugHasTuningOverride else { return }
+            #endif
+            progress.sawJellyLesson()
+        }
         game.onExit = { scene = nil }
         scene = game
     }

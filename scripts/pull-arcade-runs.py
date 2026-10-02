@@ -66,6 +66,8 @@ def main():
                             "--domain-type", "appDataContainer", "--domain-identifier", BUNDLE_ID,
                             "--source", "Documents/ArcadeRuns", "--destination", str(args.output.resolve())], check=True)
     summarize(args.output)
+    subprocess.run(["python3", str(Path(__file__).with_name("analyze-arcade-runs.py")),
+                    "--input", str(args.output), "--output", str(args.output / "analysis")], check=True)
 
 
 if __name__ == "__main__":

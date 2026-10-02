@@ -46,7 +46,49 @@ final class GameScene: SKScene {
     }
     let arcadeWorld: ArcadeWorld
     private var levelIndex: Int
-    private var level: Level { arcadeWorld.levels[levelIndex] }
+    private var level: Level {
+        let base = arcadeWorld.levels[levelIndex]
+        #if DEBUG
+        return activeDebugTuning?.applying(to: base) ?? base
+        #else
+        return base
+        #endif
+    }
+    private var bounceSpeed: CGFloat {
+        #if DEBUG
+        return activeDebugTuning.map { CGFloat($0.bounceSpeed) } ?? T.jellyBounceSpeed
+        #else
+        return T.jellyBounceSpeed
+        #endif
+    }
+    private var pocketReleaseSeconds: CGFloat {
+        #if DEBUG
+        return activeDebugTuning.map { CGFloat($0.releaseSeconds) } ?? T.bloomFoodPocketReleaseSeconds
+        #else
+        return T.bloomFoodPocketReleaseSeconds
+        #endif
+    }
+    private var unevenJellies: Bool {
+        #if DEBUG
+        return activeDebugTuning?.unevenJellies ?? level.roamingFoodChain
+        #else
+        return level.roamingFoodChain
+        #endif
+    }
+    private var layoutVariation: CGFloat {
+        #if DEBUG
+        return activeDebugTuning.map { CGFloat($0.layoutVariation) } ?? 1
+        #else
+        return 1
+        #endif
+    }
+    private var seedOffset: UInt64 {
+        #if DEBUG
+        return UInt64(activeDebugTuning?.seedOffset ?? 0)
+        #else
+        return 0
+        #endif
+    }
     private var isFinalLevel: Bool { levelIndex == arcadeWorld.levels.count - 1 }
     var onClear: ((Int, Double) -> Void)?
     var onExit: (() -> Void)?
@@ -62,6 +104,10 @@ final class GameScene: SKScene {
     private var mapButton = SKShapeNode()
     private var resultPanel: ArcadeResultPanel?
     #if DEBUG
+    private var activeDebugTuning: ArcadeTuning?
+    var debugPracticeRun = false
+    var debugHasTuningOverride: Bool { activeDebugTuning != nil }
+    func debugPauseForTuning() { if phase == .playing { pauseRun() } }
     private let previewResult = ArcadePlaytest.resultPreview
     private var didPreviewResult = false
     private var runRecorder: ArcadeRunRecorder?
@@ -190,6 +236,7 @@ final class GameScene: SKScene {
     private func resetGame(startPlaying: Bool) {
         #if DEBUG
         finishRunRecording("restart")
+        activeDebugTuning = ArcadeTuningStore.sceneOverride(world: arcadeWorld, index: levelIndex)
         #endif
         for node in nodes.values { node.removeFromParent() }
         nodes.removeAll()
@@ -218,7 +265,7 @@ final class GameScene: SKScene {
         zoom = 1
 
         world = WrappedWorld(width: size.width * T.worldScreens)
-        rng = SeededGenerator(seed: T.spawnSeed &+ UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)))
+        rng = SeededGenerator(seed: T.spawnSeed &+ UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) + seedOffset)
         spawnJellies()
         spawnEcosystem()
         lastCameraX = player.position.x
@@ -603,7 +650,7 @@ final class GameScene: SKScene {
         bounceCooldown = max(0, bounceCooldown - dt)
         var motion = T.motion
         if bounceRemaining > 0 {
-            motion.maxRiseSpeed = T.jellyBounceSpeed
+            motion.maxRiseSpeed = bounceSpeed
             motion.fallAcceleration *= 0.35
         }
         let (y, vy) = PlayerMotion.step(
@@ -624,7 +671,7 @@ final class GameScene: SKScene {
     }
 
     private func patrolHome(for id: Int) -> CGPoint? {
-        if level.roamingFoodChain && simClock >= T.bloomFoodPocketReleaseSeconds { return nil }
+        if level.roamingFoodChain && simClock >= pocketReleaseSeconds { return nil }
         return sidePocketHomes[id] ?? foodHomes[id]
     }
 
@@ -678,8 +725,8 @@ final class GameScene: SKScene {
 
     private func spawnJellies() {
         guard let layout = level.jellies else { return }
-        let scattered = level.roamingFoodChain ? JellyPlacement.origins(layout: layout, screenWidth: size.width,
-            waterBottom: waterBottom, waterTop: waterTop, seed: T.spawnSeed + UInt64(levelIndex + 1_000)) : []
+        let scattered = unevenJellies ? JellyPlacement.origins(layout: layout, screenWidth: size.width,
+            waterBottom: waterBottom, waterTop: waterTop, seed: T.spawnSeed + UInt64(levelIndex + 1_000) + seedOffset, variation: layoutVariation) : []
         for i in 0..<layout.count {
             // A safe opening, then alternating bell heights create a route through the field.
             let x = size.width * 0.85 + CGFloat(i) * (world.width - size.width) / CGFloat(layout.count)
@@ -756,7 +803,7 @@ final class GameScene: SKScene {
                     let remaining = JellyRules.remainingBounceTime(at: p, previous: previous,
                                                                   fishRadius: f.radius,
                                                                   domeRadius: layout.radius, dt: dt)
-                    f.velocity.dy = T.jellyBounceSpeed / zoom
+                    f.velocity.dy = bounceSpeed / zoom
                     let contactY = jelly.position.y + surface + f.radius * T.hazardHitboxScale + 2
                     f.position.y = min(waterTop - f.radius * (f.isPlayer ? 0.95 : 1),
                                        contactY + f.velocity.dy * remaining)
@@ -1257,13 +1304,17 @@ final class GameScene: SKScene {
         recordRunEvent("start", fields: ["schema": 1, "world": arcadeWorld.rawValue, "level": levelIndex + 1,
             "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
-            "configuration": ["spawnSeed": String(T.spawnSeed + UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0))),
+            "configuration": ["spawnSeed": String(T.spawnSeed + UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) + seedOffset),
                 "aiCanEat": level.aiCanEat, "absorptionEfficiency": level.absorptionEfficiency,
                 "roamingFoodChain": level.roamingFoodChain,
-                "foodPocketReleaseSeconds": level.roamingFoodChain ? T.bloomFoodPocketReleaseSeconds : 0,
-                "jellyLayoutSeed": String(T.spawnSeed + UInt64(levelIndex + 1_000)),
+                "foodPocketReleaseSeconds": level.roamingFoodChain ? pocketReleaseSeconds : 0,
+                "jellyLayoutSeed": String(T.spawnSeed + UInt64(levelIndex + 1_000) + seedOffset),
+                "unevenJellies": unevenJellies, "layoutVariation": layoutVariation,
+                "debugTuningOverride": activeDebugTuning != nil, "practiceRun": debugPracticeRun,
+                "configuredFishCount": level.spawnGroups.reduce(0) { $0 + $1.count },
+                "jellyCount": level.jellies?.count ?? 0,
                 "screenCrossSeconds": level.screenCrossSeconds, "sidePocketExperiment": level.sidePocketExperiment,
-                "bounceSpeed": T.jellyBounceSpeed, "jellyRadius": level.jellies?.radius ?? 0,
+                "bounceSpeed": bounceSpeed, "jellyRadius": level.jellies?.radius ?? 0,
                 "tentacleLength": level.jellies?.tentacleLength ?? 0,
                 "jellySway": level.jellies?.sway ?? 0, "jellyHeights": level.jellies?.heights ?? [],
                 "aiSpeedMin": level.aiSpeedRange.lowerBound, "aiSpeedMax": level.aiSpeedRange.upperBound,

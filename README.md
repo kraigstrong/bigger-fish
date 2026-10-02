@@ -141,3 +141,39 @@ fish positions are wrapped world coordinates. Recordings stream on a background 
 periodically and on pause, and keep the latest 30 files. An interrupted run remains readable;
 an abrupt process kill may lose the most recent queued records. Nothing is uploaded automatically.
 Add `-arcadeDisableRunRecording` to Xcode's launch arguments to disable recording temporarily.
+
+
+### Tune on your phone (Debug only)
+
+Tap **Tuning** on a map or during a run. During play this pauses and flushes the recording.
+Choose a world/level, edit fish counts and size ranges, growth, AI/player speed, food-pocket
+release, jelly count/radius/tentacles, bounce strength, or layout/seed variation. **Apply & Play**
+saves a per-level override and starts a fresh practice run immediately, without rebuilding.
+Practice runs and overridden levels do not write campaign progress. Closing the panel leaves
+an existing run paused. Overrides persist across launches and restarts.
+
+Save named presets for comparisons. **Load shipped settings** loads the checked-in configuration;
+**Load before-roaming experiment** restores the prior slow AI, bounded food pockets, and authored
+jelly layout. Those buttons edit the draft; Apply saves it. **Remove override for this level**
+clears its saved settings and starts a practice run with the checked-in configuration.
+Presets are local, hold at most ten names, and can be applied to another level. Level geometry and
+starting fish cannot always fit extreme combinations; the run analysis flags spawn shortfalls.
+These tools and overrides are absent in Release/TestFlight.
+
+### Automatic run diagnostics
+
+Pulling recordings also writes `build/arcade-runs/analysis/report.md` and `metrics.json`.
+For already pulled files, run `python3 scripts/analyze-arcade-runs.py`.
+The report groups identical recorded configurations and measures completed close-size meals,
+time with larger fish, nearby threats, gaps between meals, fish-cleanup tails, early deaths,
+spawn shortfalls, and growth stalls. Simulation time excludes pauses and accounts for slow motion.
+
+The growth check repeatedly consumes edible fish using the game's area-growth and near-equal
+rules. It optimistically ignores geometry and future AI competition and checks stable snapshots
+without active swallows. If it still cannot eat all remaining fish, the current food chain needs
+an AI/hazard change to progress. This does not prove the whole level impossible: hazards can kill
+fish. Threat/cleanup metrics concern fish danger, not jelly danger. Thresholds such as five-second
+early deaths and eight-second cleanup tails are review flags, not a validated universal fun score.
+Compare them with player feedback, especially the favorite Shallow Reef level 4 recordings.
+Diagnostics are offline and do not alter gameplay. New recordings include the effective tuning
+and both seeds, so changes on the phone remain attributable.
