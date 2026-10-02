@@ -179,6 +179,10 @@ Compare them with player feedback, especially the favorite Shallow Reef level 4 
 Diagnostics are offline and do not alter gameplay. New recordings include the effective tuning
 and both seeds, so changes on the phone remain attributable.
 
+Player encounters within the 1% near-equal radius band favor the player, including a
+fractionally larger opponent. NPC ties still bump apart. New run headers include
+`playerWinsTies`; the offline analyzer preserves the old rule for older recordings.
+
 ### Simulate food races locally (Debug only)
 
 The five Jelly Bloom profiles were selected with 1,642 real-scene rollouts. Read

@@ -37,7 +37,7 @@ enum GameTuning {
 
     /// Points of radius for a normalized size of 1.0 (the player's starting size).
     static let baseRadius: CGFloat = 16
-    /// Radii differing by less than this fraction bump apart instead of eating.
+    /// Within this fraction, player encounters favor the player; NPC encounters bump apart.
     static let nearEqualThreshold: CGFloat = 0.01
     /// Collision distance = (rA + rB) * collisionScale. Bodies are 1.35r long and 0.95r tall.
     static let collisionScale: CGFloat = 1.05

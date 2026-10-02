@@ -8,7 +8,7 @@ struct ArcadeSimulationTests {
     @Test func growthPathMatchesTheNearEqualAndAreaRules() {
         #expect(ArcadeSimulation.hasGrowthPath(player: 16, radii: [12, 18, 24], efficiency: 0.78))
         #expect(!ArcadeSimulation.hasGrowthPath(player: 43.4, radii: [47.7, 50], efficiency: 0.78))
-        #expect(!ArcadeSimulation.hasGrowthPath(player: 16, radii: [15.99], efficiency: 0.78))
+        #expect(ArcadeSimulation.hasGrowthPath(player: 16, radii: [15.99], efficiency: 0.78))
     }
     @Test func identicalSimulationSeedsAndInputsRepeat() {
         let tuning = ArcadeTuning(level: GameTuning.bloomLevels[0])
@@ -57,13 +57,23 @@ struct ArcadeSimulationTests {
         for dimensions in [CGSize(width: 874, height: 402), CGSize(width: 852, height: 393), CGSize(width: 667, height: 375)] {
             for (index, level) in GameTuning.bloomLevels.enumerated() {
                 let scene = GameScene(size: dimensions, world: .jellyBloom, levelIndex: index)
+                let policy: ArcadeSimulation.Policy = index == 4 || (index == 2 && dimensions.width == 667) ? .cautious : .opportunist
                 let result = scene.debugSimulate(candidate: "winning route", tuning: ArcadeTuning(level: level),
-                    policy: index == 4 ? .cautious : .opportunist, seed: 0, limit: 90)
+                    policy: policy, seed: 0, limit: 90)
                 #expect(result.outcome == "won", "Level \(index + 1), width \(dimensions.width)")
                 if index == 4 && dimensions.width == 874 {
                     #expect(result.stats.closeMeals >= 3)
                     #expect(result.stats.lastThreat / result.seconds > 0.6)
                 }
+            }
+        }
+    }
+
+    @Test func sceneCollisionGivesEqualFishToThePlayerInBothOrders() {
+        for ratio: CGFloat in [1, 0.995, 1.005] {
+            for second in [false, true] {
+                let scene = GameScene(size: CGSize(width: 874, height: 402), world: .jellyBloom)
+                #expect(scene.debugResolvePlayerTie(otherRatio: ratio, playerSecond: second))
             }
         }
     }

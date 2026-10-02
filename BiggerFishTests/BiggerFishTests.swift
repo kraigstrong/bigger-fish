@@ -17,6 +17,17 @@ struct SizeRuleTests {
         #expect(GameRules.encounter(98.9, 100) == .secondEatsFirst)
     }
 
+    @Test func nearEqualEncountersFavorThePlayerInEitherOrder() {
+        let pairs: [(CGFloat, CGFloat)] = [(10, 10), (100, 99.5), (99.5, 100)]
+        for (player, other) in pairs {
+            #expect(GameRules.encounter(player, other, firstIsPlayer: true) == .firstEatsSecond)
+            #expect(GameRules.encounter(other, player, secondIsPlayer: true) == .secondEatsFirst)
+        }
+        #expect(GameRules.playerEncounter(98.9, 100) == .secondEatsFirst)
+        #expect(GameRules.playerEncounter(100, 98.9) == .firstEatsSecond)
+        #expect(GameRules.playerEncounter(0, 0) == .tooClose)
+    }
+
     @Test func growthConservesArea() {
         #expect(abs(GameRules.grownRadius(predator: 3, prey: 4, efficiency: 1) - 5) < 1e-9)
         #expect(abs(GameRules.grownRadius(predator: 10, prey: 10, efficiency: 0.9) - 190.0.squareRoot()) < 1e-9)

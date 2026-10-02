@@ -11,12 +11,17 @@ NEAR_EQUAL = 0.01
 CLOSE_MEAL = 0.80
 
 
-def edible(predator, prey):
+def edible(predator, prey, player_wins_ties=False):
     # Matches GameRules' symmetric near-equal bump interval.
-    return predator > prey and abs(predator - prey) / max(predator, prey) >= NEAR_EQUAL
+    big = max(predator, prey)
+    if big <= 0:
+        return False
+    if abs(predator - prey) / big < NEAR_EQUAL:
+        return player_wins_ties
+    return predator > prey
 
 
-def growth_path(player_radius, others, efficiency):
+def growth_path(player_radius, others, efficiency, player_wins_ties=False):
     """Optimistic edible chain: ignores geometry, movement and future AI meals.
 
     If even this chain stalls, eating the current fish cannot complete the level.
@@ -25,7 +30,7 @@ def growth_path(player_radius, others, efficiency):
     """
     radius = player_radius
     remaining = sorted(others)
-    while remaining and edible(radius, remaining[0]):
+    while remaining and edible(radius, remaining[0], player_wins_ties):
         radius = math.sqrt(radius * radius + efficiency * remaining.pop(0) ** 2)
     return radius, remaining
 
@@ -77,7 +82,7 @@ def analyze(records):
         stable = all(f['state'] == 'swimming' for f in snapshot['fish'])
         if stable and ai:
             ceiling, remaining = growth_path(max(player['radius'], player['targetRadius']),
-                [max(f['radius'], f['targetRadius']) for f in ai], config.get('absorptionEfficiency', 0.78))
+                [max(f['radius'], f['targetRadius']) for f in ai], config.get('absorptionEfficiency', 0.78), config.get('playerWinsTies', False))
             if remaining:
                 if deadlock_start is None:
                     deadlock_start = time
@@ -96,7 +101,7 @@ def analyze(records):
         initial_player = next((f for f in initial if f.get('player')), None)
         if initial_player and all(f['state'] == 'swimming' for f in initial):
             _, blocked = growth_path(initial_player['radius'],
-                [f['radius'] for f in initial if not f.get('player')], config.get('absorptionEfficiency', 0.78))
+                [f['radius'] for f in initial if not f.get('player')], config.get('absorptionEfficiency', 0.78), config.get('playerWinsTies', False))
             initial_path = not blocked
             if blocked:
                 alerts.append('starting ecosystem has no edible growth path')

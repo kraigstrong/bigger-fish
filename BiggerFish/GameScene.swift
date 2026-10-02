@@ -985,10 +985,10 @@ final class GameScene: SKScene {
                 guard dx * dx + dy * dy < reach * reach else { continue }
 
                 #if DEBUG
-                if a.isPlayer && !simulationCanEat(b) && GameRules.encounter(a.radius, b.radius) == .firstEatsSecond { continue }
-                if b.isPlayer && !simulationCanEat(a) && GameRules.encounter(b.radius, a.radius) == .firstEatsSecond { continue }
+                if a.isPlayer && !simulationCanEat(b) && GameRules.playerEncounter(a.radius, b.radius) == .firstEatsSecond { continue }
+                if b.isPlayer && !simulationCanEat(a) && GameRules.playerEncounter(b.radius, a.radius) == .firstEatsSecond { continue }
                 #endif
-                switch GameRules.encounter(a.radius, b.radius) {
+                switch GameRules.encounter(a.radius, b.radius, firstIsPlayer: a.isPlayer, secondIsPlayer: b.isPlayer) {
                 case .firstEatsSecond: beginSwallow(predator: a, prey: b)
                 case .secondEatsFirst: beginSwallow(predator: b, prey: a)
                 case .tooClose: bump(a, b, dx: dx, dy: dy, reach: reach)
@@ -1112,7 +1112,7 @@ final class GameScene: SKScene {
                 simulationStats.mealFishIDs.append(prey.id)
                 if s.ratio >= T.closeCallRatio { simulationStats.closeMeals += 1 }
                 if fish.contains(where: { !$0.isPlayer && $0.id != prey.id && $0.state == .swimming &&
-                    GameRules.encounter(predator.radius, $0.radius) == .secondEatsFirst &&
+                    GameRules.playerEncounter(predator.radius, $0.radius) == .secondEatsFirst &&
                     world.distance(predator.position, $0.position) - predator.radius - $0.radius < size.width * 0.20 / zoom }) {
                     simulationStats.contestedMeals += 1
                 }
@@ -1384,7 +1384,7 @@ final class GameScene: SKScene {
             "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
             "configuration": ["spawnSeed": String(T.spawnSeed + UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) + seedOffset),
-                "aiCanEat": level.aiCanEat, "absorptionEfficiency": level.absorptionEfficiency,
+                "aiCanEat": level.aiCanEat, "playerWinsTies": true, "absorptionEfficiency": level.absorptionEfficiency,
                 "roamingFoodChain": level.roamingFoodChain,
                 "foodPocketReleaseSeconds": level.roamingFoodChain ? pocketReleaseSeconds : 0,
                 "jellyLayoutSeed": String(T.spawnSeed + UInt64(levelIndex + 1_000) + seedOffset),
@@ -1473,7 +1473,7 @@ final class GameScene: SKScene {
             simulationLaps += max(0, world.delta(from: oldX, to: player.position.x)) / world.width
             if simClock >= nextSample && phase == .playing {
                 let others = fish.filter { !$0.isPlayer && $0.state == .swimming }
-                let threats = others.filter { GameRules.encounter(player.radius, $0.radius) == .secondEatsFirst }
+                let threats = others.filter { GameRules.playerEncounter(player.radius, $0.radius) == .secondEatsFirst }
                 if !threats.isEmpty {
                     simulationStats.threatSeconds += 0.2
                     simulationStats.lastThreat = Double(simClock)
@@ -1610,7 +1610,7 @@ final class GameScene: SKScene {
         advanceSwallows(1)
         advanceGrowth(T.growDuration)
         return (respectedGrace, fishByID[prey.id] == nil &&
-                GameRules.encounter(player.radius, predator.radius) == .secondEatsFirst && mealsEaten == 0)
+                GameRules.playerEncounter(player.radius, predator.radius) == .secondEatsFirst && mealsEaten == 0)
     }
     var debugSidePocketPlacement: (food: [CGPoint], predators: [CGPoint], safe: Bool) {
         guard level.sidePocketExperiment, let layout = level.jellies else { return ([], [], true) }
@@ -1644,12 +1644,24 @@ final class GameScene: SKScene {
     var debugMealHUDVisible: Bool { mealIndicator.parent != nil && !mealIndicator.isHidden }
     var debugMealsEaten: Int { mealsEaten }
     var debugEdibleCount: Int {
-        fish.filter { !$0.isPlayer && $0.isAlive && GameRules.encounter(player.radius, $0.radius) == .firstEatsSecond }.count
+        fish.filter { !$0.isPlayer && $0.isAlive && GameRules.playerEncounter(player.radius, $0.radius) == .firstEatsSecond }.count
     }
     func debugHazardWipeout() {
         for f in fish.filter({ !$0.isPlayer }) { removeByTentacles(f) }
         simulate(1.0 / 30)
     }
+    func debugResolvePlayerTie(otherRatio: CGFloat, playerSecond: Bool) -> Bool {
+        resetGame(startPlaying: true)
+        for f in fish where !f.isPlayer { f.state = .removed }
+        let other = Fish(id: nextFishID, isPlayer: false, position: player.position,
+                         radius: player.radius * otherRatio)
+        nextFishID += 1
+        add(other, style: .player)
+        if playerSecond { fish.reverse() }
+        resolveCollisions()
+        return player.state == .swallowing(preyID: other.id) && other.state == .beingSwallowed(predatorID: player.id)
+    }
+
     func debugEatMeal() {
         let prey = Fish(id: nextFishID, isPlayer: false, position: player.position, radius: player.radius * 0.5)
         nextFishID += 1

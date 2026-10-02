@@ -1,6 +1,8 @@
 # Jelly Bloom: five-level food-race study
 
-The campaign now has a deliberate recovery curve. Level 1 remains the simple bouncing introduction. Level 2 gives time to miss food and recover. Levels 3 and 4 demand earlier feeding. Level 5 has four timely first-pass catches in the demonstrated winning route, with near-equal meals and dangerous competitors persisting late into the run.
+> Historical baseline: the 1,642-rollout study below used the original rule where every near-equal encounter bumped apart. The current game awards player ties to the player; NPC ties still bump. See [the player-tie follow-up](jelly-bloom-player-ties.md) for the updated growth boundary and validation. The baseline numbers below are retained for comparison.
+
+The initial campaign established a deliberate recovery curve. Level 1 remains the simple bouncing introduction. Level 2 gives time to miss food and recover. Levels 3 and 4 demand earlier feeding. Level 5 has four timely first-pass catches in the demonstrated winning route, with near-equal meals and dangerous competitors persisting late into the run.
 
 AI-on-AI eating remains enabled. There is no chasing, fleeing, food replenishment, automatic loss for a blocked growth path, or new objective. Tentacles remain lethal, uneven layouts repeat on retries, and the lower passage expands with player growth. Math Reef and FishKit were not changed.
 

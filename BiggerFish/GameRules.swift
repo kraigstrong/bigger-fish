@@ -14,12 +14,23 @@ enum GameRules {
     static func encounter(
         _ a: CGFloat,
         _ b: CGFloat,
+        firstIsPlayer: Bool = false,
+        secondIsPlayer: Bool = false,
         nearEqualThreshold: CGFloat = GameTuning.nearEqualThreshold
     ) -> Encounter {
         let big = max(a, b)
         let small = min(a, b)
-        guard big > 0, (big - small) / big >= nearEqualThreshold else { return .tooClose }
+        guard big > 0 else { return .tooClose }
+        if (big - small) / big < nearEqualThreshold {
+            if firstIsPlayer != secondIsPlayer { return firstIsPlayer ? .firstEatsSecond : .secondEatsFirst }
+            return .tooClose
+        }
         return a > b ? .firstEatsSecond : .secondEatsFirst
+    }
+
+    /// The visible near-equal band favors the player; NPC ties still bump apart.
+    static func playerEncounter(_ player: CGFloat, _ other: CGFloat) -> Encounter {
+        encounter(player, other, firstIsPlayer: true)
     }
 
     /// Area-conserving growth: the predator gains `efficiency` of the prey's area.
@@ -43,7 +54,7 @@ enum GameRules {
         guard requiredMeals > 0,
               let player = fish.first(where: \.isPlayer), player.state == .swimming else { return false }
         let others = fish.filter { !$0.isPlayer && $0.state != .removed }
-        guard !others.contains(where: { encounter(player.radius, $0.radius) == .firstEatsSecond }) else { return false }
+        guard !others.contains(where: { playerEncounter(player.radius, $0.radius) == .firstEatsSecond }) else { return false }
         return mealsEaten < requiredMeals || !others.isEmpty
     }
 

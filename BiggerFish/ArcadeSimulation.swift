@@ -68,7 +68,7 @@ enum ArcadeSimulation {
     static func hasGrowthPath(player: CGFloat, radii: [CGFloat], efficiency: CGFloat) -> Bool {
         var radius = player
         for prey in radii.sorted() {
-            guard GameRules.encounter(radius, prey) == .firstEatsSecond else { return false }
+            guard GameRules.playerEncounter(radius, prey) == .firstEatsSecond else { return false }
             radius = GameRules.grownRadius(predator: radius, prey: prey, efficiency: efficiency)
         }
         return true
@@ -79,7 +79,7 @@ enum ArcadeSimulation {
     static func holding(_ observation: Observation, policy: Policy, feeding: Bool = true) -> Bool {
         let p = observation.player
         let wrapped = WrappedWorld(width: observation.width)
-        let food = observation.fish.filter { feeding && $0.canEat && GameRules.encounter(p.radius, $0.radius) == .firstEatsSecond }
+        let food = observation.fish.filter { feeding && $0.canEat && GameRules.playerEncounter(p.radius, $0.radius) == .firstEatsSecond }
         let target = food.min { a, b in
             func value(_ f: Swimmer) -> CGFloat {
                 var dx = wrapped.delta(from: p.x, to: f.x)
@@ -130,11 +130,11 @@ enum ArcadeSimulation {
                     let dx = wrapped.delta(from: x, to: wrapped.wrap(f.x + f.vx * time))
                     let dy = f.y + f.vy * time - y
                     let gap = hypot(dx, dy) - (p.radius + f.radius) * GameTuning.collisionScale
-                    if GameRules.encounter(p.radius, f.radius) == .secondEatsFirst {
+                    if GameRules.playerEncounter(p.radius, f.radius) == .secondEatsFirst {
                         let dangerWeight: CGFloat = policy == .cautious ? 140 : (policy == .opportunist ? 45 : 80)
                         if gap < 0 { cost += 100_000 }
                         else { cost += max(0, 75 - gap) * dangerWeight / 18 }
-                    } else if GameRules.encounter(p.radius, f.radius) == .firstEatsSecond && gap < 0 {
+                    } else if GameRules.playerEncounter(p.radius, f.radius) == .firstEatsSecond && gap < 0 {
                         cost += feeding && f.canEat ? (policy == .opportunist ? -300 : -150) : 100_000
                     }
                 }

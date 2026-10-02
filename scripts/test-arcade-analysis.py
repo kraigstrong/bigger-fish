@@ -23,6 +23,13 @@ class AnalysisTests(unittest.TestCase):
         self.assertFalse(analysis.edible(16, 15.99))
         self.assertTrue(analysis.edible(16, 15.8))
 
+    def test_player_ties_preserve_old_logs_and_unlock_new_growth_paths(self):
+        self.assertFalse(analysis.edible(16, 16))
+        self.assertTrue(analysis.edible(16, 16, player_wins_ties=True))
+        self.assertTrue(analysis.edible(16, 16.1, player_wins_ties=True))
+        self.assertFalse(analysis.edible(16, 16.3, player_wins_ties=True))
+        self.assertEqual(analysis.growth_path(16, [16.1, 20], .82, True)[1], [])
+
     def test_incomplete_swallow_is_not_counted_as_a_meal(self):
         rows = [dict(type='start', world='jelly-bloom', level=2, configuration={}),
                 dict(type='swallow_start', predatorID=0, preyID=2, predatorRadius=16, preyRadius=15),
