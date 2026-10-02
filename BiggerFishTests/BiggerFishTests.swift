@@ -55,3 +55,24 @@ struct WinStateTests {
         #expect(!GameRules.isWin([makeFish(1)]))
     }
 }
+
+struct BloomChaseTests {
+    @Test func predatorsCannotOutrunPlayerAtAnyZoom() {
+        for zoom: CGFloat in [1, 0.7, 0.4] {
+            let playerSpeed: CGFloat = 320 / zoom
+            let velocity = GameRules.bloomChaseVelocity(offset: CGVector(dx: 800, dy: -800),
+                                                       cruiseSpeed: 500, playerSpeed: playerSpeed, zoom: zoom)
+            #expect(velocity.dx <= playerSpeed * 0.75)
+            #expect(abs(velocity.dy) <= GameTuning.motion.maxRiseSpeed * 0.55 / zoom)
+            #expect(velocity.dx < playerSpeed)
+        }
+    }
+
+    @Test func interceptingFishSteerTowardPlayerWithoutSpeedBoost() {
+        let velocity = GameRules.bloomChaseVelocity(offset: CGVector(dx: -200, dy: 100),
+                                                   cruiseSpeed: 80, playerSpeed: 300, zoom: 1)
+        #expect(velocity.dx < 0)
+        #expect(velocity.dy > 0)
+        #expect(abs(velocity.dx) < 300)
+    }
+}

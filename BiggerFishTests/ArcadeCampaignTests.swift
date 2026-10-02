@@ -139,6 +139,43 @@ struct ArcadeSceneTests {
         }
     }
 
+    @Test func winOffersExplicitChoicesAndOutsideTapDoesNotAdvance() {
+        let (scene, view) = scene()
+        scene.debugClearLevel()
+        #expect(scene.debugResultTitles == ["Next level", "Play again", "Levels"])
+        scene.debugTapResult(nil)
+        #expect(scene.debugLevelIndex == 0)
+        scene.debugTapResult(.nextLevel)
+        #expect(scene.debugLevelIndex == 1)
+        #expect(scene.debugResultTitles.isEmpty)
+        withExtendedLifetime(view) {}
+    }
+
+    @Test func finalLevelHasReplayAndLevelsWithoutRestartingCampaign() {
+        let (scene, view) = scene(level: 4)
+        var exits = 0
+        scene.onExit = { exits += 1 }
+        scene.debugClearLevel()
+        #expect(scene.debugResultTitles == ["Play again", "Levels"])
+        scene.debugTapResult(.playAgain)
+        #expect(scene.debugLevelIndex == 4)
+        scene.debugStart()
+        scene.debugClearLevel()
+        scene.debugTapResult(.levels)
+        #expect(exits == 1)
+        withExtendedLifetime(view) {}
+    }
+
+    @Test func lossOffersRetryAndLevels() {
+        let (scene, view) = scene()
+        #expect(scene.debugTouchTentacles(playerVictim: true))
+        #expect(scene.debugResultTitles == ["Try again", "Levels"])
+        scene.debugTapResult(.tryAgain)
+        #expect(scene.debugLevelIndex == 0)
+        #expect(scene.debugResultTitles.isEmpty)
+        withExtendedLifetime(view) {}
+    }
+
     @Test func clearingCallsProgressOnceEvenAcrossMoreFrames() {
         let (scene, view) = scene()
         var clears: [Int] = []

@@ -22,6 +22,15 @@ enum GameRules {
         return a > b ? .firstEatsSecond : .secondEatsFirst
     }
 
+    /// A pursuing predator remains slower than the player horizontally and vertically.
+    static func bloomChaseVelocity(offset: CGVector, cruiseSpeed: CGFloat,
+                                   playerSpeed: CGFloat, zoom: CGFloat) -> CGVector {
+        let horizontal = min(cruiseSpeed * 1.8 / zoom, playerSpeed * GameTuning.bloomChaseSpeedFraction)
+        let verticalCap = GameTuning.motion.maxRiseSpeed * GameTuning.bloomChaseVerticalFraction / zoom
+        return CGVector(dx: (offset.dx >= 0 ? 1 : -1) * horizontal,
+                        dy: (offset.dy * 0.9).clamped(-verticalCap, verticalCap))
+    }
+
     /// Area-conserving growth: the predator gains `efficiency` of the prey's area.
     static func grownRadius(
         predator: CGFloat,

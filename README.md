@@ -112,4 +112,5 @@ Bloom also sets jelly count, tentacle length, sway, urchin beds, and its night p
 
 For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4` in Xcode (world ID
 plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save.
-Remove the arguments to return to the normal world map and real campaign progress.
+Add `-arcadeResult passed` or `-arcadeResult failed` to preview its result panel without recording a
+clear. Remove the arguments to return to the normal world map and real campaign progress.

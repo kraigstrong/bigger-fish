@@ -10,13 +10,16 @@ implementation on October 1. The draft is a longer-term vision, not the scope of
 - Both worlds are available during development; levels unlock sequentially within each world.
 - Add World 2, **Jelly Bloom**: Bounce House, Threading, Bloom, Night Bloom, Gauntlet.
 - Dome tops bounce; tentacles kill player and AI. No health, stuns, or tier drops.
-- Bloom adds limited predator chasing and short-range prey fleeing. World 1 retains its original AI.
+- Bloom adds limited predator chasing and short-range prey fleeing. Chasers warn for 0.45 seconds,
+  commit for 1.6 seconds, rest for four seconds, and are capped below player speed. World 1 retains its original AI.
 - Save level clears and fastest clear times locally, with stable IDs and a Bigger Fish-only key.
 - Keep new code and copied assets in BiggerFish; defer shared engine consolidation while Math Reef is in review.
 
 ## Playable slice
 
 World map -> level path -> instructions -> play -> win/retry/next level/level map.
+Results use Math Reef's choices: Next level / Play again / Levels after a clear, or Try again / Levels
+after a loss. The final level offers Play again / Levels. Only buttons advance the game.
 Pausing offers Resume, Restart, and Level map. Cleared levels remain replayable. World completion
 returns to its map rather than immediately restarting the campaign.
 

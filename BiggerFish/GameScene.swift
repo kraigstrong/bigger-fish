@@ -23,6 +23,7 @@ private struct BloomJelly {
 private struct BloomBrain {
     let aggressive: Bool
     var chaseRemaining: CGFloat = 0
+    var reactionRemaining: CGFloat = 0
     var cooldown: CGFloat = 0
 }
 
@@ -58,6 +59,11 @@ final class GameScene: SKScene {
     private var bounceRemaining: CGFloat = 0
     private var bounceCooldown: CGFloat = 0
     private var mapButton = SKShapeNode()
+    private var resultPanel: ArcadeResultPanel?
+    #if DEBUG
+    private let previewResult = ArcadePlaytest.resultPreview
+    private var didPreviewResult = false
+    #endif
     private let audio = ArcadeAudio()
 
     init(size: CGSize, world: ArcadeWorld = .shallowReef, levelIndex: Int = 0,
@@ -277,6 +283,8 @@ final class GameScene: SKScene {
         pauseMenu.isHidden = newPhase != .paused
         switch newPhase {
         case .ready:
+            resultPanel = nil
+            messageNode.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
             let lines = arcadeWorld == .jellyBloom
                 ? (showsJellyLesson ? ["Bounce the tops.", "Never touch the bottoms.", "Eat fish or let the jellies clear them."]
                                    : ["Eat smaller fish. Avoid bigger fish.", "Bounce domes. Dodge tentacles."])
@@ -290,13 +298,39 @@ final class GameScene: SKScene {
         case .playing, .paused:
             hideMessage()
         case .won:
-            let next = isFinalLevel ? "\(arcadeWorld.title) complete! Tap to see the map."
-                                   : "Tap for \(arcadeWorld.levelTitles[levelIndex + 1])."
-            showMessage("Biggest fish.", lines: [next], delay: 0.9)
-            addMapButton(to: messageNode, y: -82)
+            showResult(passed: true)
         case .lost:
-            showMessage(lossReason, lines: ["Tap to try again."], delay: 0.35)
-            addMapButton(to: messageNode, y: -82)
+            showResult(passed: false)
+        }
+    }
+
+    private func showResult(passed: Bool) {
+        holdTouches.removeAll()
+        messageNode.removeAllActions()
+        messageNode.removeAllChildren()
+        messageNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        let detail = passed
+            ? (isFinalLevel ? "\(arcadeWorld.title) complete!" : "\(arcadeWorld.levelTitles[levelIndex]) complete!")
+            : lossReason
+        let panel = ArcadeResultPanel(size: size, passed: passed, hasNext: !isFinalLevel, detail: detail)
+        panel.onSelect = { [weak self] action in self?.selectResult(action) }
+        messageNode.addChild(panel)
+        resultPanel = panel
+        messageNode.alpha = 0
+        messageNode.run(.sequence([.wait(forDuration: passed ? 0.5 : 0.2), .fadeIn(withDuration: 0.2)]))
+    }
+
+    private func selectResult(_ action: ArcadeResultAction) {
+        switch action {
+        case .nextLevel:
+            guard phase == .won, !isFinalLevel else { return }
+            levelIndex += 1
+            layoutStatic()
+            resetGame(startPlaying: false)
+        case .playAgain, .tryAgain:
+            resetGame(startPlaying: false)
+        case .levels:
+            onExit?()
         }
     }
 
@@ -371,21 +405,9 @@ final class GameScene: SKScene {
                     onExit?()
                     return
                 }
-            case .won:
-                if realClock - endedAt >= T.restartDelay {
-                    if mapButton.contains(messageNode.convert(p, from: self)) || isFinalLevel {
-                        onExit?()
-                        return
-                    }
-                    levelIndex += 1
-                    layoutStatic()
-                    resetGame(startPlaying: false)
-                }
-            case .lost:
-                if realClock - endedAt >= T.restartDelay {
-                    if mapButton.contains(messageNode.convert(p, from: self)) { onExit?(); return }
-                    resetGame(startPlaying: true)
-                    holdTouches.insert(touch)
+            case .won, .lost:
+                if realClock - endedAt >= T.restartDelay, let resultPanel {
+                    resultPanel.handleTap(at: resultPanel.convert(p, from: self))
                 }
             }
         }
@@ -403,6 +425,13 @@ final class GameScene: SKScene {
 
     override func update(_ currentTime: TimeInterval) {
         guard isBuilt else { return }
+        #if DEBUG
+        if let previewResult, !didPreviewResult {
+            didPreviewResult = true
+            setPhase(previewResult ? .won : .lost)
+            endedAt = realClock
+        }
+        #endif
         let realDt = min(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 1.0 / 30)
         lastUpdate = currentTime
         realClock += realDt
@@ -645,12 +674,14 @@ final class GameScene: SKScene {
         let predator = GameRules.encounter(f.radius, player.radius) == .firstEatsSecond
         brain.cooldown = max(0, brain.cooldown - dt)
         if !predator || distance > T.bloomGiveUpRadius {
-            if brain.chaseRemaining > 0 { brain.cooldown = 2 }
+            if brain.chaseRemaining > 0 { brain.cooldown = T.bloomChaseCooldown }
             brain.chaseRemaining = 0
+            brain.reactionRemaining = 0
         }
         if predator && brain.aggressive && brain.chaseRemaining <= 0 && brain.cooldown <= 0,
            distance < T.bloomAggroRadius {
             brain.chaseRemaining = T.bloomChaseSeconds
+            brain.reactionRemaining = T.bloomChaseReactionSeconds
             let warning = label("!", fontSize: 19, heavy: true)
             warning.name = "chase-warning"
             warning.fontColor = SKColor(red: 1, green: 0.9, blue: 0.5, alpha: 1)
@@ -659,20 +690,26 @@ final class GameScene: SKScene {
                                    .wait(forDuration: 0.4), .fadeOut(withDuration: 0.2), .removeFromParent()]))
             nodes[f.id]?.addChild(warning)
         }
+        if brain.reactionRemaining > 0 {
+            brain.reactionRemaining = max(0, brain.reactionRemaining - dt)
+            brains[f.id] = brain
+            return false
+        }
         let chasing = brain.chaseRemaining > 0
         let fleeing = !predator && GameRules.encounter(player.radius, f.radius) == .firstEatsSecond
             && distance < T.bloomFleeRadius
         if chasing {
             brain.chaseRemaining = max(0, brain.chaseRemaining - dt)
-            if brain.chaseRemaining == 0 { brain.cooldown = 2 }
+            if brain.chaseRemaining == 0 { brain.cooldown = T.bloomChaseCooldown }
         }
         brains[f.id] = brain
         guard chasing || fleeing else { return false }
-        let targetVX: CGFloat = chasing
-            ? playerSpeed + (dx * 0.8).clamped(-100 / zoom, 100 / zoom)
-            : -(dx >= 0 ? CGFloat(1) : CGFloat(-1)) * max(f.cruiseSpeed * 1.3, playerSpeed * 0.6)
-        let targetVY = (dy * (chasing ? 1 : -1)).clamped(-T.motion.maxRiseSpeed * 0.85 / zoom,
-                                                       T.motion.maxRiseSpeed * 0.85 / zoom)
+        let target = chasing
+            ? GameRules.bloomChaseVelocity(offset: CGVector(dx: dx, dy: dy), cruiseSpeed: f.cruiseSpeed,
+                                          playerSpeed: playerSpeed, zoom: zoom)
+            : CGVector(dx: -(dx >= 0 ? CGFloat(1) : CGFloat(-1)) * max(f.cruiseSpeed * 1.3, playerSpeed * 0.6),
+                       dy: (-dy).clamped(-T.motion.maxRiseSpeed * 0.85 / zoom, T.motion.maxRiseSpeed * 0.85 / zoom))
+        let targetVX = target.dx, targetVY = target.dy
         let steer = min(1, dt * T.bloomChaseTurnRate)
         f.velocity.dx += (targetVX - f.velocity.dx) * steer
         f.velocity.dy += (targetVY - f.velocity.dy) * steer
@@ -1035,6 +1072,7 @@ final class GameScene: SKScene {
     }
 
     private func hideMessage() {
+        resultPanel = nil
         messageNode.removeAllActions()
         messageNode.run(.fadeOut(withDuration: 0.15))
     }
@@ -1086,6 +1124,13 @@ final class GameScene: SKScene {
         player.position = CGPoint(x: urchin.x, y: waterBottom + T.urchinRadius)
         updateUrchins(previousFish: [player.id: player.position])
         return phase == .lost
+    }
+    var debugLevelIndex: Int { levelIndex }
+    var debugResultTitles: [String] { resultPanel?.controls.map { $0.action.title } ?? [] }
+    func debugTapResult(_ action: ArcadeResultAction?) {
+        guard let panel = resultPanel else { return }
+        let frame = panel.controls.first { $0.action == action }?.frame
+        panel.handleTap(at: frame.map { CGPoint(x: $0.midX, y: $0.midY) } ?? CGPoint(x: 0, y: 80))
     }
     func debugClearLevel() {
         for f in fish where !f.isPlayer { f.state = .removed }
