@@ -64,7 +64,7 @@ struct ArcadeCampaignTests {
         #expect(ids.last == "jelly-bloom.5")
         #expect(GameTuning.levels.allSatisfy { $0.jellies == nil })
         #expect(GameTuning.bloomLevels.allSatisfy { $0.jellies != nil })
-        #expect(!GameTuning.bloomLevels[0].aiCanEat)
+        #expect(GameTuning.bloomLevels.allSatisfy { $0.aiCanEat })
         #expect(GameTuning.bloomLevels[0].spawnGroups.allSatisfy { $0.radii.upperBound < 1 })
     }
 }
@@ -120,6 +120,16 @@ struct ArcadeSceneTests {
         view.presentScene(scene)
         scene.debugStart()
         return (scene, view)
+    }
+
+    @Test func aiMealsCanTurnEdibleFishIntoThreatsInEveryBloomLevel() {
+        for index in 0..<5 {
+            let (scene, view) = scene(level: index)
+            let result = scene.debugAICompetition()
+            #expect(result.respectedGrace)
+            #expect(result.becameThreat)
+            withExtendedLifetime(view) {}
+        }
     }
 
     @Test func bounceRoutesKeepFoodPocketsLargerFishAndGrownFishPassages() {

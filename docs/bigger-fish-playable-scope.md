@@ -11,7 +11,8 @@ implementation on October 1. The draft is a longer-term vision, not the scope of
 - Add World 2, **Jelly Bloom**, with five numbered levels; both worlds show Level 1–5, without names.
 - Dome tops bounce; tentacles remain lethal. Remove all urchins, chasing, and fleeing.
 - Bloom's larger fish swim normally and can be outgrown through eating; baiting is optional.
-- Disable AI-on-AI eating in Bloom so larger fish cannot consume the player's growth opportunities.
+- AI-on-AI eating is essential in every Bloom level: take a risky meal before another fish eats it
+  and grows into a threat. Retain the existing 1.5-second opening grace period.
 - Save level clears and fastest clear times locally, with stable IDs and a Bigger Fish-only key.
 - Keep new code and copied assets in BiggerFish; defer shared engine consolidation while Math Reef is in review.
 
@@ -27,7 +28,7 @@ Level 1 retains its four-domed, smaller-fish opening. Levels 2–5 place food po
 bounce routes: alternating stepping stones, an ascending/descending ladder, a night chain, and a
 longer playground. Food fish patrol near their pockets rather than dispersing around the whole reef.
 There are 1/2/2/3 initially larger fish in Levels 2–5, with separated starts and enough smaller food
-to outgrow every larger fish. Bells are broader and tentacles shorter than the former predator layouts.
+to outgrow the initial larger fish if the player gets that food first. AI compete for those meals. Bells are broader and tentacles shorter than the former predator layouts.
 
 A clear means becoming the last fish swimming, with no meal quota or replenishment. Meal counters
 and HUD code remain dormant for future endless mode. Ordinary Bloom swimmers look ahead and steer

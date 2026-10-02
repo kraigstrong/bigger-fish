@@ -109,14 +109,13 @@ struct BloomAvoidanceTests {
 }
 
 struct BounceCampaignBalanceTests {
-    @Test func everyLargerFishCanBeOutgrownByEatingTheStartingFood() {
+    @Test func startingFoodContainsEnoughAreaToOutgrowTheInitialLargerFish() {
         for level in GameTuning.bloomLevels.dropFirst() {
             let foodArea = level.spawnGroups.filter { $0.radii.upperBound < 1 }
                 .reduce(CGFloat.zero) { $0 + CGFloat($1.count) * $1.radii.lowerBound * $1.radii.lowerBound }
             let grown = sqrt(1 + foodArea * level.absorptionEfficiency)
             let largest = level.spawnGroups.map { $0.radii.upperBound }.max()!
             #expect(GameRules.encounter(grown, largest) == .firstEatsSecond)
-            #expect(!level.aiCanEat)
         }
     }
 }

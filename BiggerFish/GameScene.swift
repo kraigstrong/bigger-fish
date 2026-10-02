@@ -1236,6 +1236,25 @@ final class GameScene: SKScene {
         moveAI(predator, 0.1)
         return predator.velocity
     }
+    func debugAICompetition() -> (respectedGrace: Bool, becameThreat: Bool) {
+        for f in fish.filter({ !$0.isPlayer }) { removeByTentacles(f) }
+        let position = CGPoint(x: world.width / 2, y: waterCenter)
+        let predator = Fish(id: nextFishID, isPlayer: false, position: position, radius: T.baseRadius * 0.9)
+        nextFishID += 1
+        let prey = Fish(id: nextFishID, isPlayer: false, position: position, radius: T.baseRadius * 0.6)
+        nextFishID += 1
+        add(predator, style: .player)
+        add(prey, style: .player)
+        simClock = T.aiEatingGracePeriod - 0.01
+        resolveCollisions()
+        let respectedGrace = predator.state == .swimming && prey.state == .swimming
+        simClock = T.aiEatingGracePeriod + 0.01
+        resolveCollisions()
+        advanceSwallows(1)
+        advanceGrowth(T.growDuration)
+        return (respectedGrace, fishByID[prey.id] == nil &&
+                GameRules.encounter(player.radius, predator.radius) == .secondEatsFirst && mealsEaten == 0)
+    }
     var debugFoodPocketCount: Int { foodHomes.count }
     var debugFishCount: Int { fish.count }
     var debugUrchinCount: Int { urchins.count }
