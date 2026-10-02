@@ -255,12 +255,14 @@ final class GameScene: SKScene {
                         : jelly.origin.y + layout.radius * 0.65 + r + T.bloomFoodPocketLift
                     foodIndex += 1
                 }
-                if normalized >= 1 && level.predatorSpawnSeparationScreens > 0 {
+                if normalized >= 1 && (level.predatorSpawnSeparationScreens > 0 || level.sidePocketExperiment) {
                     // Reserve evenly spaced starts so random packing cannot drop the last predator.
                     let start = T.spawnClearAheadDanger + 0.05
                     let end = T.worldScreens - T.spawnClearBehind - 0.05
-                    preferredX = size.width * (start + (end - start) * CGFloat(predatorIndex) / CGFloat(max(1, predatorCount - 1)))
-                    if level.sidePocketExperiment {
+                    if level.predatorSpawnSeparationScreens > 0 {
+                        preferredX = size.width * (start + (end - start) * CGFloat(predatorIndex) / CGFloat(max(1, predatorCount - 1)))
+                    }
+                    if level.sidePocketExperiment && predatorIndex == 0 {
                         let jelly = jellies[T.bloomSidePocketJellyIndex]
                         preferredX = world.wrap(jelly.origin.x + T.bloomSidePredatorOffset)
                         preferredY = jelly.origin.y - T.bloomSidePocketDrop

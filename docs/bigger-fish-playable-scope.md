@@ -27,12 +27,17 @@ returns to its map rather than immediately restarting the campaign.
 Level 1 retains its four-domed, smaller-fish opening. Levels 2–5 place food pockets above authored
 bounce routes: alternating stepping stones, an ascending/descending ladder, a night chain, and a
 longer playground. Food fish patrol near their pockets rather than dispersing around the whole reef.
-Level 2 has a single placement experiment at its second dome: three meals sit beyond the far
-shoulder, slightly below the rim, with its existing larger fish swimming nearby. An early bounce
+Level 2 has a single placement experiment at its second dome: meals sit beyond the far
+shoulder, slightly below the rim, with one larger fish swimming nearby. An early bounce
 can carry the player above the meals; skimming the shoulder is an alternative. Other pockets and
 levels keep their layouts. Bounce strength, AI competition, and the grown-fish escape lane stay intact.
-There are 1/2/2/3 initially larger fish in Levels 2–5, with separated starts and enough smaller food
-to outgrow the initial larger fish if the player gets that food first. AI compete for those meals. Bells are broader and tentacles shorter than the former predator layouts.
+Levels 2–5 now experiment with Shallow Reef Level 4's size mix: 3 small, 5 edible,
+5 near-equal, 4 medium, and 2 giant fish. Absorption efficiency is 0.78, so small meals
+unlock medium fish before the giants. Existing movement speeds and jelly layouts remain.
+Larger fish use ordinary distributed starts rather than the former widely separated slots;
+only the first larger fish in Level 2 is assigned to the far-side pocket. AI competition
+can change this progression during play. Jellyfish serve as obstacles and optional bounces.
+Bells are broader and tentacles shorter than the former predator layouts.
 
 A clear means becoming the last fish swimming, with no meal quota or replenishment. Meal counters
 and HUD code remain dormant for future endless mode. Ordinary Bloom swimmers look ahead and steer
