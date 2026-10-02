@@ -17,6 +17,17 @@ struct SizeRuleTests {
         #expect(GameRules.encounter(98.9, 100) == .secondEatsFirst)
     }
 
+    @Test func nearEqualEncountersFavorThePlayerInEitherOrder() {
+        let pairs: [(CGFloat, CGFloat)] = [(10, 10), (100, 99.5), (99.5, 100)]
+        for (player, other) in pairs {
+            #expect(GameRules.encounter(player, other, firstIsPlayer: true) == .firstEatsSecond)
+            #expect(GameRules.encounter(other, player, secondIsPlayer: true) == .secondEatsFirst)
+        }
+        #expect(GameRules.playerEncounter(98.9, 100) == .secondEatsFirst)
+        #expect(GameRules.playerEncounter(100, 98.9) == .firstEatsSecond)
+        #expect(GameRules.playerEncounter(0, 0) == .tooClose)
+    }
+
     @Test func growthConservesArea() {
         #expect(abs(GameRules.grownRadius(predator: 3, prey: 4, efficiency: 1) - 5) < 1e-9)
         #expect(abs(GameRules.grownRadius(predator: 10, prey: 10, efficiency: 0.9) - 190.0.squareRoot()) < 1e-9)
@@ -53,5 +64,78 @@ struct WinStateTests {
     @Test func notWinWhenPlayerIsGone() {
         #expect(!GameRules.isWin([makeFish(0, player: true, state: .removed)]))
         #expect(!GameRules.isWin([makeFish(1)]))
+    }
+}
+
+struct BloomMealTests {
+    private func fish(_ id: Int, radius: CGFloat, player: Bool = false) -> Fish {
+        Fish(id: id, isPlayer: player, position: .zero, radius: radius)
+    }
+
+    @Test func wipedOutReefRequiresCompletedMeals() {
+        let player = fish(0, radius: 16, player: true)
+        #expect(!GameRules.isWin([player], mealsEaten: 0, requiredMeals: 8))
+        #expect(!GameRules.isWin([player], mealsEaten: 7, requiredMeals: 8))
+        #expect(GameRules.isWin([player], mealsEaten: 8, requiredMeals: 8))
+        #expect(!GameRules.isWin([player, fish(1, radius: 8)], mealsEaten: 8, requiredMeals: 8))
+    }
+
+    @Test func refillsOnlyStalledEcosystems() {
+        let player = fish(0, radius: 16, player: true)
+        #expect(GameRules.needsFood([player], mealsEaten: 0, requiredMeals: 8))
+        #expect(!GameRules.needsFood([player], mealsEaten: 8, requiredMeals: 8))
+        #expect(!GameRules.needsFood([player], mealsEaten: 0, requiredMeals: 0))
+        #expect(!GameRules.needsFood([player, fish(1, radius: 8)], mealsEaten: 0, requiredMeals: 8))
+        #expect(GameRules.needsFood([player, fish(1, radius: 32)], mealsEaten: 8, requiredMeals: 8))
+        player.state = .swallowing(preyID: 1)
+        #expect(!GameRules.needsFood([player], mealsEaten: 7, requiredMeals: 8))
+        player.state = .removed
+        #expect(!GameRules.needsFood([player], mealsEaten: 0, requiredMeals: 8))
+    }
+}
+
+struct BloomAvoidanceTests {
+    private func avoid(_ position: CGPoint, _ velocity: CGVector, radius: CGFloat = 16) -> CGVector? {
+        JellyRules.avoidance(at: position, velocity: velocity, fishRadius: radius,
+                             domeRadius: 36, tentacleLength: 115, minY: -160, maxY: 130, zoom: 1)
+    }
+
+    @Test func seesCrossingAheadButLeavesSafeRoutesAlone() {
+        let steering = avoid(CGPoint(x: -100, y: -40), CGVector(dx: 100, dy: 0))
+        #expect(steering != nil)
+        #expect((steering?.dy ?? 0) > 0)
+        #expect(avoid(CGPoint(x: -100, y: 80), CGVector(dx: 100, dy: 0)) == nil)
+        #expect(avoid(CGPoint(x: -100, y: -40), CGVector(dx: -100, dy: 0)) == nil)
+        #expect(avoid(CGPoint(x: -400, y: -40), CGVector(dx: 100, dy: 0)) == nil)
+    }
+
+    @Test func turnsAwayBeforeCurtainAndCanChooseBelow() {
+        let close = avoid(CGPoint(x: -60, y: -40), CGVector(dx: 100, dy: 0))
+        #expect((close?.dx ?? 0) < 0)
+        let below = avoid(CGPoint(x: -100, y: -110), CGVector(dx: 100, dy: 0))
+        #expect((below?.dy ?? 0) < 0)
+        let giant = avoid(CGPoint(x: -100, y: -40), CGVector(dx: 100, dy: 0), radius: 50)
+        #expect((giant?.dx ?? 0) < 0)
+    }
+}
+
+struct BounceCampaignBalanceTests {
+    @Test func foodChainAllowsProgressFromSmallMealsThroughMediumFishToGiants() {
+        for level in GameTuning.bloomLevels.dropFirst() {
+            let foodArea = level.spawnGroups.filter { $0.radii.upperBound < 1 }
+                .reduce(CGFloat.zero) { $0 + CGFloat($1.count) * $1.radii.lowerBound * $1.radii.lowerBound }
+            let grown = sqrt(1 + foodArea * level.absorptionEfficiency)
+            // Easy food opens up the medium fish, but cannot erase the giants immediately.
+            #expect(GameRules.encounter(grown, 1.60) == .firstEatsSecond)
+            #expect(GameRules.encounter(grown, level.spawnGroups.last!.radii.upperBound) == .secondEatsFirst)
+            var radius = grown
+            for group in level.spawnGroups where group.radii.upperBound >= 1 {
+                #expect(GameRules.encounter(radius, group.radii.upperBound) == .firstEatsSecond)
+                for _ in 0..<group.count {
+                    radius = GameRules.grownRadius(predator: radius, prey: group.radii.lowerBound,
+                                                  efficiency: level.absorptionEfficiency)
+                }
+            }
+        }
     }
 }

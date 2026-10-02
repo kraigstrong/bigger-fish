@@ -2,17 +2,86 @@ import SpriteKit
 import SwiftUI
 
 struct ContentView: View {
-    @State private var scene: GameScene = {
-        let scene = GameScene(size: CGSize(width: 852, height: 393))
-        scene.scaleMode = .resizeFill
-        return scene
-    }()
+    #if DEBUG
+    @StateObject private var progress = ArcadeProgress(defaults: ArcadePlaytest.defaults)
+    #else
+    @StateObject private var progress = ArcadeProgress()
+    #endif
+    @State private var selectedWorld: ArcadeWorld?
+    @State private var scene: GameScene?
+    #if DEBUG
+    @StateObject private var tuningStore = ArcadeTuningStore()
+    @State private var showsTuning = false
+    #endif
 
     var body: some View {
-        SpriteView(scene: scene, preferredFramesPerSecond: 120, options: [.ignoresSiblingOrder])
-            .ignoresSafeArea()
-            .statusBarHidden()
-            .persistentSystemOverlays(.hidden)
-            .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+        Group {
+            if let scene {
+                SpriteView(scene: scene, preferredFramesPerSecond: 120, options: [.ignoresSiblingOrder])
+                    .id(ObjectIdentifier(scene))
+                    .ignoresSafeArea()
+            } else if let world = selectedWorld {
+                ArcadeLevelMap(world: world, progress: progress,
+                               onBack: { selectedWorld = nil }, onPlay: { play(world, index: $0) })
+            } else {
+                ArcadeWorldMap(progress: progress, onSelect: { selectedWorld = $0 })
+            }
+        }
+        #if DEBUG
+        .overlay(alignment: .bottomTrailing) {
+            Button("Tuning", systemImage: "slider.horizontal.3") {
+                scene?.debugPauseForTuning()
+                showsTuning = true
+            }
+            .font(.caption.bold()).buttonStyle(.borderedProminent)
+            .padding(.trailing, 12).padding(.bottom, 4)
+        }
+        .sheet(isPresented: $showsTuning) {
+            ArcadeTuningPanel(store: tuningStore, world: scene?.arcadeWorld ?? selectedWorld ?? .jellyBloom,
+                              index: scene?.debugLevelIndex ?? 1) { world, index in
+                selectedWorld = world
+                play(world, index: index, practice: true)
+            }
+        }
+        #endif
+        .statusBarHidden()
+        .persistentSystemOverlays(.hidden)
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+            #if DEBUG
+            if scene == nil && selectedWorld == nil, let selection = ArcadePlaytest.selection {
+                selectedWorld = selection.world
+                play(selection.world, index: selection.index)
+            }
+            #endif
+        }
+    }
+
+    private func play(_ world: ArcadeWorld, index: Int, practice: Bool = false) {
+        #if DEBUG
+        guard practice || progress.isOpen(world, index) || ArcadePlaytest.selection != nil else { return }
+        #else
+        guard progress.isOpen(world, index) else { return }
+        #endif
+        let game = GameScene(size: CGSize(width: 852, height: 393), world: world, levelIndex: index,
+                             showsJellyLesson: !progress.save.hasSeenJellyLesson)
+        game.scaleMode = .resizeFill
+        #if DEBUG
+        game.debugPracticeRun = practice
+        #endif
+        game.onClear = { [weak game] index, seconds in
+            #if DEBUG
+            guard let game, !game.debugPracticeRun, !game.debugHasTuningOverride else { return }
+            #endif
+            progress.clear(world, index, seconds: seconds)
+        }
+        game.onJellyLesson = { [weak game] in
+            #if DEBUG
+            guard let game, !game.debugPracticeRun, !game.debugHasTuningOverride else { return }
+            #endif
+            progress.sawJellyLesson()
+        }
+        game.onExit = { scene = nil }
+        scene = game
     }
 }

@@ -37,7 +37,7 @@ enum GameTuning {
 
     /// Points of radius for a normalized size of 1.0 (the player's starting size).
     static let baseRadius: CGFloat = 16
-    /// Radii differing by less than this fraction bump apart instead of eating.
+    /// Within this fraction, player encounters favor the player; NPC encounters bump apart.
     static let nearEqualThreshold: CGFloat = 0.01
     /// Collision distance = (rA + rB) * collisionScale. Bodies are 1.35r long and 0.95r tall.
     static let collisionScale: CGFloat = 1.05
@@ -91,6 +91,94 @@ enum GameTuning {
     /// Seconds after a win/loss before a tap restarts (avoids accidental restarts from a held finger).
     static let restartDelay: CGFloat = 0.8
 
+    // MARK: Jelly Bloom
+
+    static let hazardHitboxScale: CGFloat = 0.8
+    static let urchinRadius: CGFloat = 15
+    static let jellyDomeForgiveness: CGFloat = 10
+    static let jellyBounceSpeed: CGFloat = 460
+    static let jellyBounceSeconds: CGFloat = 0.28
+    static let jellyBounceCooldown: CGFloat = 0.24
+    static let bloomFloorLanePadding: CGFloat = 20
+    /// Alternating bell heights for authored layouts without per-level heights.
+    static let bloomAuthoredJellyHeights: [CGFloat] = [0.37, 0.68]
+    static let bloomJellyFallbackFloorGap: CGFloat = 12
+
+    /// Swimmers anticipate curtains; no chasing or fleeing.
+    static let bloomAvoidanceLookAhead: CGFloat = 1.2
+    static let bloomAvoidancePadding: CGFloat = 16
+    static let bloomAvoidanceRiseSpeed: CGFloat = 140
+    static let bloomAvoidanceTurnRate: CGFloat = 8
+
+    static let bloomFoodPocketHalfWidth: CGFloat = 76
+    static let bloomFoodPocketHalfHeight: CGFloat = 24
+    static let bloomFoodPocketLift: CGFloat = 40
+    static let bloomFoodPocketReleaseSeconds: CGFloat = 4
+    static let bloomJellyOpeningScreens: ClosedRange<CGFloat> = 0.80...1.00
+    static let bloomJellyLastScreens: ClosedRange<CGFloat> = 3.40...3.60
+    static let bloomJellyGapWeight: ClosedRange<CGFloat> = 0.10...1.80
+    static let bloomJellySpacingPadding: CGFloat = 40
+    static let bloomJellyHeightRange: ClosedRange<CGFloat> = 0.28...0.76
+    static let bloomFoodPatrolScreens: CGFloat = 0.16
+
+    // Level 2 only: a meal beyond the far shoulder, where an early bounce sends you away.
+    static let bloomSidePocketJellyIndex = 1
+    static let bloomSidePocketOffset: CGFloat = 112
+    static let bloomSidePocketDrop: CGFloat = 16
+    static let bloomSidePocketSpawnHalfWidth: CGFloat = 30
+    static let bloomSidePocketPatrolHalfWidth: CGFloat = 44
+    static let bloomSidePredatorOffset: CGFloat = 200
+
+    static let bloomFoodRefillSeconds: CGFloat = 3
+    static let bloomFoodRefillCount = 2
+    static let bloomFoodRadiusFraction: ClosedRange<CGFloat> = 0.45...0.65
+
+    /// World 1 remains intact. Bloom's curve varies the food-race window, not chase AI.
+    /// Profiles were selected by real-scene simulations; see docs/jelly-bloom-balance.md.
+    static let bloomLevels: [Level] = [
+        Level(spawnGroups: [(9, 0.30...0.65), (5, 0.65...0.85)],
+              aiSpeedRange: 30...80, aiVerticalSpeed: 35, screenCrossSeconds: 3.1,
+              absorptionEfficiency: 0.90,
+              jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6)),
+        bloomRaceLevel(foodCount: 7, giants: 1, speed: 30...80, vertical: 35,
+                       efficiency: 0.88, jellyCount: 5, jellyRadius: 44, tentacles: 70,
+                       sidePocket: true, compactSpeedScale: 0.65),
+        bloomRaceLevel(foodCount: 3, giants: 2, speed: 45...110, vertical: 55,
+                       efficiency: 0.78, jellyCount: 6, jellyRadius: 46, tentacles: 75,
+                       seedOffset: 1, compactSpeedScale: 0.65),
+        bloomRaceLevel(foodCount: 3, giants: 2, speed: 65...155, vertical: 80,
+                       efficiency: 0.78, jellyCount: 6, jellyRadius: 46, tentacles: 75,
+                       night: true, compactSpeedScale: 0.50),
+        bloomRaceLevel(foodCount: 7, giants: 2, speed: 65...155, vertical: 80,
+                       efficiency: 0.82, jellyCount: 7, jellyRadius: 48, tentacles: 75,
+                       seedOffset: 1, compactSpeedScale: 0.763, mediumSpeedMultiplier: 0.85),
+    ]
+
+    private static func bloomRaceLevel(foodCount: Int, giants: Int, speed: ClosedRange<CGFloat>,
+                                       vertical: CGFloat, efficiency: CGFloat, jellyCount: Int,
+                                       jellyRadius: CGFloat, tentacles: CGFloat, sidePocket: Bool = false,
+                                       night: Bool = false, seedOffset: UInt64 = 0, compactSpeedScale: CGFloat = 1,
+                                       mediumSpeedMultiplier: CGFloat = 1) -> Level {
+        Level(spawnGroups: [(foodCount, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08),
+                            (4, 1.20...1.60), (giants, 2.00...2.60)],
+              aiSpeedRange: speed, aiVerticalSpeed: vertical, screenCrossSeconds: 3.1,
+              absorptionEfficiency: efficiency,
+              jellies: JellyLayout(count: jellyCount, radius: jellyRadius, tentacleLength: tentacles,
+                                  sway: 6, night: night, maintainsFloorLane: true),
+              bounceFoodPockets: true, sidePocketExperiment: sidePocket, roamingFoodChain: true,
+              ecosystemSeedOffset: seedOffset, compactAISpeedScale: compactSpeedScale,
+              mediumAISpeedMultiplier: mediumSpeedMultiplier)
+    }
+
+    /// Compact worlds have more encounters per circuit. Ease horizontal AI speed to
+    /// retain recovery routes; three phone sizes were checked with actual scene rollouts.
+    static func bloomAISpeedScale(width: CGFloat, level: Level) -> CGFloat {
+        let fraction = ((width - 667) / (874 - 667)).clamped(0, 1)
+        let scale = level.compactAISpeedScale + (1 - level.compactAISpeedScale) * fraction
+        let mediumWeight = (width <= 852 ? (width - 667) / (852 - 667) : (874 - width) / (874 - 852)).clamped(0, 1)
+        return scale * (1 + (level.mediumAISpeedMultiplier - 1) * mediumWeight)
+    }
+
     // MARK: Levels
 
     /// Each level ramps several levers at once: fewer easy meals, more near-equal and larger fish,
@@ -127,4 +215,15 @@ struct Level {
     /// Seconds for the player to cross one screen width.
     let screenCrossSeconds: CGFloat
     let absorptionEfficiency: CGFloat
+    var jellies: JellyLayout? = nil
+    var aiCanEat: Bool = true
+    var requiredMeals: Int = 0
+    var predatorSpawnSeparationScreens: CGFloat = 0
+    var bounceFoodPockets: Bool = false
+    var sidePocketExperiment: Bool = false
+    var roamingFoodChain: Bool = false
+    /// Fixed per-level seed selection keeps retries consistent. Debug studies perturb this seed.
+    var ecosystemSeedOffset: UInt64 = 0
+    var compactAISpeedScale: CGFloat = 1
+    var mediumAISpeedMultiplier: CGFloat = 1
 }

@@ -2,8 +2,17 @@
 
 There's always a bigger fish.
 
-V0 prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
+Arcade prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
+
+The world map opens **Shallow Reef** (the original five levels) and **Jelly Bloom** (five new levels).
+Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
+adds safe dome bounces and lethal tentacles, with food pockets above stepped and chained bounce routes.
+A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
+the original drift behavior and tuning. Both worlds use numbered levels.
+
+This playable slice has no purchases, endless mode, pearls, or shop yet. See
+[`docs/bigger-fish-playable-scope.md`](docs/bigger-fish-playable-scope.md) for the accepted scope and deferred vision.
 
 ## Running
 
@@ -21,6 +30,11 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'p
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
+  - `ArcadeMaps.swift` — world selection and the five-stop level paths
+  - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and local campaign saves
+  - `Jellyfish.swift` / `ArcadeArt.swift` — arcade-only hazard rules and procedural artwork
+  - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them
+  - `ArcadePlaytest.swift` — debug-only isolated level launches for playtesting
 - `MathReef/` — **Math Reef** (`com.kraigstrong.mathreef`), the education app for grades 1–5. Pick a
   world (Addition, Subtraction, Multiplication, Division, Exponents), then a level,
   and swim into the right answer. Addition and subtraction climb in small strategy steps (+1/+2, make 10,
@@ -93,5 +107,102 @@ python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-
 
 Every feel constant — movement, growth, swallow timing, AI behavior, spawn distribution,
 and the `aiFishCanEatEachOther` flag — lives in `BiggerFish/GameTuning.swift`.
-The five levels are defined in `GameTuning.levels`; each sets the spawn mix, fish speeds,
-player speed, and how much a meal grows you.
+Shallow Reef's five levels are defined in `GameTuning.levels`; Jelly Bloom's five are in
+`GameTuning.bloomLevels`. Each sets the spawn mix, fish speeds, player speed, and meal growth;
+Bloom also sets jelly count, tentacle length, sway, urchin beds, and its night palette.
+
+For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4` in Xcode (world ID
+plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save.
+Add `-arcadeResult passed` or `-arcadeResult failed` to preview its result panel without recording a
+clear. Remove the arguments to return to the normal world map and real campaign progress.
+
+## Debug playtest recordings
+
+Bigger Fish Xcode Debug builds automatically record runs locally in `Documents/ArcadeRuns`.
+Release/TestFlight builds contain no recorder. Play normally, then pause or finish and keep your
+phone unlocked and connected. Xcode's console prints `[ArcadeRun]` start/outcome lines.
+
+Ask Codex to pull your runs, or run:
+
+```bash
+python3 scripts/pull-arcade-runs.py
+```
+
+The script selects a single connected device and copies only Bigger Fish's run directory to
+ignored `build/arcade-runs`. Use `--device 'Your iPhone name'` if several devices are connected.
+`--summarize-only` summarizes downloaded files; `--simulator booted` supports local verification.
+If device transfer is unavailable, Xcode > Window > Devices and Simulators > installed Bigger Fish >
+Download Container contains the same Documents/ArcadeRuns folder.
+
+JSONL includes configuration and seeded starts, tap/release transitions, player and AI meals,
+interrupted-swallow hazard deaths, bounces, pause/resume, outcomes, and full world/camera snapshots
+at five per second plus event-time snapshots. Times are elapsed wall and simulation seconds;
+fish positions are wrapped world coordinates. Recordings stream on a background queue, flush
+periodically and on pause, and keep the latest 30 files. An interrupted run remains readable;
+an abrupt process kill may lose the most recent queued records. Nothing is uploaded automatically.
+Add `-arcadeDisableRunRecording` to Xcode's launch arguments to disable recording temporarily.
+
+
+### Tune on your phone (Debug only)
+
+Tap **Tuning** on a map or during a run. During play this pauses and flushes the recording.
+Choose a world/level, edit fish counts and size ranges, growth, AI/player speed, food-pocket
+release, jelly count/radius/tentacles, bounce strength, or layout/seed variation. **Apply & Play**
+saves a per-level override and starts a fresh practice run immediately, without rebuilding.
+Practice runs and overridden levels do not write campaign progress. Closing the panel leaves
+an existing run paused. Overrides persist across launches and restarts.
+
+Save named presets for comparisons. **Load shipped settings** loads the checked-in configuration;
+**Load before-roaming experiment** restores the prior slow AI, bounded food pockets, and authored
+jelly layout. Those buttons edit the draft; Apply saves it. **Remove override for this level**
+clears its saved settings and starts a practice run with the checked-in configuration.
+Presets are local, hold at most ten names, and can be applied to another level. Level geometry and
+starting fish cannot always fit extreme combinations; the run analysis flags spawn shortfalls.
+These tools and overrides are absent in Release/TestFlight.
+
+### Automatic run diagnostics
+
+Pulling recordings also writes `build/arcade-runs/analysis/report.md` and `metrics.json`.
+For already pulled files, run `python3 scripts/analyze-arcade-runs.py`.
+The report groups identical recorded configurations and measures completed close-size meals,
+time with larger fish, nearby threats, gaps between meals, fish-cleanup tails, early deaths,
+spawn shortfalls, and growth stalls. Simulation time excludes pauses and accounts for slow motion.
+
+The growth check repeatedly consumes edible fish using the game's area-growth and near-equal
+rules. It optimistically ignores geometry and future AI competition and checks stable snapshots
+without active swallows. If it still cannot eat all remaining fish, the current food chain needs
+an AI/hazard change to progress. This does not prove the whole level impossible: hazards can kill
+fish. Threat/cleanup metrics concern fish danger, not jelly danger. Thresholds such as five-second
+early deaths are descriptive; fast deaths can be desirable opening tension. Cleanup tails are
+review signals, not a validated universal fun score.
+Compare them with player feedback, especially the favorite Shallow Reef level 4 recordings.
+Diagnostics are offline and do not alter gameplay. New recordings include the effective tuning
+and both seeds, so changes on the phone remain attributable.
+
+Player encounters within the 1% near-equal radius band favor the player, including a
+fractionally larger opponent. NPC ties still bump apart. New run headers include
+`playerWinsTies`; the offline analyzer preserves the old rule for older recordings.
+
+### Simulate food races locally (Debug only)
+
+The five Jelly Bloom profiles were selected with 1,642 real-scene rollouts. Read
+[the balance study](docs/jelly-bloom-balance.md) for the growth-area calculation, pass-based
+recovery measurements, selected seeds, and limits of bot-based evaluation. Three phone sizes
+have demonstrated winning routes for every shipped level. Horizontal AI speeds are eased on
+smaller Bloom viewports; tuning controls specify the nominal reference-width speeds.
+
+To repeat the final validation:
+
+```sh
+python3 scripts/study-arcade-balance.py \
+  --profiles docs/jelly-bloom-study-profiles.json --seeds 0,7,13,23 --passes 0 \
+  --sizes 874x402,852x393,667x375 --limit 90 --run \
+  --output build/arcade-development/studies/validation
+```
+
+Use `--passes 0,1,2` to test skipped circuits or `--meal-limits=-1,0,1,2,3,4,5,6`
+for first-pass meal caps. Requests, raw results, summaries, and logs stay under ignored `build/`.
+The study uses simulator tests, does not render or record runs, and cannot write campaign
+progress. Its activation marker is removed by the command afterward. Normal test runs skip
+large studies unless that marker was explicitly prepared. Shut down the simulator after a batch
+if you are done testing.
