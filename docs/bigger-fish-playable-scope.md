@@ -25,14 +25,15 @@ returns to its map rather than immediately restarting the campaign.
 
 Bounce House has sparse jellies, only smaller fish, and no AI-on-AI eating so the opening stays safe.
 Threading introduces longer curtains and urchin beds. Bloom adds density and predators. Night Bloom
-uses darker water while preserving fish and hazard readability. Gauntlet combines the densest field,
-predators, and floor hazards. Jelly layouts wrap with the existing finite ecosystem.
+uses darker water while preserving fish and hazard readability. Gauntlet combines long curtains,
+more predators, and floor hazards. Jelly layouts wrap with the existing finite ecosystem.
 
 A clear means becoming the last fish swimming, with no meal quota or replenishment. Meal counters
 and HUD code remain dormant for future endless mode. Ordinary Bloom swimmers look ahead and steer
 around tentacle curtains. Committed chases skip avoidance, preserving baiting;
-hazard collisions remain lethal for everyone. Night Bloom uses six curtains, a lower passage sized for the growing fish, and separated predator
-starts. Player bouncing remains intact.
+hazard collisions remain lethal for everyone. Night Bloom uses six curtains and Gauntlet seven. Both keep a lower passage sized for the growing
+fish and separated predator starts, preserving all five and six predators respectively. Player
+bouncing remains intact.
 All physics, hazard dimensions, and speeds live in `GameTuning` and need device playtesting.
 
 ## Deferred vision

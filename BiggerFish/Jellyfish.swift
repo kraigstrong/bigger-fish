@@ -8,15 +8,17 @@ struct JellyLayout {
     let sway: CGFloat
     let urchinBeds: Int
     let night: Bool
+    let maintainsFloorLane: Bool
 
     init(count: Int, radius: CGFloat = 38, tentacleLength: CGFloat = 90,
-         sway: CGFloat = 12, urchinBeds: Int = 0, night: Bool = false) {
+         sway: CGFloat = 12, urchinBeds: Int = 0, night: Bool = false, maintainsFloorLane: Bool = false) {
         self.count = count
         self.radius = radius
         self.tentacleLength = tentacleLength
         self.sway = sway
         self.urchinBeds = urchinBeds
         self.night = night
+        self.maintainsFloorLane = maintainsFloorLane
     }
 }
 

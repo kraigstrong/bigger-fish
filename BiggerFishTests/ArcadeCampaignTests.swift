@@ -136,7 +136,18 @@ struct ArcadeSceneTests {
         #expect(scene.debugPredatorStartGaps.count == 10) // All five predators still spawn.
         #expect(scene.debugPredatorStartGaps.allSatisfy { $0 >= 0.45 })
         for radius: CGFloat in [16, 40, 80] {
-            #expect(scene.debugNightFloorLane(radius: radius) >= GameRules.bloomFloorLaneClearance(fishRadius: radius) - 0.000001)
+            #expect(scene.debugFloorLane(radius: radius) >= GameRules.bloomFloorLaneClearance(fishRadius: radius) - 0.000001)
+        }
+        withExtendedLifetime(view) {}
+    }
+
+    @Test func gauntletKeepsAllPredatorsWithSpacedStartsAndAGrownFishLane() {
+        let (scene, view) = scene(level: 4)
+        #expect(GameTuning.bloomLevels[4].jellies?.count == 7)
+        #expect(scene.debugPredatorStartGaps.count == 15) // All six predators still spawn.
+        #expect(scene.debugPredatorStartGaps.allSatisfy { $0 >= 0.4 })
+        for radius: CGFloat in [16, 40, 80] {
+            #expect(scene.debugFloorLane(radius: radius) >= GameRules.bloomFloorLaneClearance(fishRadius: radius) - 0.000001)
         }
         withExtendedLifetime(view) {}
     }

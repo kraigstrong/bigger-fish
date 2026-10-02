@@ -138,12 +138,13 @@ enum GameTuning {
         Level(spawnGroups: [(6, 0.35...0.65), (5, 0.65...0.88), (3, 1.15...1.55), (2, 1.70...2.05)],
               aiSpeedRange: 45...120, aiVerticalSpeed: 65, screenCrossSeconds: 2.8,
               absorptionEfficiency: 0.86,
-              jellies: JellyLayout(count: 6, radius: 36, tentacleLength: 115, urchinBeds: 6, night: true),
+              jellies: JellyLayout(count: 6, radius: 36, tentacleLength: 115, urchinBeds: 6, night: true, maintainsFloorLane: true),
               predatorSpawnSeparationScreens: 0.45),
         Level(spawnGroups: [(5, 0.35...0.65), (5, 0.65...0.90), (4, 1.15...1.55), (2, 1.75...2.20)],
               aiSpeedRange: 50...130, aiVerticalSpeed: 72, screenCrossSeconds: 2.7,
               absorptionEfficiency: 0.85,
-              jellies: JellyLayout(count: 11, radius: 35, tentacleLength: 125, urchinBeds: 8)),
+              jellies: JellyLayout(count: 7, radius: 35, tentacleLength: 125, urchinBeds: 8, maintainsFloorLane: true),
+              predatorSpawnSeparationScreens: 0.4),
     ]
 
     // MARK: Levels

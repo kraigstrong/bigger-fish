@@ -592,7 +592,7 @@ final class GameScene: SKScene {
             // A safe opening, then alternating bell heights create a route through the field.
             let x = size.width * 0.85 + CGFloat(i) * (world.width - size.width) / CGFloat(layout.count)
             let fraction: CGFloat = i.isMultiple(of: 2) ? 0.37 : 0.68
-            let floorGap = layout.night ? GameRules.bloomFloorLaneClearance(fishRadius: T.baseRadius) : 12
+            let floorGap = layout.maintainsFloorLane ? GameRules.bloomFloorLaneClearance(fishRadius: T.baseRadius) : 12
             let y = max(waterBottom + layout.tentacleLength + floorGap,
                         waterBottom + (waterTop - waterBottom) * fraction)
             let origin = CGPoint(x: world.wrap(x), y: y)
@@ -639,7 +639,7 @@ final class GameScene: SKScene {
                 x: world.wrap(jellies[i].origin.x + sin(simClock * 0.45 + jellies[i].phase) * layout.sway),
                 y: jellies[i].origin.y + sin(simClock * 0.65 + jellies[i].phase) * layout.sway
             )
-            if layout.night {
+            if layout.maintainsFloorLane {
                 // Preserve a lower passage as the fish grows and the camera eases outward.
                 jellies[i].position.y = max(jellies[i].position.y,
                     waterBottom + layout.tentacleLength + GameRules.bloomFloorLaneClearance(fishRadius: player.radius))
@@ -1260,7 +1260,7 @@ final class GameScene: SKScene {
             }
         }
     }
-    func debugNightFloorLane(radius: CGFloat) -> CGFloat {
+    func debugFloorLane(radius: CGFloat) -> CGFloat {
         player.radius = radius
         player.targetRadius = radius
         updateJellies(0, previousFish: [:])
