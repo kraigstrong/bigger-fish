@@ -110,6 +110,12 @@ enum GameTuning {
     static let bloomFoodPocketHalfWidth: CGFloat = 76
     static let bloomFoodPocketHalfHeight: CGFloat = 24
     static let bloomFoodPocketLift: CGFloat = 40
+    static let bloomFoodPocketReleaseSeconds: CGFloat = 4
+    static let bloomJellyOpeningScreens: ClosedRange<CGFloat> = 0.80...1.00
+    static let bloomJellyLastScreens: ClosedRange<CGFloat> = 3.40...3.60
+    static let bloomJellyGapWeight: ClosedRange<CGFloat> = 0.10...1.80
+    static let bloomJellySpacingPadding: CGFloat = 40
+    static let bloomJellyHeightRange: ClosedRange<CGFloat> = 0.28...0.76
     static let bloomFoodPatrolScreens: CGFloat = 0.16
 
     // Level 2 only: a meal beyond the far shoulder, where an early bounce sends you away.
@@ -125,36 +131,36 @@ enum GameTuning {
     static let bloomFoodRadiusFraction: ClosedRange<CGFloat> = 0.45...0.65
 
     /// These remain separate from the five original levels so their feel stays intact.
-    // Levels 2–5 try Shallow Reef Level 4's food chain with the existing bounce layouts and speeds.
+    // Levels 2–5 use Shallow Reef Level 4's food chain with seeded, uneven jelly obstacles.
     static let bloomLevels: [Level] = [
         Level(spawnGroups: [(9, 0.30...0.65), (5, 0.65...0.85)],
               aiSpeedRange: 30...80, aiVerticalSpeed: 35, screenCrossSeconds: 3.1,
               absorptionEfficiency: 0.90,
               jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6)),
         Level(spawnGroups: [(3, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08), (4, 1.20...1.60), (2, 2.00...2.60)],
-              aiSpeedRange: 30...75, aiVerticalSpeed: 30, screenCrossSeconds: 3.1,
+              aiSpeedRange: 65...155, aiVerticalSpeed: 80, screenCrossSeconds: 3.1,
               absorptionEfficiency: 0.78,
               jellies: JellyLayout(count: 5, radius: 44, tentacleLength: 70, sway: 6, maintainsFloorLane: true,
                                   heights: [0.38, 0.55, 0.38, 0.55, 0.38]),
-              bounceFoodPockets: true, sidePocketExperiment: true),
+              bounceFoodPockets: true, sidePocketExperiment: true, roamingFoodChain: true),
         Level(spawnGroups: [(3, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08), (4, 1.20...1.60), (2, 2.00...2.60)],
-              aiSpeedRange: 30...80, aiVerticalSpeed: 32, screenCrossSeconds: 3.05,
+              aiSpeedRange: 65...155, aiVerticalSpeed: 80, screenCrossSeconds: 3.05,
               absorptionEfficiency: 0.78,
               jellies: JellyLayout(count: 6, radius: 46, tentacleLength: 75, sway: 6, maintainsFloorLane: true,
                                   heights: [0.32, 0.42, 0.54, 0.68, 0.54, 0.42]),
-              bounceFoodPockets: true),
+              bounceFoodPockets: true, roamingFoodChain: true),
         Level(spawnGroups: [(3, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08), (4, 1.20...1.60), (2, 2.00...2.60)],
-              aiSpeedRange: 30...80, aiVerticalSpeed: 32, screenCrossSeconds: 3.05,
+              aiSpeedRange: 65...155, aiVerticalSpeed: 80, screenCrossSeconds: 3.05,
               absorptionEfficiency: 0.78,
               jellies: JellyLayout(count: 6, radius: 46, tentacleLength: 75, sway: 6, night: true,
                                   maintainsFloorLane: true, heights: [0.42, 0.65, 0.42, 0.65, 0.42, 0.65]),
-              bounceFoodPockets: true),
+              bounceFoodPockets: true, roamingFoodChain: true),
         Level(spawnGroups: [(3, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08), (4, 1.20...1.60), (2, 2.00...2.60)],
-              aiSpeedRange: 30...85, aiVerticalSpeed: 35, screenCrossSeconds: 3.0,
+              aiSpeedRange: 65...155, aiVerticalSpeed: 80, screenCrossSeconds: 3.0,
               absorptionEfficiency: 0.78,
               jellies: JellyLayout(count: 7, radius: 48, tentacleLength: 80, sway: 6, maintainsFloorLane: true,
                                   heights: [0.35, 0.52, 0.69, 0.52, 0.35, 0.52, 0.69]),
-              bounceFoodPockets: true),
+              bounceFoodPockets: true, roamingFoodChain: true),
     ]
 
     // MARK: Levels
@@ -199,4 +205,5 @@ struct Level {
     var predatorSpawnSeparationScreens: CGFloat = 0
     var bounceFoodPockets: Bool = false
     var sidePocketExperiment: Bool = false
+    var roamingFoodChain: Bool = false
 }

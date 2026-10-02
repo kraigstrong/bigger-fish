@@ -134,6 +134,14 @@ struct ArcadeSceneTests {
         withExtendedLifetime(view) {}
     }
 
+    @Test func foodLeavesItsOpeningPocketToJoinTheFoodChain() {
+        for index in 1..<5 {
+            let (scene, view) = scene(level: index)
+            #expect(scene.debugFoodLeavesPocket())
+            withExtendedLifetime(view) {}
+        }
+    }
+
     @Test func aiMealsCanTurnEdibleFishIntoThreatsInEveryBloomLevel() {
         for index in 0..<5 {
             let (scene, view) = scene(level: index)
@@ -260,5 +268,30 @@ struct ArcadeSceneTests {
         scene.debugClearLevel()
         #expect(clears == [0])
         withExtendedLifetime(view) {}
+    }
+}
+
+struct JellyPlacementTests {
+    @Test func layoutsAreRepeatableUnevenAndKeepSafeSpacing() {
+        for width: CGFloat in [667, 874] {
+            for index in 1..<5 {
+                let layout = GameTuning.bloomLevels[index].jellies!
+                let seed = GameTuning.spawnSeed + UInt64(index + 1_000)
+                let points = JellyPlacement.origins(layout: layout, screenWidth: width,
+                    waterBottom: 10, waterTop: 390, seed: seed)
+                #expect(points == JellyPlacement.origins(layout: layout, screenWidth: width,
+                    waterBottom: 10, waterTop: 390, seed: seed))
+                #expect(points.count == layout.count)
+                #expect(points.first!.x >= width * 0.8)
+                #expect(points.last!.x <= width * 3.6 + 0.000001)
+                let gaps = zip(points, points.dropFirst()).map { $1.x - $0.x }
+                #expect(gaps.min()! >= layout.radius * 2 + layout.sway * 2
+                        + GameTuning.bloomJellySpacingPadding - 0.000001)
+                #expect(gaps.max()! - gaps.min()! > 40)
+                #expect(Set(points.map(\.y)).count > 1)
+                #expect(points.allSatisfy { $0.y - layout.tentacleLength - 10 >=
+                    GameRules.bloomFloorLaneClearance(fishRadius: GameTuning.baseRadius) - 0.000001 })
+            }
+        }
     }
 }

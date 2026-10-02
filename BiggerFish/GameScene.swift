@@ -623,13 +623,18 @@ final class GameScene: SKScene {
         zoom += (target - zoom) * min(1, dt * T.zoomEase)
     }
 
+    private func patrolHome(for id: Int) -> CGPoint? {
+        if level.roamingFoodChain && simClock >= T.bloomFoodPocketReleaseSeconds { return nil }
+        return sidePocketHomes[id] ?? foodHomes[id]
+    }
+
     private func moveAI(_ f: Fish, _ dt: CGFloat) {
         f.turnTimer -= dt
         if f.turnTimer <= 0 {
             f.heading *= -1
             f.turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &rng)
         }
-        let home = sidePocketHomes[f.id] ?? foodHomes[f.id]
+        let home = patrolHome(for: f.id)
         if let home {
             let offset = world.delta(from: home.x, to: f.position.x)
             let halfWidth = sidePocketHomes[f.id] != nil ? T.bloomSidePocketPatrolHalfWidth : size.width * T.bloomFoodPatrolScreens
@@ -673,6 +678,8 @@ final class GameScene: SKScene {
 
     private func spawnJellies() {
         guard let layout = level.jellies else { return }
+        let scattered = level.roamingFoodChain ? JellyPlacement.origins(layout: layout, screenWidth: size.width,
+            waterBottom: waterBottom, waterTop: waterTop, seed: T.spawnSeed + UInt64(levelIndex + 1_000)) : []
         for i in 0..<layout.count {
             // A safe opening, then alternating bell heights create a route through the field.
             let x = size.width * 0.85 + CGFloat(i) * (world.width - size.width) / CGFloat(layout.count)
@@ -680,7 +687,7 @@ final class GameScene: SKScene {
             let floorGap = (layout.maintainsFloorLane || levelIndex == 0) ? GameRules.bloomFloorLaneClearance(fishRadius: T.baseRadius) : 12
             let y = max(waterBottom + layout.tentacleLength + floorGap,
                         waterBottom + (waterTop - waterBottom) * fraction)
-            let origin = CGPoint(x: world.wrap(x), y: y)
+            let origin = scattered.isEmpty ? CGPoint(x: world.wrap(x), y: y) : scattered[i]
             let phase = CGFloat(i) * 1.7
             let node = JellyfishNode(radius: layout.radius, tentacleLength: layout.tentacleLength, phase: phase)
             hazardLayer.addChild(node)
@@ -1252,6 +1259,9 @@ final class GameScene: SKScene {
             "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
             "configuration": ["spawnSeed": String(T.spawnSeed + UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0))),
                 "aiCanEat": level.aiCanEat, "absorptionEfficiency": level.absorptionEfficiency,
+                "roamingFoodChain": level.roamingFoodChain,
+                "foodPocketReleaseSeconds": level.roamingFoodChain ? T.bloomFoodPocketReleaseSeconds : 0,
+                "jellyLayoutSeed": String(T.spawnSeed + UInt64(levelIndex + 1_000)),
                 "screenCrossSeconds": level.screenCrossSeconds, "sidePocketExperiment": level.sidePocketExperiment,
                 "bounceSpeed": T.jellyBounceSpeed, "jellyRadius": level.jellies?.radius ?? 0,
                 "tentacleLength": level.jellies?.tentacleLength ?? 0,
@@ -1415,6 +1425,13 @@ final class GameScene: SKScene {
             }
         }
         return (food, predators, safe)
+    }
+    func debugFoodLeavesPocket() -> Bool {
+        guard let id = foodHomes.keys.sorted().first else { return false }
+        simClock = T.bloomFoodPocketReleaseSeconds - 0.01
+        let initiallyBounded = patrolHome(for: id) != nil
+        simClock = T.bloomFoodPocketReleaseSeconds
+        return initiallyBounded && patrolHome(for: id) == nil
     }
     var debugFoodPocketCount: Int { foodHomes.count }
     var debugFishCount: Int { fish.count }

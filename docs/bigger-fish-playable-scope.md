@@ -24,16 +24,16 @@ after a loss. The final level offers Play again / Levels. Only buttons advance t
 Pausing offers Resume, Restart, and Level map. Cleared levels remain replayable. World completion
 returns to its map rather than immediately restarting the campaign.
 
-Level 1 retains its four-domed, smaller-fish opening. Levels 2–5 place food pockets above authored
-bounce routes: alternating stepping stones, an ascending/descending ladder, a night chain, and a
-longer playground. Food fish patrol near their pockets rather than dispersing around the whole reef.
+Level 1 retains its four-domed, smaller-fish opening. Levels 2–5 place opening food pockets above their jellyfish. Food fish start near their pockets, then roam after four simulation seconds in Levels 2–5.
 Level 2 has a single placement experiment at its second dome: meals sit beyond the far
 shoulder, slightly below the rim, with one larger fish swimming nearby. An early bounce
-can carry the player above the meals; skimming the shoulder is an alternative. Other pockets and
-levels keep their layouts. Bounce strength, AI competition, and the grown-fish escape lane stay intact.
+can carry the player above the meals; skimming the shoulder is an alternative. Food pockets follow the new seeded jelly positions. Bounce strength, AI competition, and the grown-fish escape lane stay intact.
 Levels 2–5 now experiment with Shallow Reef Level 4's size mix: 3 small, 5 edible,
 5 near-equal, 4 medium, and 2 giant fish. Absorption efficiency is 0.78, so small meals
-unlock medium fish before the giants. Existing movement speeds and jelly layouts remain.
+unlock medium fish before the giants. AI use Shallow Reef Level 4's speeds (65–155 horizontal, 80 vertical); player speed remains
+unchanged. Jelly positions vary in spacing and height using a stable per-level seed, with
+minimum bell spacing, an open start, and the existing growing-fish lower passage. Level 1
+retains its original movement and layout.
 Larger fish use ordinary distributed starts rather than the former widely separated slots;
 only the first larger fish in Level 2 is assigned to the far-side pocket. AI competition
 can change this progression during play. Jellyfish serve as obstacles and optional bounces.
