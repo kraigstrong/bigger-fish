@@ -741,13 +741,6 @@ final class GameScene: SKScene {
            distance < T.bloomAggroRadius {
             brain.chaseRemaining = T.bloomChaseSeconds
             brain.reactionRemaining = T.bloomChaseReactionSeconds
-            let warning = label("!", fontSize: 19, heavy: true)
-            warning.name = "chase-warning"
-            warning.fontColor = SKColor(red: 1, green: 0.9, blue: 0.5, alpha: 1)
-            warning.position = CGPoint(x: 0, y: f.radius * zoom + 12)
-            warning.run(.sequence([.scale(to: 1.3, duration: 0.12), .scale(to: 1, duration: 0.12),
-                                   .wait(forDuration: 0.4), .fadeOut(withDuration: 0.2), .removeFromParent()]))
-            nodes[f.id]?.addChild(warning)
         }
         if brain.reactionRemaining > 0 {
             brain.reactionRemaining = max(0, brain.reactionRemaining - dt)
@@ -1234,7 +1227,7 @@ final class GameScene: SKScene {
         swimmer.turnTimer = 10
         swimmer.retargetTimer = 10
         add(swimmer, style: .player)
-        // Start the baiting fixture already committed; warning/reaction uses ordinary steering.
+        // Start the baiting fixture already committed; the reaction delay uses ordinary steering.
         brains[swimmer.id] = BloomBrain(aggressive: chasing,
                                        chaseRemaining: chasing ? T.bloomChaseSeconds : 0)
         for _ in 0..<90 {
