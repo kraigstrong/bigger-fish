@@ -148,6 +148,17 @@ final class GameScene: SKScene {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     private var rng = SeededGenerator(seed: T.spawnSeed)
+    private var aiMovementRNGs: [Int: SeededGenerator] = [:]
+    private var ecosystemSeed: UInt64 {
+        T.spawnSeed &+ UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) &+ seedOffset
+    }
+
+    /// Domain-separated streams use stable fish IDs, without consuming spawn randomness.
+    private func movementGenerator(for id: Int) -> SeededGenerator {
+        var seedMixer = SeededGenerator(seed: ecosystemSeed &+ 0xA0761D6478BD642F
+            &+ UInt64(id) &* 0x9E3779B97F4A7C15)
+        return SeededGenerator(seed: seedMixer.next())
+    }
 
     private let backgroundLayer = SKNode()
     private let fishLayer = SKNode()
@@ -292,6 +303,7 @@ final class GameScene: SKScene {
         foodHomes.removeAll()
         sidePocketHomes.removeAll()
         nextFishID = 1
+        aiMovementRNGs.removeAll()
         mealsEaten = 0
         foodRefillCooldown = 0
         bounceRemaining = 0
@@ -311,7 +323,7 @@ final class GameScene: SKScene {
         zoom = 1
 
         world = WrappedWorld(width: size.width * T.worldScreens)
-        rng = SeededGenerator(seed: T.spawnSeed &+ UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) + seedOffset)
+        rng = SeededGenerator(seed: ecosystemSeed)
         spawnJellies()
         spawnEcosystem()
         lastCameraX = player.position.x
@@ -448,6 +460,7 @@ final class GameScene: SKScene {
     }
 
     private func add(_ f: Fish, style: FishStyle) {
+        if !f.isPlayer { aiMovementRNGs[f.id] = movementGenerator(for: f.id) }
         fish.append(f)
         fishByID[f.id] = f
         let node = FishNode(style: style, isPlayer: f.isPlayer, tailPhase: CGFloat(f.id) * 1.7)
@@ -745,10 +758,12 @@ final class GameScene: SKScene {
     }
 
     private func moveAI(_ f: Fish, _ dt: CGFloat) {
+        var movementRNG = aiMovementRNGs[f.id] ?? movementGenerator(for: f.id)
+        defer { aiMovementRNGs[f.id] = movementRNG }
         f.turnTimer -= dt
         if f.turnTimer <= 0 {
             f.heading *= -1
-            f.turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &rng)
+            f.turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &movementRNG)
         }
         let home = patrolHome(for: f.id)
         if let home {
@@ -763,8 +778,8 @@ final class GameScene: SKScene {
         let maxY = max(minY, min(waterTop - f.radius, home.map { $0.y + T.bloomFoodPocketHalfHeight } ?? waterTop))
         f.retargetTimer -= dt
         if f.retargetTimer <= 0 || abs(f.targetY - f.position.y) < 6 {
-            f.targetY = CGFloat.random(in: minY...maxY, using: &rng)
-            f.retargetTimer = CGFloat.random(in: T.aiRetargetRange, using: &rng)
+            f.targetY = CGFloat.random(in: minY...maxY, using: &movementRNG)
+            f.retargetTimer = CGFloat.random(in: T.aiRetargetRange, using: &movementRNG)
         }
         f.targetY = f.targetY.clamped(minY, maxY)
         let desiredVY = ((f.targetY - f.position.y) * 0.9).clamped(-level.aiVerticalSpeed, level.aiVerticalSpeed)
@@ -931,6 +946,7 @@ final class GameScene: SKScene {
         } else {
             fish.removeAll { $0.id == victim.id }
             fishByID[victim.id] = nil
+            aiMovementRNGs[victim.id] = nil
             foodHomes[victim.id] = nil
             sidePocketHomes[victim.id] = nil
             nodes[victim.id] = nil
@@ -1122,6 +1138,7 @@ final class GameScene: SKScene {
         nodes[prey.id] = nil
         fish.removeAll { $0.id == prey.id }
         fishByID[prey.id] = nil
+        aiMovementRNGs[prey.id] = nil
         foodHomes[prey.id] = nil
         sidePocketHomes[prey.id] = nil
 
@@ -1436,6 +1453,7 @@ final class GameScene: SKScene {
             "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
             "configuration": ["spawnSeed": String(T.spawnSeed + UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) + seedOffset),
+                "aiMovementRandomVersion": 1,
                 "simulationStepSeconds": T.simulationStep, "maximumFrameElapsedSeconds": T.maximumFrameElapsed,
                 "aiCanEat": level.aiCanEat, "playerWinsTies": true, "absorptionEfficiency": level.absorptionEfficiency,
                 "roamingFoodChain": level.roamingFoodChain,
@@ -1556,7 +1574,8 @@ final class GameScene: SKScene {
     func debugAuditRepeatability(frames: [CGFloat], isolatedAI: Bool = true,
                                  omittedIDs: Set<Int> = [], fixedZoom: CGFloat = 1,
                                  playerRadius: CGFloat = T.baseRadius, fixedStep: Bool = false,
-                                 slowMotion: Bool = false, scriptedInput: Bool = false) -> ArcadeSimulation.Audit {
+                                 slowMotion: Bool = false, scriptedInput: Bool = false,
+                                 removeOmittedFish: Bool = false) -> ArcadeSimulation.Audit {
         simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
         simulationEcologyProbe = true
         simulationHolding = false
@@ -1564,6 +1583,17 @@ final class GameScene: SKScene {
         zoom = fixedZoom
         player.radius = playerRadius
         player.targetRadius = playerRadius
+        if removeOmittedFish {
+            for id in omittedIDs {
+                fish.removeAll { $0.id == id }
+                fishByID[id] = nil
+                nodes[id]?.removeFromParent()
+                nodes[id] = nil
+                aiMovementRNGs[id] = nil
+                foodHomes[id] = nil
+                sidePocketHomes[id] = nil
+            }
+        }
         if slowMotion {
             slowMoRemaining = T.closeCallSlowDuration
             slowMoFactor = T.closeCallSlowFactor
@@ -1589,6 +1619,8 @@ final class GameScene: SKScene {
                       turnTimer: Double($0.turnTimer), state: String(describing: $0.state))
             })
     }
+
+    var debugAIMovementStreamIDs: Set<Int> { Set(aiMovementRNGs.keys) }
 
     func debugCheckPresentationIsolation() -> Bool {
         simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])

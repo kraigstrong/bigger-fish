@@ -79,8 +79,7 @@ still catches fish 1, 8, 18, and 7 at approximately 0.180, 0.237, 0.406, and 0.7
 circuits, preserving the reference opening. Its finish changes from approximately
 16.2 to 21.3 simulation seconds, so later human gameplay still needs checking.
 
-NPCs still share randomness and camera growth still changes physical world bounds.
-Neither dependency is addressed here. Historical isolated audit modes intentionally
+Phase 2 now isolates NPC movement randomness; its implementation, campaign changes, and pending playtest decision are recorded in `arcade-independent-ai.md`. Camera growth still changes physical world bounds and remains a separate design decision. Historical isolated audit modes intentionally
 retain raw variable steps to reproduce the original findings; the new fixed-step
 regressions exercise the production accumulator instead.
 
