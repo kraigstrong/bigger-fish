@@ -47,6 +47,34 @@ struct ArcadeSimulationTests {
         #expect(scene.debugCheckFixedTimingLifecycle())
     }
 
+    @Test func noninteractingFishKeepTheirMovementWhenOtherFishAreSkippedOrRemoved() {
+        let frames = Array(repeating: CGFloat(1) / 60, count: 480)
+        for world: ArcadeWorld in [.shallowReef, .jellyBloom] {
+            for index in world.levels.indices {
+                func run(omitted: Set<Int> = [], remove: Bool = false) -> ArcadeSimulation.Audit {
+                    let scene = GameScene(size: CGSize(width: 874, height: 402), world: world, levelIndex: index)
+                    return scene.debugAuditRepeatability(frames: frames, omittedIDs: omitted, removeOmittedFish: remove)
+                }
+                let control = run()
+                for omitted: Set<Int> in [[1], [1, 2, 3]] {
+                    let expected = control.fish.filter { !omitted.contains($0.id) }
+                    #expect(run(omitted: omitted).fish == expected)
+                    #expect(run(omitted: omitted, remove: true).fish == expected)
+                }
+            }
+        }
+    }
+
+    @Test func removedFishReleaseTheirStreamsAndRetriesRecreateThem() {
+        let scene = GameScene(size: CGSize(width: 874, height: 402), world: .jellyBloom)
+        let tuning = ArcadeTuning(level: GameTuning.bloomLevels[0])
+        let won = scene.debugSimulate(candidate: "stream lifecycle", tuning: tuning, policy: .collector, seed: 0, limit: 90)
+        #expect(won.outcome == "won")
+        #expect(scene.debugAIMovementStreamIDs.isEmpty)
+        let retry = scene.debugSimulate(candidate: "stream reset", tuning: tuning, policy: .collector, seed: 0, limit: 0)
+        #expect(scene.debugAIMovementStreamIDs == Set(1...retry.spawned))
+    }
+
     @Test func ecologyProbeCannotDieOrFeed() {
         let scene = GameScene(size: CGSize(width: 874, height: 402), world: .jellyBloom, levelIndex: 1)
         let result = scene.debugSimulate(candidate: "ecology", tuning: ArcadeTuning(level: GameTuning.bloomLevels[1]),
