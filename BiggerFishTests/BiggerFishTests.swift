@@ -76,3 +76,30 @@ struct BloomChaseTests {
         #expect(abs(velocity.dx) < 300)
     }
 }
+
+struct BloomMealTests {
+    private func fish(_ id: Int, radius: CGFloat, player: Bool = false) -> Fish {
+        Fish(id: id, isPlayer: player, position: .zero, radius: radius)
+    }
+
+    @Test func wipedOutReefRequiresCompletedMeals() {
+        let player = fish(0, radius: 16, player: true)
+        #expect(!GameRules.isWin([player], mealsEaten: 0, requiredMeals: 8))
+        #expect(!GameRules.isWin([player], mealsEaten: 7, requiredMeals: 8))
+        #expect(GameRules.isWin([player], mealsEaten: 8, requiredMeals: 8))
+        #expect(!GameRules.isWin([player, fish(1, radius: 8)], mealsEaten: 8, requiredMeals: 8))
+    }
+
+    @Test func refillsOnlyStalledEcosystems() {
+        let player = fish(0, radius: 16, player: true)
+        #expect(GameRules.needsFood([player], mealsEaten: 0, requiredMeals: 8))
+        #expect(!GameRules.needsFood([player], mealsEaten: 8, requiredMeals: 8))
+        #expect(!GameRules.needsFood([player], mealsEaten: 0, requiredMeals: 0))
+        #expect(!GameRules.needsFood([player, fish(1, radius: 8)], mealsEaten: 0, requiredMeals: 8))
+        #expect(GameRules.needsFood([player, fish(1, radius: 32)], mealsEaten: 8, requiredMeals: 8))
+        player.state = .swallowing(preyID: 1)
+        #expect(!GameRules.needsFood([player], mealsEaten: 7, requiredMeals: 8))
+        player.state = .removed
+        #expect(!GameRules.needsFood([player], mealsEaten: 0, requiredMeals: 8))
+    }
+}

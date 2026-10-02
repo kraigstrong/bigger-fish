@@ -44,6 +44,13 @@ final class GameScene: SKScene {
     private var nodes: [Int: FishNode] = [:]
     private var swallows: [Swallow] = []
     private var player: Fish!
+    private var nextFishID = 1
+    private var mealsEaten = 0
+    private var foodRefillCooldown: CGFloat = 0
+    private let mealIndicator = SKLabelNode(fontNamed: "AvenirNext-DemiBold")
+    private var hasWon: Bool {
+        GameRules.isWin(fish, mealsEaten: mealsEaten, requiredMeals: level.requiredMeals)
+    }
     let arcadeWorld: ArcadeWorld
     private var levelIndex: Int
     private var level: Level { arcadeWorld.levels[levelIndex] }
@@ -187,6 +194,9 @@ final class GameScene: SKScene {
         jellies.removeAll()
         urchins.removeAll()
         brains.removeAll()
+        nextFishID = 1
+        mealsEaten = 0
+        foodRefillCooldown = 0
         bounceRemaining = 0
         bounceCooldown = 0
         lossReason = "There was a bigger fish."
@@ -217,26 +227,43 @@ final class GameScene: SKScene {
         player = p
         add(p, style: .player)
 
-        var nextID = 1
         for group in level.spawnGroups {
             for _ in 0..<group.count {
                 let normalized = CGFloat.random(in: group.radii, using: &rng)
                 let r = normalized * base
                 guard let pos = findSpawnPoint(radius: r, dangerous: normalized >= T.spawnDangerRatio) else { continue }
-                let f = Fish(id: nextID, isPlayer: false, position: pos, radius: r)
-                nextID += 1
-                f.heading = Bool.random(using: &rng) ? 1 : -1
-                f.cruiseSpeed = CGFloat.random(in: level.aiSpeedRange, using: &rng)
-                f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
-                f.facing = f.heading
-                f.targetY = pos.y
-                f.retargetTimer = CGFloat.random(in: T.aiRetargetRange, using: &rng)
-                f.turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &rng)
-                f.phase = CGFloat.random(in: 0...(2 * .pi), using: &rng)
-                add(f, style: FishStyle.random(using: &rng))
-                if level.jellies != nil {
-                    brains[f.id] = BloomBrain(aggressive: CGFloat.random(in: 0...1, using: &rng) < T.bloomAggressiveFraction)
-                }
+                spawnAIFish(radius: r, at: pos)
+            }
+        }
+    }
+
+    private func spawnAIFish(radius: CGFloat, at position: CGPoint) {
+        let f = Fish(id: nextFishID, isPlayer: false, position: position, radius: radius)
+        nextFishID += 1
+        f.heading = Bool.random(using: &rng) ? 1 : -1
+        f.cruiseSpeed = CGFloat.random(in: level.aiSpeedRange, using: &rng)
+        f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
+        f.facing = f.heading
+        f.targetY = position.y
+        f.retargetTimer = CGFloat.random(in: T.aiRetargetRange, using: &rng)
+        f.turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &rng)
+        f.phase = CGFloat.random(in: 0...(2 * .pi), using: &rng)
+        add(f, style: FishStyle.random(using: &rng))
+        if level.jellies != nil {
+            brains[f.id] = BloomBrain(aggressive: CGFloat.random(in: 0...1, using: &rng) < T.bloomAggressiveFraction)
+        }
+    }
+
+    private func replenishFood(_ dt: CGFloat) {
+        foodRefillCooldown = max(0, foodRefillCooldown - dt)
+        guard foodRefillCooldown == 0,
+              GameRules.needsFood(fish, mealsEaten: mealsEaten, requiredMeals: level.requiredMeals) else { return }
+        foodRefillCooldown = T.bloomFoodRefillSeconds
+        for _ in 0..<T.bloomFoodRefillCount {
+            let radius = min(player.radius * CGFloat.random(in: T.bloomFoodRadiusFraction, using: &rng),
+                             (waterTop - waterBottom) * 0.1)
+            if let position = findSpawnPoint(radius: radius, dangerous: false) {
+                spawnAIFish(radius: radius, at: position)
             }
         }
     }
@@ -286,8 +313,8 @@ final class GameScene: SKScene {
             resultPanel = nil
             messageNode.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
             let lines = arcadeWorld == .jellyBloom
-                ? (showsJellyLesson ? ["Bounce the tops.", "Never touch the bottoms.", "Eat fish or let the jellies clear them."]
-                                   : ["Eat smaller fish. Avoid bigger fish.", "Bounce domes. Dodge tentacles."])
+                ? (showsJellyLesson ? ["Bounce the tops.", "Never touch the bottoms.", "Eat \(level.requiredMeals) fish, then clear the reef."]
+                                   : ["Eat \(level.requiredMeals) fish, then clear the reef.", "Bounce domes. Dodge tentacles."])
                 : ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish."]
             showMessage(arcadeWorld.levelTitles[levelIndex], lines: lines)
             let start = label("Tap anywhere to swim", fontSize: 12, heavy: false)
@@ -471,7 +498,7 @@ final class GameScene: SKScene {
         advanceGrowth(dt)
         if phase == .playing {
             resolveCollisions()
-            if GameRules.isWin(fish) { win() }
+            if hasWon { win() } else { replenishFood(dt) }
         }
     }
 
@@ -859,13 +886,17 @@ final class GameScene: SKScene {
         predator.growElapsed = 0
         predator.pulse = T.pulseDuration
 
-        if predator.isPlayer { audio.play(.eat) }
+        if predator.isPlayer {
+            mealsEaten += 1
+            updateMealIndicator()
+            audio.play(.eat)
+        }
         if predator.isPlayer && s.ratio >= T.closeCallRatio {
             closeCallHaptic.impactOccurred()
         }
         if prey.isPlayer {
             lose()
-        } else if phase == .playing && GameRules.isWin(fish) {
+        } else if phase == .playing && hasWon {
             win()
         }
     }
@@ -984,7 +1015,20 @@ final class GameScene: SKScene {
             pip.lineWidth = 1
             levelIndicator.addChild(pip)
         }
+        if level.requiredMeals > 0 {
+            mealIndicator.fontSize = 13
+            mealIndicator.fontColor = .white
+            mealIndicator.horizontalAlignmentMode = .left
+            mealIndicator.position = CGPoint(x: 0, y: -23)
+            levelIndicator.addChild(mealIndicator)
+            updateMealIndicator()
+        }
         levelIndicator.position = CGPoint(x: 64, y: size.height - 36)
+    }
+
+    private func updateMealIndicator() {
+        mealIndicator.text = "EAT \(min(mealsEaten, level.requiredMeals))/\(level.requiredMeals)" +
+            (mealsEaten >= level.requiredMeals ? " · CLEAR THE REEF" : "")
     }
 
     private func buildPauseButton() {
@@ -1107,6 +1151,8 @@ final class GameScene: SKScene {
     }
     func debugPassOppositeJelly() -> Bool {
         guard let jelly = jellies.first else { return false }
+        // Isolate the wrapped-distance regression from real contact with another jelly.
+        jellies = [jelly]
         let old = CGPoint(x: world.wrap(jelly.position.x + world.width / 2 - 2), y: jelly.position.y - 40)
         player.position = CGPoint(x: world.wrap(old.x + 4), y: old.y)
         updateJellies(0, previousFish: [player.id: old])
@@ -1132,7 +1178,23 @@ final class GameScene: SKScene {
         let frame = panel.controls.first { $0.action == action }?.frame
         panel.handleTap(at: frame.map { CGPoint(x: $0.midX, y: $0.midY) } ?? CGPoint(x: 0, y: 80))
     }
+    var debugMealsEaten: Int { mealsEaten }
+    var debugEdibleCount: Int {
+        fish.filter { !$0.isPlayer && $0.isAlive && GameRules.encounter(player.radius, $0.radius) == .firstEatsSecond }.count
+    }
+    func debugHazardWipeout() {
+        for f in fish.filter({ !$0.isPlayer }) { removeByTentacles(f) }
+        simulate(1.0 / 30)
+    }
+    func debugEatMeal() {
+        let prey = Fish(id: nextFishID, isPlayer: false, position: player.position, radius: player.radius * 0.5)
+        nextFishID += 1
+        add(prey, style: .player)
+        beginSwallow(predator: player, prey: prey)
+        advanceSwallows(1)
+    }
     func debugClearLevel() {
+        while mealsEaten < level.requiredMeals { debugEatMeal() }
         for f in fish where !f.isPlayer { f.state = .removed }
         simulate(1.0 / 30)
     }

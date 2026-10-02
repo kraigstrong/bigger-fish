@@ -40,8 +40,18 @@ enum GameRules {
         sqrt(predator * predator + efficiency * prey * prey)
     }
 
-    /// The player wins by being the only fish left alive.
-    static func isWin(_ fish: [Fish]) -> Bool {
+    /// Refill only a stalled Bloom ecosystem, never a normal final chase or an active swallow.
+    static func needsFood(_ fish: [Fish], mealsEaten: Int, requiredMeals: Int) -> Bool {
+        guard requiredMeals > 0,
+              let player = fish.first(where: \.isPlayer), player.state == .swimming else { return false }
+        let others = fish.filter { !$0.isPlayer && $0.state != .removed }
+        guard !others.contains(where: { encounter(player.radius, $0.radius) == .firstEatsSecond }) else { return false }
+        return mealsEaten < requiredMeals || !others.isEmpty
+    }
+
+    /// Bloom also requires completed player meals; hazard and AI kills earn no credit.
+    static func isWin(_ fish: [Fish], mealsEaten: Int = 0, requiredMeals: Int = 0) -> Bool {
+        guard mealsEaten >= requiredMeals else { return false }
         guard let player = fish.first(where: \.isPlayer), player.isAlive else { return false }
         return fish.allSatisfy { $0.isPlayer || $0.state == .removed }
     }

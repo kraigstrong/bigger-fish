@@ -111,28 +111,32 @@ enum GameTuning {
     static let bloomAggressiveFraction: CGFloat = 0.6
     static let bloomFleeRadius: CGFloat = 110
 
+    static let bloomFoodRefillSeconds: CGFloat = 3
+    static let bloomFoodRefillCount = 2
+    static let bloomFoodRadiusFraction: ClosedRange<CGFloat> = 0.45...0.65
+
     /// These remain separate from the five original levels so their feel stays intact.
     static let bloomLevels: [Level] = [
         Level(spawnGroups: [(9, 0.30...0.65), (5, 0.65...0.85)],
               aiSpeedRange: 30...80, aiVerticalSpeed: 35, screenCrossSeconds: 3.1,
               absorptionEfficiency: 0.90,
-              jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6), aiCanEat: false),
+              jellies: JellyLayout(count: 3, radius: 40, tentacleLength: 70, sway: 6), aiCanEat: false, requiredMeals: 3),
         Level(spawnGroups: [(7, 0.30...0.62), (5, 0.62...0.85), (2, 1.15...1.45)],
               aiSpeedRange: 35...95, aiVerticalSpeed: 45, screenCrossSeconds: 3.0,
               absorptionEfficiency: 0.90,
-              jellies: JellyLayout(count: 6, tentacleLength: 110, sway: 8, urchinBeds: 3)),
+              jellies: JellyLayout(count: 4, tentacleLength: 110, sway: 8, urchinBeds: 2), requiredMeals: 4),
         Level(spawnGroups: [(6, 0.35...0.65), (5, 0.65...0.88), (3, 1.10...1.50), (1, 1.70...1.95)],
               aiSpeedRange: 40...110, aiVerticalSpeed: 60, screenCrossSeconds: 2.85,
               absorptionEfficiency: 0.87,
-              jellies: JellyLayout(count: 8, radius: 36, tentacleLength: 100, urchinBeds: 5)),
+              jellies: JellyLayout(count: 6, radius: 36, tentacleLength: 100, urchinBeds: 3), requiredMeals: 5),
         Level(spawnGroups: [(6, 0.35...0.65), (5, 0.65...0.88), (3, 1.15...1.55), (2, 1.70...2.05)],
               aiSpeedRange: 45...120, aiVerticalSpeed: 65, screenCrossSeconds: 2.8,
               absorptionEfficiency: 0.86,
-              jellies: JellyLayout(count: 9, radius: 36, tentacleLength: 115, urchinBeds: 6, night: true)),
+              jellies: JellyLayout(count: 7, radius: 36, tentacleLength: 115, urchinBeds: 4, night: true), requiredMeals: 6),
         Level(spawnGroups: [(5, 0.35...0.65), (5, 0.65...0.90), (4, 1.15...1.55), (2, 1.75...2.20)],
               aiSpeedRange: 50...130, aiVerticalSpeed: 72, screenCrossSeconds: 2.7,
               absorptionEfficiency: 0.85,
-              jellies: JellyLayout(count: 11, radius: 35, tentacleLength: 125, urchinBeds: 8)),
+              jellies: JellyLayout(count: 8, radius: 35, tentacleLength: 125, urchinBeds: 5), requiredMeals: 8),
     ]
 
     // MARK: Levels
@@ -173,4 +177,5 @@ struct Level {
     let absorptionEfficiency: CGFloat
     var jellies: JellyLayout? = nil
     var aiCanEat: Bool = true
+    var requiredMeals: Int = 0
 }

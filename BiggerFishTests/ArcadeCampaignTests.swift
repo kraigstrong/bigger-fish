@@ -110,6 +110,27 @@ struct ArcadeSceneTests {
         return (scene, view)
     }
 
+    @Test func gauntletCannotClearFromHazardsAloneAndReplenishesFood() {
+        let (scene, view) = scene(level: 4)
+        var clears = 0
+        scene.onClear = { _, _ in clears += 1 }
+        scene.debugHazardWipeout()
+        #expect(clears == 0)
+        #expect(scene.debugMealsEaten == 0)
+        #expect(scene.debugResultTitles.isEmpty)
+        #expect(scene.debugEdibleCount == GameTuning.bloomFoodRefillCount)
+        for _ in 0..<7 { scene.debugEatMeal() }
+        #expect(scene.debugMealsEaten == 7)
+        #expect(clears == 0)
+        scene.debugEatMeal()
+        scene.debugHazardWipeout()
+        #expect(clears == 1)
+        #expect(scene.debugMealsEaten == 8)
+        scene.debugTapResult(.playAgain)
+        #expect(scene.debugMealsEaten == 0)
+        withExtendedLifetime(view) {}
+    }
+
     @Test func domeContactActuallyImpulsesThePlayer() {
         let (scene, view) = scene()
         #expect(scene.debugFallOntoDome())

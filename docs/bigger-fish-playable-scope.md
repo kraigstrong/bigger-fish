@@ -28,8 +28,10 @@ Threading introduces longer curtains and urchin beds. Bloom adds density and pre
 uses darker water while preserving fish and hazard readability. Gauntlet combines the densest field,
 predators, and floor hazards. Jelly layouts wrap with the existing finite ecosystem.
 
-A clear still means becoming the last fish swimming. Fish removed by hazards count toward clearing
-the ecosystem. All physics, hazard dimensions, and speeds live in `GameTuning` and need device playtesting.
+A clear still means becoming the last fish swimming. Bloom additionally requires 3/4/5/6/8 completed
+player meals across its levels; AI and hazard kills do not count as meals. The HUD shows the goal.
+Sparse small prey replenish only when nothing edible remains and the meal goal or larger survivors
+still prevent a clear. Hazard density is reduced so the ecosystem lasts longer. All physics, hazard dimensions, and speeds live in `GameTuning` and need device playtesting.
 
 ## Deferred vision
 
