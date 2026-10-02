@@ -78,6 +78,37 @@ struct ArcadeSimulationTests {
         }
     }
 
+    /// A local audit records causes without asserting that current divergence is desirable.
+    @Test func manualRepeatabilityInvestigation() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let folder = root.appendingPathComponent("build/arcade-development")
+        guard FileManager.default.fileExists(atPath: folder.appendingPathComponent("repeatability-investigation.request").path) else { return }
+        func run(_ frames: [CGFloat], isolated: Bool = true, omitted: Set<Int> = [],
+                 zoom: CGFloat = 1, radius: CGFloat = 16) -> ArcadeSimulation.Audit {
+            let scene = GameScene(size: CGSize(width: 874, height: 402), world: .jellyBloom, levelIndex: 4)
+            return scene.debugAuditRepeatability(frames: frames, isolatedAI: isolated, omittedIDs: omitted,
+                                                fixedZoom: zoom, playerRadius: radius)
+        }
+        let sixty = Array(repeating: CGFloat(1) / 60, count: 480)
+        let thirty = Array(repeating: CGFloat(1) / 30, count: 240)
+        let oneTwenty = Array(repeating: CGFloat(1) / 120, count: 960)
+        let jitter = (0..<480).map { CGFloat($0.isMultiple(of: 2) ? 1 : 3) / 120 }
+        let control = run(sixty)
+        #expect(control == run(sixty))
+        let reports: [String: ArcadeSimulation.Audit] = [
+            "isolated-60": control, "isolated-30": run(thirty), "isolated-120": run(oneTwenty),
+            "isolated-jitter": run(jitter), "isolated-omit-1": run(sixty, omitted: [1]),
+            "first-step-60": run([1.0 / 60]), "first-step-omit-1": run([1.0 / 60], omitted: [1]),
+            "first-step-zoom-0.8": run([1.0 / 60], zoom: 0.8),
+            "ecosystem-60": run(sixty, isolated: false), "ecosystem-30": run(thirty, isolated: false),
+            "ecosystem-120": run(oneTwenty, isolated: false),
+            "ecosystem-grown-player": run(sixty, isolated: false, radius: 32),
+        ]
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(reports).write(to: folder.appendingPathComponent("repeatability-investigation.json"), options: .atomic)
+        print("[RepeatabilityAudit] written to \(folder.path)")
+    }
+
     /// Local-only batch, activated with a marker under ignored build/. CI skips it.
     @Test func manualStudy() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()

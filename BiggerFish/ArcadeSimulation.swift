@@ -21,6 +21,27 @@ enum ArcadeSimulation {
         let bouncing: Bool
         let bounceSpeed: CGFloat
     }
+    /// Internal steering state for controlled repeatability investigations.
+    struct AuditFish: Codable, Equatable {
+        let id: Int
+        let x: Double
+        let y: Double
+        let vx: Double
+        let vy: Double
+        let radius: Double
+        let targetY: Double
+        let retargetTimer: Double
+        let turnTimer: Double
+        let state: String
+    }
+    struct Audit: Codable, Equatable {
+        let seconds: Double
+        let zoom: Double
+        let waterBottom: Double
+        let waterTop: Double
+        let fish: [AuditFish]
+    }
+
     struct Stats: Codable {
         var playerMeals = 0
         var aiMeals = 0

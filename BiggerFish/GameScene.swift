@@ -1502,6 +1502,36 @@ final class GameScene: SKScene {
             stats: simulationStats, tuning: simulationTuning!)
     }
 
+    /// Compare AI without player contacts. Isolated mode disables every collision,
+    /// hazard, and camera update, so skipping another swimmer has no physical effect.
+    func debugAuditRepeatability(frames: [CGFloat], isolatedAI: Bool = true,
+                                 omittedIDs: Set<Int> = [], fixedZoom: CGFloat = 1,
+                                 playerRadius: CGFloat = T.baseRadius) -> ArcadeSimulation.Audit {
+        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationEcologyProbe = true
+        simulationHolding = false
+        resetGame(startPlaying: true)
+        zoom = fixedZoom
+        player.radius = playerRadius
+        player.targetRadius = playerRadius
+        for dt in frames {
+            if isolatedAI {
+                simClock += dt
+                for f in fish where !f.isPlayer && !omittedIDs.contains(f.id) { moveAI(f, dt) }
+            } else {
+                simulate(dt)
+            }
+        }
+        return .init(seconds: Double(simClock), zoom: Double(zoom), waterBottom: Double(waterBottom),
+                     waterTop: Double(waterTop), fish: fish.filter { !$0.isPlayer && !omittedIDs.contains($0.id) }
+            .sorted { $0.id < $1.id }.map {
+                .init(id: $0.id, x: Double($0.position.x), y: Double($0.position.y),
+                      vx: Double($0.velocity.dx), vy: Double($0.velocity.dy), radius: Double($0.radius),
+                      targetY: Double($0.targetY), retargetTimer: Double($0.retargetTimer),
+                      turnTimer: Double($0.turnTimer), state: String(describing: $0.state))
+            })
+    }
+
     // Integration-test fixtures exercise the real scene update and hazard resolution.
     func debugStart() { startRun() }
     private(set) var debugBounceRiseInContactFrame: CGFloat = 0
