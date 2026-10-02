@@ -772,8 +772,9 @@ final class GameScene: SKScene {
         for i in 0..<layout.count {
             // A safe opening, then alternating bell heights create a route through the field.
             let x = size.width * 0.85 + CGFloat(i) * (world.width - size.width) / CGFloat(layout.count)
-            let fraction: CGFloat = layout.heights.isEmpty ? (i.isMultiple(of: 2) ? 0.37 : 0.68) : layout.heights[i % layout.heights.count]
-            let floorGap = (layout.maintainsFloorLane || levelIndex == 0) ? GameRules.bloomFloorLaneClearance(fishRadius: T.baseRadius) : 12
+            let heights = layout.heights.isEmpty ? T.bloomAuthoredJellyHeights : layout.heights
+            let fraction = heights[i % heights.count]
+            let floorGap = (layout.maintainsFloorLane || levelIndex == 0) ? GameRules.bloomFloorLaneClearance(fishRadius: T.baseRadius) : T.bloomJellyFallbackFloorGap
             let y = max(waterBottom + layout.tentacleLength + floorGap,
                         waterBottom + (waterTop - waterBottom) * fraction)
             let origin = scattered.isEmpty ? CGPoint(x: world.wrap(x), y: y) : scattered[i]

@@ -100,6 +100,9 @@ enum GameTuning {
     static let jellyBounceSeconds: CGFloat = 0.28
     static let jellyBounceCooldown: CGFloat = 0.24
     static let bloomFloorLanePadding: CGFloat = 20
+    /// Alternating bell heights for authored layouts without per-level heights.
+    static let bloomAuthoredJellyHeights: [CGFloat] = [0.37, 0.68]
+    static let bloomJellyFallbackFloorGap: CGFloat = 12
 
     /// Swimmers anticipate curtains; no chasing or fleeing.
     static let bloomAvoidanceLookAhead: CGFloat = 1.2
