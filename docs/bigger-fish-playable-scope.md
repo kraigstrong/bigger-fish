@@ -27,6 +27,10 @@ returns to its map rather than immediately restarting the campaign.
 Level 1 retains its four-domed, smaller-fish opening. Levels 2–5 place food pockets above authored
 bounce routes: alternating stepping stones, an ascending/descending ladder, a night chain, and a
 longer playground. Food fish patrol near their pockets rather than dispersing around the whole reef.
+Level 2 has a single placement experiment at its second dome: three meals sit beyond the far
+shoulder, slightly below the rim, with its existing larger fish swimming nearby. An early bounce
+can carry the player above the meals; skimming the shoulder is an alternative. Other pockets and
+levels keep their layouts. Bounce strength, AI competition, and the grown-fish escape lane stay intact.
 There are 1/2/2/3 initially larger fish in Levels 2–5, with separated starts and enough smaller food
 to outgrow the initial larger fish if the player gets that food first. AI compete for those meals. Bells are broader and tentacles shorter than the former predator layouts.
 

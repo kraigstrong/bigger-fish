@@ -56,6 +56,7 @@ final class GameScene: SKScene {
     private var jellies: [BloomJelly] = []
     private var urchins: [(x: CGFloat, node: SKNode)] = []
     private var foodHomes: [Int: CGPoint] = [:]
+    private var sidePocketHomes: [Int: CGPoint] = [:]
     private var bounceRemaining: CGFloat = 0
     private var bounceCooldown: CGFloat = 0
     private var mapButton = SKShapeNode()
@@ -187,6 +188,7 @@ final class GameScene: SKScene {
         jellies.removeAll()
         urchins.removeAll()
         foodHomes.removeAll()
+        sidePocketHomes.removeAll()
         nextFishID = 1
         mealsEaten = 0
         foodRefillCooldown = 0
@@ -229,10 +231,16 @@ final class GameScene: SKScene {
                 let r = normalized * base
                 var preferredX: CGFloat?
                 var preferredY: CGFloat?
+                var isSidePocket = false
+                var isFood = false
                 if normalized < 1 && level.bounceFoodPockets, let layout = level.jellies, !jellies.isEmpty {
-                    let jelly = jellies[foodIndex % jellies.count]
-                    preferredX = jelly.origin.x
-                    preferredY = jelly.origin.y + layout.radius * 0.65 + r + T.bloomFoodPocketLift
+                    let jellyIndex = foodIndex % jellies.count
+                    let jelly = jellies[jellyIndex]
+                    isFood = true
+                    isSidePocket = level.sidePocketExperiment && jellyIndex == T.bloomSidePocketJellyIndex
+                    preferredX = world.wrap(jelly.origin.x + (isSidePocket ? T.bloomSidePocketOffset : 0))
+                    preferredY = isSidePocket ? jelly.origin.y - T.bloomSidePocketDrop
+                        : jelly.origin.y + layout.radius * 0.65 + r + T.bloomFoodPocketLift
                     foodIndex += 1
                 }
                 if normalized >= 1 && level.predatorSpawnSeparationScreens > 0 {
@@ -240,12 +248,20 @@ final class GameScene: SKScene {
                     let start = T.spawnClearAheadDanger + 0.05
                     let end = T.worldScreens - T.spawnClearBehind - 0.05
                     preferredX = size.width * (start + (end - start) * CGFloat(predatorIndex) / CGFloat(max(1, predatorCount - 1)))
+                    if level.sidePocketExperiment {
+                        let jelly = jellies[T.bloomSidePocketJellyIndex]
+                        preferredX = world.wrap(jelly.origin.x + T.bloomSidePredatorOffset)
+                        preferredY = jelly.origin.y - T.bloomSidePocketDrop
+                        isSidePocket = true
+                    }
                     predatorIndex += 1
                 }
                 guard let pos = findSpawnPoint(radius: r, dangerous: normalized >= T.spawnDangerRatio,
-                                              preferredX: preferredX, preferredY: preferredY) else { continue }
+                                              preferredX: preferredX, preferredY: preferredY,
+                                              pocketHalfWidth: isSidePocket ? T.bloomSidePocketSpawnHalfWidth : nil) else { continue }
                 spawnAIFish(radius: r, at: pos)
-                if preferredY != nil { foodHomes[nextFishID - 1] = pos }
+                if isFood { foodHomes[nextFishID - 1] = pos }
+                if isSidePocket { sidePocketHomes[nextFishID - 1] = pos }
             }
         }
     }
@@ -283,12 +299,13 @@ final class GameScene: SKScene {
         }
     }
 
-    private func findSpawnPoint(radius r: CGFloat, dangerous: Bool, preferredX: CGFloat? = nil, preferredY: CGFloat? = nil) -> CGPoint? {
+    private func findSpawnPoint(radius r: CGFloat, dangerous: Bool, preferredX: CGFloat? = nil, preferredY: CGFloat? = nil, pocketHalfWidth: CGFloat? = nil) -> CGPoint? {
         let clearBehind = size.width * T.spawnClearBehind
         let clearAhead = size.width * (dangerous ? T.spawnClearAheadDanger : T.spawnClearAheadSmall)
+        let halfWidth = pocketHalfWidth ?? T.bloomFoodPocketHalfWidth
         for _ in 0..<500 {
             let x = preferredX.map {
-                world.wrap($0 + (preferredY != nil ? CGFloat.random(in: -T.bloomFoodPocketHalfWidth...T.bloomFoodPocketHalfWidth, using: &rng) : 0))
+                world.wrap($0 + (preferredY != nil ? CGFloat.random(in: -halfWidth...halfWidth, using: &rng) : 0))
             } ?? CGFloat.random(in: 0..<world.width, using: &rng)
             let minY = waterBottom + r, maxY = waterTop - r
             let pocketY = preferredY?.clamped(minY + T.bloomFoodPocketHalfHeight, maxY - T.bloomFoodPocketHalfHeight)
@@ -558,10 +575,11 @@ final class GameScene: SKScene {
             f.heading *= -1
             f.turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &rng)
         }
-        let home = foodHomes[f.id]
+        let home = sidePocketHomes[f.id] ?? foodHomes[f.id]
         if let home {
             let offset = world.delta(from: home.x, to: f.position.x)
-            if abs(offset) > size.width * T.bloomFoodPatrolScreens { f.heading = offset > 0 ? -1 : 1 }
+            let halfWidth = sidePocketHomes[f.id] != nil ? T.bloomSidePocketPatrolHalfWidth : size.width * T.bloomFoodPatrolScreens
+            if abs(offset) > halfWidth { f.heading = offset > 0 ? -1 : 1 }
         }
         let targetVX = f.heading * f.cruiseSpeed * (1 + 0.15 * sin(simClock * 0.7 + f.phase))
         var vx = f.velocity.dx + (targetVX - f.velocity.dx) * min(1, dt * 1.5)
@@ -720,6 +738,7 @@ final class GameScene: SKScene {
             fish.removeAll { $0.id == victim.id }
             fishByID[victim.id] = nil
             foodHomes[victim.id] = nil
+            sidePocketHomes[victim.id] = nil
             nodes[victim.id] = nil
         }
     }
@@ -888,6 +907,7 @@ final class GameScene: SKScene {
         fish.removeAll { $0.id == prey.id }
         fishByID[prey.id] = nil
         foodHomes[prey.id] = nil
+        sidePocketHomes[prey.id] = nil
 
         predator.state = .swimming
         predator.squash = 0
@@ -1254,6 +1274,22 @@ final class GameScene: SKScene {
         advanceGrowth(T.growDuration)
         return (respectedGrace, fishByID[prey.id] == nil &&
                 GameRules.encounter(player.radius, predator.radius) == .secondEatsFirst && mealsEaten == 0)
+    }
+    var debugSidePocketPlacement: (food: [CGPoint], predators: [CGPoint], safe: Bool) {
+        guard level.sidePocketExperiment, let layout = level.jellies else { return ([], [], true) }
+        let jelly = jellies[T.bloomSidePocketJellyIndex]
+        var food: [CGPoint] = [], predators: [CGPoint] = []
+        var safe = true
+        for (id, position) in sidePocketHomes {
+            let relative = CGPoint(x: world.delta(from: jelly.position.x, to: position.x),
+                                   y: position.y - jelly.position.y)
+            if foodHomes[id] != nil { food.append(relative) } else { predators.append(relative) }
+            if let f = fishByID[id] {
+                safe = safe && JellyRules.contact(at: relative, previous: relative, fishRadius: f.radius,
+                                                  domeRadius: layout.radius, tentacleLength: layout.tentacleLength) == .none
+            }
+        }
+        return (food, predators, safe)
     }
     var debugFoodPocketCount: Int { foodHomes.count }
     var debugFishCount: Int { fish.count }

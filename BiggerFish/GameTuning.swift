@@ -112,6 +112,14 @@ enum GameTuning {
     static let bloomFoodPocketLift: CGFloat = 40
     static let bloomFoodPatrolScreens: CGFloat = 0.16
 
+    // Level 2 only: a meal beyond the far shoulder, where an early bounce sends you away.
+    static let bloomSidePocketJellyIndex = 1
+    static let bloomSidePocketOffset: CGFloat = 112
+    static let bloomSidePocketDrop: CGFloat = 16
+    static let bloomSidePocketSpawnHalfWidth: CGFloat = 30
+    static let bloomSidePocketPatrolHalfWidth: CGFloat = 44
+    static let bloomSidePredatorOffset: CGFloat = 200
+
     static let bloomFoodRefillSeconds: CGFloat = 3
     static let bloomFoodRefillCount = 2
     static let bloomFoodRadiusFraction: ClosedRange<CGFloat> = 0.45...0.65
@@ -127,7 +135,7 @@ enum GameTuning {
               absorptionEfficiency: 0.90,
               jellies: JellyLayout(count: 5, radius: 44, tentacleLength: 70, sway: 6, maintainsFloorLane: true,
                                   heights: [0.38, 0.55, 0.38, 0.55, 0.38]),
-              predatorSpawnSeparationScreens: 0.45, bounceFoodPockets: true),
+              predatorSpawnSeparationScreens: 0.45, bounceFoodPockets: true, sidePocketExperiment: true),
         Level(spawnGroups: [(7, 0.38...0.65), (5, 0.65...0.88), (2, 1.20...1.45)],
               aiSpeedRange: 30...80, aiVerticalSpeed: 32, screenCrossSeconds: 3.05,
               absorptionEfficiency: 0.90,
@@ -189,4 +197,5 @@ struct Level {
     var requiredMeals: Int = 0
     var predatorSpawnSeparationScreens: CGFloat = 0
     var bounceFoodPockets: Bool = false
+    var sidePocketExperiment: Bool = false
 }

@@ -122,6 +122,18 @@ struct ArcadeSceneTests {
         return (scene, view)
     }
 
+    @Test func onlyLevelTwoHasTheFarShoulderMealExperiment() {
+        #expect(GameTuning.bloomLevels.enumerated().filter { $0.element.sidePocketExperiment }.map(\.offset) == [1])
+        let (scene, view) = scene(level: 1)
+        let pocket = scene.debugSidePocketPlacement
+        #expect(pocket.food.count == 3)
+        #expect(pocket.predators.count == 1)
+        #expect(pocket.safe)
+        #expect(pocket.food.allSatisfy { $0.x > 44 && $0.y < 10 })
+        #expect(pocket.predators.allSatisfy { $0.x > 150 && abs($0.y + 16) <= 24 })
+        withExtendedLifetime(view) {}
+    }
+
     @Test func aiMealsCanTurnEdibleFishIntoThreatsInEveryBloomLevel() {
         for index in 0..<5 {
             let (scene, view) = scene(level: index)
