@@ -669,7 +669,11 @@ final class GameScene: SKScene {
             endedAt = realClock
         }
         #endif
-        let realDt = min(max(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 0), T.maximumFrameElapsed)
+        let frameElapsed = max(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 0)
+        #if DEBUG
+        let frameWorkStarted = ProcessInfo.processInfo.systemUptime
+        #endif
+        let realDt = min(frameElapsed, T.maximumFrameElapsed)
         lastUpdate = currentTime
         advanceFrame(realDt)
 
@@ -677,6 +681,14 @@ final class GameScene: SKScene {
         let cameraDelta = world.delta(from: lastCameraX, to: presentation.cameraX) * presentation.zoom
         lastCameraX = presentation.cameraX
         updateSpecks(realDt: phase == .paused ? 0 : realDt, cameraDelta: cameraDelta)
+        #if DEBUG
+        let workSeconds = ProcessInfo.processInfo.systemUptime - frameWorkStarted
+        if phase == .playing && (frameElapsed > T.debugFrameHitchSeconds || workSeconds > Double(T.debugFrameHitchSeconds)) {
+            recordRunEvent("frame_hitch", fields: ["elapsedSeconds": frameElapsed,
+                "workSeconds": workSeconds, "playerMeals": mealsEaten,
+                "fishCount": fish.count, "timeScale": timeScale])
+        }
+        #endif
     }
 
     /// Display frames only contribute elapsed time. Both real-time slow motion and
@@ -1132,6 +1144,16 @@ final class GameScene: SKScene {
 
     private func completeSwallow(_ s: Swallow) {
         guard let predator = fishByID[s.predatorID], let prey = fishByID[s.preyID] else { return }
+        #if DEBUG
+        let mealWorkStarted = ProcessInfo.processInfo.systemUptime
+        defer {
+            let workSeconds = ProcessInfo.processInfo.systemUptime - mealWorkStarted
+            if workSeconds > Double(T.debugMealHitchSeconds) {
+                recordRunEvent("meal_hitch", fields: ["workSeconds": workSeconds,
+                    "predatorID": s.predatorID, "preyID": s.preyID, "sizeRatio": s.ratio])
+            }
+        }
+        #endif
 
         prey.state = .removed
         nodes[prey.id]?.removeFromParent()
@@ -1336,8 +1358,10 @@ final class GameScene: SKScene {
     }
 
     private func updateMealIndicator() {
-        mealIndicator.text = "EAT \(min(mealsEaten, level.requiredMeals))/\(level.requiredMeals)" +
+        guard level.requiredMeals > 0 else { return }
+        let text = "EAT \(min(mealsEaten, level.requiredMeals))/\(level.requiredMeals)" +
             (mealsEaten >= level.requiredMeals ? " · CLEAR THE REEF" : "")
+        if mealIndicator.text != text { mealIndicator.text = text }
     }
 
     private func buildPauseButton() {

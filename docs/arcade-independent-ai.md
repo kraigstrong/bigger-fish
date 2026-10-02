@@ -57,3 +57,19 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish \
 ```
 
 Math Reef and FishKit are unchanged.
+
+## Meal hitch follow-up
+
+Phone playtesting reported a stutter at every player meal. `AVAudioPlayer` setup,
+voice selection, seeking, and playback previously ran on the gameplay thread.
+These now run exclusively on a serial audio worker; initialization is queued before
+playback requests. The hidden meal counter is no longer updated during campaign
+play. These remove two potential sources of main-thread work, but the physical-phone
+cause has not yet been measured or confirmed resolved.
+
+Debug run files now include `frame_hitch` for display gaps or update work longer
+than about 41.7 ms, and `meal_hitch` for swallowing completion work longer than
+about 8.3 ms. Frame entries include elapsed time, update work time, player meals,
+remaining fish, and slowdown factor. These events use the existing asynchronous
+local writer; neither diagnostics nor their clock reads are included in Release.
+Rebuild on the phone and collect a few meals before concluding the hitch is fixed.

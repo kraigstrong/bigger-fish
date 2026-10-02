@@ -9,6 +9,11 @@ enum GameTuning {
     /// Bound catch-up after a hitch; longer stalls discard excess elapsed time.
     static let maximumFrameElapsed: CGFloat = 0.25
     static let slowMotionRecoveryRate: CGFloat = 2.5
+    #if DEBUG
+    /// Log display gaps or frame work longer than 2.5 normal 60 Hz frames.
+    static let debugFrameHitchSeconds: CGFloat = simulationStep * 2.5
+    static let debugMealHitchSeconds: CGFloat = simulationStep / 2
+    #endif
 
     // MARK: Player movement
 
