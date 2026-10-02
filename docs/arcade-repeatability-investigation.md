@@ -53,6 +53,37 @@ The phone recordings around the Level 5 win had identical settings, seeds, and i
 
 The controlled experiments establish mechanisms that can change that opportunity. The recordings do not include every frame interval or internal random state, so they cannot uniquely assign that particular divergence to one mechanism or to a specific input difference. Similar-looking openings are not necessarily identical inputs.
 
+## Phase 1: fixed stepping
+
+The investigation above describes the pre-refactor build. Gameplay now advances in
+fixed 1/60-second simulation steps. Display frames contribute elapsed time to an
+accumulator; a separate fixed real-time tick advances slowdown and its recovery,
+then releases whole gameplay steps. Normal play and offline studies use the same
+stepping path. Presentation still renders on each display frame.
+
+Pause/resume and resets discard pending time. Catch-up is bounded to 0.25 seconds
+per display frame; longer stalls intentionally discard the excess rather than
+running an unbounded backlog. Consequently equal inputs at equal simulation ticks
+repeat across frame schedules within that bound, while long stalls and different
+input timing can still change a run. Drawing now interpolates between the previous and current gameplay states, including fractional real-time ticks. Fish poses, camera zoom, jelly positions, swallowing, and growth are smoothed without writing back into the simulation. Previous drawing state is synchronized on pause/resume and reset. Like standard interpolation, this presents motion up to one gameplay step behind the simulation (about 17 ms normally, longer during slow motion).
+
+Regression checks compare complete fish state, player state, camera zoom, and world
+bounds after eight seconds at 10, 30, 60, and 120 FPS and alternating short/long
+frames, including close-meal slowdown and scripted hold/release input. They also
+check fractional ticks, pause/resume timestamps, bounded hitches, and reset debt.
+
+All five Bloom levels retain a winning simulated route at three phone sizes.
+Level 3 at width 852 now uses the cautious controller rather than the opportunist
+for that check; no level tuning changed. At width 874, Level 5's cautious route
+still catches fish 1, 8, 18, and 7 at approximately 0.180, 0.237, 0.406, and 0.775
+circuits, preserving the reference opening. Its finish changes from approximately
+16.2 to 21.3 simulation seconds, so later human gameplay still needs checking.
+
+NPCs still share randomness and camera growth still changes physical world bounds.
+Neither dependency is addressed here. Historical isolated audit modes intentionally
+retain raw variable steps to reproduce the original findings; the new fixed-step
+regressions exercise the production accumulator instead.
+
 ## Recommended next work
 
 1. Advance gameplay at a fixed simulation interval independent of display frequency. Use the same stepping path for normal play and offline studies, and validate close-meal slowdown, pause/resume, and touch latency.
