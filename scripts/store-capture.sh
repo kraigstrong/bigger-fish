@@ -17,7 +17,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
-OUT="$ROOT/build/store-capture"
+OUT="${STORE_CAPTURE_OUT:-$ROOT/build/store-capture}"
 DERIVED="$ROOT/build/store-capture/DerivedData"
 DEVICE="${STORE_CAPTURE_DEVICE:-iPhone 17 Pro Max}"
 BUNDLE=com.kraigstrong.mathreef
