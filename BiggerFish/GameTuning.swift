@@ -3,6 +3,13 @@ import FishKit
 
 /// Every feel-related constant lives here so it can be tweaked quickly between device runs.
 enum GameTuning {
+    // MARK: Simulation timing
+
+    static let simulationStep: CGFloat = 1.0 / 60
+    /// Bound catch-up after a hitch; longer stalls discard excess elapsed time.
+    static let maximumFrameElapsed: CGFloat = 0.25
+    static let slowMotionRecoveryRate: CGFloat = 2.5
+
     // MARK: Player movement
 
     static let motion = MotionTuning(
