@@ -122,43 +122,27 @@ struct ArcadeSceneTests {
         return (scene, view)
     }
 
-    @Test func pursuitBudgetStartsAfterTurningAndPreyDoNotFlee() {
-        let (scene, view) = scene(level: 3)
-        let timing = scene.debugPredatorTiming()
-        #expect(abs(timing.turning - 2.5) < 0.000001)
-        #expect(abs(timing.pursuing - 2.0) < 0.000001)
-        #expect(scene.debugPreyUsesOrdinarySwimming())
-        withExtendedLifetime(view) {}
-    }
-
-    @Test func nightBloomSeparatesPredatorsAndKeepsAGrownFishLane() {
-        let (scene, view) = scene(level: 3)
-        #expect(scene.debugPredatorStartGaps.count == 10) // All five predators still spawn.
-        #expect(scene.debugPredatorStartGaps.allSatisfy { $0 >= 0.45 })
-        for radius: CGFloat in [16, 40, 80] {
-            #expect(scene.debugFloorLane(radius: radius) >= GameRules.bloomFloorLaneClearance(fishRadius: radius) - 0.000001)
+    @Test func bounceRoutesKeepFoodPocketsLargerFishAndGrownFishPassages() {
+        for index in 1..<5 {
+            let (scene, view) = scene(level: index)
+            let level = GameTuning.bloomLevels[index]
+            #expect(scene.debugFoodPocketCount == 12)
+            #expect(scene.debugFishCount == level.spawnGroups.reduce(1) { $0 + $1.count })
+            #expect(scene.debugAllPredatorsInitiallyLarger)
+            #expect(scene.debugPredatorStartGaps.allSatisfy { $0 >= 0.45 })
+            #expect(scene.debugUrchinCount == 0)
+            for radius: CGFloat in [16, 40, 80] {
+                #expect(scene.debugFloorLane(radius: radius) >= GameRules.bloomFloorLaneClearance(fishRadius: radius) - 0.000001)
+            }
+            withExtendedLifetime(view) {}
         }
-        withExtendedLifetime(view) {}
     }
 
-    @Test func gauntletKeepsAllPredatorsWithSpacedStartsAndAGrownFishLane() {
-        let (scene, view) = scene(level: 4)
-        #expect(GameTuning.bloomLevels[4].jellies?.count == 7)
-        #expect(scene.debugPredatorStartGaps.count == 15) // All six predators still spawn.
-        #expect(scene.debugPredatorStartGaps.allSatisfy { $0 >= 0.4 })
-        for radius: CGFloat in [16, 40, 80] {
-            #expect(scene.debugFloorLane(radius: radius) >= GameRules.bloomFloorLaneClearance(fishRadius: radius) - 0.000001)
-        }
-        withExtendedLifetime(view) {}
-    }
-
-    @Test func nearbyLargerFishEngageAndOrdinarySwimmersAvoidUrchins() {
-        let (scene, view) = scene(level: 4)
-        #expect(scene.debugEngagesNearbyPlayer())
-        #expect(scene.debugApproachUrchin(chasing: false))
-        let (chaser, chaserView) = self.scene(level: 4)
-        #expect(!chaser.debugApproachUrchin(chasing: true))
-        withExtendedLifetime((view, chaserView)) {}
+    @Test func largerFishDoNotSteerTowardThePlayer() {
+        let (first, firstView) = scene(level: 3)
+        let (second, secondView) = scene(level: 3)
+        #expect(first.debugPassivePredatorVelocity(playerOffset: -60) == second.debugPassivePredatorVelocity(playerOffset: 60))
+        withExtendedLifetime((firstView, secondView)) {}
     }
 
     @Test func campaignWinsWithoutMealQuotaOrReplenishment() {
@@ -174,12 +158,10 @@ struct ArcadeSceneTests {
         withExtendedLifetime(view) {}
     }
 
-    @Test func ordinarySwimmersAvoidCurtainsButChasesCanBeBaited() {
-        let (ordinary, ordinaryView) = scene(level: 3)
-        #expect(ordinary.debugApproachJelly(chasing: false))
-        let (chaser, chaserView) = scene(level: 3)
-        #expect(!chaser.debugApproachJelly(chasing: true))
-        withExtendedLifetime((ordinaryView, chaserView)) {}
+    @Test func swimmersStillAvoidTentacleCurtains() {
+        let (scene, view) = scene(level: 3)
+        #expect(scene.debugApproachJelly())
+        withExtendedLifetime(view) {}
     }
 
     @Test func domeContactActuallyImpulsesThePlayer() {
@@ -199,17 +181,14 @@ struct ArcadeSceneTests {
     @Test func distantWrappedHazardsCannotCausePhantomHits() {
         let (jellyScene, jellyView) = scene()
         #expect(jellyScene.debugPassOppositeJelly())
-        let (urchinScene, urchinView) = scene(level: 1)
-        #expect(urchinScene.debugPassOppositeUrchin())
-        withExtendedLifetime((jellyView, urchinView)) {}
+        withExtendedLifetime(jellyView) {}
     }
 
-    @Test func laterLevelsHaveLethalUrchinBeds() {
-        for index in 1..<5 {
-            let (scene, view) = scene(level: index)
-            #expect(scene.debugTouchUrchin())
-            withExtendedLifetime(view) {}
+    @Test func allBloomLevelsHaveNoUrchinsAndUseNumberedTitles() {
+        for world in ArcadeWorld.allCases {
+            #expect(world.levelTitles == ["Level 1", "Level 2", "Level 3", "Level 4", "Level 5"])
         }
+        #expect(GameTuning.bloomLevels.allSatisfy { $0.jellies?.urchinBeds == 0 })
     }
 
     @Test func winOffersExplicitChoicesAndOutsideTapDoesNotAdvance() {

@@ -8,11 +8,10 @@ implementation on October 1. The draft is a longer-term vision, not the scope of
 - Keep continuous area-based growth and relative-size eating. Ignore the draft's fixed tiers.
 - Keep the original five levels and control tuning as World 1, **Shallow Reef**.
 - Both worlds are available during development; levels unlock sequentially within each world.
-- Add World 2, **Jelly Bloom**: Bounce House, Threading, Bloom, Night Bloom, Gauntlet.
-- Dome tops bounce; tentacles kill player and AI. No health, stuns, or tier drops.
-- Bloom adds limited predator chasing; prey retain ordinary swimming. Chasers react for 0.45 seconds without a visual warning,
-  pursue for 2.5 seconds after turning toward the player, rest for four seconds, and move at 95% of player speed.
-  Every larger Bloom fish can engage within 320 screen points; pursuit ends beyond 480. World 1 retains its original AI.
+- Add World 2, **Jelly Bloom**, with five numbered levels; both worlds show Level 1–5, without names.
+- Dome tops bounce; tentacles remain lethal. Remove all urchins, chasing, and fleeing.
+- Bloom's larger fish swim normally and can be outgrown through eating; baiting is optional.
+- Disable AI-on-AI eating in Bloom so larger fish cannot consume the player's growth opportunities.
 - Save level clears and fastest clear times locally, with stable IDs and a Bigger Fish-only key.
 - Keep new code and copied assets in BiggerFish; defer shared engine consolidation while Math Reef is in review.
 
@@ -24,17 +23,16 @@ after a loss. The final level offers Play again / Levels. Only buttons advance t
 Pausing offers Resume, Restart, and Level map. Cleared levels remain replayable. World completion
 returns to its map rather than immediately restarting the campaign.
 
-Bounce House has sparse jellies, only smaller fish, and no AI-on-AI eating so the opening stays safe.
-Threading introduces longer curtains and urchin beds. Bloom adds density and predators. Night Bloom
-uses darker water while preserving fish and hazard readability. Gauntlet combines long curtains,
-more predators, and floor hazards. Jelly layouts wrap with the existing finite ecosystem.
+Level 1 retains its four-domed, smaller-fish opening. Levels 2–5 place food pockets above authored
+bounce routes: alternating stepping stones, an ascending/descending ladder, a night chain, and a
+longer playground. Food fish patrol near their pockets rather than dispersing around the whole reef.
+There are 1/2/2/3 initially larger fish in Levels 2–5, with separated starts and enough smaller food
+to outgrow every larger fish. Bells are broader and tentacles shorter than the former predator layouts.
 
 A clear means becoming the last fish swimming, with no meal quota or replenishment. Meal counters
 and HUD code remain dormant for future endless mode. Ordinary Bloom swimmers look ahead and steer
-around tentacle curtains and floor urchins. Committed chases skip avoidance, preserving baiting;
-hazard collisions remain lethal for everyone. Night Bloom uses six curtains and Gauntlet seven. Both keep a lower passage sized for the growing
-fish and separated predator starts, preserving all five and six predators respectively. Player
-bouncing remains intact.
+around tentacles. Every level keeps a lower passage sized for the growing player. Same-frame
+bouncing and touch controls remain intact.
 All physics, hazard dimensions, and speeds live in `GameTuning` and need device playtesting.
 
 ## Deferred vision

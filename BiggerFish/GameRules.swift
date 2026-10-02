@@ -22,15 +22,6 @@ enum GameRules {
         return a > b ? .firstEatsSecond : .secondEatsFirst
     }
 
-    /// A pursuing predator remains slower than the player horizontally and vertically.
-    static func bloomChaseVelocity(offset: CGVector,
-                                   playerSpeed: CGFloat, zoom: CGFloat) -> CGVector {
-        let horizontal = playerSpeed * GameTuning.bloomChaseSpeedFraction
-        let verticalCap = GameTuning.motion.maxRiseSpeed * GameTuning.bloomChaseVerticalFraction / zoom
-        return CGVector(dx: (offset.dx >= 0 ? 1 : -1) * horizontal,
-                        dy: (offset.dy * 0.9).clamped(-verticalCap, verticalCap))
-    }
-
     /// Area-conserving growth: the predator gains `efficiency` of the prey's area.
     static func grownRadius(
         predator: CGFloat,
@@ -38,25 +29,6 @@ enum GameRules {
         efficiency: CGFloat
     ) -> CGFloat {
         sqrt(predator * predator + efficiency * prey * prey)
-    }
-
-    /// Ordinary swimmers anticipate a swept circle around an urchin and escape upward.
-    static func bloomUrchinAvoidance(at p: CGPoint, velocity: CGVector, fishRadius: CGFloat,
-                                     zoom: CGFloat) -> CGVector? {
-        let seconds = GameTuning.bloomAvoidanceLookAhead
-        let delta = CGVector(dx: velocity.dx * seconds, dy: velocity.dy * seconds)
-        let length = delta.dx * delta.dx + delta.dy * delta.dy
-        let fraction = length > 0 ? (-(p.x * delta.dx + p.y * delta.dy) / length).clamped(0, 1) : 0
-        let closest = CGPoint(x: p.x + delta.dx * fraction, y: p.y + delta.dy * fraction)
-        let clearance = (GameTuning.urchinRadius + fishRadius) * GameTuning.hazardHitboxScale +
-            GameTuning.bloomAvoidancePadding
-        guard hypot(closest.x, closest.y) < clearance else { return nil }
-        let rise = GameTuning.bloomAvoidanceRiseSpeed / zoom
-        let escapeTime = max(0, clearance - p.y) / rise
-        let arrivalTime = max(0, abs(p.x) - clearance) / max(1, abs(velocity.dx))
-        let horizontal = arrivalTime < escapeTime + 0.2
-            ? (p.x >= 0 ? 1 : -1) * max(20, abs(velocity.dx)) : velocity.dx
-        return CGVector(dx: horizontal, dy: rise)
     }
 
     /// A grown fish fits between a curtain's tip and the top of an urchin's lethal region.

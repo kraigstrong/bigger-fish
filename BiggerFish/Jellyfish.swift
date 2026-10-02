@@ -9,9 +9,10 @@ struct JellyLayout {
     let urchinBeds: Int
     let night: Bool
     let maintainsFloorLane: Bool
+    let heights: [CGFloat]
 
     init(count: Int, radius: CGFloat = 38, tentacleLength: CGFloat = 90,
-         sway: CGFloat = 12, urchinBeds: Int = 0, night: Bool = false, maintainsFloorLane: Bool = false) {
+         sway: CGFloat = 12, urchinBeds: Int = 0, night: Bool = false, maintainsFloorLane: Bool = false, heights: [CGFloat] = []) {
         self.count = count
         self.radius = radius
         self.tentacleLength = tentacleLength
@@ -19,6 +20,7 @@ struct JellyLayout {
         self.urchinBeds = urchinBeds
         self.night = night
         self.maintainsFloorLane = maintainsFloorLane
+        self.heights = heights
     }
 }
 

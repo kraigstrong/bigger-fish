@@ -99,23 +99,18 @@ enum GameTuning {
     static let jellyBounceSpeed: CGFloat = 460
     static let jellyBounceSeconds: CGFloat = 0.28
     static let jellyBounceCooldown: CGFloat = 0.24
-    static let bloomAggroRadius: CGFloat = 320
-    static let bloomGiveUpRadius: CGFloat = 480
-    static let bloomChaseSeconds: CGFloat = 2.5
-    static let bloomChaseTurnRate: CGFloat = 3
     static let bloomFloorLanePadding: CGFloat = 20
-    /// Predators can intercept from ahead, but cannot run down a fish that has escaped them.
-    static let bloomChaseSpeedFraction: CGFloat = 0.95
-    static let bloomChaseVerticalFraction: CGFloat = 0.55
-    static let bloomChaseReactionSeconds: CGFloat = 0.45
-    static let bloomChaseCooldown: CGFloat = 4
-    static let bloomAggressiveFraction: CGFloat = 1
 
-    /// Ordinary swimmers anticipate curtains; committed chases ignore this steering.
+    /// Swimmers anticipate curtains; no chasing or fleeing.
     static let bloomAvoidanceLookAhead: CGFloat = 1.2
     static let bloomAvoidancePadding: CGFloat = 16
     static let bloomAvoidanceRiseSpeed: CGFloat = 140
     static let bloomAvoidanceTurnRate: CGFloat = 8
+
+    static let bloomFoodPocketHalfWidth: CGFloat = 76
+    static let bloomFoodPocketHalfHeight: CGFloat = 24
+    static let bloomFoodPocketLift: CGFloat = 40
+    static let bloomFoodPatrolScreens: CGFloat = 0.16
 
     static let bloomFoodRefillSeconds: CGFloat = 3
     static let bloomFoodRefillCount = 2
@@ -127,24 +122,30 @@ enum GameTuning {
               aiSpeedRange: 30...80, aiVerticalSpeed: 35, screenCrossSeconds: 3.1,
               absorptionEfficiency: 0.90,
               jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6), aiCanEat: false),
-        Level(spawnGroups: [(7, 0.30...0.62), (5, 0.62...0.85), (2, 1.15...1.45)],
-              aiSpeedRange: 35...95, aiVerticalSpeed: 45, screenCrossSeconds: 3.0,
+        Level(spawnGroups: [(7, 0.35...0.62), (5, 0.62...0.85), (1, 1.15...1.35)],
+              aiSpeedRange: 30...75, aiVerticalSpeed: 30, screenCrossSeconds: 3.1,
               absorptionEfficiency: 0.90,
-              jellies: JellyLayout(count: 6, tentacleLength: 110, sway: 8, urchinBeds: 3)),
-        Level(spawnGroups: [(6, 0.35...0.65), (5, 0.65...0.88), (3, 1.10...1.50), (1, 1.70...1.95)],
-              aiSpeedRange: 40...110, aiVerticalSpeed: 60, screenCrossSeconds: 2.85,
-              absorptionEfficiency: 0.87,
-              jellies: JellyLayout(count: 8, radius: 36, tentacleLength: 100, urchinBeds: 5)),
-        Level(spawnGroups: [(6, 0.35...0.65), (5, 0.65...0.88), (3, 1.15...1.55), (2, 1.70...2.05)],
-              aiSpeedRange: 45...120, aiVerticalSpeed: 65, screenCrossSeconds: 2.8,
-              absorptionEfficiency: 0.86,
-              jellies: JellyLayout(count: 6, radius: 36, tentacleLength: 115, urchinBeds: 6, night: true, maintainsFloorLane: true),
-              predatorSpawnSeparationScreens: 0.45),
-        Level(spawnGroups: [(5, 0.35...0.65), (5, 0.65...0.90), (4, 1.15...1.55), (2, 1.75...2.20)],
-              aiSpeedRange: 50...130, aiVerticalSpeed: 72, screenCrossSeconds: 2.7,
-              absorptionEfficiency: 0.85,
-              jellies: JellyLayout(count: 7, radius: 35, tentacleLength: 125, urchinBeds: 8, maintainsFloorLane: true),
-              predatorSpawnSeparationScreens: 0.4),
+              jellies: JellyLayout(count: 5, radius: 44, tentacleLength: 70, sway: 6, maintainsFloorLane: true,
+                                  heights: [0.38, 0.55, 0.38, 0.55, 0.38]),
+              aiCanEat: false, predatorSpawnSeparationScreens: 0.45, bounceFoodPockets: true),
+        Level(spawnGroups: [(7, 0.38...0.65), (5, 0.65...0.88), (2, 1.20...1.45)],
+              aiSpeedRange: 30...80, aiVerticalSpeed: 32, screenCrossSeconds: 3.05,
+              absorptionEfficiency: 0.90,
+              jellies: JellyLayout(count: 6, radius: 46, tentacleLength: 75, sway: 6, maintainsFloorLane: true,
+                                  heights: [0.32, 0.42, 0.54, 0.68, 0.54, 0.42]),
+              aiCanEat: false, predatorSpawnSeparationScreens: 0.45, bounceFoodPockets: true),
+        Level(spawnGroups: [(7, 0.38...0.65), (5, 0.65...0.88), (2, 1.25...1.50)],
+              aiSpeedRange: 30...80, aiVerticalSpeed: 32, screenCrossSeconds: 3.05,
+              absorptionEfficiency: 0.90,
+              jellies: JellyLayout(count: 6, radius: 46, tentacleLength: 75, sway: 6, night: true,
+                                  maintainsFloorLane: true, heights: [0.42, 0.65, 0.42, 0.65, 0.42, 0.65]),
+              aiCanEat: false, predatorSpawnSeparationScreens: 0.45, bounceFoodPockets: true),
+        Level(spawnGroups: [(7, 0.40...0.68), (5, 0.68...0.90), (3, 1.25...1.55)],
+              aiSpeedRange: 30...85, aiVerticalSpeed: 35, screenCrossSeconds: 3.0,
+              absorptionEfficiency: 0.90,
+              jellies: JellyLayout(count: 7, radius: 48, tentacleLength: 80, sway: 6, maintainsFloorLane: true,
+                                  heights: [0.35, 0.52, 0.69, 0.52, 0.35, 0.52, 0.69]),
+              aiCanEat: false, predatorSpawnSeparationScreens: 0.45, bounceFoodPockets: true),
     ]
 
     // MARK: Levels
@@ -187,4 +188,5 @@ struct Level {
     var aiCanEat: Bool = true
     var requiredMeals: Int = 0
     var predatorSpawnSeparationScreens: CGFloat = 0
+    var bounceFoodPockets: Bool = false
 }

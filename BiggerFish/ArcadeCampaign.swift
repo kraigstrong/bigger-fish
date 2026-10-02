@@ -11,10 +11,6 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         self == .shallowReef ? "Eat. Dodge. Grow." : "Bounce the tops. Dodge the tentacles."
     }
     var levels: [Level] { self == .shallowReef ? GameTuning.levels : GameTuning.bloomLevels }
-    var levelTitles: [String] {
-        self == .shallowReef
-            ? ["Little Fish", "Finding Your Fins", "Bigger Company", "Feeding Frenzy", "King of the Reef"]
-            : ["Bounce House", "Threading", "Bloom", "Night Bloom", "Gauntlet"]
-    }
+    var levelTitles: [String] { levels.indices.map { "Level \($0 + 1)" } }
     func levelID(_ index: Int) -> String { "\(rawValue).\(index + 1)" }
 }

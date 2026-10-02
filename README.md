@@ -7,8 +7,9 @@ Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than
 
 The world map opens **Shallow Reef** (the original five levels) and **Jelly Bloom** (five new levels).
 Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
-adds safe dome bounces, lethal tentacles, and, after its introductory level, urchin beds. Its predators
-can briefly chase and prey can flee; Shallow Reef keeps the original drift behavior and tuning.
+adds safe dome bounces and lethal tentacles, with food pockets above stepped and chained bounce routes.
+A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
+the original drift behavior and tuning. Both worlds use numbered levels.
 
 This playable slice has no purchases, endless mode, pearls, or shop yet. See
 [`docs/bigger-fish-playable-scope.md`](docs/bigger-fish-playable-scope.md) for the accepted scope and deferred vision.

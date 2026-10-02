@@ -132,7 +132,7 @@ struct ArcadeLevelMap: View {
                         }
                     }
                     .buttonStyle(.plain).disabled(!open)
-                    .accessibilityLabel("Level \(index + 1), \(world.levelTitles[index]), \(open ? (cleared ? "cleared" : "play") : "locked")")
+                    .accessibilityLabel("\(world.levelTitles[index]), \(open ? (cleared ? "cleared" : "play") : "locked")")
                     .position(centers[index])
                 }
             }

@@ -56,27 +56,6 @@ struct WinStateTests {
     }
 }
 
-struct BloomChaseTests {
-    @Test func predatorsCannotOutrunPlayerAtAnyZoom() {
-        for zoom: CGFloat in [1, 0.7, 0.4] {
-            let playerSpeed: CGFloat = 320 / zoom
-            let velocity = GameRules.bloomChaseVelocity(offset: CGVector(dx: 800, dy: -800),
-                                                       playerSpeed: playerSpeed, zoom: zoom)
-            #expect(velocity.dx <= playerSpeed * 0.95)
-            #expect(abs(velocity.dy) <= GameTuning.motion.maxRiseSpeed * 0.55 / zoom)
-            #expect(velocity.dx < playerSpeed)
-        }
-    }
-
-    @Test func interceptingFishSteerTowardPlayerBelowItsSpeed() {
-        let velocity = GameRules.bloomChaseVelocity(offset: CGVector(dx: -200, dy: 100),
-                                                   playerSpeed: 300, zoom: 1)
-        #expect(velocity.dx < 0)
-        #expect(velocity.dy > 0)
-        #expect(abs(velocity.dx) < 300)
-    }
-}
-
 struct BloomMealTests {
     private func fish(_ id: Int, radius: CGFloat, player: Bool = false) -> Fish {
         Fish(id: id, isPlayer: player, position: .zero, radius: radius)
@@ -129,15 +108,15 @@ struct BloomAvoidanceTests {
     }
 }
 
-struct UrchinAvoidanceTests {
-    @Test func ordinarySwimmersSeeFloorHazardsBeforeContact() {
-        let crossing = GameRules.bloomUrchinAvoidance(at: CGPoint(x: -100, y: 25),
-            velocity: CGVector(dx: 100, dy: 0), fishRadius: 28, zoom: 1)
-        #expect(crossing != nil)
-        #expect((crossing?.dy ?? 0) > 0)
-        #expect(GameRules.bloomUrchinAvoidance(at: CGPoint(x: -100, y: 100),
-            velocity: CGVector(dx: 100, dy: 0), fishRadius: 28, zoom: 1) == nil)
-        #expect(GameRules.bloomUrchinAvoidance(at: CGPoint(x: -100, y: 25),
-            velocity: CGVector(dx: -100, dy: 0), fishRadius: 28, zoom: 1) == nil)
+struct BounceCampaignBalanceTests {
+    @Test func everyLargerFishCanBeOutgrownByEatingTheStartingFood() {
+        for level in GameTuning.bloomLevels.dropFirst() {
+            let foodArea = level.spawnGroups.filter { $0.radii.upperBound < 1 }
+                .reduce(CGFloat.zero) { $0 + CGFloat($1.count) * $1.radii.lowerBound * $1.radii.lowerBound }
+            let grown = sqrt(1 + foodArea * level.absorptionEfficiency)
+            let largest = level.spawnGroups.map { $0.radii.upperBound }.max()!
+            #expect(GameRules.encounter(grown, largest) == .firstEatsSecond)
+            #expect(!level.aiCanEat)
+        }
     }
 }

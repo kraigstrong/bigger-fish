@@ -20,14 +20,6 @@ private struct BloomJelly {
     let phase: CGFloat
 }
 
-private struct BloomBrain {
-    let aggressive: Bool
-    var chaseRemaining: CGFloat = 0
-    var reactionRemaining: CGFloat = 0
-    var chaseStarted = false
-    var cooldown: CGFloat = 0
-}
-
 private struct Speck {
     let node: SKSpriteNode
     let parallax: CGFloat
@@ -63,7 +55,7 @@ final class GameScene: SKScene {
     private var lossReason = "There was a bigger fish."
     private var jellies: [BloomJelly] = []
     private var urchins: [(x: CGFloat, node: SKNode)] = []
-    private var brains: [Int: BloomBrain] = [:]
+    private var foodHomes: [Int: CGPoint] = [:]
     private var bounceRemaining: CGFloat = 0
     private var bounceCooldown: CGFloat = 0
     private var mapButton = SKShapeNode()
@@ -194,7 +186,7 @@ final class GameScene: SKScene {
         hazardLayer.removeAllChildren()
         jellies.removeAll()
         urchins.removeAll()
-        brains.removeAll()
+        foodHomes.removeAll()
         nextFishID = 1
         mealsEaten = 0
         foodRefillCooldown = 0
@@ -230,11 +222,19 @@ final class GameScene: SKScene {
 
         let predatorCount = level.spawnGroups.filter { $0.radii.lowerBound >= 1 }.reduce(0) { $0 + $1.count }
         var predatorIndex = 0
+        var foodIndex = 0
         for group in level.spawnGroups {
             for _ in 0..<group.count {
                 let normalized = CGFloat.random(in: group.radii, using: &rng)
                 let r = normalized * base
                 var preferredX: CGFloat?
+                var preferredY: CGFloat?
+                if normalized < 1 && level.bounceFoodPockets, let layout = level.jellies, !jellies.isEmpty {
+                    let jelly = jellies[foodIndex % jellies.count]
+                    preferredX = jelly.origin.x
+                    preferredY = jelly.origin.y + layout.radius * 0.65 + r + T.bloomFoodPocketLift
+                    foodIndex += 1
+                }
                 if normalized >= 1 && level.predatorSpawnSeparationScreens > 0 {
                     // Reserve evenly spaced starts so random packing cannot drop the last predator.
                     let start = T.spawnClearAheadDanger + 0.05
@@ -243,8 +243,9 @@ final class GameScene: SKScene {
                     predatorIndex += 1
                 }
                 guard let pos = findSpawnPoint(radius: r, dangerous: normalized >= T.spawnDangerRatio,
-                                              preferredX: preferredX) else { continue }
+                                              preferredX: preferredX, preferredY: preferredY) else { continue }
                 spawnAIFish(radius: r, at: pos)
+                if preferredY != nil { foodHomes[nextFishID - 1] = pos }
             }
         }
     }
@@ -262,8 +263,10 @@ final class GameScene: SKScene {
         f.phase = CGFloat.random(in: 0...(2 * .pi), using: &rng)
         add(f, style: FishStyle.random(using: &rng))
         if level.jellies != nil {
-            brains[f.id] = BloomBrain(aggressive: CGFloat.random(in: 0...1, using: &rng) < T.bloomAggressiveFraction)
+            // Keep Level 1's seeded ecosystem stable after removing its old AI personality draw.
+            _ = CGFloat.random(in: 0...1, using: &rng)
         }
+
     }
 
     private func replenishFood(_ dt: CGFloat) {
@@ -280,12 +283,18 @@ final class GameScene: SKScene {
         }
     }
 
-    private func findSpawnPoint(radius r: CGFloat, dangerous: Bool, preferredX: CGFloat? = nil) -> CGPoint? {
+    private func findSpawnPoint(radius r: CGFloat, dangerous: Bool, preferredX: CGFloat? = nil, preferredY: CGFloat? = nil) -> CGPoint? {
         let clearBehind = size.width * T.spawnClearBehind
         let clearAhead = size.width * (dangerous ? T.spawnClearAheadDanger : T.spawnClearAheadSmall)
         for _ in 0..<500 {
-            let x = preferredX ?? CGFloat.random(in: 0..<world.width, using: &rng)
-            let y = CGFloat.random(in: (waterBottom + r)...(waterTop - r), using: &rng)
+            let x = preferredX.map {
+                world.wrap($0 + (preferredY != nil ? CGFloat.random(in: -T.bloomFoodPocketHalfWidth...T.bloomFoodPocketHalfWidth, using: &rng) : 0))
+            } ?? CGFloat.random(in: 0..<world.width, using: &rng)
+            let minY = waterBottom + r, maxY = waterTop - r
+            let pocketY = preferredY?.clamped(minY + T.bloomFoodPocketHalfHeight, maxY - T.bloomFoodPocketHalfHeight)
+            let lowerY = pocketY.map { max(minY, $0 - T.bloomFoodPocketHalfHeight) } ?? minY
+            let upperY = pocketY.map { min(maxY, $0 + T.bloomFoodPocketHalfHeight) } ?? maxY
+            let y = CGFloat.random(in: lowerY...upperY, using: &rng)
             let dx = world.delta(from: player.position.x, to: x)
             if dx > -clearBehind && dx < clearAhead { continue }
             let point = CGPoint(x: x, y: y)
@@ -544,17 +553,21 @@ final class GameScene: SKScene {
     }
 
     private func moveAI(_ f: Fish, _ dt: CGFloat) {
-        if level.jellies != nil, moveBloomAI(f, dt) { return }
         f.turnTimer -= dt
         if f.turnTimer <= 0 {
             f.heading *= -1
             f.turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &rng)
         }
+        let home = foodHomes[f.id]
+        if let home {
+            let offset = world.delta(from: home.x, to: f.position.x)
+            if abs(offset) > size.width * T.bloomFoodPatrolScreens { f.heading = offset > 0 ? -1 : 1 }
+        }
         let targetVX = f.heading * f.cruiseSpeed * (1 + 0.15 * sin(simClock * 0.7 + f.phase))
         var vx = f.velocity.dx + (targetVX - f.velocity.dx) * min(1, dt * 1.5)
 
-        let minY = waterBottom + f.radius
-        let maxY = max(minY, waterTop - f.radius)
+        let minY = max(waterBottom + f.radius, home.map { $0.y - T.bloomFoodPocketHalfHeight } ?? waterBottom)
+        let maxY = max(minY, min(waterTop - f.radius, home.map { $0.y + T.bloomFoodPocketHalfHeight } ?? waterTop))
         f.retargetTimer -= dt
         if f.retargetTimer <= 0 || abs(f.targetY - f.position.y) < 6 {
             f.targetY = CGFloat.random(in: minY...maxY, using: &rng)
@@ -591,8 +604,8 @@ final class GameScene: SKScene {
         for i in 0..<layout.count {
             // A safe opening, then alternating bell heights create a route through the field.
             let x = size.width * 0.85 + CGFloat(i) * (world.width - size.width) / CGFloat(layout.count)
-            let fraction: CGFloat = i.isMultiple(of: 2) ? 0.37 : 0.68
-            let floorGap = layout.maintainsFloorLane ? GameRules.bloomFloorLaneClearance(fishRadius: T.baseRadius) : 12
+            let fraction: CGFloat = layout.heights.isEmpty ? (i.isMultiple(of: 2) ? 0.37 : 0.68) : layout.heights[i % layout.heights.count]
+            let floorGap = (layout.maintainsFloorLane || levelIndex == 0) ? GameRules.bloomFloorLaneClearance(fishRadius: T.baseRadius) : 12
             let y = max(waterBottom + layout.tentacleLength + floorGap,
                         waterBottom + (waterTop - waterBottom) * fraction)
             let origin = CGPoint(x: world.wrap(x), y: y)
@@ -639,7 +652,7 @@ final class GameScene: SKScene {
                 x: world.wrap(jellies[i].origin.x + sin(simClock * 0.45 + jellies[i].phase) * layout.sway),
                 y: jellies[i].origin.y + sin(simClock * 0.65 + jellies[i].phase) * layout.sway
             )
-            if layout.maintainsFloorLane {
+            if layout.maintainsFloorLane || levelIndex == 0 {
                 // Preserve a lower passage as the fish grows and the camera eases outward.
                 jellies[i].position.y = max(jellies[i].position.y,
                     waterBottom + layout.tentacleLength + GameRules.bloomFloorLaneClearance(fishRadius: player.radius))
@@ -706,7 +719,7 @@ final class GameScene: SKScene {
         } else {
             fish.removeAll { $0.id == victim.id }
             fishByID[victim.id] = nil
-            brains[victim.id] = nil
+            foodHomes[victim.id] = nil
             nodes[victim.id] = nil
         }
     }
@@ -727,19 +740,9 @@ final class GameScene: SKScene {
         }
     }
 
-    /// Only called on the ordinary drift path. Committed chases retain baiting risk.
+    /// Bloom swimmers avoid tentacles while food fish stay near their bounce pockets.
     private func bloomAvoidance(for f: Fish, velocity: CGVector) -> CGVector? {
         guard let layout = level.jellies else { return nil }
-        for urchin in urchins.sorted(by: {
-            abs(world.delta(from: f.position.x, to: $0.x)) < abs(world.delta(from: f.position.x, to: $1.x))
-        }) {
-            let relative = CGPoint(x: world.delta(from: urchin.x, to: f.position.x),
-                                   y: f.position.y - waterBottom - T.urchinRadius * 0.55)
-            if let steering = GameRules.bloomUrchinAvoidance(at: relative, velocity: velocity,
-                                                           fishRadius: f.radius, zoom: zoom) {
-                return steering
-            }
-        }
         let nearby = jellies.sorted {
             world.distance(f.position, $0.position) < world.distance(f.position, $1.position)
         }
@@ -754,55 +757,6 @@ final class GameScene: SKScene {
             }
         }
         return nil
-    }
-
-    /// Bloom predators commit to pursuit; prey and Shallow Reef keep their ordinary drift AI.
-    private func moveBloomAI(_ f: Fish, _ dt: CGFloat) -> Bool {
-        guard var brain = brains[f.id], player.isAlive else { return false }
-        let dx = world.delta(from: f.position.x, to: player.position.x)
-        let dy = player.position.y - f.position.y
-        let distance = hypot(dx, dy) * zoom
-        let predator = GameRules.encounter(f.radius, player.radius) == .firstEatsSecond
-        brain.cooldown = max(0, brain.cooldown - dt)
-        if !predator || distance > T.bloomGiveUpRadius {
-            if brain.chaseRemaining > 0 { brain.cooldown = T.bloomChaseCooldown }
-            brain.chaseRemaining = 0
-            brain.reactionRemaining = 0
-            brain.chaseStarted = false
-        }
-        if predator && brain.aggressive && brain.chaseRemaining <= 0 && brain.cooldown <= 0,
-           distance < T.bloomAggroRadius {
-            brain.chaseRemaining = T.bloomChaseSeconds
-            brain.reactionRemaining = T.bloomChaseReactionSeconds
-            brain.chaseStarted = false
-        }
-        if brain.reactionRemaining > 0 {
-            brain.reactionRemaining = max(0, brain.reactionRemaining - dt)
-            brains[f.id] = brain
-            return false
-        }
-        guard brain.chaseRemaining > 0 else {
-            brains[f.id] = brain
-            return false
-        }
-        let target = GameRules.bloomChaseVelocity(offset: CGVector(dx: dx, dy: dy),
-                                                 playerSpeed: playerSpeed, zoom: zoom)
-        let targetVX = target.dx, targetVY = target.dy
-        let steer = min(1, dt * T.bloomChaseTurnRate)
-        f.velocity.dx += (targetVX - f.velocity.dx) * steer
-        f.velocity.dy += (targetVY - f.velocity.dy) * steer
-        // Turning does not spend the pursuit budget; once started, the clock keeps running.
-        if !brain.chaseStarted && f.velocity.dx * dx > 0 { brain.chaseStarted = true }
-        if brain.chaseStarted {
-            brain.chaseRemaining = max(0, brain.chaseRemaining - dt)
-            if brain.chaseRemaining == 0 { brain.cooldown = T.bloomChaseCooldown }
-        }
-        brains[f.id] = brain
-        let minY = waterBottom + f.radius, maxY = max(minY, waterTop - f.radius)
-        f.position.x = world.wrap(f.position.x + f.velocity.dx * dt)
-        f.position.y = (f.position.y + f.velocity.dy * dt).clamped(minY, maxY)
-        f.facing = (f.velocity.dx / 20).clamped(-1, 1)
-        return true
     }
 
     private func advanceGrowth(_ dt: CGFloat) {
@@ -933,6 +887,7 @@ final class GameScene: SKScene {
         nodes[prey.id] = nil
         fish.removeAll { $0.id == prey.id }
         fishByID[prey.id] = nil
+        foodHomes[prey.id] = nil
 
         predator.state = .swimming
         predator.squash = 0
@@ -1223,44 +1178,12 @@ final class GameScene: SKScene {
         updateJellies(0, previousFish: [player.id: old])
         return phase == .playing
     }
-    func debugPassOppositeUrchin() -> Bool {
-        guard let urchin = urchins.first else { return false }
-        let old = CGPoint(x: world.wrap(urchin.x + world.width / 2 - 2), y: waterBottom + T.urchinRadius)
-        player.position = CGPoint(x: world.wrap(old.x + 4), y: old.y)
-        updateUrchins(previousFish: [player.id: old])
-        return phase == .playing
-    }
-    func debugTouchUrchin() -> Bool {
-        guard let urchin = urchins.first else { return false }
-        player.position = CGPoint(x: urchin.x, y: waterBottom + T.urchinRadius)
-        updateUrchins(previousFish: [player.id: player.position])
-        return phase == .lost
-    }
     var debugLevelIndex: Int { levelIndex }
     var debugResultTitles: [String] { resultPanel?.controls.map { $0.action.title } ?? [] }
     func debugTapResult(_ action: ArcadeResultAction?) {
         guard let panel = resultPanel else { return }
         let frame = panel.controls.first { $0.action == action }?.frame
         panel.handleTap(at: frame.map { CGPoint(x: $0.midX, y: $0.midY) } ?? CGPoint(x: 0, y: 80))
-    }
-    func debugPredatorTiming() -> (turning: CGFloat, pursuing: CGFloat) {
-        let predator = fish.first { !$0.isPlayer }!
-        predator.radius = player.radius * 2
-        predator.position = CGPoint(x: world.wrap(player.position.x - 150), y: player.position.y)
-        predator.velocity = CGVector(dx: -100, dy: 0)
-        predator.cruiseSpeed = 100
-        brains[predator.id] = BloomBrain(aggressive: true, chaseRemaining: T.bloomChaseSeconds)
-        _ = moveBloomAI(predator, 1.0 / 30)
-        let turning = brains[predator.id]!.chaseRemaining
-        predator.velocity.dx = 100
-        _ = moveBloomAI(predator, 0.5)
-        return (turning, brains[predator.id]!.chaseRemaining)
-    }
-    func debugPreyUsesOrdinarySwimming() -> Bool {
-        let prey = fish.first { !$0.isPlayer }!
-        prey.radius = player.radius * 0.5
-        prey.position = CGPoint(x: world.wrap(player.position.x + 40), y: player.position.y)
-        return !moveBloomAI(prey, 1.0 / 30)
     }
     var debugPredatorStartGaps: [CGFloat] {
         let predators = fish.filter { !$0.isPlayer && $0.radius >= T.baseRadius }
@@ -1276,7 +1199,7 @@ final class GameScene: SKScene {
         updateJellies(0, previousFish: [:])
         return jellies.map { $0.position.y - level.jellies!.tentacleLength - waterBottom }.min() ?? 0
     }
-    func debugApproachJelly(chasing: Bool) -> Bool {
+    func debugApproachJelly() -> Bool {
         guard let jelly = jellies.first else { return false }
         for f in fish.filter({ !$0.isPlayer }) { removeByTentacles(f) }
         jellies = [jelly]
@@ -1293,9 +1216,6 @@ final class GameScene: SKScene {
         swimmer.turnTimer = 10
         swimmer.retargetTimer = 10
         add(swimmer, style: .player)
-        // Start the baiting fixture already committed; the reaction delay uses ordinary steering.
-        brains[swimmer.id] = BloomBrain(aggressive: chasing,
-                                       chaseRemaining: chasing ? T.bloomChaseSeconds : 0)
         for _ in 0..<90 {
             guard swimmer.isAlive else { break }
             let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
@@ -1304,40 +1224,23 @@ final class GameScene: SKScene {
         }
         return swimmer.isAlive
     }
-    func debugApproachUrchin(chasing: Bool) -> Bool {
-        guard let urchin = urchins.first else { return false }
-        for f in fish.filter({ !$0.isPlayer }) { removeByTentacles(f) }
-        jellies.removeAll()
-        urchins = [urchin]
-        let y = waterBottom + 32
-        player.position = CGPoint(x: world.wrap(urchin.x + 130), y: y)
-        let swimmer = Fish(id: nextFishID, isPlayer: false,
-                           position: CGPoint(x: world.wrap(urchin.x - 100), y: y), radius: 28)
-        nextFishID += 1
-        swimmer.heading = 1
-        swimmer.cruiseSpeed = 100
-        swimmer.velocity = CGVector(dx: 100, dy: 0)
-        swimmer.targetY = y
-        swimmer.turnTimer = 10
-        swimmer.retargetTimer = 10
-        add(swimmer, style: .player)
-        brains[swimmer.id] = BloomBrain(aggressive: chasing,
-                                       chaseRemaining: chasing ? T.bloomChaseSeconds : 0)
-        for _ in 0..<90 {
-            guard swimmer.isAlive else { break }
-            let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
-            moveAI(swimmer, 1.0 / 30)
-            updateUrchins(previousFish: previous)
-        }
-        return swimmer.isAlive
+    func debugPassivePredatorVelocity(playerOffset: CGFloat) -> CGVector {
+        let predator = fish.first { !$0.isPlayer && foodHomes[$0.id] == nil }!
+        predator.position = CGPoint(x: 0, y: waterCenter)
+        predator.velocity = CGVector(dx: 50, dy: 0)
+        predator.heading = 1
+        predator.targetY = waterCenter
+        predator.turnTimer = 10
+        predator.retargetTimer = 10
+        player.position = CGPoint(x: world.wrap(playerOffset), y: waterCenter + 30)
+        moveAI(predator, 0.1)
+        return predator.velocity
     }
-    func debugEngagesNearbyPlayer() -> Bool {
-        let predator = fish.first { !$0.isPlayer }!
-        predator.radius = player.radius * 2
-        predator.position = CGPoint(x: world.wrap(player.position.x - 250), y: player.position.y)
-        // Use the actual spawn-assigned brain; every Bloom fish can become a predator.
-        _ = moveBloomAI(predator, 1.0 / 30)
-        return (brains[predator.id]?.chaseRemaining ?? 0) > 0
+    var debugFoodPocketCount: Int { foodHomes.count }
+    var debugFishCount: Int { fish.count }
+    var debugUrchinCount: Int { urchins.count }
+    var debugAllPredatorsInitiallyLarger: Bool {
+        fish.filter { !$0.isPlayer && foodHomes[$0.id] == nil }.allSatisfy { $0.radius > player.radius }
     }
     var debugMealHUDVisible: Bool { mealIndicator.parent != nil && !mealIndicator.isHidden }
     var debugMealsEaten: Int { mealsEaten }
