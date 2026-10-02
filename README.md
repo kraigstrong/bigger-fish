@@ -115,3 +115,29 @@ For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4`
 plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save.
 Add `-arcadeResult passed` or `-arcadeResult failed` to preview its result panel without recording a
 clear. Remove the arguments to return to the normal world map and real campaign progress.
+
+## Debug playtest recordings
+
+Bigger Fish Xcode Debug builds automatically record runs locally in `Documents/ArcadeRuns`.
+Release/TestFlight builds contain no recorder. Play normally, then pause or finish and keep your
+phone unlocked and connected. Xcode's console prints `[ArcadeRun]` start/outcome lines.
+
+Ask Codex to pull your runs, or run:
+
+```bash
+python3 scripts/pull-arcade-runs.py
+```
+
+The script selects a single connected device and copies only Bigger Fish's run directory to
+ignored `build/arcade-runs`. Use `--device 'Your iPhone name'` if several devices are connected.
+`--summarize-only` summarizes downloaded files; `--simulator booted` supports local verification.
+If device transfer is unavailable, Xcode > Window > Devices and Simulators > installed Bigger Fish >
+Download Container contains the same Documents/ArcadeRuns folder.
+
+JSONL includes configuration and seeded starts, tap/release transitions, player and AI meals,
+interrupted-swallow hazard deaths, bounces, pause/resume, outcomes, and full world/camera snapshots
+at five per second plus event-time snapshots. Times are elapsed wall and simulation seconds;
+fish positions are wrapped world coordinates. Recordings stream on a background queue, flush
+periodically and on pause, and keep the latest 30 files. An interrupted run remains readable;
+an abrupt process kill may lose the most recent queued records. Nothing is uploaded automatically.
+Add `-arcadeDisableRunRecording` to Xcode's launch arguments to disable recording temporarily.

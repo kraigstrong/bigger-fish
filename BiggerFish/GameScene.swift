@@ -64,6 +64,8 @@ final class GameScene: SKScene {
     #if DEBUG
     private let previewResult = ArcadePlaytest.resultPreview
     private var didPreviewResult = false
+    private var runRecorder: ArcadeRunRecorder?
+    private var recordingStartedAt: CGFloat = 0
     #endif
     private let audio = ArcadeAudio()
 
@@ -157,6 +159,13 @@ final class GameScene: SKScene {
         if !isBuilt { build() }
     }
 
+    override func willMove(from view: SKView) {
+        #if DEBUG
+        finishRunRecording("scene_closed")
+        #endif
+        super.willMove(from: view)
+    }
+
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
         guard isBuilt, size != oldSize, size.width > 1, size.height > 1 else { return }
@@ -179,6 +188,9 @@ final class GameScene: SKScene {
     // MARK: - Run setup
 
     private func resetGame(startPlaying: Bool) {
+        #if DEBUG
+        finishRunRecording("restart")
+        #endif
         for node in nodes.values { node.removeFromParent() }
         nodes.removeAll()
         fish.removeAll()
@@ -399,6 +411,9 @@ final class GameScene: SKScene {
         case .playAgain, .tryAgain:
             resetGame(startPlaying: false)
         case .levels:
+            #if DEBUG
+            finishRunRecording("level_map")
+            #endif
             onExit?()
         }
     }
@@ -410,15 +425,26 @@ final class GameScene: SKScene {
         }
         simClock = 0
         setPhase(.playing)
+        #if DEBUG
+        startRunRecording()
+        #endif
     }
 
     private func pauseRun() {
         buildPauseMenu()
         setPhase(.paused)
         holdTouches.removeAll()
+        #if DEBUG
+        recordRunEvent("pause")
+        recordRunSnapshot(force: true)
+        runRecorder?.checkpoint()
+        #endif
     }
 
     private func win() {
+        #if DEBUG
+        finishRunRecording("won")
+        #endif
         onClear?(levelIndex, Double(simClock))
         audio.play(.clear)
         setPhase(.won)
@@ -442,6 +468,9 @@ final class GameScene: SKScene {
     }
 
     private func lose() {
+        #if DEBUG
+        finishRunRecording("lost", fields: ["reason": lossReason])
+        #endif
         audio.play(.lose)
         setPhase(.lost)
         endedAt = realClock
@@ -450,6 +479,12 @@ final class GameScene: SKScene {
     // MARK: - Input
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let wasHolding = isHolding
+        defer {
+            #if DEBUG
+            if isHolding != wasHolding { recordRunEvent("input", fields: ["holding": isHolding]) }
+            #endif
+        }
         for touch in touches {
             let p = touch.location(in: self)
             switch phase {
@@ -468,9 +503,15 @@ final class GameScene: SKScene {
             case .paused:
                 if resumeButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     setPhase(.playing)
+                    #if DEBUG
+                    recordRunEvent("resume")
+                    #endif
                 } else if restartButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     resetGame(startPlaying: false)
                 } else if mapButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
+                    #if DEBUG
+                    finishRunRecording("level_map")
+                    #endif
                     onExit?()
                     return
                 }
@@ -483,11 +524,19 @@ final class GameScene: SKScene {
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let wasHolding = isHolding
         holdTouches.subtract(touches)
+        #if DEBUG
+        if isHolding != wasHolding { recordRunEvent("input", fields: ["holding": isHolding]) }
+        #endif
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let wasHolding = isHolding
         holdTouches.subtract(touches)
+        #if DEBUG
+        if isHolding != wasHolding { recordRunEvent("input", fields: ["holding": isHolding]) }
+        #endif
     }
 
     // MARK: - Frame loop
@@ -541,6 +590,9 @@ final class GameScene: SKScene {
         if phase == .playing {
             resolveCollisions()
             if hasWon { win() }
+            #if DEBUG
+            recordRunSnapshot()
+            #endif
         }
     }
 
@@ -700,6 +752,10 @@ final class GameScene: SKScene {
                     f.position.y = min(waterTop - f.radius * (f.isPlayer ? 0.95 : 1),
                                        contactY + f.velocity.dy * remaining)
                     jelly.node.bounce()
+                    #if DEBUG
+                    recordRunEvent("bounce", fields: ["fishID": f.id, "jellyID": i, "remainingFrame": remaining,
+                                                     "x": f.position.x, "y": f.position.y, "vy": f.velocity.dy])
+                    #endif
                     if f.isPlayer {
                         bounceRemaining = T.jellyBounceSeconds
                         bounceCooldown = T.jellyBounceCooldown
@@ -716,6 +772,10 @@ final class GameScene: SKScene {
     }
 
     private func removeByTentacles(_ victim: Fish, reason: String = "Caught in the tentacles.") {
+        #if DEBUG
+        recordRunEvent("hazard_death", fields: ["fishID": victim.id, "reason": reason,
+                                               "x": victim.position.x, "y": victim.position.y, "radius": victim.radius])
+        #endif
         // If a predator hits a curtain mid-swallow, its prey escapes rather than getting stuck.
         for swallow in swallows where swallow.predatorID == victim.id || swallow.preyID == victim.id {
             let otherID = swallow.predatorID == victim.id ? swallow.preyID : swallow.predatorID
@@ -842,6 +902,10 @@ final class GameScene: SKScene {
     }
 
     private func beginSwallow(predator: Fish, prey: Fish) {
+        #if DEBUG
+        recordRunEvent("swallow_start", fields: ["predatorID": predator.id, "preyID": prey.id,
+                                                "predatorRadius": predator.radius, "preyRadius": prey.radius])
+        #endif
         predator.state = .swallowing(preyID: prey.id)
         prey.state = .beingSwallowed(predatorID: predator.id)
         let ratio = prey.radius / predator.radius
@@ -918,6 +982,10 @@ final class GameScene: SKScene {
         predator.growFrom = predator.radius
         predator.growElapsed = 0
         predator.pulse = T.pulseDuration
+        #if DEBUG
+        recordRunEvent("eat", fields: ["predatorID": predator.id, "preyID": prey.id,
+                                      "preyRadius": prey.radius, "radiusAfter": predator.targetRadius])
+        #endif
 
         if predator.isPlayer {
             mealsEaten += 1
@@ -928,6 +996,9 @@ final class GameScene: SKScene {
             closeCallHaptic.impactOccurred()
         }
         if prey.isPlayer {
+            #if DEBUG
+            recordRunEvent("player_eaten", fields: ["predatorID": predator.id, "radius": predator.radius])
+            #endif
             lose()
         } else if phase == .playing && hasWon {
             win()
@@ -1165,6 +1236,58 @@ final class GameScene: SKScene {
         return label
     }
     #if DEBUG
+    // JSONL uses world coordinates; screen projection is defined by the snapshot's camera.
+    private func recordRunEvent(_ name: String, fields: [String: Any] = [:]) {
+        runRecorder?.event(name, time: Double(realClock - recordingStartedAt), simulationTime: Double(simClock), fields: fields)
+        if ["bounce", "swallow_start", "hazard_death"].contains(name) { recordRunSnapshot(force: true) }
+    }
+
+    private func startRunRecording() {
+        recordingStartedAt = realClock
+        runRecorder = ArcadeRunRecorder.makeDefault()
+        recordRunEvent("start", fields: ["schema": 1, "world": arcadeWorld.rawValue, "level": levelIndex + 1,
+            "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
+            "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
+            "configuration": ["spawnSeed": String(T.spawnSeed + UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0))),
+                "aiCanEat": level.aiCanEat, "absorptionEfficiency": level.absorptionEfficiency,
+                "screenCrossSeconds": level.screenCrossSeconds, "sidePocketExperiment": level.sidePocketExperiment,
+                "bounceSpeed": T.jellyBounceSpeed, "jellyRadius": level.jellies?.radius ?? 0,
+                "tentacleLength": level.jellies?.tentacleLength ?? 0,
+                "jellySway": level.jellies?.sway ?? 0, "jellyHeights": level.jellies?.heights ?? [],
+                "aiSpeedMin": level.aiSpeedRange.lowerBound, "aiSpeedMax": level.aiSpeedRange.upperBound,
+                "aiVerticalSpeed": level.aiVerticalSpeed, "foodPocketLift": T.bloomFoodPocketLift,
+                "foodPatrolScreens": T.bloomFoodPatrolScreens,
+                "sidePocketOffset": T.bloomSidePocketOffset, "sidePocketDrop": T.bloomSidePocketDrop,
+                "spawnGroups": level.spawnGroups.map { ["count": $0.count, "min": $0.radii.lowerBound, "max": $0.radii.upperBound] }]])
+        recordRunSnapshot(force: true)
+    }
+
+    private func recordRunSnapshot(force: Bool = false) {
+        guard let runRecorder, force || runRecorder.wantsSnapshot(time: Double(realClock - recordingStartedAt)) else { return }
+        let fishStates: [[String: Any]] = fish.map { f in
+            ["id": f.id, "player": f.isPlayer, "state": String(describing: f.state),
+             "x": f.position.x, "y": f.position.y, "vx": f.velocity.dx, "vy": f.velocity.dy,
+             "radius": f.radius, "targetRadius": f.targetRadius]
+        }
+        let jellyStates: [[String: Any]] = jellies.enumerated().map { ["id": $0.offset, "x": $0.element.position.x, "y": $0.element.position.y] }
+        runRecorder.snapshot(time: Double(realClock - recordingStartedAt), simulationTime: Double(simClock), fields: [
+            "phase": String(describing: phase), "holding": isHolding, "zoom": zoom, "timeScale": timeScale,
+            "worldWidth": world.width, "screenWidth": size.width, "screenHeight": size.height,
+            "cameraX": player.position.x, "playerScreenX": T.playerScreenX, "waterCenter": waterCenter,
+            "waterBottom": waterBottom, "waterTop": waterTop, "fish": fishStates, "jellies": jellyStates], force: force)
+    }
+
+    private func finishRunRecording(_ outcome: String, fields: [String: Any] = [:]) {
+        guard let runRecorder else { return }
+        recordRunSnapshot(force: true)
+        var summary = fields
+        summary["playerMeals"] = mealsEaten
+        summary["playerRadius"] = player?.radius ?? 0
+        summary["fishRemaining"] = fish.filter { !$0.isPlayer && $0.state != .removed }.count
+        runRecorder.finish(outcome: outcome, time: Double(realClock - recordingStartedAt), simulationTime: Double(simClock), fields: summary)
+        self.runRecorder = nil
+    }
+
     // Integration-test fixtures exercise the real scene update and hazard resolution.
     func debugStart() { startRun() }
     private(set) var debugBounceRiseInContactFrame: CGFloat = 0
