@@ -61,16 +61,16 @@ struct BloomChaseTests {
         for zoom: CGFloat in [1, 0.7, 0.4] {
             let playerSpeed: CGFloat = 320 / zoom
             let velocity = GameRules.bloomChaseVelocity(offset: CGVector(dx: 800, dy: -800),
-                                                       cruiseSpeed: 500, playerSpeed: playerSpeed, zoom: zoom)
-            #expect(velocity.dx <= playerSpeed * 0.75)
+                                                       playerSpeed: playerSpeed, zoom: zoom)
+            #expect(velocity.dx <= playerSpeed * 0.95)
             #expect(abs(velocity.dy) <= GameTuning.motion.maxRiseSpeed * 0.55 / zoom)
             #expect(velocity.dx < playerSpeed)
         }
     }
 
-    @Test func interceptingFishSteerTowardPlayerWithoutSpeedBoost() {
+    @Test func interceptingFishSteerTowardPlayerBelowItsSpeed() {
         let velocity = GameRules.bloomChaseVelocity(offset: CGVector(dx: -200, dy: 100),
-                                                   cruiseSpeed: 80, playerSpeed: 300, zoom: 1)
+                                                   playerSpeed: 300, zoom: 1)
         #expect(velocity.dx < 0)
         #expect(velocity.dy > 0)
         #expect(abs(velocity.dx) < 300)
@@ -126,5 +126,18 @@ struct BloomAvoidanceTests {
         #expect((below?.dy ?? 0) < 0)
         let giant = avoid(CGPoint(x: -100, y: -40), CGVector(dx: 100, dy: 0), radius: 50)
         #expect((giant?.dx ?? 0) < 0)
+    }
+}
+
+struct UrchinAvoidanceTests {
+    @Test func ordinarySwimmersSeeFloorHazardsBeforeContact() {
+        let crossing = GameRules.bloomUrchinAvoidance(at: CGPoint(x: -100, y: 25),
+            velocity: CGVector(dx: 100, dy: 0), fishRadius: 28, zoom: 1)
+        #expect(crossing != nil)
+        #expect((crossing?.dy ?? 0) > 0)
+        #expect(GameRules.bloomUrchinAvoidance(at: CGPoint(x: -100, y: 100),
+            velocity: CGVector(dx: 100, dy: 0), fishRadius: 28, zoom: 1) == nil)
+        #expect(GameRules.bloomUrchinAvoidance(at: CGPoint(x: -100, y: 25),
+            velocity: CGVector(dx: -100, dy: 0), fishRadius: 28, zoom: 1) == nil)
     }
 }

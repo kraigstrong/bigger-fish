@@ -730,6 +730,16 @@ final class GameScene: SKScene {
     /// Only called on the ordinary drift path. Committed chases retain baiting risk.
     private func bloomAvoidance(for f: Fish, velocity: CGVector) -> CGVector? {
         guard let layout = level.jellies else { return nil }
+        for urchin in urchins.sorted(by: {
+            abs(world.delta(from: f.position.x, to: $0.x)) < abs(world.delta(from: f.position.x, to: $1.x))
+        }) {
+            let relative = CGPoint(x: world.delta(from: urchin.x, to: f.position.x),
+                                   y: f.position.y - waterBottom - T.urchinRadius * 0.55)
+            if let steering = GameRules.bloomUrchinAvoidance(at: relative, velocity: velocity,
+                                                           fishRadius: f.radius, zoom: zoom) {
+                return steering
+            }
+        }
         let nearby = jellies.sorted {
             world.distance(f.position, $0.position) < world.distance(f.position, $1.position)
         }
@@ -775,7 +785,7 @@ final class GameScene: SKScene {
             brains[f.id] = brain
             return false
         }
-        let target = GameRules.bloomChaseVelocity(offset: CGVector(dx: dx, dy: dy), cruiseSpeed: f.cruiseSpeed,
+        let target = GameRules.bloomChaseVelocity(offset: CGVector(dx: dx, dy: dy),
                                                  playerSpeed: playerSpeed, zoom: zoom)
         let targetVX = target.dx, targetVY = target.dy
         let steer = min(1, dt * T.bloomChaseTurnRate)
@@ -1293,6 +1303,41 @@ final class GameScene: SKScene {
             updateJellies(0, previousFish: previous)
         }
         return swimmer.isAlive
+    }
+    func debugApproachUrchin(chasing: Bool) -> Bool {
+        guard let urchin = urchins.first else { return false }
+        for f in fish.filter({ !$0.isPlayer }) { removeByTentacles(f) }
+        jellies.removeAll()
+        urchins = [urchin]
+        let y = waterBottom + 32
+        player.position = CGPoint(x: world.wrap(urchin.x + 130), y: y)
+        let swimmer = Fish(id: nextFishID, isPlayer: false,
+                           position: CGPoint(x: world.wrap(urchin.x - 100), y: y), radius: 28)
+        nextFishID += 1
+        swimmer.heading = 1
+        swimmer.cruiseSpeed = 100
+        swimmer.velocity = CGVector(dx: 100, dy: 0)
+        swimmer.targetY = y
+        swimmer.turnTimer = 10
+        swimmer.retargetTimer = 10
+        add(swimmer, style: .player)
+        brains[swimmer.id] = BloomBrain(aggressive: chasing,
+                                       chaseRemaining: chasing ? T.bloomChaseSeconds : 0)
+        for _ in 0..<90 {
+            guard swimmer.isAlive else { break }
+            let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
+            moveAI(swimmer, 1.0 / 30)
+            updateUrchins(previousFish: previous)
+        }
+        return swimmer.isAlive
+    }
+    func debugEngagesNearbyPlayer() -> Bool {
+        let predator = fish.first { !$0.isPlayer }!
+        predator.radius = player.radius * 2
+        predator.position = CGPoint(x: world.wrap(player.position.x - 250), y: player.position.y)
+        // Use the actual spawn-assigned brain; every Bloom fish can become a predator.
+        _ = moveBloomAI(predator, 1.0 / 30)
+        return (brains[predator.id]?.chaseRemaining ?? 0) > 0
     }
     var debugMealHUDVisible: Bool { mealIndicator.parent != nil && !mealIndicator.isHidden }
     var debugMealsEaten: Int { mealsEaten }

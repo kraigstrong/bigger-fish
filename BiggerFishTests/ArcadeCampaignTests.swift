@@ -152,6 +152,15 @@ struct ArcadeSceneTests {
         withExtendedLifetime(view) {}
     }
 
+    @Test func nearbyLargerFishEngageAndOrdinarySwimmersAvoidUrchins() {
+        let (scene, view) = scene(level: 4)
+        #expect(scene.debugEngagesNearbyPlayer())
+        #expect(scene.debugApproachUrchin(chasing: false))
+        let (chaser, chaserView) = self.scene(level: 4)
+        #expect(!chaser.debugApproachUrchin(chasing: true))
+        withExtendedLifetime((view, chaserView)) {}
+    }
+
     @Test func campaignWinsWithoutMealQuotaOrReplenishment() {
         let (scene, view) = scene(level: 4)
         var clears = 0

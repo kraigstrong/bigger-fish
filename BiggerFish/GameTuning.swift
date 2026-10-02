@@ -99,17 +99,17 @@ enum GameTuning {
     static let jellyBounceSpeed: CGFloat = 460
     static let jellyBounceSeconds: CGFloat = 0.28
     static let jellyBounceCooldown: CGFloat = 0.24
-    static let bloomAggroRadius: CGFloat = 220
-    static let bloomGiveUpRadius: CGFloat = 340
+    static let bloomAggroRadius: CGFloat = 320
+    static let bloomGiveUpRadius: CGFloat = 480
     static let bloomChaseSeconds: CGFloat = 2.5
-    static let bloomChaseTurnRate: CGFloat = 1.1
+    static let bloomChaseTurnRate: CGFloat = 3
     static let bloomFloorLanePadding: CGFloat = 20
     /// Predators can intercept from ahead, but cannot run down a fish that has escaped them.
-    static let bloomChaseSpeedFraction: CGFloat = 0.75
+    static let bloomChaseSpeedFraction: CGFloat = 0.95
     static let bloomChaseVerticalFraction: CGFloat = 0.55
     static let bloomChaseReactionSeconds: CGFloat = 0.45
     static let bloomChaseCooldown: CGFloat = 4
-    static let bloomAggressiveFraction: CGFloat = 0.6
+    static let bloomAggressiveFraction: CGFloat = 1
 
     /// Ordinary swimmers anticipate curtains; committed chases ignore this steering.
     static let bloomAvoidanceLookAhead: CGFloat = 1.2
