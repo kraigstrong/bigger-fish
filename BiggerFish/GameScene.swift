@@ -639,8 +639,13 @@ final class GameScene: SKScene {
                     guard !f.isPlayer || bounceCooldown <= 0 else { continue }
                     let x = min(1, abs(p.x) / (layout.radius + f.radius * T.hazardHitboxScale))
                     let surface = layout.radius * 0.65 * sqrt(max(0, 1 - x * x))
-                    f.position.y = jelly.position.y + surface + f.radius * T.hazardHitboxScale + 2
+                    let remaining = JellyRules.remainingBounceTime(at: p, previous: previous,
+                                                                  fishRadius: f.radius,
+                                                                  domeRadius: layout.radius, dt: dt)
                     f.velocity.dy = T.jellyBounceSpeed / zoom
+                    let contactY = jelly.position.y + surface + f.radius * T.hazardHitboxScale + 2
+                    f.position.y = min(waterTop - f.radius * (f.isPlayer ? 0.95 : 1),
+                                       contactY + f.velocity.dy * remaining)
                     jelly.node.bounce()
                     if f.isPlayer {
                         bounceRemaining = T.jellyBounceSeconds
@@ -1161,12 +1166,18 @@ final class GameScene: SKScene {
     #if DEBUG
     // Integration-test fixtures exercise the real scene update and hazard resolution.
     func debugStart() { startRun() }
+    private(set) var debugBounceRiseInContactFrame: CGFloat = 0
     func debugFallOntoDome() -> Bool {
         guard let jelly = jellies.first, let layout = level.jellies else { return false }
         player.position = CGPoint(x: jelly.position.x,
                                   y: jelly.position.y + layout.radius * 0.65 + player.radius * T.hazardHitboxScale + 5)
         player.velocity.dy = -180
         simulate(1.0 / 30)
+        let contactY = jellies[0].position.y + layout.radius * 0.65 + player.radius * T.hazardHitboxScale + 2
+        // This fixture crosses near the center; use the actual curved surface after moving.
+        let x = min(1, abs(world.delta(from: jellies[0].position.x, to: player.position.x)) /
+                    (layout.radius + player.radius * T.hazardHitboxScale))
+        debugBounceRiseInContactFrame = player.position.y - contactY + layout.radius * 0.65 * (1 - sqrt(max(0, 1 - x * x)))
         return phase == .playing && player.velocity.dy > T.motion.maxRiseSpeed && bounceRemaining > 0
     }
     func debugTouchTentacles(playerVictim: Bool) -> Bool {

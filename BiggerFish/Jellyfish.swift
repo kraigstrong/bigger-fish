@@ -51,6 +51,24 @@ enum JellyRules {
         return .none
     }
 
+    /// Estimate the contact fraction from the fish's clearance above the curved dome.
+    /// Spend only the post-contact portion of this frame moving upward.
+    static func remainingBounceTime(at p: CGPoint, previous: CGPoint, fishRadius: CGFloat,
+                                    domeRadius: CGFloat, dt: CGFloat) -> CGFloat {
+        guard dt > 0 else { return 0 }
+        let body = fishRadius * GameTuning.hazardHitboxScale
+        func clearance(_ point: CGPoint) -> CGFloat {
+            let x = min(1, abs(point.x) / (domeRadius + body))
+            return point.y - body - domeRadius * 0.65 * sqrt(max(0, 1 - x * x))
+        }
+        let before = clearance(previous), after = clearance(p)
+        // Forgiving contacts can start slightly embedded in the dome.
+        guard before > 0 else { return dt }
+        guard after < before else { return 0 }
+        let contactFraction = min(1, max(0, before / (before - after)))
+        return dt * (1 - contactFraction)
+    }
+
     /// Predict a curtain crossing and steer toward a safe vertical exit, turning away if too close.
     /// This is steering only: the same lethal collision rules still apply to all fish.
     static func avoidance(at p: CGPoint, velocity: CGVector, fishRadius: CGFloat,

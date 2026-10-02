@@ -82,6 +82,18 @@ struct JellyRulesTests {
         #expect(contact(40, 25, from: CGPoint(x: 40, y: 50)) == .bounce)
     }
 
+    @Test func bounceUsesOnlyTheTimeAfterContact() {
+        // At the dome center a radius-16 fish contacts at y=38.8.
+        func remaining(from: CGFloat, to: CGFloat, dt: CGFloat = 1.0 / 60) -> CGFloat {
+            JellyRules.remainingBounceTime(at: CGPoint(x: 0, y: to), previous: CGPoint(x: 0, y: from),
+                                          fishRadius: 16, domeRadius: 40, dt: dt)
+        }
+        #expect(abs(remaining(from: 43.8, to: 33.8) - 1.0 / 120) < 0.000001)
+        #expect(abs(remaining(from: 43.8, to: 38.8)) < 0.000001)
+        #expect(abs(remaining(from: 38.8, to: 33.8) - 1.0 / 60) < 0.000001)
+        #expect(remaining(from: 43.8, to: 33.8, dt: 0) == 0)
+    }
+
     @Test func curtainAndUndersideAreLethal() {
         #expect(contact(0, -40) == .tentacles)
         #expect(contact(0, -5, from: CGPoint(x: 0, y: -20)) == .tentacles)
@@ -134,6 +146,7 @@ struct ArcadeSceneTests {
     @Test func domeContactActuallyImpulsesThePlayer() {
         let (scene, view) = scene()
         #expect(scene.debugFallOntoDome())
+        #expect(scene.debugBounceRiseInContactFrame > 0)
         withExtendedLifetime(view) {}
     }
 
