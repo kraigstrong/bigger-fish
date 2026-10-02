@@ -5,7 +5,8 @@
 
 Defaults: build/store-capture/picks -> build/store-capture/framed. Each shot in SHOTS gets a
 world-color background, a caption in the game's font (Avenir Next Heavy), and the screenshot below
-it with rounded corners and a soft shadow. Output is 2868x1320 with no alpha, the 6.9" size.
+it with rounded corners and a soft shadow. Output matches the native capture dimensions,
+with no alpha. All selected screenshots must have the same dimensions.
 The captions sell the fun, not the mechanics.
 """
 import sys
@@ -14,6 +15,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 W, H = 2868, 1320
+UNIT = 1.0
 FONT = ("/System/Library/Fonts/Avenir Next.ttc", 8)  # Avenir Next Heavy, as in the app
 
 # ReefStyle.color(for:) in MathReef/ReefUI.swift.
@@ -58,7 +60,8 @@ def background(color):
     bubbles = Image.new("RGBA", (W, H))
     draw = ImageDraw.Draw(bubbles)
     for x, y, r in [(150, 220, 46), (260, 120, 22), (2700, 260, 38), (2600, 110, 18), (90, 1150, 30), (2780, 1180, 26)]:
-        draw.ellipse((x - r, y - r, x + r, y + r), fill=(255, 255, 255, 40), outline=(255, 255, 255, 110), width=5)
+        x, y, r = x * W / 2868, y * H / 1320, r * UNIT
+        draw.ellipse((x - r, y - r, x + r, y + r), fill=(255, 255, 255, 40), outline=(255, 255, 255, 110), width=max(1, round(5 * UNIT)))
     image.paste(bubbles, (0, 0), bubbles)
     return image
 
@@ -72,14 +75,14 @@ def rounded(image, radius):
 def frame(shot, caption, color):
     canvas = background(color)
     w, h = round(W * SHOT_SCALE), round(H * SHOT_SCALE)
-    x, y = (W - w) // 2, H - h - 64
+    x, y = (W - w) // 2, H - h - round(64 * UNIT)
 
     # Soft shadow, then a white border, then the screenshot.
     shadow = Image.new("RGBA", (W, H))
     ImageDraw.Draw(shadow).rounded_rectangle(
-        (x - BORDER, y - BORDER + 24, x + w + BORDER, y + h + BORDER + 24), radius=CORNER + BORDER, fill=(0, 0, 40, 90)
+        (x - BORDER, y - BORDER + round(24 * UNIT), x + w + BORDER, y + h + BORDER + round(24 * UNIT)), radius=CORNER + BORDER, fill=(0, 0, 40, 90)
     )
-    shadow = shadow.filter(ImageFilter.GaussianBlur(28))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(28 * UNIT))
     canvas.paste(shadow, (0, 0), shadow)
     border = Image.new("RGB", (w + 2 * BORDER, h + 2 * BORDER), (255, 255, 255))
     canvas.paste(border, (x - BORDER, y - BORDER), rounded(border, CORNER + BORDER))
@@ -87,24 +90,34 @@ def frame(shot, caption, color):
     canvas.paste(screen, (x, y), rounded(screen, CORNER))
 
     # The caption, centered in the band above, with a soft shadow.
-    size = 132
+    size = round(132 * UNIT)
     font = ImageFont.truetype(FONT[0], size, index=FONT[1])
     while font.getlength(caption) > W * 0.9:
-        size -= 4
+        size -= max(1, round(4 * UNIT))
         font = ImageFont.truetype(FONT[0], size, index=FONT[1])
     band = y - BORDER
-    cx, cy = W // 2, band // 2 + 4
+    cx, cy = W // 2, band // 2 + round(4 * UNIT)
     glow = Image.new("RGBA", (W, H))
-    ImageDraw.Draw(glow).text((cx, cy + 6), caption, font=font, fill=(0, 0, 40, 110), anchor="mm")
-    glow = glow.filter(ImageFilter.GaussianBlur(8))
+    ImageDraw.Draw(glow).text((cx, cy + round(6 * UNIT)), caption, font=font, fill=(0, 0, 40, 110), anchor="mm")
+    glow = glow.filter(ImageFilter.GaussianBlur(8 * UNIT))
     canvas.paste(glow, (0, 0), glow)
     ImageDraw.Draw(canvas).text((cx, cy), caption, font=font, fill=(255, 255, 255), anchor="mm")
     return canvas
 
 
 def main():
+    global W, H, UNIT, CORNER, BORDER
     picks = Path(sys.argv[1] if len(sys.argv) > 1 else "build/store-capture/picks")
     out = Path(sys.argv[2] if len(sys.argv) > 2 else "build/store-capture/framed")
+    with Image.open(picks / f"{SHOTS[0][0]}.png") as first:
+        W, H = first.size
+    UNIT = min(W / 2868, H / 1320)
+    CORNER, BORDER = round(56 * UNIT), round(12 * UNIT)
+    # Validate every input before producing any output.
+    for name, _, _ in SHOTS:
+        with Image.open(picks / f"{name}.png") as shot:
+            if shot.size != (W, H):
+                sys.exit(f"{name}: expected {(W, H)}, got {shot.size}; recapture at the same device size")
     out.mkdir(parents=True, exist_ok=True)
     for index, (name, caption, color) in enumerate(SHOTS, 1):
         shot = Image.open(picks / f"{name}.png").convert("RGB")
