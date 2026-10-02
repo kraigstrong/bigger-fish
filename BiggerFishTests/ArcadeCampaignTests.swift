@@ -122,6 +122,25 @@ struct ArcadeSceneTests {
         return (scene, view)
     }
 
+    @Test func pursuitBudgetStartsAfterTurningAndPreyDoNotFlee() {
+        let (scene, view) = scene(level: 3)
+        let timing = scene.debugPredatorTiming()
+        #expect(abs(timing.turning - 2.5) < 0.000001)
+        #expect(abs(timing.pursuing - 2.0) < 0.000001)
+        #expect(scene.debugPreyUsesOrdinarySwimming())
+        withExtendedLifetime(view) {}
+    }
+
+    @Test func nightBloomSeparatesPredatorsAndKeepsAGrownFishLane() {
+        let (scene, view) = scene(level: 3)
+        #expect(scene.debugPredatorStartGaps.count == 10) // All five predators still spawn.
+        #expect(scene.debugPredatorStartGaps.allSatisfy { $0 >= 0.45 })
+        for radius: CGFloat in [16, 40, 80] {
+            #expect(scene.debugNightFloorLane(radius: radius) >= GameRules.bloomFloorLaneClearance(fishRadius: radius) - 0.000001)
+        }
+        withExtendedLifetime(view) {}
+    }
+
     @Test func campaignWinsWithoutMealQuotaOrReplenishment() {
         let (scene, view) = scene(level: 4)
         var clears = 0

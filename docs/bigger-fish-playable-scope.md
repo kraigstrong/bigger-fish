@@ -10,8 +10,8 @@ implementation on October 1. The draft is a longer-term vision, not the scope of
 - Both worlds are available during development; levels unlock sequentially within each world.
 - Add World 2, **Jelly Bloom**: Bounce House, Threading, Bloom, Night Bloom, Gauntlet.
 - Dome tops bounce; tentacles kill player and AI. No health, stuns, or tier drops.
-- Bloom adds limited predator chasing and short-range prey fleeing. Chasers react for 0.45 seconds without a visual warning,
-  commit for 1.6 seconds, rest for four seconds, and are capped below player speed. World 1 retains its original AI.
+- Bloom adds limited predator chasing; prey retain ordinary swimming. Chasers react for 0.45 seconds without a visual warning,
+  pursue for 2.5 seconds after turning toward the player, rest for four seconds, and are capped below player speed. World 1 retains its original AI.
 - Save level clears and fastest clear times locally, with stable IDs and a Bigger Fish-only key.
 - Keep new code and copied assets in BiggerFish; defer shared engine consolidation while Math Reef is in review.
 
@@ -30,8 +30,9 @@ predators, and floor hazards. Jelly layouts wrap with the existing finite ecosys
 
 A clear means becoming the last fish swimming, with no meal quota or replenishment. Meal counters
 and HUD code remain dormant for future endless mode. Ordinary Bloom swimmers look ahead and steer
-around tentacle curtains. Committed chases and panic fleeing skip avoidance, preserving baiting;
-hazard collisions remain lethal for everyone. Original hazard counts and player bouncing remain intact.
+around tentacle curtains. Committed chases skip avoidance, preserving baiting;
+hazard collisions remain lethal for everyone. Night Bloom uses six curtains, a lower passage sized for the growing fish, and separated predator
+starts. Player bouncing remains intact.
 All physics, hazard dimensions, and speeds live in `GameTuning` and need device playtesting.
 
 ## Deferred vision

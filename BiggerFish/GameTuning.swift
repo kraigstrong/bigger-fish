@@ -101,17 +101,17 @@ enum GameTuning {
     static let jellyBounceCooldown: CGFloat = 0.24
     static let bloomAggroRadius: CGFloat = 220
     static let bloomGiveUpRadius: CGFloat = 340
-    static let bloomChaseSeconds: CGFloat = 1.6
+    static let bloomChaseSeconds: CGFloat = 2.5
     static let bloomChaseTurnRate: CGFloat = 1.1
+    static let bloomFloorLanePadding: CGFloat = 20
     /// Predators can intercept from ahead, but cannot run down a fish that has escaped them.
     static let bloomChaseSpeedFraction: CGFloat = 0.75
     static let bloomChaseVerticalFraction: CGFloat = 0.55
     static let bloomChaseReactionSeconds: CGFloat = 0.45
     static let bloomChaseCooldown: CGFloat = 4
     static let bloomAggressiveFraction: CGFloat = 0.6
-    static let bloomFleeRadius: CGFloat = 110
 
-    /// Ordinary swimmers anticipate curtains; committed chases/fleeing ignore this steering.
+    /// Ordinary swimmers anticipate curtains; committed chases ignore this steering.
     static let bloomAvoidanceLookAhead: CGFloat = 1.2
     static let bloomAvoidancePadding: CGFloat = 16
     static let bloomAvoidanceRiseSpeed: CGFloat = 140
@@ -138,7 +138,8 @@ enum GameTuning {
         Level(spawnGroups: [(6, 0.35...0.65), (5, 0.65...0.88), (3, 1.15...1.55), (2, 1.70...2.05)],
               aiSpeedRange: 45...120, aiVerticalSpeed: 65, screenCrossSeconds: 2.8,
               absorptionEfficiency: 0.86,
-              jellies: JellyLayout(count: 9, radius: 36, tentacleLength: 115, urchinBeds: 6, night: true)),
+              jellies: JellyLayout(count: 6, radius: 36, tentacleLength: 115, urchinBeds: 6, night: true),
+              predatorSpawnSeparationScreens: 0.45),
         Level(spawnGroups: [(5, 0.35...0.65), (5, 0.65...0.90), (4, 1.15...1.55), (2, 1.75...2.20)],
               aiSpeedRange: 50...130, aiVerticalSpeed: 72, screenCrossSeconds: 2.7,
               absorptionEfficiency: 0.85,
@@ -184,4 +185,5 @@ struct Level {
     var jellies: JellyLayout? = nil
     var aiCanEat: Bool = true
     var requiredMeals: Int = 0
+    var predatorSpawnSeparationScreens: CGFloat = 0
 }

@@ -40,6 +40,13 @@ enum GameRules {
         sqrt(predator * predator + efficiency * prey * prey)
     }
 
+    /// A grown fish fits between a curtain's tip and the top of an urchin's lethal region.
+    static func bloomFloorLaneClearance(fishRadius: CGFloat) -> CGFloat {
+        GameTuning.urchinRadius * 0.55 +
+        (GameTuning.urchinRadius + fishRadius * 2) * GameTuning.hazardHitboxScale +
+        GameTuning.bloomFloorLanePadding
+    }
+
     /// Refill only a stalled Bloom ecosystem, never a normal final chase or an active swallow.
     static func needsFood(_ fish: [Fish], mealsEaten: Int, requiredMeals: Int) -> Bool {
         guard requiredMeals > 0,
