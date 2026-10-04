@@ -49,6 +49,23 @@ struct ArcadeTuning: Codable, Equatable {
         difficulty = enabled ? (level.encounterDifficulty?.bounded ?? 0) : nil
     }
 
+    func displayedSpawnSeed(world: ArcadeWorld, index: Int) -> UInt64 {
+        var base = world.levels[index]
+        if difficulty == nil {
+            if world == .shallowReef, index < GameTuning.shallowReferenceLevels.count {
+                base = GameTuning.shallowReferenceLevels[index]
+                base.ecosystemSeedIndex = index
+            } else if world == .jellyBloom {
+                let source = base.ecosystemSeedIndex ?? index
+                if source < GameTuning.bloomReferenceLevels.count {
+                    base = GameTuning.bloomReferenceLevels[source]
+                    base.ecosystemSeedIndex = source
+                }
+            }
+        }
+        return base.spawnSeed(index: index, bloom: world == .jellyBloom, offset: UInt64(sanitized.seedOffset))
+    }
+
     func encounterWaveBudgets(for level: Level, index: Int, bloom: Bool) -> [(count: Int, edible: Int)] {
         GameTuning.freeEncounterWaveBudgets(
             seed: level.spawnSeed(index: index, bloom: bloom, offset: UInt64(sanitized.seedOffset)),
@@ -297,8 +314,7 @@ struct ArcadeTuningPanel: View {
                     }
                 }
                 Section("Level seed") {
-                    LabeledContent("Seed", value: String(world.levels[index].spawnSeed(
-                        index: index, bloom: world == .jellyBloom, offset: UInt64(draft.sanitized.seedOffset))))
+                    LabeledContent("Seed", value: String(draft.displayedSpawnSeed(world: world, index: index)))
                         .monospacedDigit()
                         .textSelection(.enabled)
                     Text("\(world.title) · Level \(index + 1)")

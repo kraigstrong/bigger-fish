@@ -86,6 +86,28 @@ struct ShallowCampaignTests {
         }
     }
 
+    @MainActor @Test func tunerSeedLabelMatchesReferenceRunsAndRerolls() {
+        for world in ArcadeWorld.allCases {
+            for index in world.levels.indices {
+                for reference in [false, true] {
+                    var draft = ArcadeTuning(level: world.levels[index])
+                    if reference {
+                        let originals = world == .shallowReef ? GameTuning.shallowReferenceLevels : GameTuning.bloomReferenceLevels
+                        guard index < originals.count else { continue }
+                        draft = ArcadeTuning(level: originals[index])
+                    }
+                    for offset in [0, 777] {
+                        draft.seedOffset = offset
+                        let scene = GameScene(world: world, levelIndex: index)
+                        _ = scene.debugSimulate(candidate: "seed label", tuning: draft,
+                            policy: .collector, seed: 0, limit: 0)
+                        #expect(draft.displayedSpawnSeed(world: world, index: index) == scene.debugConfiguredSpawnSeed)
+                    }
+                }
+            }
+        }
+    }
+
     @MainActor @Test func seededStartsHaveAllFishAndAnOptimisticGrowthPath() {
         for (index, level) in GameTuning.levels.enumerated() {
             for variation in [0, 7, 33, 987] {
