@@ -1744,7 +1744,7 @@ final class GameScene: SKScene {
                 "aiMovementRandomVersion": 1,
                 "protectedContactVersion": 1,
                 "simulationStepSeconds": T.simulationStep, "maximumFrameElapsedSeconds": T.maximumFrameElapsed,
-                "encounterFormationVersion": level.freeEncounterMovement ? (levelIndex == 1 ? 2 : 3) : (level.encounterDifficulty != nil && levelIndex < 5 ? 1 : 0),
+                "encounterFormationVersion": level.freeEncounterMovement ? (arcadeWorld == .jellyBloom && levelIndex == 1 ? 2 : 3) : (level.encounterDifficulty != nil && levelIndex < 5 ? 1 : 0),
                 "encounterDifficulty": level.encounterDifficulty?.bounded ?? -1,
                 "encounterForwardDistance": forwardDistance,
                 "openingCatchBudget": level.freeEncounterMovement ? -1 : (level.encounterDifficulty?.catchBudget ?? -1),
