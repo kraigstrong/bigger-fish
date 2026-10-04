@@ -14,15 +14,17 @@ def select(rows, widths):
     groups = collections.defaultdict(list)
     for row in rows:
         if row.get('tuning', {}).get('difficulty') is not None and not row['ecologyProbe']:
-            groups[(row['level'], row['seed'])].append(row)
+            tuning = json.dumps(row['tuning'], sort_keys=True, separators=(',', ':'))
+            groups[(row['level'], row['seed'], row.get('candidate', ''), tuning)].append(row)
     accepted = {}
-    for (level, seed), runs in sorted(groups.items()):
+    for (level, seed, candidate, tuning), runs in sorted(groups.items()):
         winners = {r['width'] for r in runs if r['outcome'] == 'won'
                    and r['spawned'] == r['configured'] and r['initialGrowthPath']
                    and r['delayedPasses'] == 0 and r.get('firstPassMealLimit') is None
                    and not r.get('skippedFirstPassFishIDs')}
         if set(widths) <= winners and level not in accepted:
             accepted[level] = dict(level=level, seedOffset=seed,
+                candidate=candidate, tuning=json.loads(tuning),
                 difficulty=runs[0]['tuning']['difficulty'],
                 wins={str(width): sum(r['width'] == width and r['outcome'] == 'won' for r in runs)
                       for width in widths})
