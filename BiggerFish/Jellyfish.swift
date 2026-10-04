@@ -102,7 +102,7 @@ enum JellyRules {
     }
 
     /// Predict a curtain crossing and steer toward a safe vertical exit, turning away if too close.
-    /// This is steering only: the same lethal collision rules still apply to all fish.
+    /// Bell landings take precedence over steering away from the stingers below them.
     static func avoidance(at p: CGPoint, velocity: CGVector, fishRadius: CGFloat,
                           domeRadius: CGFloat, tentacleLength: CGFloat,
                           minY: CGFloat, maxY: CGFloat, zoom: CGFloat) -> CGVector? {
@@ -112,6 +112,19 @@ enum JellyRules {
         let ahead = CGPoint(x: p.x + velocity.dx * GameTuning.bloomAvoidanceLookAhead,
                             y: p.y + velocity.dy * GameTuning.bloomAvoidanceLookAhead)
         guard segmentIntersectsRect(from: p, to: ahead, rect: curtain) else { return nil }
+        // The look-ahead can cross the bell and then reach its curtain. Let the real
+        // bounce happen if the bell is the first contact, including diagonal landings.
+        var previous = p
+        for step in 1...GameTuning.jellyAvoidancePredictionSteps {
+            let fraction = CGFloat(step) / CGFloat(GameTuning.jellyAvoidancePredictionSteps)
+            let point = CGPoint(x: p.x + (ahead.x - p.x) * fraction,
+                                y: p.y + (ahead.y - p.y) * fraction)
+            let predicted = contact(at: point, previous: previous, fishRadius: fishRadius,
+                                    domeRadius: domeRadius, tentacleLength: tentacleLength)
+            if predicted == .bounce { return nil }
+            if predicted == .tentacles { break }
+            previous = point
+        }
         let above = curtain.maxY + domeRadius * 0.65
         let below = curtain.minY
         let canGoBelow = below >= minY

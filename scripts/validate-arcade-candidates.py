@@ -34,7 +34,7 @@ def select(rows, widths):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('results', nargs='+', type=Path)
-    parser.add_argument('--widths', default='874,852,667')
+    parser.add_argument('--widths', default='874')
     parser.add_argument('--levels', type=int, default=10)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()

@@ -8,9 +8,11 @@ The accepted Level 2 movement and starting-wave plan remain the reference: 40–
 
 The user played all ten levels and reported that the campaign was fun, especially Levels 8, 9, and 10. These settings are the accepted baseline for further tuning.
 
+After the protected-contact and bell-bounce changes, the user won every level except 7. Levels 8 and 9 have especially good encounters; Level 10 now feels too easy. Preserve 8 and 9 as references when revisiting 7 and 10. The fixed-playfield conversion keeps every seed and balance setting unchanged.
+
 ## Difficulty targets
 
-Targets describe expected growth, not human win probabilities. A starting wave's edible share is calculated relative to expected arrival size. Sizes then advance using the expected catch percentage and the effective absorption rate (0.55 × 0.90 = 0.495). Missing catches can leave you behind that curve. AI eating resumes for each fish after you pass its starting location; protected fish remain protected against already-released predators.
+Targets describe expected growth, not human win probabilities. A starting wave's edible share is calculated relative to expected arrival size. Sizes then advance using the expected catch percentage and the effective absorption rate (0.55 × 0.90 = 0.495). Missing catches can leave you behind that curve. AI eating resumes for each fish after you pass its starting location; protected fish remain protected against already-released predators. During protected contacts, fish physically separate and an approaching fish turns away, so they do not swim through one another. In head-on contacts the faster swimmer yields; stable IDs break ties without consuming extra randomness.
 
 | Level | Expected edible catches | Intent |
 |---|---:|---|
@@ -31,7 +33,11 @@ Jellyfish bell heights vary vertically and their horizontal gaps vary. Food and 
 
 ## Validation and playtesting
 
-Seed comparisons use the real scene, three bot policies, and three landscape phone sizes (874×402, 852×393, 667×375). A bot win establishes a reachable route under those inputs. Failed bots do not prove impossibility, and selected winning seeds do not prove a level fun or a linear human difficulty curve. Human playtesting remains decisive.
+Gameplay now uses one fixed 874×402 logical playfield. Displays fit it uniformly with an ocean border where needed; resizing cannot restart or reshape a run. Route checks use that single playfield; display tests separately check fitting and identical simulation state across view sizes. No seeds or level settings were changed for this conversion.
+
+Seed comparisons use the real scene and multiple bot policies. A bot win establishes a reachable route under those inputs. Failed bots do not prove impossibility, and selected winning seeds do not prove a level fun or a linear human difficulty curve. Human playtesting remains decisive.
+
+Current verification: 78 non-route tests pass, including matching gameplay state across display sizes, resizing without a reset, protected contacts, and bell bounces; device and Release builds pass. The automatic winning-route regression remains in the code but was excluded from this verification at the user's request. Its default policies currently miss Levels 3, 5, and 7; this is not a claim that those levels are impossible.
 
 Load shipped settings and Apply & Play for each level to clear old saved overrides. Seed re-roll and effective growth controls remain available in the tuner; recordings include expected catch fraction, starting wave budgets, per-fish release events, meal ratios, and actual effective growth.
 
@@ -39,7 +45,7 @@ Historical patrol/food-race reports remain in `jelly-bloom-difficulty-system.md`
 
 ## Selected seed results
 
-The seed search evaluated 1,368 rollouts, followed by 120 validation runs of the selected seeds after the spawn-clearance fix. Every selected seed has a winning route on each tested screen size, no missing initial fish, and a viable initial growth chain. Bot win counts and uncontested food-race deadlines are **not monotonic**: these do not establish a linear human difficulty curve. The catch-percentage model is the first design pass.
+The seed search evaluated 1,368 rollouts, followed by 120 validation runs of the selected seeds after the spawn-clearance fix. These numerical measurements precede the protected-contact separation follow-up; that follow-up is checked by the current route regression. At the time of that study, every selected seed had a winning route on each tested screen size, no missing initial fish, and a viable initial growth chain. Bot win counts and uncontested food-race deadlines are **not monotonic**: these do not establish a linear human difficulty curve. The catch-percentage model is the first design pass.
 
 | Level | Seed offset | Displayed spawn seed | Bot wins | Close meals in wins (mean) | No-meal growth stall (laps) |
 |---|---:|---:|---:|---:|---:|

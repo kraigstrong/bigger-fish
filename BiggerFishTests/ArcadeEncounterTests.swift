@@ -5,23 +5,41 @@ import Testing
 @testable import BiggerFish
 
 struct ArcadeEncounterTests {
+    @MainActor @Test func protectedFishSeparateAndTurnAwayEvenAgainstReleasedPredators() {
+        for index in [0, 1, 9] {
+            let scene = GameScene(world: .jellyBloom, levelIndex: index)
+            let view = SKView(frame: CGRect(x: 0, y: 0, width: 874, height: 402))
+            view.presentScene(scene)
+            scene.debugStart()
+            #expect(scene.debugProtectedFishYieldCheck())
+            withExtendedLifetime(view) {}
+        }
+    }
+
     @MainActor @Test func campaignRoamsWithIndividualProtectionAndVariedJellyHeights() {
         #expect(GameTuning.bloomLevels[1].freeEncounterMovement)
         #expect(GameTuning.bloomLevels.allSatisfy { $0.freeEncounterMovement })
         #expect(GameTuning.bloomLevels[1].absorptionEfficiency < GameTuning.encounterAbsorption)
-        for size in [CGSize(width: 874, height: 402), CGSize(width: 667, height: 375)] {
-            let result = GameScene(size: size, world: .jellyBloom, levelIndex: 1).debugFreeEncounterMotionCheck()
-            #expect(result.travel > 150)
-            #expect(result.fastFish >= 3)
-            #expect(result.intact)
-            #expect(result.heightSpread > 70)
-            #expect(result.individualReleases == 16)
-        }
+        let result = GameScene(world: .jellyBloom, levelIndex: 1).debugFreeEncounterMotionCheck()
+        #expect(result.travel > 150)
+        #expect(result.fastFish >= 3)
+        #expect(result.intact)
+        #expect(result.heightSpread > 70)
+        #expect(result.individualReleases == 16)
+    }
+
+    @MainActor @Test func movementAvoidanceAllowsARealAIBellBounce() {
+        let scene = GameScene(world: .jellyBloom, levelIndex: 1)
+        let view = SKView(frame: CGRect(x: 0, y: 0, width: 874, height: 402))
+        view.presentScene(scene)
+        scene.debugStart()
+        #expect(scene.debugAIMovementAllowsBellLanding())
+        withExtendedLifetime(view) {}
     }
 
     @MainActor @Test func evenProtectedAIFishCanBounceWithoutDyingFromStingers() {
         for index in [0, 1] {
-            let scene = GameScene(size: CGSize(width: 874, height: 402), world: .jellyBloom, levelIndex: index)
+            let scene = GameScene(world: .jellyBloom, levelIndex: index)
             let view = SKView(frame: CGRect(x: 0, y: 0, width: 874, height: 402))
             view.presentScene(scene)
             scene.debugStart()
@@ -67,10 +85,8 @@ struct ArcadeEncounterTests {
 
     @MainActor @Test func variedWavesKeepTheirBudgetAndStartClearOfFishAndTentacles() {
         for index in 0..<10 {
-            for width: CGFloat in [667, 874] {
-                let scene = GameScene(size: CGSize(width: width, height: 375), world: .jellyBloom, levelIndex: index)
-                #expect(scene.debugEncounterSpawnSafety(), "Level \(index + 1), width \(width)")
-            }
+            let scene = GameScene(world: .jellyBloom, levelIndex: index)
+            #expect(scene.debugEncounterSpawnSafety(), "Level \(index + 1)")
         }
     }
     @Test func separationAnticipatesApproachesAndIgnoresDistantSwimmers() {
@@ -122,7 +138,7 @@ struct ArcadeEncounterTests {
 
     @MainActor @Test func scenePreservesFoodBeforeReleaseAndAllowsAICompetitionAfterIt() {
         for index in [0, 9] {
-            let scene = GameScene(size: CGSize(width: 874, height: 402), world: .jellyBloom, levelIndex: index)
+            let scene = GameScene(world: .jellyBloom, levelIndex: index)
             let view = SKView(frame: CGRect(x: 0, y: 0, width: 874, height: 402))
             view.presentScene(scene)
             scene.debugStart()

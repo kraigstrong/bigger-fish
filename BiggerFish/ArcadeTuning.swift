@@ -263,10 +263,10 @@ struct ArcadeTuningPanel: View {
                         .font(.footnote)
                     Stepper("Seed variation: \(draft.seedOffset)", value: $draft.seedOffset, in: 0...999)
                     if isChecking {
-                        ProgressView("Checking routes at three phone sizes…")
+                        ProgressView("Checking winning routes…")
                     } else if let validation {
-                        Text(validation.accepted ? "Winning routes found at all three phone sizes."
-                            : "No bot route found at widths: \(validation.missingWidths.map { String(Int($0)) }.joined(separator: ", ")).")
+                        Text(validation.accepted ? "Winning route found."
+                            : "No bot route found. This does not prove the level is impossible.")
                             .font(.footnote)
                     } else {
                         Text("Candidate has not been checked.").font(.footnote)

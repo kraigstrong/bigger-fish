@@ -17,9 +17,17 @@ struct ContentView: View {
     var body: some View {
         Group {
             if let scene {
-                SpriteView(scene: scene, preferredFramesPerSecond: 120, options: [.ignoresSiblingOrder])
-                    .id(ObjectIdentifier(scene))
-                    .ignoresSafeArea()
+                GeometryReader { geometry in
+                    let fitted = GameTuning.fittedPlayfieldSize(in: geometry.size)
+                    ZStack {
+                        OceanBackdrop(bloom: scene.arcadeWorld == .jellyBloom)
+                        SpriteView(scene: scene, preferredFramesPerSecond: 120, options: [.ignoresSiblingOrder])
+                            .id(ObjectIdentifier(scene))
+                            .frame(width: fitted.width, height: fitted.height)
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                }
+                .ignoresSafeArea()
             } else if let world = selectedWorld {
                 ArcadeLevelMap(world: world, progress: progress,
                                onBack: { selectedWorld = nil }, onPlay: { play(world, index: $0) })
@@ -66,9 +74,8 @@ struct ContentView: View {
         #else
         guard progress.isOpen(world, index) else { return }
         #endif
-        let game = GameScene(size: CGSize(width: 852, height: 393), world: world, levelIndex: index,
+        let game = GameScene(world: world, levelIndex: index,
                              showsJellyLesson: !progress.save.hasSeenJellyLesson)
-        game.scaleMode = .resizeFill
         #if DEBUG
         game.debugPracticeRun = practice
         #endif

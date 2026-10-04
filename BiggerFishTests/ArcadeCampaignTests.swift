@@ -115,7 +115,7 @@ struct JellyRulesTests {
 @MainActor
 struct ArcadeSceneTests {
     private func scene(level: Int = 0) -> (GameScene, SKView) {
-        let scene = GameScene(size: CGSize(width: 852, height: 393), world: .jellyBloom, levelIndex: level)
+        let scene = GameScene(world: .jellyBloom, levelIndex: level)
         scene.debugUseReferenceLevel()
         let view = SKView(frame: CGRect(x: 0, y: 0, width: 852, height: 393))
         view.presentScene(scene)

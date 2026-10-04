@@ -148,7 +148,7 @@ struct ArcadeLevelMap: View {
     }
 }
 
-private struct OceanBackdrop: View {
+struct OceanBackdrop: View {
     let bloom: Bool
     var body: some View {
         GeometryReader { geometry in

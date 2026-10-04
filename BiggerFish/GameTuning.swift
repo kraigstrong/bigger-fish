@@ -3,6 +3,15 @@ import FishKit
 
 /// Every feel-related constant lives here so it can be tweaked quickly between device runs.
 enum GameTuning {
+    /// Gameplay coordinates never depend on the device's display dimensions.
+    static let playfieldSize = CGSize(width: 874, height: 402)
+
+    static func fittedPlayfieldSize(in available: CGSize) -> CGSize {
+        let scale = max(0, min(available.width / playfieldSize.width,
+                               available.height / playfieldSize.height))
+        return CGSize(width: playfieldSize.width * scale, height: playfieldSize.height * scale)
+    }
+
     // MARK: Simulation timing
 
     static let simulationStep: CGFloat = 1.0 / 60
@@ -113,6 +122,7 @@ enum GameTuning {
     static let jellyBounceSpeed: CGFloat = 460
     static let jellyBounceSeconds: CGFloat = 0.28
     static let jellyBounceCooldown: CGFloat = 0.24
+    static let jellyAvoidancePredictionSteps = 8
     static let bloomFloorLanePadding: CGFloat = 20
     /// Alternating bell heights for authored layouts without per-level heights.
     static let bloomAuthoredJellyHeights: [CGFloat] = [0.37, 0.68]
@@ -255,6 +265,8 @@ enum GameTuning {
     static let encounterSeparationPadding: CGFloat = 12
     static let encounterSeparationLookAhead: CGFloat = 0.6
     static let encounterSeparationSpeed: CGFloat = 65
+    static let protectedFishContactPadding: CGFloat = 1
+    static let protectedFishTurnHoldSeconds: CGFloat = 2
     static let encounterExitScreens: CGFloat = 0.45
     static let encounterFirstScreens: CGFloat = 0.75
     static let encounterSpacingScreens: CGFloat = 0.78
@@ -274,15 +286,6 @@ enum GameTuning {
               bounceFoodPockets: true, sidePocketExperiment: sidePocket, roamingFoodChain: true,
               ecosystemSeedOffset: seedOffset, compactAISpeedScale: compactSpeedScale,
               mediumAISpeedMultiplier: mediumSpeedMultiplier)
-    }
-
-    /// Compact worlds have more encounters per circuit. Ease horizontal AI speed to
-    /// retain recovery routes; three phone sizes were checked with actual scene rollouts.
-    static func bloomAISpeedScale(width: CGFloat, level: Level) -> CGFloat {
-        let fraction = ((width - 667) / (874 - 667)).clamped(0, 1)
-        let scale = level.compactAISpeedScale + (1 - level.compactAISpeedScale) * fraction
-        let mediumWeight = (width <= 852 ? (width - 667) / (852 - 667) : (874 - width) / (874 - 852)).clamped(0, 1)
-        return scale * (1 + (level.mediumAISpeedMultiplier - 1) * mediumWeight)
     }
 
     // MARK: Levels
