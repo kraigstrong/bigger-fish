@@ -47,8 +47,12 @@ final class GameScene: SKScene {
     let arcadeWorld: ArcadeWorld
     private var levelIndex: Int
     private var level: Level {
-        let base = arcadeWorld.levels[levelIndex]
+        var base = arcadeWorld.levels[levelIndex]
         #if DEBUG
+        if arcadeWorld == .jellyBloom, activeDebugTuning?.difficulty == nil,
+           activeDebugTuning != nil, levelIndex < T.bloomReferenceLevels.count {
+            base = T.bloomReferenceLevels[levelIndex]
+        }
         return activeDebugTuning?.applying(to: base) ?? base
         #else
         return base
@@ -89,7 +93,14 @@ final class GameScene: SKScene {
         return level.ecosystemSeedOffset
         #endif
     }
-    private var isFinalLevel: Bool { levelIndex == arcadeWorld.levels.count - 1 }
+    private var campaignLevelCount: Int {
+        #if DEBUG
+        if arcadeWorld == .jellyBloom, activeDebugTuning != nil,
+           activeDebugTuning?.difficulty == nil, levelIndex < T.bloomReferenceLevels.count { return T.bloomReferenceLevels.count }
+        #endif
+        return arcadeWorld.levels.count
+    }
+    private var isFinalLevel: Bool { levelIndex == campaignLevelCount - 1 }
     var onClear: ((Int, Double) -> Void)?
     var onExit: (() -> Void)?
     var onJellyLesson: (() -> Void)?
@@ -99,6 +110,15 @@ final class GameScene: SKScene {
     private var urchins: [(x: CGFloat, node: SKNode)] = []
     private var foodHomes: [Int: CGPoint] = [:]
     private var sidePocketHomes: [Int: CGPoint] = [:]
+    private var encounterLeases: [Int: EncounterLease] = [:]
+    private var forwardDistance: CGFloat = 0
+    private struct EncounterNeighbor {
+        let id: Int
+        let position: CGPoint
+        let velocity: CGVector
+        let radius: CGFloat
+    }
+    private var encounterNeighbors: [EncounterNeighbor] = []
     private var bounceRemaining: CGFloat = 0
     private var bounceCooldown: CGFloat = 0
     private var mapButton = SKShapeNode()
@@ -134,6 +154,7 @@ final class GameScene: SKScene {
     private var didPreviewResult = false
     private var runRecorder: ArcadeRunRecorder?
     private var recordingStartedAt: CGFloat = 0
+    private var recordedEncounterReleases: Set<Int> = []
     #endif
     private lazy var audio = ArcadeAudio()
 
@@ -148,6 +169,22 @@ final class GameScene: SKScene {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     private var rng = SeededGenerator(seed: T.spawnSeed)
+    private var aiMovementRNGs: [Int: SeededGenerator] = [:]
+    private var ecosystemSeed: UInt64 {
+        T.spawnSeed &+ UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) &+ seedOffset
+    }
+
+    /// Domain-separated streams use stable fish IDs, without consuming spawn randomness.
+    private var jellyLayoutSeed: UInt64 {
+        level.encounterDifficulty != nil ? ecosystemSeed &+ 1_000
+            : T.spawnSeed &+ UInt64(levelIndex + 1_000) &+ seedOffset
+    }
+
+    private func movementGenerator(for id: Int) -> SeededGenerator {
+        var seedMixer = SeededGenerator(seed: ecosystemSeed &+ 0xA0761D6478BD642F
+            &+ UInt64(id) &* 0x9E3779B97F4A7C15)
+        return SeededGenerator(seed: seedMixer.next())
+    }
 
     private let backgroundLayer = SKNode()
     private let fishLayer = SKNode()
@@ -291,7 +328,14 @@ final class GameScene: SKScene {
         urchins.removeAll()
         foodHomes.removeAll()
         sidePocketHomes.removeAll()
+        encounterLeases.removeAll()
+        forwardDistance = 0
+        encounterNeighbors.removeAll()
+        #if DEBUG
+        recordedEncounterReleases.removeAll()
+        #endif
         nextFishID = 1
+        aiMovementRNGs.removeAll()
         mealsEaten = 0
         foodRefillCooldown = 0
         bounceRemaining = 0
@@ -311,14 +355,14 @@ final class GameScene: SKScene {
         zoom = 1
 
         world = WrappedWorld(width: size.width * T.worldScreens)
-        rng = SeededGenerator(seed: T.spawnSeed &+ UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) + seedOffset)
+        rng = SeededGenerator(seed: ecosystemSeed)
         spawnJellies()
         spawnEcosystem()
         lastCameraX = player.position.x
         capturePresentation()
         setPhase(startPlaying ? .playing : .ready)
         buildLevelIndicator()
-        render()
+        _ = render()
     }
 
     private func spawnEcosystem() {
@@ -327,6 +371,11 @@ final class GameScene: SKScene {
         p.velocity = CGVector(dx: playerSpeed, dy: 0)
         player = p
         add(p, style: .player)
+
+        if let difficulty = level.encounterDifficulty {
+            spawnEncounters(difficulty)
+            return
+        }
 
         let predatorCount = level.spawnGroups.filter { $0.radii.lowerBound >= 1 }.reduce(0) { $0 + $1.count }
         var predatorIndex = 0
@@ -372,6 +421,74 @@ final class GameScene: SKScene {
                 if isSidePocket { sidePocketHomes[nextFishID - 1] = pos }
             }
         }
+    }
+
+    private func spawnEncounters(_ difficulty: EncounterDifficulty) {
+        guard let layout = level.jellies else { return }
+        if level.freeEncounterMovement { spawnFreeEncounters(difficulty); return }
+        let foodRadius = T.baseRadius * T.encounterFoodRadius
+        let threatRadius = T.baseRadius * difficulty.returnRadius(food: T.encounterFoodRadius,
+            efficiency: level.effectiveAbsorptionEfficiency)
+        let formations = T.encounterFormationOrder(seed: ecosystemSeed)
+        for (encounter, jelly) in jellies.enumerated() {
+            let center = jelly.origin
+            let foodY = center.y + layout.radius * 0.65 + foodRadius + difficulty.clearance
+            let exit = center.x + size.width * T.encounterExitScreens
+            let release = exit + CGFloat(difficulty.recoveryPasses) * world.width
+            // Develop variety in 1–5; leave the later prototypes' geometry intact.
+            let formation = levelIndex < 5 ? formations[encounter % formations.count] : T.encounterFormations[0]
+            for slot in 0..<T.encounterFoodCount {
+                let offset = formation.foodOffsets[slot]
+                let home = CGPoint(x: center.x + offset.x * size.width, y: foodY + offset.y)
+                spawnAIFish(radius: foodRadius, at: home)
+                let id = nextFishID - 1
+                foodHomes[id] = home
+                encounterLeases[id] = EncounterLease(home: home, releaseDistance: release, index: encounter)
+            }
+            let home = CGPoint(x: center.x + size.width * formation.threatOffset,
+                y: min(waterTop - threatRadius - T.encounterPatrolHeight,
+                    foodY + foodRadius + threatRadius + difficulty.clearance))
+            spawnAIFish(radius: threatRadius, at: home)
+            encounterLeases[nextFishID - 1] = EncounterLease(home: home, releaseDistance: release, index: encounter)
+        }
+    }
+
+    private func spawnFreeEncounters(_ difficulty: EncounterDifficulty) {
+        var expectedRadius: CGFloat = 1
+        let catchFraction = T.freeEncounterExpectedCatchFraction(difficulty.bounded)
+        let budgets = T.freeEncounterWaveBudgets(seed: ecosystemSeed, difficulty: difficulty.bounded, preserveLevelTwo: levelIndex == 1)
+        var layoutGenerator = SeededGenerator(seed: ecosystemSeed &+ 0xBF58476D1CE4E5B9)
+        for encounter in jellies.indices {
+            let center = jellies[encounter].origin
+            let count = budgets[encounter].count
+            let edibleCount = budgets[encounter].edible
+            var edibleArea: CGFloat = 0
+            for slot in 0..<count {
+                let edible = slot < edibleCount
+                let ratio = CGFloat.random(in: edible ? T.freeEncounterEdibleSizes : T.freeEncounterThreatSizes, using: &rng)
+                let normalized = expectedRadius * ratio
+                let radius = T.baseRadius * normalized
+                let preferredX = center.x + size.width * (CGFloat(slot) / CGFloat(count - 1) - 0.5) * 0.5
+                // Alternating high/low food, with predators occasionally on the upper right.
+                let baseHeight: CGFloat = edible ? (slot.isMultiple(of: 2) ? 0.22 : 0.78) : 0.83
+                let height = levelIndex == 1 ? baseHeight
+                    : (baseHeight + CGFloat.random(in: -0.16...0.16, using: &layoutGenerator)).clamped(0.15, 0.88)
+                guard let home = findSpawnPoint(radius: radius, dangerous: !edible,
+                    preferredX: preferredX, preferredY: waterBottom + (waterTop - waterBottom) * height,
+                    pocketHalfWidth: size.width * T.freeEncounterSpawnSpreadScreens) else { continue }
+                spawnAIFish(radius: radius, at: home)
+                let id = nextFishID - 1
+                if edible { foodHomes[id] = home; edibleArea += normalized * normalized }
+                // Release each fish after its own starting location, without extra recovery laps.
+                encounterLeases[id] = EncounterLease(home: home,
+                    releaseDistance: home.x + size.width * T.freeEncounterReleaseScreens, index: encounter)
+            }
+            expectedRadius = sqrt(expectedRadius * expectedRadius + level.effectiveAbsorptionEfficiency * edibleArea * catchFraction)
+        }
+    }
+
+    private func encounterProtected(_ id: Int) -> Bool {
+        encounterLeases[id]?.isProtected(distance: forwardDistance) ?? false
     }
 
     private func spawnAIFish(radius: CGFloat, at position: CGPoint) {
@@ -438,9 +555,13 @@ final class GameScene: SKScene {
                 guard let layout = level.jellies else { return false }
                 let relative = CGPoint(x: world.delta(from: jelly.position.x, to: point.x),
                                        y: point.y - jelly.position.y)
-                return JellyRules.contact(at: relative, previous: relative, fishRadius: r,
-                                          domeRadius: layout.radius + T.spawnPadding,
-                                          tentacleLength: layout.tentacleLength + T.spawnPadding) != .none
+                let paddedContact = JellyRules.contact(at: relative, previous: relative, fishRadius: r,
+                    domeRadius: layout.radius + T.spawnPadding, tentacleLength: layout.tentacleLength + T.spawnPadding)
+                // Inflating a curved bell shifts its surface; its bounce band isn't a superset.
+                let actualContact = level.freeEncounterMovement ? JellyRules.contact(at: relative,
+                    previous: relative, fishRadius: r, domeRadius: layout.radius,
+                    tentacleLength: layout.tentacleLength) : .none
+                return paddedContact != .none || actualContact != .none
             }
             if !overlaps && !crowdsPredator && !inJelly { return point }
         }
@@ -448,6 +569,7 @@ final class GameScene: SKScene {
     }
 
     private func add(_ f: Fish, style: FishStyle) {
+        if !f.isPlayer { aiMovementRNGs[f.id] = movementGenerator(for: f.id) }
         fish.append(f)
         fishByID[f.id] = f
         let node = FishNode(style: style, isPlayer: f.isPlayer, tailPhase: CGFloat(f.id) * 1.7)
@@ -656,7 +778,11 @@ final class GameScene: SKScene {
             endedAt = realClock
         }
         #endif
-        let realDt = min(max(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 0), T.maximumFrameElapsed)
+        let frameElapsed = max(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 0)
+        #if DEBUG
+        let frameWorkStarted = ProcessInfo.processInfo.systemUptime
+        #endif
+        let realDt = min(frameElapsed, T.maximumFrameElapsed)
         lastUpdate = currentTime
         advanceFrame(realDt)
 
@@ -664,6 +790,14 @@ final class GameScene: SKScene {
         let cameraDelta = world.delta(from: lastCameraX, to: presentation.cameraX) * presentation.zoom
         lastCameraX = presentation.cameraX
         updateSpecks(realDt: phase == .paused ? 0 : realDt, cameraDelta: cameraDelta)
+        #if DEBUG
+        let workSeconds = ProcessInfo.processInfo.systemUptime - frameWorkStarted
+        if phase == .playing && (frameElapsed > T.debugFrameHitchSeconds || workSeconds > Double(T.debugFrameHitchSeconds)) {
+            recordRunEvent("frame_hitch", fields: ["elapsedSeconds": frameElapsed,
+                "workSeconds": workSeconds, "playerMeals": mealsEaten,
+                "fishCount": fish.count, "timeScale": timeScale])
+        }
+        #endif
     }
 
     /// Display frames only contribute elapsed time. Both real-time slow motion and
@@ -696,9 +830,23 @@ final class GameScene: SKScene {
         simClock += dt
         updateZoom(dt)
         let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
+        // All protected swimmers steer from the same snapshot, not update-order-dependent positions.
+        encounterNeighbors = level.encounterDifficulty == nil ? [] : fish.compactMap {
+            !$0.isPlayer && $0.state == .swimming
+                ? EncounterNeighbor(id: $0.id, position: $0.position, velocity: $0.velocity, radius: $0.radius) : nil
+        }
         for f in fish where f.isAlive {
             if f.isPlayer { movePlayer(f, dt) } else { moveAI(f, dt) }
         }
+        #if DEBUG
+        for (id, lease) in encounterLeases where !lease.isProtected(distance: forwardDistance) {
+            let key = level.freeEncounterMovement ? id : lease.index
+            if recordedEncounterReleases.insert(key).inserted {
+                recordRunEvent("encounter_release", fields: ["encounter": lease.index + 1, "fishID": id,
+                    "forwardDistance": forwardDistance, "releaseDistance": lease.releaseDistance])
+            }
+        }
+        #endif
         if phase == .playing {
             updateJellies(dt, previousFish: previous)
             if phase == .playing { updateUrchins(previousFish: previous) }
@@ -728,6 +876,7 @@ final class GameScene: SKScene {
             zoom: zoom, tuning: motion
         )
         p.velocity = CGVector(dx: playerSpeed, dy: vy)
+        forwardDistance += max(0, playerSpeed * dt)
         p.position = CGPoint(x: world.wrap(p.position.x + playerSpeed * dt), y: y)
         p.facing = 1
     }
@@ -740,37 +889,64 @@ final class GameScene: SKScene {
     }
 
     private func patrolHome(for id: Int) -> CGPoint? {
+        if level.freeEncounterMovement {
+            // A minority linger in broad areas; most roam before and after release.
+            return id.isMultiple(of: 4) ? encounterLeases[id]?.home : nil
+        }
+        if let lease = encounterLeases[id] {
+            return lease.isProtected(distance: forwardDistance) ? lease.home : nil
+        }
         if level.roamingFoodChain && simClock >= pocketReleaseSeconds { return nil }
         return sidePocketHomes[id] ?? foodHomes[id]
     }
 
     private func moveAI(_ f: Fish, _ dt: CGFloat) {
+        if !level.freeEncounterMovement, let lease = encounterLeases[f.id], lease.isProtected(distance: forwardDistance) {
+            moveProtectedAI(f, lease: lease, dt: dt)
+            return
+        }
+        var movementRNG = aiMovementRNGs[f.id] ?? movementGenerator(for: f.id)
+        defer { aiMovementRNGs[f.id] = movementRNG }
         f.turnTimer -= dt
         if f.turnTimer <= 0 {
             f.heading *= -1
-            f.turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &rng)
+            f.turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &movementRNG)
         }
         let home = patrolHome(for: f.id)
         if let home {
             let offset = world.delta(from: home.x, to: f.position.x)
-            let halfWidth = sidePocketHomes[f.id] != nil ? T.bloomSidePocketPatrolHalfWidth : size.width * T.bloomFoodPatrolScreens
+            let halfWidth = level.freeEncounterMovement ? size.width * T.freeEncounterLingerScreens
+                : (sidePocketHomes[f.id] != nil ? T.bloomSidePocketPatrolHalfWidth : size.width * T.bloomFoodPatrolScreens)
             if abs(offset) > halfWidth { f.heading = offset > 0 ? -1 : 1 }
         }
         let targetVX = f.heading * f.cruiseSpeed * (1 + 0.15 * sin(simClock * 0.7 + f.phase))
         var vx = f.velocity.dx + (targetVX - f.velocity.dx) * min(1, dt * 1.5)
 
-        let minY = max(waterBottom + f.radius, home.map { $0.y - T.bloomFoodPocketHalfHeight } ?? waterBottom)
-        let maxY = max(minY, min(waterTop - f.radius, home.map { $0.y + T.bloomFoodPocketHalfHeight } ?? waterTop))
+        let verticalHome = level.freeEncounterMovement ? nil : home
+        let minY = max(waterBottom + f.radius, verticalHome.map { $0.y - T.bloomFoodPocketHalfHeight } ?? waterBottom)
+        let maxY = max(minY, min(waterTop - f.radius, verticalHome.map { $0.y + T.bloomFoodPocketHalfHeight } ?? waterTop))
         f.retargetTimer -= dt
         if f.retargetTimer <= 0 || abs(f.targetY - f.position.y) < 6 {
-            f.targetY = CGFloat.random(in: minY...maxY, using: &rng)
-            f.retargetTimer = CGFloat.random(in: T.aiRetargetRange, using: &rng)
+            f.targetY = CGFloat.random(in: minY...maxY, using: &movementRNG)
+            f.retargetTimer = CGFloat.random(in: T.aiRetargetRange, using: &movementRNG)
         }
         f.targetY = f.targetY.clamped(minY, maxY)
         let desiredVY = ((f.targetY - f.position.y) * 0.9).clamped(-level.aiVerticalSpeed, level.aiVerticalSpeed)
             + sin(simClock * 1.3 + f.phase) * 8
         var vy = f.velocity.dy + (desiredVY - f.velocity.dy) * min(1, dt * 2)
 
+        if level.freeEncounterMovement && encounterProtected(f.id) {
+            for other in encounterNeighbors where other.id != f.id {
+                if let separation = EncounterSteering.separation(
+                    relative: CGVector(dx: world.delta(from: other.position.x, to: f.position.x), dy: f.position.y - other.position.y),
+                    velocity: CGVector(dx: vx - other.velocity.dx, dy: vy - other.velocity.dy),
+                    reach: (f.radius + other.radius) * T.collisionScale + T.encounterSeparationPadding,
+                    stableDirection: f.id < other.id ? -1 : 1) {
+                    vx += separation.dx * min(1, dt * 4)
+                    vy += separation.dy * min(1, dt * 4)
+                }
+            }
+        }
         if let avoidance = bloomAvoidance(for: f, velocity: CGVector(dx: vx, dy: vy)) {
             let steer = min(1, dt * T.bloomAvoidanceTurnRate)
             vx += (avoidance.dx - vx) * steer
@@ -787,15 +963,90 @@ final class GameScene: SKScene {
         f.velocity = CGVector(dx: vx, dy: vy)
         f.position = CGPoint(x: world.wrap(f.position.x + vx * dt), y: y)
         // Facing follows horizontal velocity, so turns read as a smooth flip through side-on.
-        f.facing = (vx / 20).clamped(-1, 1)
+        if level.freeEncounterMovement {
+            let direction: CGFloat = abs(vx) > 2 ? (vx >= 0 ? 1 : -1) : f.heading
+            f.facing += (direction - f.facing) * min(1, dt * T.freeEncounterFacingRate)
+        } else {
+            f.facing = (vx / 20).clamped(-1, 1)
+        }
+    }
+
+    private func moveProtectedAI(_ f: Fish, lease: EncounterLease, dt: CGFloat) {
+        var generator = aiMovementRNGs[f.id] ?? movementGenerator(for: f.id)
+        defer { aiMovementRNGs[f.id] = generator }
+        let halfWidth = min(T.encounterPatrolWidth, size.width * 0.06)
+        // Keep small fish above their bell even at the tightest difficulty target.
+        let halfHeight = foodHomes[f.id] != nil
+            ? min(T.encounterPatrolHeight, (level.encounterDifficulty?.clearance ?? 32) * 0.35)
+            : T.encounterPatrolHeight
+        let minY = max(waterBottom + f.radius, lease.home.y - halfHeight)
+        let maxY = max(minY, min(waterTop - f.radius, lease.home.y + halfHeight))
+        let offset = world.delta(from: lease.home.x, to: f.position.x)
+        if offset > halfWidth - T.encounterTurnLead { f.heading = -1 }
+        if offset < -halfWidth + T.encounterTurnLead { f.heading = 1 }
+        f.retargetTimer -= dt
+        if f.retargetTimer <= 0 {
+            f.targetY = CGFloat.random(in: minY...maxY, using: &generator)
+            f.retargetTimer = CGFloat.random(in: T.aiRetargetRange, using: &generator)
+        }
+        f.targetY = f.targetY.clamped(minY, maxY)
+        let targetVX = f.heading * f.cruiseSpeed * T.encounterPatrolSpeedScale
+            * (1 + 0.15 * sin(simClock * 0.7 + f.phase))
+        let targetVY = ((f.targetY - f.position.y) * 1.5).clamped(-level.aiVerticalSpeed, level.aiVerticalSpeed)
+            + sin(simClock * 1.3 + f.phase) * 4
+        var vx = f.velocity.dx + (targetVX - f.velocity.dx) * min(1, dt * 4)
+        var vy = f.velocity.dy + (targetVY - f.velocity.dy) * min(1, dt * 3)
+        for other in encounterNeighbors where other.id != f.id {
+            let relative = CGVector(dx: world.delta(from: other.position.x, to: f.position.x),
+                dy: f.position.y - other.position.y)
+            if let separation = EncounterSteering.separation(relative: relative,
+                velocity: CGVector(dx: vx - other.velocity.dx, dy: vy - other.velocity.dy),
+                reach: (f.radius + other.radius) * T.collisionScale + T.encounterSeparationPadding,
+                stableDirection: f.id < other.id ? -1 : 1) {
+                vx += separation.dx * min(1, dt * 4)
+                vy += separation.dy * min(1, dt * 4)
+            }
+        }
+        if let avoidance = bloomAvoidance(for: f, velocity: CGVector(dx: vx, dy: vy)) {
+            let steer = min(1, dt * T.bloomAvoidanceTurnRate)
+            vx += (avoidance.dx - vx) * steer
+            vy += (avoidance.dy - vy) * steer
+        }
+        var nextOffset = offset + vx * dt
+        if nextOffset > halfWidth { nextOffset = halfWidth; vx = -abs(vx); f.heading = -1 }
+        if nextOffset < -halfWidth { nextOffset = -halfWidth; vx = abs(vx); f.heading = 1 }
+        var y = f.position.y + vy * dt
+        if y < minY { y = minY; vy = abs(vy) * 0.3 }
+        if y > maxY { y = maxY; vy = -abs(vy) * 0.3 }
+        f.velocity = CGVector(dx: vx, dy: vy)
+        f.position = CGPoint(x: world.wrap(lease.home.x + nextOffset), y: y)
+        // Slow swimming remains broadside; only an actual turn briefly narrows the fish.
+        let direction: CGFloat = abs(vx) > 2 ? (vx >= 0 ? 1 : -1) : f.heading
+        f.facing += (direction - f.facing) * min(1, dt * T.encounterFacingRate)
     }
 
     // MARK: - Jelly Bloom (arcade-only; no shared engine changes)
 
     private func spawnJellies() {
         guard let layout = level.jellies else { return }
-        let scattered = unevenJellies ? JellyPlacement.origins(layout: layout, screenWidth: size.width,
-            waterBottom: waterBottom, waterTop: waterTop, seed: T.spawnSeed + UInt64(levelIndex + 1_000) + seedOffset, variation: layoutVariation) : []
+        var scattered = unevenJellies ? JellyPlacement.origins(layout: layout, screenWidth: size.width,
+            waterBottom: waterBottom, waterTop: waterTop, seed: jellyLayoutSeed, variation: layoutVariation) : []
+        if level.encounterDifficulty != nil {
+            var generator = SeededGenerator(seed: jellyLayoutSeed)
+            let preserve = level.freeEncounterMovement && levelIndex == 1
+            let heights = preserve ? T.freeEncounterHeights : T.freeEncounterHeights.shuffled(using: &generator)
+            scattered = (0..<layout.count).map { i in
+                let horizontal = level.freeEncounterMovement && !preserve ? T.freeEncounterHorizontalVariation : T.encounterJitterScreens
+                let jitter = unevenJellies ? CGFloat.random(in: -horizontal...horizontal, using: &generator) * layoutVariation : 0
+                let variation = preserve ? CGFloat(0.035) : T.freeEncounterHeightVariation
+                let height = level.freeEncounterMovement
+                    ? heights[i] + CGFloat.random(in: -variation...variation, using: &generator) * layoutVariation
+                    : CGFloat.random(in: T.encounterBellHeight, using: &generator)
+                return CGPoint(x: size.width * (T.encounterFirstScreens + CGFloat(i) * T.encounterSpacingScreens + jitter),
+                    y: max(waterBottom + layout.tentacleLength + GameRules.bloomFloorLaneClearance(fishRadius: T.baseRadius),
+                        waterBottom + (waterTop - waterBottom) * height))
+            }
+        }
         for i in 0..<layout.count {
             // A safe opening, then alternating bell heights create a route through the field.
             let x = size.width * 0.85 + CGFloat(i) * (world.width - size.width) / CGFloat(layout.count)
@@ -897,8 +1148,11 @@ final class GameScene: SKScene {
                         playSound(.bounce)
                     }
                 case .tentacles:
-                    removeByTentacles(f)
-                    if f.isPlayer { return }
+                    if f.isPlayer { removeByTentacles(f); return }
+                    // NPCs steer around stingers; contact never removes ecosystem food.
+                    if let avoidance = bloomAvoidance(for: f, velocity: f.velocity) {
+                        f.velocity = avoidance
+                    }
                 }
             }
         }
@@ -931,6 +1185,8 @@ final class GameScene: SKScene {
         } else {
             fish.removeAll { $0.id == victim.id }
             fishByID[victim.id] = nil
+            aiMovementRNGs[victim.id] = nil
+            encounterLeases[victim.id] = nil
             foodHomes[victim.id] = nil
             sidePocketHomes[victim.id] = nil
             nodes[victim.id] = nil
@@ -1008,7 +1264,7 @@ final class GameScene: SKScene {
             for j in (i + 1)..<candidates.count {
                 let a = candidates[i], b = candidates[j]
                 guard a.state == .swimming, b.state == .swimming else { continue }
-                if !a.isPlayer && !b.isPlayer && !aiMayEat { continue }
+                if !a.isPlayer && !b.isPlayer && (!aiMayEat || encounterProtected(a.id) || encounterProtected(b.id)) { continue }
 
                 let dx = world.delta(from: a.position.x, to: b.position.x)
                 let dy = b.position.y - a.position.y
@@ -1116,12 +1372,24 @@ final class GameScene: SKScene {
 
     private func completeSwallow(_ s: Swallow) {
         guard let predator = fishByID[s.predatorID], let prey = fishByID[s.preyID] else { return }
+        #if DEBUG
+        let mealWorkStarted = ProcessInfo.processInfo.systemUptime
+        defer {
+            let workSeconds = ProcessInfo.processInfo.systemUptime - mealWorkStarted
+            if workSeconds > Double(T.debugMealHitchSeconds) {
+                recordRunEvent("meal_hitch", fields: ["workSeconds": workSeconds,
+                    "predatorID": s.predatorID, "preyID": s.preyID, "sizeRatio": s.ratio])
+            }
+        }
+        #endif
 
         prey.state = .removed
         nodes[prey.id]?.removeFromParent()
         nodes[prey.id] = nil
         fish.removeAll { $0.id == prey.id }
         fishByID[prey.id] = nil
+        aiMovementRNGs[prey.id] = nil
+        encounterLeases[prey.id] = nil
         foodHomes[prey.id] = nil
         sidePocketHomes[prey.id] = nil
 
@@ -1129,7 +1397,7 @@ final class GameScene: SKScene {
         predator.squash = 0
         predator.chew = 0
         predator.targetRadius = GameRules.grownRadius(
-            predator: predator.targetRadius, prey: prey.radius, efficiency: level.absorptionEfficiency
+            predator: predator.targetRadius, prey: prey.radius, efficiency: level.effectiveAbsorptionEfficiency
         )
         predator.growFrom = predator.radius
         predator.growElapsed = 0
@@ -1294,11 +1562,11 @@ final class GameScene: SKScene {
     /// Small "Level N" label with one pip per level, top-left.
     private func buildLevelIndicator() {
         levelIndicator.removeAllChildren()
-        let text = label("\(arcadeWorld.title.uppercased()) · \(levelIndex + 1)/5", fontSize: 13, heavy: true)
+        let text = label("\(arcadeWorld.title.uppercased()) · \(levelIndex + 1)/\(campaignLevelCount)", fontSize: 13, heavy: true)
         text.horizontalAlignmentMode = .left
         text.alpha = 0.9
         levelIndicator.addChild(text)
-        for i in 0..<arcadeWorld.levels.count {
+        for i in 0..<campaignLevelCount {
             let pip = SKShapeNode(circleOfRadius: 3.5)
             pip.position = CGPoint(x: text.frame.width + 14 + CGFloat(i) * 11, y: 0)
             pip.fillColor = i <= levelIndex ? SKColor(white: 1, alpha: 0.8) : .clear
@@ -1319,8 +1587,10 @@ final class GameScene: SKScene {
     }
 
     private func updateMealIndicator() {
-        mealIndicator.text = "EAT \(min(mealsEaten, level.requiredMeals))/\(level.requiredMeals)" +
+        guard level.requiredMeals > 0 else { return }
+        let text = "EAT \(min(mealsEaten, level.requiredMeals))/\(level.requiredMeals)" +
             (mealsEaten >= level.requiredMeals ? " · CLEAR THE REEF" : "")
+        if mealIndicator.text != text { mealIndicator.text = text }
     }
 
     private func buildPauseButton() {
@@ -1436,11 +1706,22 @@ final class GameScene: SKScene {
             "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
             "configuration": ["spawnSeed": String(T.spawnSeed + UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) + seedOffset),
+                "aiMovementRandomVersion": 1,
                 "simulationStepSeconds": T.simulationStep, "maximumFrameElapsedSeconds": T.maximumFrameElapsed,
-                "aiCanEat": level.aiCanEat, "playerWinsTies": true, "absorptionEfficiency": level.absorptionEfficiency,
+                "encounterFormationVersion": level.freeEncounterMovement ? (levelIndex == 1 ? 2 : 3) : (level.encounterDifficulty != nil && levelIndex < 5 ? 1 : 0),
+                "encounterDifficulty": level.encounterDifficulty?.bounded ?? -1,
+                "encounterForwardDistance": forwardDistance,
+                "openingCatchBudget": level.freeEncounterMovement ? -1 : (level.encounterDifficulty?.catchBudget ?? -1),
+                "expectedEdibleCatchFraction": level.freeEncounterMovement ? Double(T.freeEncounterExpectedCatchFraction(level.encounterDifficulty?.bounded ?? 0)) : -1,
+                "startingWaveBudgets": level.freeEncounterMovement ? T.freeEncounterWaveBudgets(seed: ecosystemSeed, difficulty: level.encounterDifficulty?.bounded ?? 0, preserveLevelTwo: levelIndex == 1).map { ["count": $0.count, "edible": $0.edible] } : [],
+                "extraRecoveryPasses": level.freeEncounterMovement ? 0 : (level.encounterDifficulty?.recoveryPasses ?? -1),
+                "aiSurvivesTentacles": true,
+                "aiCanEat": level.aiCanEat, "playerWinsTies": true, "absorptionEfficiency": level.effectiveAbsorptionEfficiency,
+                "mealGrowthScale": T.mealGrowthScale,
                 "roamingFoodChain": level.roamingFoodChain,
                 "foodPocketReleaseSeconds": level.roamingFoodChain ? pocketReleaseSeconds : 0,
-                "jellyLayoutSeed": String(T.spawnSeed + UInt64(levelIndex + 1_000) + seedOffset),
+                "jellyLayoutSeed": String(jellyLayoutSeed),
+                "freeEncounterMovement": level.freeEncounterMovement,
                 "unevenJellies": unevenJellies, "layoutVariation": layoutVariation,
                 "debugTuningOverride": activeDebugTuning != nil, "practiceRun": debugPracticeRun,
                 "configuredFishCount": level.spawnGroups.reduce(0) { $0 + $1.count },
@@ -1468,7 +1749,7 @@ final class GameScene: SKScene {
         runRecorder.snapshot(time: Double(realClock - recordingStartedAt), simulationTime: Double(simClock), fields: [
             "phase": String(describing: phase), "holding": isHolding, "zoom": zoom, "timeScale": timeScale,
             "worldWidth": world.width, "screenWidth": size.width, "screenHeight": size.height,
-            "cameraX": player.position.x, "playerScreenX": T.playerScreenX, "waterCenter": waterCenter,
+            "cameraX": player.position.x, "forwardDistance": forwardDistance, "playerScreenX": T.playerScreenX, "waterCenter": waterCenter,
             "waterBottom": waterBottom, "waterTop": waterTop, "fish": fishStates, "jellies": jellyStates], force: force)
     }
 
@@ -1485,7 +1766,7 @@ final class GameScene: SKScene {
 
     /// Advances the real scene without presentation, audio, recording, or touches.
     func debugSimulate(candidate: String, tuning: ArcadeTuning, policy: ArcadeSimulation.Policy,
-                       seed: Int, limit: CGFloat = 75, delayedPasses: CGFloat = 0, ecologyProbe: Bool = false, firstPassMealLimit: Int? = nil, skippedFirstPassFishIDs: [Int] = []) -> ArcadeSimulation.Result {
+                       seed: Int, limit: CGFloat = 75, delayedPasses: CGFloat = 0, ecologyProbe: Bool = false, firstPassMealLimit: Int? = nil, skippedFirstPassFishIDs: [Int] = [], decisionInterval: CGFloat? = nil, predictionSeconds: CGFloat = 0.6, foodPriority: CGFloat? = nil, dangerWeight: CGFloat? = nil) -> ArcadeSimulation.Result {
         simulationEcologyProbe = ecologyProbe
         simulationStats = ArcadeSimulation.Stats()
         simulationLaps = 0
@@ -1498,7 +1779,7 @@ final class GameScene: SKScene {
         resetGame(startPlaying: true)
         let spawned = fish.count - 1
         let initiallyViable = ArcadeSimulation.hasGrowthPath(player: player.radius,
-            radii: fish.filter { !$0.isPlayer }.map(\.radius), efficiency: level.absorptionEfficiency)
+            radii: fish.filter { !$0.isPlayer }.map(\.radius), efficiency: level.effectiveAbsorptionEfficiency)
         var nextDecision: CGFloat = 0, nextSample: CGFloat = 0
         var previouslyViable = initiallyViable
         while phase == .playing && simClock < limit {
@@ -1514,8 +1795,8 @@ final class GameScene: SKScene {
                 simulationHolding = ArcadeSimulation.holding(.init(player: swimmer(player), fish: visible.map(swimmer),
                     bells: bells, width: world.width, screenWidth: size.width, zoom: zoom,
                     bottom: waterBottom, top: waterTop, speed: playerSpeed, bouncing: bounceRemaining > 0,
-                    bounceSpeed: bounceSpeed), policy: policy, feeding: simulationMayFeed && !ecologyProbe)
-                nextDecision = simClock + (policy == .collector ? 0.16 : (policy == .cautious ? 0.10 : 0.08))
+                    bounceSpeed: bounceSpeed), policy: policy, feeding: simulationMayFeed && !ecologyProbe, predictionSeconds: predictionSeconds, foodPriority: foodPriority, dangerWeight: dangerWeight)
+                nextDecision = simClock + max(T.simulationStep, decisionInterval ?? (policy == .collector ? 0.16 : (policy == .cautious ? 0.10 : 0.08)))
             }
             let oldX = player.position.x
             advanceFrame(T.simulationStep)
@@ -1532,7 +1813,7 @@ final class GameScene: SKScene {
                 }
                 if fish.allSatisfy({ $0.state == .swimming }) && !others.isEmpty {
                     let viable = ArcadeSimulation.hasGrowthPath(player: max(player.radius, player.targetRadius),
-                        radii: others.map { max($0.radius, $0.targetRadius) }, efficiency: level.absorptionEfficiency)
+                        radii: others.map { max($0.radius, $0.targetRadius) }, efficiency: level.effectiveAbsorptionEfficiency)
                     if !viable {
                         simulationStats.stalledSeconds += 0.2
                         if simulationStats.firstStallLap == nil { simulationStats.firstStallLap = Double(simulationLaps) }
@@ -1543,7 +1824,7 @@ final class GameScene: SKScene {
                 nextSample = simClock + 0.2
             }
         }
-        return .init(candidate: candidate, level: levelIndex + 1, policy: policy, seed: simulationTuning!.seedOffset, width: Double(size.width), skippedFirstPassFishIDs: skippedFirstPassFishIDs, firstPassMealLimit: firstPassMealLimit, delayedPasses: Double(delayedPasses), ecologyProbe: ecologyProbe,
+        return .init(candidate: candidate, level: levelIndex + 1, policy: policy, decisionIntervalSeconds: decisionInterval.map(Double.init), predictionSeconds: Double(predictionSeconds), foodPriority: foodPriority.map(Double.init), dangerWeight: dangerWeight.map(Double.init), seed: simulationTuning!.seedOffset, width: Double(size.width), skippedFirstPassFishIDs: skippedFirstPassFishIDs, firstPassMealLimit: firstPassMealLimit, delayedPasses: Double(delayedPasses), ecologyProbe: ecologyProbe,
             laps: Double(simulationLaps), outcome: phase == .won ? "won" : (phase == .lost ? "lost" : "timeout"),
             reason: phase == .lost ? lossReason : "", seconds: Double(simClock),
             remaining: fish.filter { !$0.isPlayer }.count, playerRadius: Double(player.radius),
@@ -1556,7 +1837,8 @@ final class GameScene: SKScene {
     func debugAuditRepeatability(frames: [CGFloat], isolatedAI: Bool = true,
                                  omittedIDs: Set<Int> = [], fixedZoom: CGFloat = 1,
                                  playerRadius: CGFloat = T.baseRadius, fixedStep: Bool = false,
-                                 slowMotion: Bool = false, scriptedInput: Bool = false) -> ArcadeSimulation.Audit {
+                                 slowMotion: Bool = false, scriptedInput: Bool = false,
+                                 removeOmittedFish: Bool = false) -> ArcadeSimulation.Audit {
         simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
         simulationEcologyProbe = true
         simulationHolding = false
@@ -1564,6 +1846,17 @@ final class GameScene: SKScene {
         zoom = fixedZoom
         player.radius = playerRadius
         player.targetRadius = playerRadius
+        if removeOmittedFish {
+            for id in omittedIDs {
+                fish.removeAll { $0.id == id }
+                fishByID[id] = nil
+                nodes[id]?.removeFromParent()
+                nodes[id] = nil
+                aiMovementRNGs[id] = nil
+                foodHomes[id] = nil
+                sidePocketHomes[id] = nil
+            }
+        }
         if slowMotion {
             slowMoRemaining = T.closeCallSlowDuration
             slowMoFactor = T.closeCallSlowFactor
@@ -1589,6 +1882,8 @@ final class GameScene: SKScene {
                       turnTimer: Double($0.turnTimer), state: String(describing: $0.state))
             })
     }
+
+    var debugAIMovementStreamIDs: Set<Int> { Set(aiMovementRNGs.keys) }
 
     func debugCheckPresentationIsolation() -> Bool {
         simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
@@ -1683,7 +1978,7 @@ final class GameScene: SKScene {
         victim.position = CGPoint(x: jelly.position.x, y: jelly.position.y - 40)
         let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
         updateJellies(0, previousFish: previous)
-        return playerVictim ? phase == .lost : fishByID[victim.id] == nil
+        return playerVictim ? phase == .lost : fishByID[victim.id] != nil && victim.isAlive
     }
     func debugPassOppositeJelly() -> Bool {
         guard let jelly = jellies.first else { return false }
@@ -1787,6 +2082,101 @@ final class GameScene: SKScene {
         }
         return (food, predators, safe)
     }
+    func debugUseReferenceLevel() {
+        simulationTuning = ArcadeTuning(level: T.bloomReferenceLevels[min(levelIndex, T.bloomReferenceLevels.count - 1)])
+    }
+    func debugEncounterSpawnSafety() -> Bool {
+        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationEcologyProbe = true
+        resetGame(startPlaying: true)
+        let swimmers = fish.filter { !$0.isPlayer }
+        guard swimmers.count == level.spawnGroups.reduce(0, { $0 + $1.count }) else { return false }
+        if !level.freeEncounterMovement && foodHomes.count != T.encounterCount * T.encounterFoodCount { return false }
+        for (offset, swimmer) in swimmers.enumerated() {
+            if !level.freeEncounterMovement && foodHomes[swimmer.id] != nil && swimmer.radius != T.baseRadius * T.encounterFoodRadius { return false }
+            for other in swimmers.dropFirst(offset + 1) {
+                if hypot(world.delta(from: swimmer.position.x, to: other.position.x), swimmer.position.y - other.position.y)
+                    <= (swimmer.radius + other.radius) * T.collisionScale { return false }
+            }
+            for jelly in jellies {
+                let position = CGPoint(x: world.delta(from: jelly.position.x, to: swimmer.position.x),
+                    y: swimmer.position.y - jelly.position.y)
+                if JellyRules.contact(at: position, previous: position, fishRadius: swimmer.radius,
+                    domeRadius: level.jellies!.radius, tentacleLength: level.jellies!.tentacleLength) != .none { return false }
+            }
+        }
+        return true
+    }
+    func debugFreeEncounterMotionCheck() -> (travel: CGFloat, fastFish: Int, intact: Bool, heightSpread: CGFloat, individualReleases: Int) {
+        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationEcologyProbe = true
+        resetGame(startPlaying: true)
+        let original = fish.filter { !$0.isPlayer }
+        let positions = Dictionary(uniqueKeysWithValues: original.map { ($0.id, $0.position) })
+        let radii = Dictionary(uniqueKeysWithValues: original.map { ($0.id, $0.radius) })
+        let releases = Set(encounterLeases.values.map(\.releaseDistance)).count
+        // Isolate unrestricted movement and the no-eating guard from passage-based release.
+        for (id, lease) in encounterLeases {
+            encounterLeases[id] = EncounterLease(home: lease.home, releaseDistance: .greatestFiniteMagnitude, index: lease.index)
+        }
+        for _ in 0..<180 { advanceFrame(T.simulationStep) }
+        let travel = original.map { abs(world.delta(from: positions[$0.id]!.x, to: $0.position.x)) }.max() ?? 0
+        let heights = jellies.map { $0.origin.y }
+        return (travel, original.filter { $0.cruiseSpeed > 100 }.count,
+            original.allSatisfy { $0.isAlive && $0.radius == radii[$0.id] },
+            (heights.max() ?? 0) - (heights.min() ?? 0), releases)
+    }
+
+    func debugAIFallOntoDome() -> Bool {
+        guard let jelly = jellies.first, let layout = level.jellies,
+              let swimmer = fish.first(where: { !$0.isPlayer && $0.isAlive }) else { return false }
+        swimmer.position = CGPoint(x: jelly.position.x,
+            y: jelly.position.y + layout.radius * 0.65 + swimmer.radius * T.hazardHitboxScale - 1)
+        swimmer.velocity.dy = -180
+        var previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
+        previous[swimmer.id]!.y += 30
+        updateJellies(T.simulationStep, previousFish: previous)
+        return swimmer.isAlive && swimmer.velocity.dy > T.motion.maxRiseSpeed
+    }
+
+    func debugProtectedPatrolCheck() -> (minimumTravel: CGFloat, maximumThinFraction: Double, intact: Bool) {
+        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationEcologyProbe = true
+        simulationHolding = false
+        resetGame(startPlaying: true)
+        let initial = fish.filter { !$0.isPlayer }
+        let radii = Dictionary(uniqueKeysWithValues: initial.map { ($0.id, $0.radius) })
+        var minX = Dictionary(uniqueKeysWithValues: initial.map { ($0.id, $0.position.x) })
+        var maxX = minX
+        var thin: [Int: Int] = [:]
+        for _ in 0..<180 {
+            advanceFrame(T.simulationStep)
+            for f in fish where !f.isPlayer {
+                minX[f.id] = min(minX[f.id]!, f.position.x)
+                maxX[f.id] = max(maxX[f.id]!, f.position.x)
+                if abs(f.facing) < 0.4 { thin[f.id, default: 0] += 1 }
+            }
+        }
+        return (initial.map { maxX[$0.id]! - minX[$0.id]! }.min() ?? 0,
+            Double(thin.values.max() ?? 0) / 180,
+            fish.count == initial.count + 1 && initial.allSatisfy { $0.radius == radii[$0.id] && $0.state == .swimming })
+    }
+    /// Exercise release boundaries and collisions directly, without relying on a controller.
+    func debugEncounterProtectionLifecycle() -> Bool {
+        guard let id = encounterLeases.keys.sorted().first, let lease = encounterLeases[id],
+              let prey = fishByID[id], let predator = fish.first(where: { !$0.isPlayer && $0.id != id && $0.radius > prey.radius }) else { return false }
+        simClock = T.aiEatingGracePeriod + 1
+        let originalRadius = prey.radius
+        predator.position = prey.position
+        forwardDistance = lease.releaseDistance - 0.001
+        resolveCollisions()
+        guard prey.state == .swimming, prey.radius == originalRadius, encounterProtected(id) else { return false }
+        // Both sides must have been released. An already-released fish cannot raid a protected area.
+        forwardDistance = (encounterLeases.values.map(\.releaseDistance).max() ?? lease.releaseDistance) + 0.001
+        resolveCollisions()
+        return !encounterProtected(id) && prey.state != .swimming
+    }
+
     func debugFoodLeavesPocket() -> Bool {
         guard let id = foodHomes.keys.sorted().first else { return false }
         simClock = T.bloomFoodPocketReleaseSeconds - 0.01

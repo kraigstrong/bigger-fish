@@ -43,12 +43,12 @@ struct ArcadeWorldMap: View {
                             .shadow(color: world.color.opacity(0.3), radius: 18)
                             Text(world.title).font(.custom("AvenirNext-Heavy", size: 23))
                             Text(world.subtitle).font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.85)
-                            Text(cleared == 5 ? "✓ WORLD COMPLETE" : "\(cleared) / 5 LEVELS CLEARED")
+                            Text(cleared == world.levels.count ? "✓ WORLD COMPLETE" : "\(cleared) / \(world.levels.count) LEVELS CLEARED")
                                 .font(.custom("AvenirNext-Bold", size: 11)).tracking(1).foregroundStyle(world.color)
                         }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(world.title), \(cleared) of 5 levels cleared")
+                    .accessibilityLabel("\(world.title), \(cleared) of \(world.levels.count) levels cleared")
                     .position(centers[index])
                 }
             }
@@ -78,40 +78,43 @@ struct ArcadeLevelMap: View {
                     Text(world.subtitle).font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.75)
                 }
                 Spacer()
-                Text("\(world.levels.indices.filter { progress.isCleared(world, $0) }.count)/5 cleared")
+                Text("\(world.levels.indices.filter { progress.isCleared(world, $0) }.count)/\(world.levels.count) cleared")
                     .font(.custom("AvenirNext-DemiBold", size: 13)).foregroundStyle(world.color)
             }
             .padding(.horizontal, 24).padding(.top, 10)
             GeometryReader { geometry in
                 let width = geometry.size.width
                 let height = geometry.size.height
-                let centers = (0..<5).map { i in
-                    CGPoint(x: width * (0.10 + Double(i) * 0.20),
-                            y: height * (i.isMultiple(of: 2) ? 0.44 : 0.62))
+                let rows = (world.levels.count + 4) / 5
+                let centers = world.levels.indices.map { i in
+                    let row = i / 5
+                    let column = row.isMultiple(of: 2) ? i % 5 : 4 - i % 5
+                    return CGPoint(x: width * (0.10 + Double(column) * 0.20),
+                        y: height * (rows == 1 ? (i.isMultiple(of: 2) ? 0.44 : 0.62) : (0.22 + Double(row) * 0.45)))
                 }
                 Canvas { context, _ in
                     var path = Path()
                     path.move(to: centers[0])
-                    for i in 1..<5 {
+                    for i in 1..<world.levels.count {
                         path.addCurve(to: centers[i],
                                       control1: CGPoint(x: (centers[i-1].x + centers[i].x) / 2, y: centers[i-1].y),
                                       control2: CGPoint(x: (centers[i-1].x + centers[i].x) / 2, y: centers[i].y))
                     }
                     context.stroke(path, with: .color(.white.opacity(0.3)), style: StrokeStyle(lineWidth: 3, dash: [2, 9]))
                 }
-                ForEach(0..<5, id: \.self) { index in
+                ForEach(world.levels.indices, id: \.self) { index in
                     let open = progress.isOpen(world, index)
                     let cleared = progress.isCleared(world, index)
                     let next = index == progress.nextLevel(in: world)
                     Button { onPlay(index) } label: {
-                        VStack(spacing: 9) {
+                        VStack(spacing: rows > 1 ? 4 : 9) {
                             ZStack {
                                 if next && open {
-                                    Circle().stroke(world.color.opacity(0.35), lineWidth: 7).frame(width: 75, height: 75)
+                                    Circle().stroke(world.color.opacity(0.35), lineWidth: 7).frame(width: rows > 1 ? 58 : 75, height: rows > 1 ? 58 : 75)
                                 }
                                 Circle().fill(open ? world.color : Color.white.opacity(0.09))
                                     .overlay(Circle().stroke(.white.opacity(open ? 0.9 : 0.25), lineWidth: 2.5))
-                                    .frame(width: 61, height: 61)
+                                    .frame(width: rows > 1 ? 48 : 61, height: rows > 1 ? 48 : 61)
                                 if !open {
                                     Image(systemName: "lock.fill").font(.system(size: 21)).foregroundStyle(.white.opacity(0.45))
                                 } else {
@@ -119,9 +122,9 @@ struct ArcadeLevelMap: View {
                                         .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.24))
                                 }
                             }
-                            .frame(height: 76)
+                            .frame(height: rows > 1 ? 58 : 76)
                             Text(world.levelTitles[index]).font(.custom("AvenirNext-Bold", size: 13))
-                                .multilineTextAlignment(.center).frame(width: max(100, width * 0.18), height: 35)
+                                .multilineTextAlignment(.center).frame(width: max(100, width * 0.18), height: rows > 1 ? 20 : 35)
                                 .opacity(open ? 1 : 0.45)
                             if let best = progress.save.bestTimes[world.levelID(index)] {
                                 Text("Best \(Int(best))s").font(.custom("AvenirNext-DemiBold", size: 11)).foregroundStyle(world.color)
@@ -137,7 +140,8 @@ struct ArcadeLevelMap: View {
                 }
             }
             Text("Clear a level to open the next. Replay any cleared level.")
-                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.6).padding(.bottom, 12)
+                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.6)
+                .padding(.horizontal, 100).padding(.bottom, 12)
         }
         .foregroundStyle(.white)
         .background(OceanBackdrop(bloom: world == .jellyBloom))

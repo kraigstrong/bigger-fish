@@ -4,6 +4,12 @@ import Foundation
 /// Launch a specific level without changing real campaign progress:
 /// -arcadePlaytest jelly-bloom.4 (world ID + one-based level number).
 enum ArcadePlaytest {
+    static var mapSelection: ArcadeWorld? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let flag = args.firstIndex(of: "-arcadeMap"), args.indices.contains(flag + 1) else { return nil }
+        return ArcadeWorld(rawValue: args[flag + 1])
+    }
+
     static var selection: (world: ArcadeWorld, index: Int)? {
         let args = ProcessInfo.processInfo.arguments
         guard let flag = args.firstIndex(of: "-arcadePlaytest"), args.indices.contains(flag + 1) else { return nil }

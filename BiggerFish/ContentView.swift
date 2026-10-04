@@ -49,6 +49,9 @@ struct ContentView: View {
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             #if DEBUG
+            if scene == nil, let world = ArcadePlaytest.mapSelection {
+                selectedWorld = world
+            }
             if scene == nil && selectedWorld == nil, let selection = ArcadePlaytest.selection {
                 selectedWorld = selection.world
                 play(selection.world, index: selection.index)

@@ -24,6 +24,7 @@ struct ArcadeTuning: Codable, Equatable {
     var unevenJellies: Bool
     var layoutVariation: Double
     var seedOffset: Int
+    var difficulty: Double?
 
     init(level: Level) {
         groups = level.spawnGroups.map { Group(count: $0.count, minimum: Double($0.radii.lowerBound), maximum: Double($0.radii.upperBound)) }
@@ -41,6 +42,7 @@ struct ArcadeTuning: Codable, Equatable {
         unevenJellies = level.roamingFoodChain
         layoutVariation = 1
         seedOffset = Int(level.ecosystemSeedOffset)
+        difficulty = level.encounterDifficulty?.bounded
     }
 
     /// Bound saved and edited settings before they reach physics or spawn ranges.
@@ -66,12 +68,25 @@ struct ArcadeTuning: Codable, Equatable {
         result.releaseSeconds = bound(releaseSeconds, 0...12, fallback: 4)
         result.layoutVariation = bound(layoutVariation, 0...1, fallback: 1)
         result.seedOffset = min(999, max(0, seedOffset))
+        result.difficulty = difficulty.map { $0.isFinite ? min(1, max(0, $0)) : 0 }
+        if result.difficulty != nil { result.jellyCount = GameTuning.encounterCount }
         return result
     }
 
     func applying(to base: Level) -> Level {
         let value = sanitized
-        var result = Level(spawnGroups: value.groups.map { ($0.count, CGFloat($0.minimum)...CGFloat($0.maximum)) },
+        let difficulty = base.jellies == nil ? nil : value.difficulty.map { EncounterDifficulty(value: $0) }
+        let groups: [(count: Int, radii: ClosedRange<CGFloat>)]
+        if base.freeEncounterMovement && difficulty != nil {
+            groups = base.spawnGroups
+        } else if let difficulty {
+            let food = GameTuning.encounterFoodRadius
+            let target = difficulty.returnRadius(food: food, efficiency: CGFloat(value.absorption) * GameTuning.mealGrowthScale)
+            groups = [(12, food...food), (4, target...target)]
+        } else {
+            groups = value.groups.map { ($0.count, CGFloat($0.minimum)...CGFloat($0.maximum)) }
+        }
+        var result = Level(spawnGroups: groups,
             aiSpeedRange: CGFloat(value.aiMinimum)...CGFloat(value.aiMaximum), aiVerticalSpeed: CGFloat(value.aiVertical),
             screenCrossSeconds: CGFloat(value.crossingSeconds), absorptionEfficiency: CGFloat(value.absorption))
         if let layout = base.jellies, value.jellyCount > 0 {
@@ -79,6 +94,8 @@ struct ArcadeTuning: Codable, Equatable {
                 tentacleLength: CGFloat(value.tentacleLength), sway: layout.sway, night: layout.night,
                 maintainsFloorLane: true, heights: layout.heights)
         }
+        result.encounterDifficulty = difficulty
+        result.freeEncounterMovement = base.freeEncounterMovement && difficulty != nil
         result.aiCanEat = base.aiCanEat
         result.requiredMeals = base.requiredMeals
         result.bounceFoodPockets = base.bounceFoodPockets && result.jellies != nil
@@ -146,6 +163,9 @@ struct ArcadeTuningPanel: View {
     @State private var index: Int
     @State private var draft: ArcadeTuning
     @State private var presetName = ""
+    @State private var validation: ArcadeCandidateValidation.Report?
+    @State private var validationTask: Task<Void, Never>?
+    @State private var isChecking = false
     let onPlay: (ArcadeWorld, Int) -> Void
 
     init(store: ArcadeTuningStore, world: ArcadeWorld, index: Int, onPlay: @escaping (ArcadeWorld, Int) -> Void) {
@@ -164,12 +184,39 @@ struct ArcadeTuningPanel: View {
                         ForEach(ArcadeWorld.allCases) { Text($0.title).tag($0) }
                     }
                     Picker("Level", selection: $index) {
-                        ForEach(0..<5) { Text("Level \($0 + 1)").tag($0) }
-                    }.pickerStyle(.segmented)
+                        ForEach(world.levels.indices, id: \.self) { Text("Level \($0 + 1)").tag($0) }
+                    }
                     Text("Apply starts a fresh practice run. Practice runs don't change campaign progress. Closing leaves your current run paused.")
                         .font(.footnote)
                 }
+                if world == .jellyBloom {
+                    Section("Encounter difficulty") {
+                        Toggle("Use encounter difficulty", isOn: Binding(
+                            get: { draft.difficulty != nil },
+                            set: { draft.difficulty = $0 ? Double(index) / Double(max(1, world.levels.count - 1)) : nil }))
+                        if let value = draft.difficulty {
+                            let target = EncounterDifficulty(value: value)
+                            slider("Difficulty", value: Binding(get: { draft.difficulty ?? 0 },
+                                set: { draft.difficulty = $0 }), range: 0...1, step: 0.01)
+                            if world.levels[index].freeEncounterMovement {
+                                let percentage = 100 * Double(GameTuning.freeEncounterExpectedCatchFraction(value))
+                                Text("Expected growth assumes catching \(percentage, specifier: "%.0f")% of edible fish in each starting wave.")
+                                let budgets = GameTuning.freeEncounterWaveBudgets(seed: GameTuning.spawnSeed + UInt64(index + 100 + draft.seedOffset), difficulty: value, preserveLevelTwo: index == 1)
+                                Text("Edible at expected arrival size: " + budgets.map { "\($0.edible) of \($0.count)" }.joined(separator: ", ") + ". Fish roam freely; each unlocks after you pass its starting position.")
+                                    .font(.footnote)
+                            } else {
+                            Text("Catch at least \(target.minimumCatches) of 12 opening fish to reach an unchanged return threat. \(target.spareCatches) spare catches.")
+                            Text("Extra recovery: \(target.recoveryPasses, specifier: "%.2f") circuits · Clearance: \(target.clearance, specifier: "%.0f") points")
+                            Text("Each area holds its fish until you pass, then allows this extra recovery time before competition starts. Targets describe the protected opening; later AI meals can change the growth requirement.")
+                                .font(.footnote)
+                            }
+                        }
+                    }
+                }
+                if draft.difficulty == nil {
                 Section("Fish — size is relative to your starting radius") {
+                    Text("Groups set starting fish counts and sizes, not encounter order. Fish can grow by eating other fish.")
+                        .font(.footnote)
                     ForEach(draft.groups.indices, id: \.self) { i in
                         VStack(alignment: .leading) {
                             Stepper("Group \(i + 1): \(draft.groups[i].count) fish", value: $draft.groups[i].count, in: 0...12)
@@ -177,7 +224,11 @@ struct ArcadeTuningPanel: View {
                             slider("Group \(i + 1) maximum size", value: $draft.groups[i].maximum, range: 0.25...3, step: 0.05)
                         }
                     }
-                    slider("Growth per meal", value: $draft.absorption, range: 0.5...1, step: 0.01)
+                    slider("Growth per meal", value: Binding(
+                        get: { draft.absorption * Double(GameTuning.mealGrowthScale) },
+                        set: { draft.absorption = $0 / Double(GameTuning.mealGrowthScale) }),
+                        range: (0.5 * Double(GameTuning.mealGrowthScale))...Double(GameTuning.mealGrowthScale), step: 0.01)
+                }
                 }
                 Section("Movement and competition") {
                     slider("AI minimum speed", value: $draft.aiMinimum, range: 10...200, step: 5)
@@ -185,26 +236,59 @@ struct ArcadeTuningPanel: View {
                     slider("AI vertical speed", value: $draft.aiVertical, range: 10...120, step: 5)
                     slider("Seconds across screen", value: $draft.crossingSeconds, range: 2...4, step: 0.1)
                     if world == .jellyBloom {
+                        if draft.difficulty == nil {
                         Toggle("Fish leave opening pockets", isOn: $draft.roam)
                         slider("Pocket release seconds", value: $draft.releaseSeconds, range: 0...12, step: 0.5)
+                        }
                     }
                 }
                 if world == .jellyBloom {
                     Section("Jellyfish") {
                         Stepper("Jellyfish: \(draft.jellyCount)", value: $draft.jellyCount, in: 0...7)
+                            .disabled(draft.difficulty != nil)
                         Toggle("Uneven layout", isOn: $draft.unevenJellies)
                         slider("Layout variation", value: $draft.layoutVariation, range: 0...1, step: 0.1)
                         slider("Bell radius", value: $draft.jellyRadius, range: 30...55, step: 1)
                         slider("Tentacle length", value: $draft.tentacleLength, range: 40...100, step: 5)
                         slider("Bounce strength", value: $draft.bounceSpeed, range: 300...600, step: 10)
-                        Stepper("Seed variation: \(draft.seedOffset)", value: $draft.seedOffset, in: 0...999)
                     }
+                }
+                Section("Level seed") {
+                    LabeledContent("Seed", value: String(GameTuning.spawnSeed
+                        &+ UInt64(index + (world == .jellyBloom ? 100 : 0))
+                        &+ UInt64(draft.sanitized.seedOffset)))
+                        .monospacedDigit()
+                        .textSelection(.enabled)
+                    Text("\(world.title) · Level \(index + 1)")
+                        .font(.footnote)
+                    Stepper("Seed variation: \(draft.seedOffset)", value: $draft.seedOffset, in: 0...999)
+                    if isChecking {
+                        ProgressView("Checking routes at three phone sizes…")
+                    } else if let validation {
+                        Text(validation.accepted ? "Winning routes found at all three phone sizes."
+                            : "No bot route found at widths: \(validation.missingWidths.map { String(Int($0)) }.joined(separator: ", ")).")
+                            .font(.footnote)
+                    } else {
+                        Text("Candidate has not been checked.").font(.footnote)
+                    }
+                    Button("Check winning routes") { checkCandidate() }
+                        .disabled(isChecking)
+                    Button("Re-roll seed") {
+                        draft.seedOffset = (draft.seedOffset + Int.random(in: 1...999)) % 1_000
+                    }
+                    Text("Changes fish spawning and movement, plus uneven jellyfish layouts. Other tuning settings stay the same. Use Apply & Play to try it, or save a preset to keep this roll.")
+                        .font(.footnote)
                 }
                 Section("Presets") {
                     Button("Load shipped settings") { draft = ArcadeTuning(level: world.levels[index]) }
-                    if world == .jellyBloom && index > 0 {
+                    if world == .jellyBloom && index < GameTuning.bloomReferenceLevels.count {
+                        Button("Load original five-level reference") {
+                            draft = ArcadeTuning(level: GameTuning.bloomReferenceLevels[index])
+                        }
+                    }
+                    if world == .jellyBloom && index > 0 && index < GameTuning.bloomReferenceLevels.count {
                         Button("Load before-roaming experiment") {
-                            draft = ArcadeTuning(level: world.levels[index])
+                            draft = ArcadeTuning(level: GameTuning.bloomReferenceLevels[index])
                             draft.aiMinimum = 30
                             draft.aiMaximum = index == 1 ? 75 : (index == 4 ? 85 : 80)
                             draft.aiVertical = index == 1 ? 30 : (index == 4 ? 35 : 32)
@@ -238,9 +322,33 @@ struct ArcadeTuningPanel: View {
             }
             .onChange(of: world) { _, _ in loadSelection() }
             .onChange(of: index) { _, _ in loadSelection() }
+            .onChange(of: draft) { _, _ in clearValidation() }
+            .onDisappear { validationTask?.cancel() }
         }
     }
-    private func loadSelection() { draft = store.override(world, index) ?? ArcadeTuning(level: world.levels[index]) }
+    private func clearValidation() {
+        validationTask?.cancel()
+        validationTask = nil
+        validation = nil
+        isChecking = false
+    }
+    private func checkCandidate() {
+        clearValidation()
+        let tuning = draft.sanitized
+        let selectedWorld = world, selectedIndex = index
+        isChecking = true
+        validationTask = Task { @MainActor in
+            let report = await ArcadeCandidateValidation.check(world: selectedWorld, index: selectedIndex, tuning: tuning)
+            guard !Task.isCancelled else { return }
+            validation = report
+            isChecking = false
+        }
+    }
+    private func loadSelection() {
+        clearValidation()
+        index = min(max(0, index), world.levels.count - 1)
+        draft = store.override(world, index) ?? ArcadeTuning(level: world.levels[index])
+    }
     private func slider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double) -> some View {
         VStack(alignment: .leading) {
             Text("\(title): \(value.wrappedValue, specifier: "%.2f")")

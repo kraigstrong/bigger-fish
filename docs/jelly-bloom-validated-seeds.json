@@ -1,0 +1,106 @@
+{
+  "rollouts": 696,
+  "accepted": [
+    {
+      "level": 1,
+      "seedOffset": 0,
+      "difficulty": 0,
+      "wins": {
+        "874": 3,
+        "852": 3,
+        "667": 2
+      }
+    },
+    {
+      "level": 2,
+      "seedOffset": 0,
+      "difficulty": 0.1111111111111111,
+      "wins": {
+        "874": 3,
+        "852": 3,
+        "667": 2
+      }
+    },
+    {
+      "level": 3,
+      "seedOffset": 0,
+      "difficulty": 0.2222222222222222,
+      "wins": {
+        "874": 3,
+        "852": 3,
+        "667": 1
+      }
+    },
+    {
+      "level": 4,
+      "seedOffset": 3,
+      "difficulty": 0.3333333333333333,
+      "wins": {
+        "874": 3,
+        "852": 3,
+        "667": 1
+      }
+    },
+    {
+      "level": 5,
+      "seedOffset": 0,
+      "difficulty": 0.4444444444444444,
+      "wins": {
+        "874": 2,
+        "852": 2,
+        "667": 2
+      }
+    },
+    {
+      "level": 6,
+      "seedOffset": 1,
+      "difficulty": 0.5555555555555556,
+      "wins": {
+        "874": 2,
+        "852": 3,
+        "667": 3
+      }
+    },
+    {
+      "level": 7,
+      "seedOffset": 0,
+      "difficulty": 0.6666666666666666,
+      "wins": {
+        "874": 3,
+        "852": 3,
+        "667": 1
+      }
+    },
+    {
+      "level": 8,
+      "seedOffset": 1,
+      "difficulty": 0.7777777777777778,
+      "wins": {
+        "874": 1,
+        "852": 2,
+        "667": 2
+      }
+    },
+    {
+      "level": 9,
+      "seedOffset": 0,
+      "difficulty": 0.8888888888888888,
+      "wins": {
+        "874": 1,
+        "852": 1,
+        "667": 1
+      }
+    },
+    {
+      "level": 10,
+      "seedOffset": 16,
+      "difficulty": 1,
+      "wins": {
+        "874": 3,
+        "852": 3,
+        "667": 3
+      }
+    }
+  ],
+  "missingLevels": []
+}

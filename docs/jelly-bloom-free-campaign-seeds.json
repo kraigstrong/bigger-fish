@@ -1,0 +1,280 @@
+{
+  "generationVersion": 3,
+  "mealGrowthScale": 0.9,
+  "baseAbsorption": 0.55,
+  "effectiveAbsorption": 0.495,
+  "searchRuns": 1368,
+  "selectedValidationRuns": 120,
+  "levels": [
+    {
+      "level": 1,
+      "seedOffset": 1,
+      "spawnSeed": 20261028,
+      "wins": 9,
+      "runs": 9,
+      "winningPoliciesByWidth": {
+        "874": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ],
+        "852": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ],
+        "667": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ]
+      },
+      "meanCloseMealsInWins": 4.44,
+      "noMealFirstStallLapByWidth": {
+        "874": 0.9489247311827971,
+        "852": 1.4973118279569841,
+        "667": 1.1424731182795693
+      }
+    },
+    {
+      "level": 2,
+      "seedOffset": 0,
+      "spawnSeed": 20261028,
+      "wins": 7,
+      "runs": 9,
+      "winningPoliciesByWidth": {
+        "874": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ],
+        "852": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ],
+        "667": [
+          "collector"
+        ]
+      },
+      "meanCloseMealsInWins": 4.43,
+      "noMealFirstStallLapByWidth": {
+        "874": 1.5672043010752978,
+        "852": 0.9650537634408595,
+        "667": 0.8521505376344045
+      }
+    },
+    {
+      "level": 3,
+      "seedOffset": 4,
+      "spawnSeed": 20261033,
+      "wins": 6,
+      "runs": 9,
+      "winningPoliciesByWidth": {
+        "874": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ],
+        "852": [
+          "opportunist"
+        ],
+        "667": [
+          "opportunist",
+          "cautious"
+        ]
+      },
+      "meanCloseMealsInWins": 4.33,
+      "noMealFirstStallLapByWidth": {
+        "874": 1.126344086021502,
+        "852": 0.9973118279569885,
+        "667": 1.3225806451612965
+      }
+    },
+    {
+      "level": 4,
+      "seedOffset": 4,
+      "spawnSeed": 20261034,
+      "wins": 6,
+      "runs": 9,
+      "winningPoliciesByWidth": {
+        "874": [
+          "opportunist"
+        ],
+        "852": [
+          "opportunist",
+          "cautious"
+        ],
+        "667": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ]
+      },
+      "meanCloseMealsInWins": 5.17,
+      "noMealFirstStallLapByWidth": {
+        "874": 1.1586021505376303,
+        "852": 1.88172043010749,
+        "667": 0.997311827956985
+      }
+    },
+    {
+      "level": 5,
+      "seedOffset": 6,
+      "spawnSeed": 20261037,
+      "wins": 5,
+      "runs": 9,
+      "winningPoliciesByWidth": {
+        "874": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ],
+        "852": [
+          "collector"
+        ],
+        "667": [
+          "cautious"
+        ]
+      },
+      "meanCloseMealsInWins": 5.0,
+      "noMealFirstStallLapByWidth": {
+        "874": 1.287634408602157,
+        "852": 1.2231182795698974,
+        "667": 1.0940860215053796
+      }
+    },
+    {
+      "level": 6,
+      "seedOffset": 1,
+      "spawnSeed": 20261033,
+      "wins": 6,
+      "runs": 9,
+      "winningPoliciesByWidth": {
+        "874": [
+          "collector",
+          "cautious"
+        ],
+        "852": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ],
+        "667": [
+          "opportunist"
+        ]
+      },
+      "meanCloseMealsInWins": 5.33,
+      "noMealFirstStallLapByWidth": {
+        "874": 1.4448924731182986,
+        "852": 1.1747311827956999,
+        "667": 1.2553763440860222
+      }
+    },
+    {
+      "level": 7,
+      "seedOffset": 3,
+      "spawnSeed": 20261036,
+      "wins": 3,
+      "runs": 9,
+      "winningPoliciesByWidth": {
+        "874": [
+          "opportunist"
+        ],
+        "852": [
+          "opportunist"
+        ],
+        "667": [
+          "opportunist"
+        ]
+      },
+      "meanCloseMealsInWins": 6.0,
+      "noMealFirstStallLapByWidth": {
+        "874": 0.755376344086023,
+        "852": 0.755376344086021,
+        "667": 1.2392473118279563
+      }
+    },
+    {
+      "level": 8,
+      "seedOffset": 12,
+      "spawnSeed": 20261046,
+      "wins": 6,
+      "runs": 9,
+      "winningPoliciesByWidth": {
+        "874": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ],
+        "852": [
+          "collector",
+          "opportunist"
+        ],
+        "667": [
+          "opportunist"
+        ]
+      },
+      "meanCloseMealsInWins": 5.67,
+      "noMealFirstStallLapByWidth": {
+        "874": 0.8682795698924746,
+        "852": 1.0456989247311856,
+        "667": 1.1586021505376325
+      }
+    },
+    {
+      "level": 9,
+      "seedOffset": 26,
+      "spawnSeed": 20261061,
+      "wins": 4,
+      "runs": 9,
+      "winningPoliciesByWidth": {
+        "874": [
+          "cautious"
+        ],
+        "852": [
+          "collector"
+        ],
+        "667": [
+          "opportunist",
+          "cautious"
+        ]
+      },
+      "meanCloseMealsInWins": 3.75,
+      "noMealFirstStallLapByWidth": {
+        "874": 1.174731182795696,
+        "852": 1.1263440860215064,
+        "667": 0.8844086021505335
+      }
+    },
+    {
+      "level": 10,
+      "seedOffset": 38,
+      "spawnSeed": 20261074,
+      "wins": 8,
+      "runs": 9,
+      "winningPoliciesByWidth": {
+        "874": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ],
+        "852": [
+          "collector",
+          "opportunist",
+          "cautious"
+        ],
+        "667": [
+          "opportunist",
+          "cautious"
+        ]
+      },
+      "meanCloseMealsInWins": 5.25,
+      "noMealFirstStallLapByWidth": {
+        "874": 0.9650537634408616,
+        "852": 1.1424731182795695,
+        "667": 0.7392473118279529
+      }
+    }
+  ]
+}

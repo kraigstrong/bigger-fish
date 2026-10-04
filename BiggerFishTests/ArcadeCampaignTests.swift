@@ -15,8 +15,8 @@ struct ArcadeCampaignTests {
             #expect(progress.isOpen(world, 0))
             #expect(!progress.isOpen(world, 1))
             #expect(!progress.isOpen(world, -1))
-            #expect(!progress.isOpen(world, 5))
-            #expect(world.levels.count == 5)
+            #expect(!progress.isOpen(world, world.levels.count))
+            #expect(world.levels.count == (world == .jellyBloom ? 10 : 5))
         }
     }
 
@@ -43,9 +43,9 @@ struct ArcadeCampaignTests {
 
     @Test func aCompletedWorldRemainsReplayable() {
         let (progress, _) = fresh()
-        for index in 0..<5 { progress.clear(.jellyBloom, index, seconds: 30) }
+        for index in ArcadeWorld.jellyBloom.levels.indices { progress.clear(.jellyBloom, index, seconds: 30) }
         #expect(progress.nextLevel(in: .jellyBloom) == 0)
-        #expect((0..<5).allSatisfy { progress.isOpen(.jellyBloom, $0) })
+        #expect(ArcadeWorld.jellyBloom.levels.indices.allSatisfy { progress.isOpen(.jellyBloom, $0) })
     }
 
     @Test func corruptSaveFallsBackAndLessonPersists() {
@@ -59,13 +59,13 @@ struct ArcadeCampaignTests {
 
     @Test func levelIDsAreUniqueAndOriginalWorldHasNoHazards() {
         let ids = ArcadeWorld.allCases.flatMap { world in world.levels.indices.map { world.levelID($0) } }
-        #expect(Set(ids).count == 10)
+        #expect(Set(ids).count == 15)
         #expect(ids.first == "shallow-reef.1")
-        #expect(ids.last == "jelly-bloom.5")
+        #expect(ids.last == "jelly-bloom.10")
         #expect(GameTuning.levels.allSatisfy { $0.jellies == nil })
         #expect(GameTuning.bloomLevels.allSatisfy { $0.jellies != nil })
         #expect(GameTuning.bloomLevels.allSatisfy { $0.aiCanEat })
-        #expect(GameTuning.bloomLevels[0].spawnGroups.allSatisfy { $0.radii.upperBound < 1 })
+        #expect(GameTuning.bloomLevels.allSatisfy { $0.encounterDifficulty != nil })
     }
 }
 
@@ -116,6 +116,7 @@ struct JellyRulesTests {
 struct ArcadeSceneTests {
     private func scene(level: Int = 0) -> (GameScene, SKView) {
         let scene = GameScene(size: CGSize(width: 852, height: 393), world: .jellyBloom, levelIndex: level)
+        scene.debugUseReferenceLevel()
         let view = SKView(frame: CGRect(x: 0, y: 0, width: 852, height: 393))
         view.presentScene(scene)
         scene.debugStart()
@@ -123,7 +124,7 @@ struct ArcadeSceneTests {
     }
 
     @Test func onlyLevelTwoHasTheFarShoulderMealExperiment() {
-        #expect(GameTuning.bloomLevels.enumerated().filter { $0.element.sidePocketExperiment }.map(\.offset) == [1])
+        #expect(GameTuning.bloomReferenceLevels.enumerated().filter { $0.element.sidePocketExperiment }.map(\.offset) == [1])
         let (scene, view) = scene(level: 1)
         let pocket = scene.debugSidePocketPlacement
         #expect(!pocket.food.isEmpty)
@@ -155,7 +156,7 @@ struct ArcadeSceneTests {
     @Test func bounceRoutesKeepFoodPocketsLargerFishAndGrownFishPassages() {
         for index in 1..<5 {
             let (scene, view) = scene(level: index)
-            let level = GameTuning.bloomLevels[index]
+            let level = GameTuning.bloomReferenceLevels[index]
             #expect(scene.debugFoodPocketCount >= 8)
             #expect(scene.debugFishCount == level.spawnGroups.reduce(1) { $0 + $1.count })
             #expect(scene.debugAllPredatorsInitiallyLarger)
@@ -200,7 +201,7 @@ struct ArcadeSceneTests {
         withExtendedLifetime(view) {}
     }
 
-    @Test func tentaclesEndTheRunAndAlsoRemoveAI() {
+    @Test func tentaclesEndTheRunButNeverRemoveAI() {
         let (scene, view) = scene()
         #expect(scene.debugTouchTentacles(playerVictim: false))
         #expect(scene.debugTouchTentacles(playerVictim: true))
@@ -215,7 +216,7 @@ struct ArcadeSceneTests {
 
     @Test func allBloomLevelsHaveNoUrchinsAndUseNumberedTitles() {
         for world in ArcadeWorld.allCases {
-            #expect(world.levelTitles == ["Level 1", "Level 2", "Level 3", "Level 4", "Level 5"])
+            #expect(world.levelTitles == world.levels.indices.map { "Level \($0 + 1)" })
         }
         #expect(GameTuning.bloomLevels.allSatisfy { $0.jellies?.urchinBeds == 0 })
     }
@@ -275,7 +276,7 @@ struct JellyPlacementTests {
     @Test func layoutsAreRepeatableUnevenAndKeepSafeSpacing() {
         for width: CGFloat in [667, 874] {
             for index in 1..<5 {
-                let layout = GameTuning.bloomLevels[index].jellies!
+                let layout = GameTuning.bloomReferenceLevels[index].jellies!
                 let seed = GameTuning.spawnSeed + UInt64(index + 1_000)
                 let points = JellyPlacement.origins(layout: layout, screenWidth: width,
                     waterBottom: 10, waterTop: 390, seed: seed)
