@@ -3,6 +3,26 @@ import Testing
 @testable import BiggerFish
 
 struct ArcadeTuningTests {
+    @Test func movedSetupControlsToggledDifficultyAndPreviewSeed() {
+        for index in [2, 5, 6] {
+            let level = GameTuning.bloomLevels[index]
+            var draft = ArcadeTuning(level: level)
+            draft.setEncounterDifficultyEnabled(false, for: level)
+            #expect(draft.difficulty == nil)
+            draft.setEncounterDifficultyEnabled(true, for: level)
+            #expect(draft.difficulty == level.encounterDifficulty?.bounded)
+            for offset in [draft.seedOffset, 987] {
+                draft.seedOffset = offset
+                let preview = draft.encounterWaveBudgets(for: level, index: index, bloom: true)
+                let gameplay = GameTuning.freeEncounterWaveBudgets(
+                    seed: level.spawnSeed(index: index, bloom: true, offset: UInt64(offset)),
+                    difficulty: level.encounterDifficulty!.bounded, preserveLevelTwo: false)
+                #expect(preview.map(\.count) == gameplay.map(\.count))
+                #expect(preview.map(\.edible) == gameplay.map(\.edible))
+            }
+        }
+    }
+
     @Test func reorderedSetupsKeepTheirSeedsAndTuning() {
         let easy = GameTuning.bloomLevels[2]
         let fair = GameTuning.bloomLevels[5]

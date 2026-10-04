@@ -45,6 +45,16 @@ struct ArcadeTuning: Codable, Equatable {
         difficulty = level.encounterDifficulty?.bounded
     }
 
+    mutating func setEncounterDifficultyEnabled(_ enabled: Bool, for level: Level) {
+        difficulty = enabled ? (level.encounterDifficulty?.bounded ?? 0) : nil
+    }
+
+    func encounterWaveBudgets(for level: Level, index: Int, bloom: Bool) -> [(count: Int, edible: Int)] {
+        GameTuning.freeEncounterWaveBudgets(
+            seed: level.spawnSeed(index: index, bloom: bloom, offset: UInt64(sanitized.seedOffset)),
+            difficulty: sanitized.difficulty ?? 0, preserveLevelTwo: bloom && index == 1)
+    }
+
     /// Bound saved and edited settings before they reach physics or spawn ranges.
     var sanitized: Self {
         var result = self
@@ -204,7 +214,7 @@ struct ArcadeTuningPanel: View {
                     Section("Encounter difficulty") {
                         Toggle("Use encounter difficulty", isOn: Binding(
                             get: { draft.difficulty != nil },
-                            set: { draft.difficulty = $0 ? Double(index) / Double(max(1, world.levels.count - 1)) : nil }))
+                            set: { draft.setEncounterDifficultyEnabled($0, for: world.levels[index]) }))
                         if let value = draft.difficulty {
                             let target = EncounterDifficulty(value: value)
                             slider("Difficulty", value: Binding(get: { draft.difficulty ?? 0 },
@@ -212,7 +222,7 @@ struct ArcadeTuningPanel: View {
                             if world.levels[index].freeEncounterMovement {
                                 let percentage = 100 * Double(GameTuning.freeEncounterExpectedCatchFraction(value))
                                 Text("Expected growth assumes catching \(percentage, specifier: "%.0f")% of edible fish in each starting wave.")
-                                let budgets = GameTuning.freeEncounterWaveBudgets(seed: GameTuning.spawnSeed + UInt64(index + 100 + draft.seedOffset), difficulty: value, preserveLevelTwo: index == 1)
+                                let budgets = draft.encounterWaveBudgets(for: world.levels[index], index: index, bloom: true)
                                 Text("Edible at expected arrival size: " + budgets.map { "\($0.edible) of \($0.count)" }.joined(separator: ", ") + ". Fish roam freely; each unlocks after you pass its starting position.")
                                     .font(.footnote)
                             } else {
