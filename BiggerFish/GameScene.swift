@@ -55,6 +55,11 @@ final class GameScene: SKScene {
             base = T.bloomReferenceLevels[setupIndex]
             base.ecosystemSeedIndex = setupIndex
         }
+        if arcadeWorld == .shallowReef, activeDebugTuning?.difficulty == nil,
+           activeDebugTuning != nil, setupIndex < T.shallowReferenceLevels.count {
+            base = T.shallowReferenceLevels[setupIndex]
+            base.ecosystemSeedIndex = setupIndex
+        }
         return activeDebugTuning?.applying(to: base) ?? base
         #else
         return base
@@ -419,8 +424,8 @@ final class GameScene: SKScene {
     }
 
     private func spawnEncounters(_ difficulty: EncounterDifficulty) {
-        guard let layout = level.jellies else { return }
         if level.freeEncounterMovement { spawnFreeEncounters(difficulty); return }
+        guard let layout = level.jellies else { return }
         let foodRadius = T.baseRadius * T.encounterFoodRadius
         let threatRadius = T.baseRadius * difficulty.returnRadius(food: T.encounterFoodRadius,
             efficiency: level.effectiveAbsorptionEfficiency)
@@ -450,11 +455,22 @@ final class GameScene: SKScene {
 
     private func spawnFreeEncounters(_ difficulty: EncounterDifficulty) {
         var expectedRadius: CGFloat = 1
-        let catchFraction = T.freeEncounterExpectedCatchFraction(difficulty.bounded)
-        let budgets = T.freeEncounterWaveBudgets(seed: ecosystemSeed, difficulty: difficulty.bounded, preserveLevelTwo: levelIndex == 1)
+        let shallow = arcadeWorld == .shallowReef
+        let catchFraction = T.freeEncounterExpectedCatchFraction(difficulty.bounded, shallow: shallow)
+        let budgets = T.freeEncounterWaveBudgets(seed: ecosystemSeed, difficulty: difficulty.bounded,
+            preserveLevelTwo: !shallow && levelIndex == 1, shallow: shallow)
         var layoutGenerator = SeededGenerator(seed: ecosystemSeed &+ 0xBF58476D1CE4E5B9)
-        for encounter in jellies.indices {
-            let center = jellies[encounter].origin
+        let centers: [CGPoint]
+        if shallow {
+            var centerGenerator = SeededGenerator(seed: ecosystemSeed &+ 0xD1B54A32D192ED03)
+            centers = (0..<T.encounterCount).map { index in
+                let jitter = CGFloat.random(in: -T.freeEncounterHorizontalVariation...T.freeEncounterHorizontalVariation, using: &centerGenerator) * layoutVariation
+                return CGPoint(x: size.width * (T.encounterFirstScreens + CGFloat(index) * T.encounterSpacingScreens + jitter), y: waterCenter)
+            }
+        } else {
+            centers = jellies.map(\.origin)
+        }
+        for (encounter, center) in centers.enumerated() {
             let count = budgets[encounter].count
             let edibleCount = budgets[encounter].edible
             var edibleArea: CGFloat = 0
@@ -466,7 +482,7 @@ final class GameScene: SKScene {
                 let preferredX = center.x + size.width * (CGFloat(slot) / CGFloat(count - 1) - 0.5) * 0.5
                 // Alternating high/low food, with predators occasionally on the upper right.
                 let baseHeight: CGFloat = edible ? (slot.isMultiple(of: 2) ? 0.22 : 0.78) : 0.83
-                let height = levelIndex == 1 ? baseHeight
+                let height = !shallow && levelIndex == 1 ? baseHeight
                     : (baseHeight + CGFloat.random(in: -0.16...0.16, using: &layoutGenerator)).clamped(0.15, 0.88)
                 guard let home = findSpawnPoint(radius: radius, dangerous: !edible,
                     preferredX: preferredX, preferredY: waterBottom + (waterTop - waterBottom) * height,
@@ -1730,8 +1746,8 @@ final class GameScene: SKScene {
                 "encounterDifficulty": level.encounterDifficulty?.bounded ?? -1,
                 "encounterForwardDistance": forwardDistance,
                 "openingCatchBudget": level.freeEncounterMovement ? -1 : (level.encounterDifficulty?.catchBudget ?? -1),
-                "expectedEdibleCatchFraction": level.freeEncounterMovement ? Double(T.freeEncounterExpectedCatchFraction(level.encounterDifficulty?.bounded ?? 0)) : -1,
-                "startingWaveBudgets": level.freeEncounterMovement ? T.freeEncounterWaveBudgets(seed: ecosystemSeed, difficulty: level.encounterDifficulty?.bounded ?? 0, preserveLevelTwo: levelIndex == 1).map { ["count": $0.count, "edible": $0.edible] } : [],
+                "expectedEdibleCatchFraction": level.freeEncounterMovement ? Double(T.freeEncounterExpectedCatchFraction(level.encounterDifficulty?.bounded ?? 0, shallow: arcadeWorld == .shallowReef)) : -1,
+                "startingWaveBudgets": level.freeEncounterMovement ? T.freeEncounterWaveBudgets(seed: ecosystemSeed, difficulty: level.encounterDifficulty?.bounded ?? 0, preserveLevelTwo: arcadeWorld == .jellyBloom && levelIndex == 1, shallow: arcadeWorld == .shallowReef).map { ["count": $0.count, "edible": $0.edible] } : [],
                 "extraRecoveryPasses": level.freeEncounterMovement ? 0 : (level.encounterDifficulty?.recoveryPasses ?? -1),
                 "aiSurvivesTentacles": true,
                 "aiCanEat": level.aiCanEat, "playerWinsTies": true, "absorptionEfficiency": level.effectiveAbsorptionEfficiency,
