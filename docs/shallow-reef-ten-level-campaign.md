@@ -34,3 +34,17 @@ In ghost-player probes that eat nothing, the first growth stall occurs around 1.
 The selected seed offsets are 2, 7, 13, 23, 31, 47, 60, 71, 92, and 101. Levels 7 and 9 use the first small-sample alternatives with demonstrated routes; their speed and budget settings were unchanged. See [the machine-readable seed summary](shallow-reef-selected-seeds.json). Raw local diagnostics remain in `build/arcade-development/shallow-ten-level-*.json`.
 
 Validation checks full spawn counts, no initial overlaps, an optimistic initial growth path, deterministic movement, protection/release behavior, matching tuner budgets, and migration. Bot-route studies remain optional diagnostics; their failures do not prove impossibility. This campaign still needs a phone playtest to judge route variety, recovery from missed catches, and the final difficulty order.
+
+## Verification-only follow-up
+
+While the family continued playtesting, no gameplay constants, seeds, or layout rules were changed. A new scene test confirms advancement from Level 9 to 10, final-level replay without looping to Level 1, correct clear callbacks, and returning to the map. All seven targeted tests (the six Shallow Reef checks and the diagnostic runner) passed.
+
+An additional 18 diagnostic runs deliberately skipped the first one or two opening food fish until the second circuit:
+
+| Level | Skip first food: wins | Skip first two foods: wins |
+|---|---:|---:|
+| 1 | 3/3 | 3/3 |
+| 5 | 2/3 | 1/3 |
+| 10 | 1/3 | 0/3 |
+
+This demonstrates recovery routes in the first level and less tolerance in the sampled later levels. Zero bot wins does not establish mathematical impossibility or the human difficulty order. The Level 10 two-miss sample included one death and two timeouts. Raw results are saved locally in `build/arcade-development/shallow-missed-food-audit.json`. The phone was not accessed or reinstalled during this follow-up.
