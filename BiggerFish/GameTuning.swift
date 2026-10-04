@@ -304,7 +304,9 @@ enum GameTuning {
     // MARK: Levels
 
     /// Fish-only encounters use the same first-opportunity protection and growth as Jelly Bloom.
-    static let levels: [Level] = (0..<10).map { index in
+    static let shallowCampaignOrder = [0, 1, 3, 4, 5, 6, 7, 2, 8, 9]
+    static let levels: [Level] = shallowCampaignOrder.map { shallowLevelSetups[$0] }
+    static let shallowLevelSetups: [Level] = (0..<10).map { index in
         let value = Double(index) / 9
         let difficulty = EncounterDifficulty(value: value)
         return Level(spawnGroups: [(20, 0.65...3)],

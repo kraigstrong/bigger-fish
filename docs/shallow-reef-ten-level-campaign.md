@@ -6,18 +6,18 @@ Both worlds now add 49.5% of a meal's area to the predator's area (base absorpti
 
 Four internal starting areas each contain a seeded mix of high/low food and larger fish. Twenty fish start in every level; the 5/4/6/5 area sizes are shuffled by seed. Edible shares vary by area, and their target declines from 88% to 64%. Each area always has at least one larger fish. These labels are generation budgets, not visible waves or movement cages.
 
-Later fish are sized relative to expected arrival growth. The expected catch fraction rises by five percentage points per level. This controls the amount of missed food the authoring model budgets for; it is not a verified minimum catch count, a human win probability, or a guarantee of linear felt difficulty.
+Later fish are sized relative to expected arrival growth. The original authoring targets rise by five percentage points per setup. Human playtesting now determines campaign order: the original Level 3 moves to Level 8, and original Levels 4–8 shift forward one slot. Each setup retains its seed, speeds, growth, and catch targets. This controls the amount of missed food the authoring model budgets for; it is not a verified minimum catch count, a human win probability, or a guarantee of linear felt difficulty.
 
 | Level | Expected edible catches | AI horizontal speed | Seconds across the playfield |
 |---|---:|---:|---:|
 | 1 | 45% | 45–120 | 2.90 |
 | 2 | 50% | 48–129 | 2.86 |
-| 3 | 55% | 51–138 | 2.81 |
-| 4 | 60% | 53–147 | 2.77 |
-| 5 | 65% | 56–156 | 2.72 |
-| 6 | 70% | 59–164 | 2.68 |
-| 7 | 75% | 62–173 | 2.63 |
-| 8 | 80% | 64–182 | 2.59 |
+| 3 | 60% | 53–147 | 2.77 |
+| 4 | 65% | 56–156 | 2.72 |
+| 5 | 70% | 59–164 | 2.68 |
+| 6 | 75% | 62–173 | 2.63 |
+| 7 | 80% | 64–182 | 2.59 |
+| 8 | 55% | 51–138 | 2.81 |
 | 9 | 85% | 67–191 | 2.54 |
 | 10 | 90% | 70–200 | 2.50 |
 
@@ -48,3 +48,9 @@ An additional 18 diagnostic runs deliberately skipped the first one or two openi
 | 10 | 1/3 | 0/3 |
 
 This demonstrates recovery routes in the first level and less tolerance in the sampled later levels. Zero bot wins does not establish mathematical impossibility or the human difficulty order. The Level 10 two-miss sample included one death and two timeouts. Raw results are saved locally in `build/arcade-development/shallow-missed-food-audit.json`. The phone was not accessed or reinstalled during this follow-up.
+
+## Phone playtest and campaign order
+
+The latest 50 recordings included 43 Shallow Reef runs. Every level was beaten. Original Level 3 had two wins in eight attempts; the latest replay session had six losses before a win, including three deaths within five seconds and one run with no food and a larger final opponent. Level 10 took 18 attempts and was explicitly praised for its difficulty.
+
+Move original Level 3 to slot 8, shifting original Levels 4–8 to slots 3–7. Levels 1, 2, 9, and 10 stay in place. Saved debug tuning follows its setup through a one-time migration; progress stays attached to campaign slots. The seed and diagnostic summary reflects this new order. Historical diagnostic counts above refer to the original authoring order, not the reordered slots.

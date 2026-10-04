@@ -134,6 +134,8 @@ final class ArcadeTuningStore: ObservableObject {
     private static let reorderedOverridesKey = "biggerFish.debug.tuning.reordered-3-6-7.v1"
     private static let shallowCampaignOverridesKey = "biggerFish.debug.tuning.shallow-ten-level.v1"
 
+    private static let shallowReorderedOverridesKey = "biggerFish.debug.tuning.shallow-move-3-to-8.v1"
+
     init(defaults: UserDefaults = ArcadePlaytest.defaults) {
         self.defaults = defaults
         presets = defaults.data(forKey: Self.presetsKey).flatMap { try? JSONDecoder().decode([ArcadeTuningPreset].self, from: $0) } ?? []
@@ -154,6 +156,15 @@ final class ArcadeTuningStore: ObservableObject {
                 defaults.set(try? JSONEncoder().encode(original.filter { !$0.key.hasPrefix("shallow-reef.") }), forKey: Self.overridesKey)
             }
             defaults.set(true, forKey: Self.shallowCampaignOverridesKey)
+        }
+        if !defaults.bool(forKey: Self.shallowReorderedOverridesKey) {
+            let original = allOverrides
+            var reordered = original
+            for (destination, source) in GameTuning.shallowCampaignOrder.enumerated() where destination != source {
+                reordered[ArcadeWorld.shallowReef.levelID(destination)] = original[ArcadeWorld.shallowReef.levelID(source)]
+            }
+            defaults.set(try? JSONEncoder().encode(reordered), forKey: Self.overridesKey)
+            defaults.set(true, forKey: Self.shallowReorderedOverridesKey)
         }
     }
     func override(_ world: ArcadeWorld, _ index: Int) -> ArcadeTuning? {

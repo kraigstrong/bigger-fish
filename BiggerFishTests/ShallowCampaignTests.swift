@@ -38,7 +38,7 @@ struct ShallowCampaignTests {
     @Test func tenFishOnlyLevelsMatchBloomGrowthAndIncreaseCatchTargets() {
         #expect(GameTuning.levels.count == 10)
         #expect(GameTuning.shallowReferenceLevels.count == 5)
-        for (index, level) in GameTuning.levels.enumerated() {
+        for (index, level) in GameTuning.shallowLevelSetups.enumerated() {
             #expect(level.jellies == nil)
             #expect(level.freeEncounterMovement && level.aiCanEat)
             #expect(abs(level.effectiveAbsorptionEfficiency - 0.495) < 1e-10)
@@ -46,12 +46,34 @@ struct ShallowCampaignTests {
             let fraction = GameTuning.freeEncounterExpectedCatchFraction(level.encounterDifficulty!.bounded, shallow: true)
             #expect(abs(fraction - (0.45 + CGFloat(index) * 0.05)) < 1e-10)
             if index > 0 {
-                let previous = GameTuning.levels[index - 1]
+                let previous = GameTuning.shallowLevelSetups[index - 1]
                 #expect(level.aiSpeedRange.lowerBound > previous.aiSpeedRange.lowerBound)
                 #expect(level.aiSpeedRange.upperBound > previous.aiSpeedRange.upperBound)
                 #expect(level.screenCrossSeconds < previous.screenCrossSeconds)
             }
         }
+    }
+
+    @Test func movingThirdLevelPreservesItsSetupAndOverrides() throws {
+        #expect(GameTuning.shallowCampaignOrder == [0, 1, 3, 4, 5, 6, 7, 2, 8, 9])
+        for (destination, source) in GameTuning.shallowCampaignOrder.enumerated() {
+            let moved = GameTuning.levels[destination]
+            let original = GameTuning.shallowLevelSetups[source]
+            #expect(moved.spawnSeed(index: destination, bloom: false) == original.spawnSeed(index: source, bloom: false))
+            #expect(ArcadeTuning(level: moved) == ArcadeTuning(level: original))
+        }
+        #expect(GameTuning.levels[7].spawnSeed(index: 7, bloom: false) == 20260942)
+        let name = "biggerFish.shallow.reorder.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(true, forKey: "biggerFish.debug.tuning.shallow-ten-level.v1")
+        var draft = ArcadeTuning(level: GameTuning.shallowLevelSetups[2])
+        draft.seedOffset = 777
+        defaults.set(try JSONEncoder().encode(["shallow-reef.3": draft]), forKey: "biggerFish.debug.tuning.v1")
+        let store = ArcadeTuningStore(defaults: defaults)
+        #expect(store.override(.shallowReef, 7) == draft.sanitized)
+        #expect(store.override(.shallowReef, 2) == nil)
+        #expect(ArcadeTuningStore(defaults: defaults).override(.shallowReef, 7) == draft.sanitized)
     }
 
     @MainActor @Test func seededStartsHaveAllFishAndAnOptimisticGrowthPath() {
