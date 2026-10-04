@@ -27,7 +27,7 @@ The debug tuner exposes difficulty, speed, effective growth, seed re-roll, and t
 
 ## Initial seed evidence
 
-The study ran 72 diagnostic rollouts: 40 initial runs, 24 alternate-seed runs for Levels 7 and 9, and eight checks of the selected alternates. Each current seed has at least one demonstrated route among three bot policies, a full initial spawn, and an optimistic initial growth path. Current per-level bot wins are 3, 3, 3, 2, 3, 1, 2, 3, 2, and 2 out of three attempts. These are not a monotonic human difficulty curve.
+The study ran 72 diagnostic rollouts: 40 initial runs, 24 alternate-seed runs for Levels 7 and 9, and eight checks of the selected alternates. Each current seed has at least one demonstrated route among three bot policies, a full initial spawn, and an optimistic initial growth path. Current per-level bot wins are 3, 3, 2, 3, 1, 2, 3, 3, 2, and 2 out of three attempts. These are not a monotonic human difficulty curve.
 
 In ghost-player probes that eat nothing, the first growth stall occurs around 1.84 circuits in Level 1 and 1.55 in Level 2, versus roughly one circuit in most later levels. The selected Level 9 seed is an exception at 1.85 circuits. The deadline varies by seed and is not strictly ordered. These measurements do not establish how many mistakes a human can recover from; check Level 9's pressure in the phone playtest rather than assuming its target makes it harder.
 
