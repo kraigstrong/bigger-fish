@@ -5,7 +5,7 @@ import Foundation
 /// until the developer explicitly pulls them. No gameplay or Math Reef analytics dependency.
 final class ArcadeRunRecorder {
     static let snapshotSeconds: Double = 0.2
-    static let retainedRuns = 30
+    static let retainedRuns = 100
     let fileURL: URL
     private let queue = DispatchQueue(label: "biggerFish.runRecorder", qos: .utility)
     private var handle: FileHandle?

@@ -45,6 +45,16 @@ struct ArcadeTuning: Codable, Equatable {
         difficulty = level.encounterDifficulty?.bounded
     }
 
+    mutating func setEncounterDifficultyEnabled(_ enabled: Bool, for level: Level) {
+        difficulty = enabled ? (level.encounterDifficulty?.bounded ?? 0) : nil
+    }
+
+    func encounterWaveBudgets(for level: Level, index: Int, bloom: Bool) -> [(count: Int, edible: Int)] {
+        GameTuning.freeEncounterWaveBudgets(
+            seed: level.spawnSeed(index: index, bloom: bloom, offset: UInt64(sanitized.seedOffset)),
+            difficulty: sanitized.difficulty ?? 0, preserveLevelTwo: bloom && index == 1)
+    }
+
     /// Bound saved and edited settings before they reach physics or spawn ranges.
     var sanitized: Self {
         var result = self
@@ -102,6 +112,7 @@ struct ArcadeTuning: Codable, Equatable {
         result.sidePocketExperiment = base.sidePocketExperiment && value.jellyCount > GameTuning.bloomSidePocketJellyIndex
         result.roamingFoodChain = value.roam
         result.ecosystemSeedOffset = UInt64(value.seedOffset)
+        result.ecosystemSeedIndex = base.ecosystemSeedIndex
         result.compactAISpeedScale = base.compactAISpeedScale
         result.mediumAISpeedMultiplier = base.mediumAISpeedMultiplier
         return result
@@ -119,10 +130,20 @@ final class ArcadeTuningStore: ObservableObject {
     private let defaults: UserDefaults
     private static let overridesKey = "biggerFish.debug.tuning.v1"
     private static let presetsKey = "biggerFish.debug.tuning.presets.v1"
+    private static let reorderedOverridesKey = "biggerFish.debug.tuning.reordered-3-6-7.v1"
 
     init(defaults: UserDefaults = ArcadePlaytest.defaults) {
         self.defaults = defaults
         presets = defaults.data(forKey: Self.presetsKey).flatMap { try? JSONDecoder().decode([ArcadeTuningPreset].self, from: $0) } ?? []
+        if !defaults.bool(forKey: Self.reorderedOverridesKey) {
+            let original = allOverrides
+            var reordered = original
+            for (destination, source) in GameTuning.bloomCampaignOrder.enumerated() where destination != source {
+                reordered[ArcadeWorld.jellyBloom.levelID(destination)] = original[ArcadeWorld.jellyBloom.levelID(source)]
+            }
+            defaults.set(try? JSONEncoder().encode(reordered), forKey: Self.overridesKey)
+            defaults.set(true, forKey: Self.reorderedOverridesKey)
+        }
     }
     func override(_ world: ArcadeWorld, _ index: Int) -> ArcadeTuning? {
         allOverrides[world.levelID(index)]?.sanitized
@@ -193,7 +214,7 @@ struct ArcadeTuningPanel: View {
                     Section("Encounter difficulty") {
                         Toggle("Use encounter difficulty", isOn: Binding(
                             get: { draft.difficulty != nil },
-                            set: { draft.difficulty = $0 ? Double(index) / Double(max(1, world.levels.count - 1)) : nil }))
+                            set: { draft.setEncounterDifficultyEnabled($0, for: world.levels[index]) }))
                         if let value = draft.difficulty {
                             let target = EncounterDifficulty(value: value)
                             slider("Difficulty", value: Binding(get: { draft.difficulty ?? 0 },
@@ -201,7 +222,7 @@ struct ArcadeTuningPanel: View {
                             if world.levels[index].freeEncounterMovement {
                                 let percentage = 100 * Double(GameTuning.freeEncounterExpectedCatchFraction(value))
                                 Text("Expected growth assumes catching \(percentage, specifier: "%.0f")% of edible fish in each starting wave.")
-                                let budgets = GameTuning.freeEncounterWaveBudgets(seed: GameTuning.spawnSeed + UInt64(index + 100 + draft.seedOffset), difficulty: value, preserveLevelTwo: index == 1)
+                                let budgets = draft.encounterWaveBudgets(for: world.levels[index], index: index, bloom: true)
                                 Text("Edible at expected arrival size: " + budgets.map { "\($0.edible) of \($0.count)" }.joined(separator: ", ") + ". Fish roam freely; each unlocks after you pass its starting position.")
                                     .font(.footnote)
                             } else {
@@ -254,19 +275,18 @@ struct ArcadeTuningPanel: View {
                     }
                 }
                 Section("Level seed") {
-                    LabeledContent("Seed", value: String(GameTuning.spawnSeed
-                        &+ UInt64(index + (world == .jellyBloom ? 100 : 0))
-                        &+ UInt64(draft.sanitized.seedOffset)))
+                    LabeledContent("Seed", value: String(world.levels[index].spawnSeed(
+                        index: index, bloom: world == .jellyBloom, offset: UInt64(draft.sanitized.seedOffset))))
                         .monospacedDigit()
                         .textSelection(.enabled)
                     Text("\(world.title) · Level \(index + 1)")
                         .font(.footnote)
                     Stepper("Seed variation: \(draft.seedOffset)", value: $draft.seedOffset, in: 0...999)
                     if isChecking {
-                        ProgressView("Checking routes at three phone sizes…")
+                        ProgressView("Checking winning routes…")
                     } else if let validation {
-                        Text(validation.accepted ? "Winning routes found at all three phone sizes."
-                            : "No bot route found at widths: \(validation.missingWidths.map { String(Int($0)) }.joined(separator: ", ")).")
+                        Text(validation.accepted ? "Winning route found."
+                            : "No bot route found. This does not prove the level is impossible.")
                             .font(.footnote)
                     } else {
                         Text("Candidate has not been checked.").font(.footnote)

@@ -77,8 +77,7 @@ def main():
         parser.error('--profiles or --results is required')
     candidates = json.loads(args.profiles.read_text())
     if args.sizes:
-        sizes = [tuple(float(n) for n in size.split('x')) for size in args.sizes.split(',')]
-        candidates = [dict(candidate, width=width, height=height) for width, height in sizes for candidate in candidates]
+        parser.error('--sizes no longer controls gameplay; all runs use the fixed 874x402 playfield')
     request = dict(candidates=candidates, seeds=[int(s) for s in args.seeds.split(',')],
                    policies=['collector', 'opportunist', 'cautious'], limit=args.limit,
                    delayedPasses=[float(s) for s in args.passes.split(',')], ecology=True)

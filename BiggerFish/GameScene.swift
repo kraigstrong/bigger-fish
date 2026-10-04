@@ -49,9 +49,11 @@ final class GameScene: SKScene {
     private var level: Level {
         var base = arcadeWorld.levels[levelIndex]
         #if DEBUG
+        let setupIndex = simulationReferenceIndex ?? base.ecosystemSeedIndex ?? levelIndex
         if arcadeWorld == .jellyBloom, activeDebugTuning?.difficulty == nil,
-           activeDebugTuning != nil, levelIndex < T.bloomReferenceLevels.count {
-            base = T.bloomReferenceLevels[levelIndex]
+           activeDebugTuning != nil, setupIndex < T.bloomReferenceLevels.count {
+            base = T.bloomReferenceLevels[setupIndex]
+            base.ecosystemSeedIndex = setupIndex
         }
         return activeDebugTuning?.applying(to: base) ?? base
         #else
@@ -93,14 +95,12 @@ final class GameScene: SKScene {
         return level.ecosystemSeedOffset
         #endif
     }
-    private var campaignLevelCount: Int {
+    private var isFinalLevel: Bool {
         #if DEBUG
-        if arcadeWorld == .jellyBloom, activeDebugTuning != nil,
-           activeDebugTuning?.difficulty == nil, levelIndex < T.bloomReferenceLevels.count { return T.bloomReferenceLevels.count }
+        if simulationReferenceIndex != nil { return levelIndex == T.bloomReferenceLevels.count - 1 }
         #endif
-        return arcadeWorld.levels.count
+        return levelIndex == arcadeWorld.levels.count - 1
     }
-    private var isFinalLevel: Bool { levelIndex == campaignLevelCount - 1 }
     var onClear: ((Int, Double) -> Void)?
     var onExit: (() -> Void)?
     var onJellyLesson: (() -> Void)?
@@ -125,6 +125,7 @@ final class GameScene: SKScene {
     private var resultPanel: ArcadeResultPanel?
     #if DEBUG
     private var simulationTuning: ArcadeTuning?
+    private var simulationReferenceIndex: Int?
     private var simulationHolding: Bool?
     private var simulationStats = ArcadeSimulation.Stats()
     private var simulationEcologyProbe = false
@@ -158,12 +159,13 @@ final class GameScene: SKScene {
     #endif
     private lazy var audio = ArcadeAudio()
 
-    init(size: CGSize, world: ArcadeWorld = .shallowReef, levelIndex: Int = 0,
+    init(world: ArcadeWorld = .shallowReef, levelIndex: Int = 0,
          showsJellyLesson: Bool = true) {
         arcadeWorld = world
         self.levelIndex = min(max(0, levelIndex), world.levels.count - 1)
         self.showsJellyLesson = showsJellyLesson
-        super.init(size: size)
+        super.init(size: T.playfieldSize)
+        scaleMode = .aspectFit
     }
 
     @available(*, unavailable)
@@ -171,13 +173,13 @@ final class GameScene: SKScene {
     private var rng = SeededGenerator(seed: T.spawnSeed)
     private var aiMovementRNGs: [Int: SeededGenerator] = [:]
     private var ecosystemSeed: UInt64 {
-        T.spawnSeed &+ UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) &+ seedOffset
+        level.spawnSeed(index: levelIndex, bloom: arcadeWorld == .jellyBloom, offset: seedOffset)
     }
 
     /// Domain-separated streams use stable fish IDs, without consuming spawn randomness.
     private var jellyLayoutSeed: UInt64 {
         level.encounterDifficulty != nil ? ecosystemSeed &+ 1_000
-            : T.spawnSeed &+ UInt64(levelIndex + 1_000) &+ seedOffset
+            : T.spawnSeed &+ UInt64((level.ecosystemSeedIndex ?? levelIndex) + 1_000) &+ seedOffset
     }
 
     private func movementGenerator(for id: Int) -> SeededGenerator {
@@ -234,7 +236,7 @@ final class GameScene: SKScene {
     /// Player movement is defined in screen points, so it feels the same at any zoom.
     private var playerSpeed: CGFloat { size.width / level.screenCrossSeconds / zoom }
     private var aiSpeedScale: CGFloat {
-        arcadeWorld == .jellyBloom ? T.bloomAISpeedScale(width: size.width, level: level) : 1
+        1
     }
     private var isHolding: Bool {
         #if DEBUG
@@ -290,13 +292,6 @@ final class GameScene: SKScene {
         finishRunRecording("scene_closed")
         #endif
         super.willMove(from: view)
-    }
-
-    override func didChangeSize(_ oldSize: CGSize) {
-        super.didChangeSize(oldSize)
-        guard isBuilt, size != oldSize, size.width > 1, size.height > 1 else { return }
-        layoutStatic()
-        resetGame(startPlaying: false)
     }
 
     private func build() {
@@ -1264,12 +1259,17 @@ final class GameScene: SKScene {
             for j in (i + 1)..<candidates.count {
                 let a = candidates[i], b = candidates[j]
                 guard a.state == .swimming, b.state == .swimming else { continue }
-                if !a.isPlayer && !b.isPlayer && (!aiMayEat || encounterProtected(a.id) || encounterProtected(b.id)) { continue }
+                let protectedPair = !a.isPlayer && !b.isPlayer && (encounterProtected(a.id) || encounterProtected(b.id))
+                if !a.isPlayer && !b.isPlayer && !aiMayEat && !protectedPair { continue }
 
                 let dx = world.delta(from: a.position.x, to: b.position.x)
                 let dy = b.position.y - a.position.y
                 let reach = (a.radius + b.radius) * T.collisionScale
                 guard dx * dx + dy * dy < reach * reach else { continue }
+                if protectedPair {
+                    separateProtectedFish(a, b, dx: dx, dy: dy)
+                    continue
+                }
 
                 #if DEBUG
                 if a.isPlayer && !simulationCanEat(b) && GameRules.playerEncounter(a.radius, b.radius) == .firstEatsSecond { continue }
@@ -1282,6 +1282,31 @@ final class GameScene: SKScene {
                 }
             }
         }
+    }
+
+    /// Protected fish visibly yield rather than crossing through one another.
+    /// Horizontal separation works even when both swimmers are against a water boundary.
+    private func separateProtectedFish(_ a: Fish, _ b: Fish, dx: CGFloat, dy: CGFloat) {
+        let direction: CGFloat = abs(dx) > 0.001 ? (dx > 0 ? 1 : -1) : (a.id < b.id ? 1 : -1)
+        let bodyReach = (a.radius + b.radius) * T.collisionScale
+        let gap = sqrt(max(0, bodyReach * bodyReach - dy * dy)) + T.protectedFishContactPadding
+        let shift = max(0, gap - abs(dx)) / 2
+        a.position.x = world.wrap(a.position.x - direction * shift)
+        b.position.x = world.wrap(b.position.x + direction * shift)
+        // Turn an approaching fish, leaving a swimmer that's already moving away alone.
+        // For head-on contacts the faster fish yields and swims away ahead of the other.
+        let approachingA = a.velocity.dx * direction > 0
+        let approachingB = b.velocity.dx * direction < 0
+        let yieldsA = approachingA != approachingB ? approachingA
+            : (a.cruiseSpeed > b.cruiseSpeed || (a.cruiseSpeed == b.cruiseSpeed && a.id < b.id))
+        let yielding = yieldsA ? a : b
+        let away = yieldsA ? -direction : direction
+        yielding.heading = away
+        yielding.velocity.dx = away * max(abs(yielding.velocity.dx), yielding.cruiseSpeed)
+        yielding.turnTimer = max(yielding.turnTimer, T.protectedFishTurnHoldSeconds)
+        #if DEBUG
+        recordRunEvent("ai_avoidance_contact", fields: ["firstID": a.id, "secondID": b.id, "yieldingID": yielding.id])
+        #endif
     }
 
     /// Near-equal fish gently drift apart vertically instead of producing an arbitrary winner.
@@ -1559,21 +1584,13 @@ final class GameScene: SKScene {
         buildPauseMenu()
     }
 
-    /// Small "Level N" label with one pip per level, top-left.
+    /// World and current level only; reference presets use the same header.
     private func buildLevelIndicator() {
         levelIndicator.removeAllChildren()
-        let text = label("\(arcadeWorld.title.uppercased()) · \(levelIndex + 1)/\(campaignLevelCount)", fontSize: 13, heavy: true)
+        let text = label("\(arcadeWorld.title) \(levelIndex + 1)", fontSize: 13, heavy: true)
         text.horizontalAlignmentMode = .left
         text.alpha = 0.9
         levelIndicator.addChild(text)
-        for i in 0..<campaignLevelCount {
-            let pip = SKShapeNode(circleOfRadius: 3.5)
-            pip.position = CGPoint(x: text.frame.width + 14 + CGFloat(i) * 11, y: 0)
-            pip.fillColor = i <= levelIndex ? SKColor(white: 1, alpha: 0.8) : .clear
-            pip.strokeColor = SKColor(white: 1, alpha: 0.5)
-            pip.lineWidth = 1
-            levelIndicator.addChild(pip)
-        }
         // Retained for a later endless-mode HUD; campaign uses last-fish-alive wins.
         if level.requiredMeals > 0 {
             mealIndicator.fontSize = 13
@@ -1705,8 +1722,9 @@ final class GameScene: SKScene {
         recordRunEvent("start", fields: ["schema": 1, "world": arcadeWorld.rawValue, "level": levelIndex + 1,
             "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
-            "configuration": ["spawnSeed": String(T.spawnSeed + UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) + seedOffset),
+            "configuration": ["spawnSeed": String(ecosystemSeed),
                 "aiMovementRandomVersion": 1,
+                "protectedContactVersion": 1,
                 "simulationStepSeconds": T.simulationStep, "maximumFrameElapsedSeconds": T.maximumFrameElapsed,
                 "encounterFormationVersion": level.freeEncounterMovement ? (levelIndex == 1 ? 2 : 3) : (level.encounterDifficulty != nil && levelIndex < 5 ? 1 : 0),
                 "encounterDifficulty": level.encounterDifficulty?.bounded ?? -1,
@@ -1884,6 +1902,7 @@ final class GameScene: SKScene {
     }
 
     var debugAIMovementStreamIDs: Set<Int> { Set(aiMovementRNGs.keys) }
+    var debugGameplayClock: Double { Double(simClock) }
 
     func debugCheckPresentationIsolation() -> Bool {
         simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
@@ -2083,7 +2102,9 @@ final class GameScene: SKScene {
         return (food, predators, safe)
     }
     func debugUseReferenceLevel() {
-        simulationTuning = ArcadeTuning(level: T.bloomReferenceLevels[min(levelIndex, T.bloomReferenceLevels.count - 1)])
+        let index = min(levelIndex, T.bloomReferenceLevels.count - 1)
+        simulationReferenceIndex = index
+        simulationTuning = ArcadeTuning(level: T.bloomReferenceLevels[index])
     }
     func debugEncounterSpawnSafety() -> Bool {
         simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
@@ -2127,6 +2148,25 @@ final class GameScene: SKScene {
             (heights.max() ?? 0) - (heights.min() ?? 0), releases)
     }
 
+    func debugAIMovementAllowsBellLanding() -> Bool {
+        guard let jelly = jellies.first, let layout = level.jellies,
+              let swimmer = fish.first(where: { !$0.isPlayer && $0.isAlive }) else { return false }
+        jellies = [jelly]
+        fish = [player, swimmer]
+        player.position.x = world.wrap(jelly.position.x + world.width / 2)
+        swimmer.position = CGPoint(x: jelly.position.x,
+            y: jelly.position.y + layout.radius * 0.65 + swimmer.radius * T.hazardHitboxScale + 12)
+        swimmer.cruiseSpeed = 0
+        swimmer.velocity = CGVector(dx: 0, dy: -140)
+        swimmer.targetY = jelly.position.y - 40
+        swimmer.retargetTimer = 100
+        for _ in 0..<30 {
+            simulate(T.simulationStep)
+            if swimmer.velocity.dy > T.motion.maxRiseSpeed { return swimmer.isAlive }
+        }
+        return false
+    }
+
     func debugAIFallOntoDome() -> Bool {
         guard let jelly = jellies.first, let layout = level.jellies,
               let swimmer = fish.first(where: { !$0.isPlayer && $0.isAlive }) else { return false }
@@ -2161,6 +2201,34 @@ final class GameScene: SKScene {
             Double(thin.values.max() ?? 0) / 180,
             fish.count == initial.count + 1 && initial.allSatisfy { $0.radius == radii[$0.id] && $0.state == .swimming })
     }
+    func debugProtectedFishYieldCheck() -> Bool {
+        guard let smaller = fish.first(where: { !$0.isPlayer }),
+              let larger = fish.first(where: { !$0.isPlayer && $0.radius > smaller.radius }) else { return false }
+        fish = [player, smaller, larger]
+        smaller.position = CGPoint(x: size.width, y: waterTop - larger.radius)
+        larger.position = CGPoint(x: size.width + 1, y: smaller.position.y)
+        // An approaching swimmer yields when the other is already moving away.
+        smaller.heading = 1
+        smaller.velocity.dx = smaller.cruiseSpeed
+        larger.heading = 1
+        larger.velocity.dx = larger.cruiseSpeed
+        encounterLeases[smaller.id] = EncounterLease(home: smaller.position, releaseDistance: 100)
+        encounterLeases[larger.id] = EncounterLease(home: larger.position, releaseDistance: 0)
+        forwardDistance = 99
+        simClock = T.aiEatingGracePeriod + 1
+        let radius = smaller.radius
+        resolveCollisions()
+        let dx = world.delta(from: larger.position.x, to: smaller.position.x)
+        let reach = (smaller.radius + larger.radius) * T.collisionScale
+        guard smaller.state == .swimming && larger.state == .swimming && smaller.radius == radius,
+              abs(dx) >= reach, smaller.heading * dx > 0, smaller.velocity.dx * dx > 0 else { return false }
+        // Once both have had their first chance, unequal-size contact resumes normal eating.
+        forwardDistance = 100
+        larger.position = smaller.position
+        resolveCollisions()
+        return smaller.state != .swimming
+    }
+
     /// Exercise release boundaries and collisions directly, without relying on a controller.
     func debugEncounterProtectionLifecycle() -> Bool {
         guard let id = encounterLeases.keys.sorted().first, let lease = encounterLeases[id],
@@ -2173,6 +2241,7 @@ final class GameScene: SKScene {
         guard prey.state == .swimming, prey.radius == originalRadius, encounterProtected(id) else { return false }
         // Both sides must have been released. An already-released fish cannot raid a protected area.
         forwardDistance = (encounterLeases.values.map(\.releaseDistance).max() ?? lease.releaseDistance) + 0.001
+        predator.position = prey.position
         resolveCollisions()
         return !encounterProtected(id) && prey.state != .swimming
     }

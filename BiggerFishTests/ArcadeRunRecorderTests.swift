@@ -40,7 +40,9 @@ struct ArcadeRunRecorderTests {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for i in 0..<40 { try Data().write(to: directory.appendingPathComponent("run-2000-\(i).jsonl")) }
+        for i in 0..<(ArcadeRunRecorder.retainedRuns + 10) {
+            try Data().write(to: directory.appendingPathComponent("run-2000-\(i).jsonl"))
+        }
         let note = directory.appendingPathComponent("keep.txt")
         try Data("keep".utf8).write(to: note)
         let recorder = ArcadeRunRecorder(directory: directory)

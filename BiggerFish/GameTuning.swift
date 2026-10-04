@@ -3,6 +3,15 @@ import FishKit
 
 /// Every feel-related constant lives here so it can be tweaked quickly between device runs.
 enum GameTuning {
+    /// Gameplay coordinates never depend on the device's display dimensions.
+    static let playfieldSize = CGSize(width: 874, height: 402)
+
+    static func fittedPlayfieldSize(in available: CGSize) -> CGSize {
+        let scale = max(0, min(available.width / playfieldSize.width,
+                               available.height / playfieldSize.height))
+        return CGSize(width: playfieldSize.width * scale, height: playfieldSize.height * scale)
+    }
+
     // MARK: Simulation timing
 
     static let simulationStep: CGFloat = 1.0 / 60
@@ -113,6 +122,7 @@ enum GameTuning {
     static let jellyBounceSpeed: CGFloat = 460
     static let jellyBounceSeconds: CGFloat = 0.28
     static let jellyBounceCooldown: CGFloat = 0.24
+    static let jellyAvoidancePredictionSteps = 8
     static let bloomFloorLanePadding: CGFloat = 20
     /// Alternating bell heights for authored layouts without per-level heights.
     static let bloomAuthoredJellyHeights: [CGFloat] = [0.37, 0.68]
@@ -168,9 +178,12 @@ enum GameTuning {
                        seedOffset: 1, compactSpeedScale: 0.763, mediumSpeedMultiplier: 0.85),
     ]
 
-    /// Ten evenly spaced design targets. Human difficulty remains a playtest measurement.
-    static let bloomValidatedSeeds: [UInt64] = [1, 0, 4, 4, 6, 1, 3, 12, 26, 38]
-    static let bloomLevels: [Level] = (0..<10).map { index in
+    /// Original authoring targets; campaign order follows human playtesting.
+    static let bloomSetupSeedOffsets: [UInt64] = [1, 0, 4, 4, 6, 1, 444, 12, 26, 38]
+    /// Original setup identities keep their seeds and difficulty when campaign slots move.
+    static let bloomCampaignOrder = [0, 1, 5, 3, 4, 6, 2, 7, 8, 9]
+    static let bloomLevels: [Level] = bloomCampaignOrder.map { bloomLevelSetups[$0] }
+    static let bloomLevelSetups: [Level] = (0..<10).map { index in
         let difficulty = EncounterDifficulty(value: Double(index) / 9)
         let speed: ClosedRange<CGFloat> = index == 1 ? 40...175
             : (35 + CGFloat(difficulty.bounded) * 35)...(150 + CGFloat(difficulty.bounded) * 50)
@@ -179,8 +192,8 @@ enum GameTuning {
             screenCrossSeconds: 3.1, absorptionEfficiency: freeEncounterAbsorption,
             jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6,
                 night: index >= 7, maintainsFloorLane: true),
-            roamingFoodChain: true, ecosystemSeedOffset: bloomValidatedSeeds[index],
-            encounterDifficulty: difficulty, freeEncounterMovement: true)
+            roamingFoodChain: true, ecosystemSeedOffset: bloomSetupSeedOffsets[index],
+            encounterDifficulty: difficulty, freeEncounterMovement: true, ecosystemSeedIndex: index)
     }
 
     // Encounter groups are authoring budgets, never movement cages. Level 2 retains its accepted layout.
@@ -255,6 +268,8 @@ enum GameTuning {
     static let encounterSeparationPadding: CGFloat = 12
     static let encounterSeparationLookAhead: CGFloat = 0.6
     static let encounterSeparationSpeed: CGFloat = 65
+    static let protectedFishContactPadding: CGFloat = 1
+    static let protectedFishTurnHoldSeconds: CGFloat = 2
     static let encounterExitScreens: CGFloat = 0.45
     static let encounterFirstScreens: CGFloat = 0.75
     static let encounterSpacingScreens: CGFloat = 0.78
@@ -274,15 +289,6 @@ enum GameTuning {
               bounceFoodPockets: true, sidePocketExperiment: sidePocket, roamingFoodChain: true,
               ecosystemSeedOffset: seedOffset, compactAISpeedScale: compactSpeedScale,
               mediumAISpeedMultiplier: mediumSpeedMultiplier)
-    }
-
-    /// Compact worlds have more encounters per circuit. Ease horizontal AI speed to
-    /// retain recovery routes; three phone sizes were checked with actual scene rollouts.
-    static func bloomAISpeedScale(width: CGFloat, level: Level) -> CGFloat {
-        let fraction = ((width - 667) / (874 - 667)).clamped(0, 1)
-        let scale = level.compactAISpeedScale + (1 - level.compactAISpeedScale) * fraction
-        let mediumWeight = (width <= 852 ? (width - 667) / (852 - 667) : (874 - width) / (874 - 852)).clamped(0, 1)
-        return scale * (1 + (level.mediumAISpeedMultiplier - 1) * mediumWeight)
     }
 
     // MARK: Levels
@@ -335,4 +341,10 @@ struct Level {
     var mediumAISpeedMultiplier: CGFloat = 1
     var encounterDifficulty: EncounterDifficulty? = nil
     var freeEncounterMovement: Bool = false
+    /// Seed identity is independent of the displayed campaign number.
+    var ecosystemSeedIndex: Int? = nil
+    func spawnSeed(index: Int, bloom: Bool, offset: UInt64? = nil) -> UInt64 {
+        GameTuning.spawnSeed &+ UInt64((ecosystemSeedIndex ?? index) + (bloom ? 100 : 0))
+            &+ (offset ?? ecosystemSeedOffset)
+    }
 }

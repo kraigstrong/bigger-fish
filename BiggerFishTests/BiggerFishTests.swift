@@ -109,6 +109,14 @@ struct BloomAvoidanceTests {
         #expect(avoid(CGPoint(x: -400, y: -40), CGVector(dx: 100, dy: 0)) == nil)
     }
 
+    @Test func bellLandingsTakePriorityWithoutDisablingStingerAvoidance() {
+        #expect(avoid(CGPoint(x: 0, y: 80), CGVector(dx: 0, dy: -160)) == nil)
+        #expect(avoid(CGPoint(x: -65, y: 90), CGVector(dx: 100, dy: -130)) == nil)
+        #expect(avoid(CGPoint(x: -60, y: 33), CGVector(dx: 100, dy: 0)) == nil)
+        #expect(avoid(CGPoint(x: 0, y: -80), CGVector(dx: 0, dy: 150)) != nil)
+        #expect(avoid(CGPoint(x: -100, y: 35), CGVector(dx: 100, dy: -100)) != nil)
+    }
+
     @Test func turnsAwayBeforeCurtainAndCanChooseBelow() {
         let close = avoid(CGPoint(x: -60, y: -40), CGVector(dx: 100, dy: 0))
         #expect((close?.dx ?? 0) < 0)
