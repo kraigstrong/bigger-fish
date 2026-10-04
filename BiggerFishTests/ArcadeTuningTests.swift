@@ -3,6 +3,54 @@ import Testing
 @testable import BiggerFish
 
 struct ArcadeTuningTests {
+    @Test func reorderedSetupsKeepTheirSeedsAndTuning() {
+        let easy = GameTuning.bloomLevels[2]
+        let fair = GameTuning.bloomLevels[5]
+        let hard = GameTuning.bloomLevels[6]
+        #expect(easy.spawnSeed(index: 2, bloom: true) == 20261033)
+        #expect(fair.spawnSeed(index: 5, bloom: true) == 20261477)
+        #expect(hard.spawnSeed(index: 6, bloom: true) == 20261033)
+        #expect(easy.encounterDifficulty?.bounded == 5.0 / 9)
+        #expect(fair.encounterDifficulty?.bounded == 6.0 / 9)
+        #expect(hard.encounterDifficulty?.bounded == 2.0 / 9)
+        for index in GameTuning.bloomLevels.indices {
+            let source = GameTuning.bloomCampaignOrder[index]
+            let original = GameTuning.bloomLevelSetups[source]
+            let moved = GameTuning.bloomLevels[index]
+            #expect(ArcadeTuning(level: moved) == ArcadeTuning(level: original))
+            #expect(moved.spawnSeed(index: index, bloom: true) == original.spawnSeed(index: source, bloom: true))
+            let applied = ArcadeTuning(level: moved).applying(to: moved)
+            #expect(applied.spawnSeed(index: index, bloom: true) == moved.spawnSeed(index: index, bloom: true))
+        }
+    }
+
+    @Test func existingOverridesMoveOnceWithTheirLevelsIncludingRerolledSeeds() throws {
+        let name = "biggerFish.tuning.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let third = ArcadeTuning(level: GameTuning.bloomLevelSetups[2]).sanitized
+        let sixth = ArcadeTuning(level: GameTuning.bloomLevelSetups[5]).sanitized
+        var seventh = ArcadeTuning(level: GameTuning.bloomLevelSetups[6]).sanitized
+        seventh.seedOffset = 444
+        let fourth = ArcadeTuning(level: GameTuning.bloomReferenceLevels[3])
+        let old = ["jelly-bloom.3": third, "jelly-bloom.6": sixth,
+                   "jelly-bloom.7": seventh, "jelly-bloom.4": fourth]
+        defaults.set(try JSONEncoder().encode(old), forKey: "biggerFish.debug.tuning.v1")
+        let migrated = ArcadeTuningStore(defaults: defaults)
+        #expect(migrated.override(.jellyBloom, 2) == sixth)
+        #expect(migrated.override(.jellyBloom, 5) == seventh)
+        #expect(migrated.override(.jellyBloom, 6) == third)
+        #expect(migrated.override(.jellyBloom, 3) == fourth)
+        #expect(seventh.applying(to: GameTuning.bloomLevels[5]).spawnSeed(index: 5, bloom: true) == 20261477)
+        var edited = sixth
+        edited.seedOffset = 123
+        migrated.save(edited, world: .jellyBloom, index: 2)
+        let reloaded = ArcadeTuningStore(defaults: defaults)
+        #expect(reloaded.override(.jellyBloom, 2) == edited)
+        #expect(reloaded.override(.jellyBloom, 5) == seventh)
+        #expect(reloaded.override(.jellyBloom, 6) == third)
+    }
+
     @Test func oldSavedTuningStillDecodesAndNewDifficultyRegeneratesTheBudget() throws {
         let original = ArcadeTuning(level: GameTuning.bloomReferenceLevels[3])
         var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as! [String: Any]

@@ -102,6 +102,7 @@ struct ArcadeTuning: Codable, Equatable {
         result.sidePocketExperiment = base.sidePocketExperiment && value.jellyCount > GameTuning.bloomSidePocketJellyIndex
         result.roamingFoodChain = value.roam
         result.ecosystemSeedOffset = UInt64(value.seedOffset)
+        result.ecosystemSeedIndex = base.ecosystemSeedIndex
         result.compactAISpeedScale = base.compactAISpeedScale
         result.mediumAISpeedMultiplier = base.mediumAISpeedMultiplier
         return result
@@ -119,10 +120,20 @@ final class ArcadeTuningStore: ObservableObject {
     private let defaults: UserDefaults
     private static let overridesKey = "biggerFish.debug.tuning.v1"
     private static let presetsKey = "biggerFish.debug.tuning.presets.v1"
+    private static let reorderedOverridesKey = "biggerFish.debug.tuning.reordered-3-6-7.v1"
 
     init(defaults: UserDefaults = ArcadePlaytest.defaults) {
         self.defaults = defaults
         presets = defaults.data(forKey: Self.presetsKey).flatMap { try? JSONDecoder().decode([ArcadeTuningPreset].self, from: $0) } ?? []
+        if !defaults.bool(forKey: Self.reorderedOverridesKey) {
+            let original = allOverrides
+            var reordered = original
+            for (destination, source) in GameTuning.bloomCampaignOrder.enumerated() where destination != source {
+                reordered[ArcadeWorld.jellyBloom.levelID(destination)] = original[ArcadeWorld.jellyBloom.levelID(source)]
+            }
+            defaults.set(try? JSONEncoder().encode(reordered), forKey: Self.overridesKey)
+            defaults.set(true, forKey: Self.reorderedOverridesKey)
+        }
     }
     func override(_ world: ArcadeWorld, _ index: Int) -> ArcadeTuning? {
         allOverrides[world.levelID(index)]?.sanitized
@@ -254,9 +265,8 @@ struct ArcadeTuningPanel: View {
                     }
                 }
                 Section("Level seed") {
-                    LabeledContent("Seed", value: String(GameTuning.spawnSeed
-                        &+ UInt64(index + (world == .jellyBloom ? 100 : 0))
-                        &+ UInt64(draft.sanitized.seedOffset)))
+                    LabeledContent("Seed", value: String(world.levels[index].spawnSeed(
+                        index: index, bloom: world == .jellyBloom, offset: UInt64(draft.sanitized.seedOffset))))
                         .monospacedDigit()
                         .textSelection(.enabled)
                     Text("\(world.title) · Level \(index + 1)")

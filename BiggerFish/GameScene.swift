@@ -49,9 +49,11 @@ final class GameScene: SKScene {
     private var level: Level {
         var base = arcadeWorld.levels[levelIndex]
         #if DEBUG
+        let setupIndex = simulationReferenceIndex ?? base.ecosystemSeedIndex ?? levelIndex
         if arcadeWorld == .jellyBloom, activeDebugTuning?.difficulty == nil,
-           activeDebugTuning != nil, levelIndex < T.bloomReferenceLevels.count {
-            base = T.bloomReferenceLevels[levelIndex]
+           activeDebugTuning != nil, setupIndex < T.bloomReferenceLevels.count {
+            base = T.bloomReferenceLevels[setupIndex]
+            base.ecosystemSeedIndex = setupIndex
         }
         return activeDebugTuning?.applying(to: base) ?? base
         #else
@@ -93,14 +95,12 @@ final class GameScene: SKScene {
         return level.ecosystemSeedOffset
         #endif
     }
-    private var campaignLevelCount: Int {
+    private var isFinalLevel: Bool {
         #if DEBUG
-        if arcadeWorld == .jellyBloom, activeDebugTuning != nil,
-           activeDebugTuning?.difficulty == nil, levelIndex < T.bloomReferenceLevels.count { return T.bloomReferenceLevels.count }
+        if simulationReferenceIndex != nil { return levelIndex == T.bloomReferenceLevels.count - 1 }
         #endif
-        return arcadeWorld.levels.count
+        return levelIndex == arcadeWorld.levels.count - 1
     }
-    private var isFinalLevel: Bool { levelIndex == campaignLevelCount - 1 }
     var onClear: ((Int, Double) -> Void)?
     var onExit: (() -> Void)?
     var onJellyLesson: (() -> Void)?
@@ -125,6 +125,7 @@ final class GameScene: SKScene {
     private var resultPanel: ArcadeResultPanel?
     #if DEBUG
     private var simulationTuning: ArcadeTuning?
+    private var simulationReferenceIndex: Int?
     private var simulationHolding: Bool?
     private var simulationStats = ArcadeSimulation.Stats()
     private var simulationEcologyProbe = false
@@ -172,13 +173,13 @@ final class GameScene: SKScene {
     private var rng = SeededGenerator(seed: T.spawnSeed)
     private var aiMovementRNGs: [Int: SeededGenerator] = [:]
     private var ecosystemSeed: UInt64 {
-        T.spawnSeed &+ UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) &+ seedOffset
+        level.spawnSeed(index: levelIndex, bloom: arcadeWorld == .jellyBloom, offset: seedOffset)
     }
 
     /// Domain-separated streams use stable fish IDs, without consuming spawn randomness.
     private var jellyLayoutSeed: UInt64 {
         level.encounterDifficulty != nil ? ecosystemSeed &+ 1_000
-            : T.spawnSeed &+ UInt64(levelIndex + 1_000) &+ seedOffset
+            : T.spawnSeed &+ UInt64((level.ecosystemSeedIndex ?? levelIndex) + 1_000) &+ seedOffset
     }
 
     private func movementGenerator(for id: Int) -> SeededGenerator {
@@ -1583,21 +1584,13 @@ final class GameScene: SKScene {
         buildPauseMenu()
     }
 
-    /// Small "Level N" label with one pip per level, top-left.
+    /// World and current level only; reference presets use the same header.
     private func buildLevelIndicator() {
         levelIndicator.removeAllChildren()
-        let text = label("\(arcadeWorld.title.uppercased()) · \(levelIndex + 1)/\(campaignLevelCount)", fontSize: 13, heavy: true)
+        let text = label("\(arcadeWorld.title) \(levelIndex + 1)", fontSize: 13, heavy: true)
         text.horizontalAlignmentMode = .left
         text.alpha = 0.9
         levelIndicator.addChild(text)
-        for i in 0..<campaignLevelCount {
-            let pip = SKShapeNode(circleOfRadius: 3.5)
-            pip.position = CGPoint(x: text.frame.width + 14 + CGFloat(i) * 11, y: 0)
-            pip.fillColor = i <= levelIndex ? SKColor(white: 1, alpha: 0.8) : .clear
-            pip.strokeColor = SKColor(white: 1, alpha: 0.5)
-            pip.lineWidth = 1
-            levelIndicator.addChild(pip)
-        }
         // Retained for a later endless-mode HUD; campaign uses last-fish-alive wins.
         if level.requiredMeals > 0 {
             mealIndicator.fontSize = 13
@@ -1729,7 +1722,7 @@ final class GameScene: SKScene {
         recordRunEvent("start", fields: ["schema": 1, "world": arcadeWorld.rawValue, "level": levelIndex + 1,
             "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
-            "configuration": ["spawnSeed": String(T.spawnSeed + UInt64(levelIndex + (arcadeWorld == .jellyBloom ? 100 : 0)) + seedOffset),
+            "configuration": ["spawnSeed": String(ecosystemSeed),
                 "aiMovementRandomVersion": 1,
                 "protectedContactVersion": 1,
                 "simulationStepSeconds": T.simulationStep, "maximumFrameElapsedSeconds": T.maximumFrameElapsed,
@@ -2109,7 +2102,9 @@ final class GameScene: SKScene {
         return (food, predators, safe)
     }
     func debugUseReferenceLevel() {
-        simulationTuning = ArcadeTuning(level: T.bloomReferenceLevels[min(levelIndex, T.bloomReferenceLevels.count - 1)])
+        let index = min(levelIndex, T.bloomReferenceLevels.count - 1)
+        simulationReferenceIndex = index
+        simulationTuning = ArcadeTuning(level: T.bloomReferenceLevels[index])
     }
     func debugEncounterSpawnSafety() -> Bool {
         simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])

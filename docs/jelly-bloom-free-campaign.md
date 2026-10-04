@@ -12,6 +12,16 @@ After the protected-contact and bell-bounce changes, the user won every level ex
 
 ## Difficulty targets
 
+The campaign has been reordered from phone playtesting. Complete setups move together, including speeds, growth budgets, seeded movement, and hazard layouts:
+
+| Current level | Original setup | Spawn seed |
+|---|---|---:|
+| 3 | Original Level 6 | 20261033 |
+| 6 | Original Level 7, accepted reroll | 20261477 |
+| 7 | Original Level 3 | 20261033 |
+
+Other campaign slots are unchanged. The accepted Level 7 reroll was described as hard but fair and winnable; its seed variation is 444. Saved debug tuning overrides migrate once with these setups. Gameplay headers now show only the world and level number, without totals or dots. The following difficulty targets and seed-study results describe the original authoring order, not the reordered campaign.
+
 Targets describe expected growth, not human win probabilities. A starting wave's edible share is calculated relative to expected arrival size. Sizes then advance using the expected catch percentage and the effective absorption rate (0.55 × 0.90 = 0.495). Missing catches can leave you behind that curve. AI eating resumes for each fish after you pass its starting location; protected fish remain protected against already-released predators. During protected contacts, fish physically separate and an approaching fish turns away, so they do not swim through one another. In head-on contacts the faster swimmer yields; stable IDs break ties without consuming extra randomness.
 
 | Level | Expected edible catches | Intent |
@@ -37,7 +47,7 @@ Gameplay now uses one fixed 874×402 logical playfield. Displays fit it uniforml
 
 Seed comparisons use the real scene and multiple bot policies. A bot win establishes a reachable route under those inputs. Failed bots do not prove impossibility, and selected winning seeds do not prove a level fun or a linear human difficulty curve. Human playtesting remains decisive.
 
-Current verification: 78 non-route tests pass, including matching gameplay state across display sizes, resizing without a reset, protected contacts, and bell bounces; device and Release builds pass. The automatic winning-route regression remains in the code but was excluded from this verification at the user's request. Its default policies currently miss Levels 3, 5, and 7; this is not a claim that those levels are impossible.
+Fixed-playfield verification before reordering: 78 non-route tests passed, including matching gameplay state across display sizes, resizing without a reset, protected contacts, and bell bounces; device and Release builds passed. The automatic winning-route regression remains in the code but was excluded from verification at the user's request. Before reordering, its default policies missed Levels 3, 5, and 7; this is not a claim that those levels are impossible.
 
 Load shipped settings and Apply & Play for each level to clear old saved overrides. Seed re-roll and effective growth controls remain available in the tuner; recordings include expected catch fraction, starting wave budgets, per-fish release events, meal ratios, and actual effective growth.
 
