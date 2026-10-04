@@ -31,7 +31,7 @@ The study ran 72 diagnostic rollouts: 40 initial runs, 24 alternate-seed runs fo
 
 In ghost-player probes that eat nothing, the first growth stall occurs around 1.84 circuits in Level 1 and 1.55 in Level 2, versus roughly one circuit in most later levels. The selected Level 9 seed is an exception at 1.85 circuits. The deadline varies by seed and is not strictly ordered. These measurements do not establish how many mistakes a human can recover from; check Level 9's pressure in the phone playtest rather than assuming its target makes it harder.
 
-The selected seed offsets are 2, 7, 13, 23, 31, 47, 60, 71, 92, and 101. Levels 7 and 9 use the first small-sample alternatives with demonstrated routes; their speed and budget settings were unchanged. See [the machine-readable seed summary](shallow-reef-selected-seeds.json). Raw local diagnostics remain in `build/arcade-development/shallow-ten-level-*.json`.
+The selected seed offsets in current campaign order are 2, 7, 23, 31, 47, 60, 71, 13, 92, and 101. Levels 6 and 9 use the first small-sample alternatives with demonstrated routes; their speed and budget settings were unchanged. See [the machine-readable seed summary](shallow-reef-selected-seeds.json). Raw local diagnostics remain in `build/arcade-development/shallow-ten-level-*.json`.
 
 Validation checks full spawn counts, no initial overlaps, an optimistic initial growth path, deterministic movement, protection/release behavior, matching tuner budgets, and migration. Bot-route studies remain optional diagnostics; their failures do not prove impossibility. This campaign still needs a phone playtest to judge route variety, recovery from missed catches, and the final difficulty order.
 

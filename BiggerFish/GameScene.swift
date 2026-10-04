@@ -55,10 +55,12 @@ final class GameScene: SKScene {
             base = T.bloomReferenceLevels[setupIndex]
             base.ecosystemSeedIndex = setupIndex
         }
+        // The reference picker selects original levels by displayed number, independently of campaign order.
+        let shallowReferenceIndex = simulationReferenceIndex ?? levelIndex
         if arcadeWorld == .shallowReef, activeDebugTuning?.difficulty == nil,
-           activeDebugTuning != nil, setupIndex < T.shallowReferenceLevels.count {
-            base = T.shallowReferenceLevels[setupIndex]
-            base.ecosystemSeedIndex = setupIndex
+           activeDebugTuning != nil, shallowReferenceIndex < T.shallowReferenceLevels.count {
+            base = T.shallowReferenceLevels[shallowReferenceIndex]
+            base.ecosystemSeedIndex = shallowReferenceIndex
         }
         return activeDebugTuning?.applying(to: base) ?? base
         #else
@@ -2025,6 +2027,7 @@ final class GameScene: SKScene {
         return phase == .playing
     }
     var debugLevelIndex: Int { levelIndex }
+    var debugConfiguredSpawnSeed: UInt64 { ecosystemSeed }
     var debugResultTitles: [String] { resultPanel?.controls.map { $0.action.title } ?? [] }
     func debugTapResult(_ action: ArcadeResultAction?) {
         guard let panel = resultPanel else { return }

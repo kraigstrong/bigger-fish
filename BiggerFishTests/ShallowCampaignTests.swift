@@ -76,6 +76,16 @@ struct ShallowCampaignTests {
         #expect(ArcadeTuningStore(defaults: defaults).override(.shallowReef, 7) == draft.sanitized)
     }
 
+    @MainActor @Test func originalReferenceUsesTheSelectedOriginalSeedAfterReordering() {
+        for index in 0..<5 {
+            let reference = GameTuning.shallowReferenceLevels[index]
+            let scene = GameScene(world: .shallowReef, levelIndex: index)
+            _ = scene.debugSimulate(candidate: "original reference", tuning: ArcadeTuning(level: reference),
+                policy: .collector, seed: 0, limit: 0)
+            #expect(scene.debugConfiguredSpawnSeed == reference.spawnSeed(index: index, bloom: false))
+        }
+    }
+
     @MainActor @Test func seededStartsHaveAllFishAndAnOptimisticGrowthPath() {
         for (index, level) in GameTuning.levels.enumerated() {
             for variation in [0, 7, 33, 987] {
