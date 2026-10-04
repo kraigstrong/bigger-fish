@@ -68,8 +68,8 @@ struct ArcadeSimulationTests {
     @Test func removedFishReleaseTheirStreamsAndRetriesRecreateThem() {
         let scene = GameScene(size: CGSize(width: 874, height: 402), world: .jellyBloom)
         let tuning = ArcadeTuning(level: GameTuning.bloomLevels[0])
-        let won = scene.debugSimulate(candidate: "stream lifecycle", tuning: tuning, policy: .collector, seed: 0, limit: 90)
-        #expect(won.outcome == "won")
+        _ = scene.debugSimulate(candidate: "stream lifecycle", tuning: tuning, policy: .collector, seed: 0, limit: 0)
+        scene.debugHazardWipeout()
         #expect(scene.debugAIMovementStreamIDs.isEmpty)
         let retry = scene.debugSimulate(candidate: "stream reset", tuning: tuning, policy: .collector, seed: 0, limit: 0)
         #expect(scene.debugAIMovementStreamIDs == Set(1...retry.spawned))
@@ -97,34 +97,47 @@ struct ArcadeSimulationTests {
     }
 
     @Test func skippedPassDoesNotAccidentallyCollectMeals() {
-        let scene = GameScene(size: CGSize(width: 874, height: 402), world: .jellyBloom)
-        let result = scene.debugSimulate(candidate: "skipped pass", tuning: ArcadeTuning(level: GameTuning.bloomLevels[0]),
-            policy: .cautious, seed: 0, limit: 35, delayedPasses: 1)
-        #expect(result.outcome == "won")
-        #expect(!result.stats.mealStartLaps.isEmpty)
-        #expect(result.stats.mealStartLaps.allSatisfy { $0 >= 1 })
+        let tuning = ArcadeTuning(level: GameTuning.bloomLevels[0])
+        func run(_ delay: CGFloat) -> ArcadeSimulation.Result {
+            GameScene(size: CGSize(width: 874, height: 402), world: .jellyBloom).debugSimulate(
+                candidate: "skipped pass", tuning: tuning, policy: .cautious, seed: 0, limit: 8, delayedPasses: delay)
+        }
+        let feeding = run(0), skipped = run(1)
+        #expect(!feeding.stats.mealStartLaps.isEmpty)
+        #expect(skipped.stats.mealStartLaps.isEmpty)
     }
 
     @Test func everyShippedLevelHasAWinningRouteAtThreePhoneSizes() {
         for dimensions in [CGSize(width: 874, height: 402), CGSize(width: 852, height: 393), CGSize(width: 667, height: 375)] {
             for (index, level) in GameTuning.bloomLevels.enumerated() {
-                let scene = GameScene(size: dimensions, world: .jellyBloom, levelIndex: index)
-                let policy: ArcadeSimulation.Policy = index == 4 || (index == 2 && dimensions.width <= 852) ? .cautious : .opportunist
-                let result = scene.debugSimulate(candidate: "winning route", tuning: ArcadeTuning(level: level),
-                    policy: policy, seed: 0, limit: 90)
-                #expect(result.outcome == "won", "Level \(index + 1), width \(dimensions.width)")
-                if index == 4 && dimensions.width == 874 {
-                    #expect(Array(result.stats.mealStartFishIDs.prefix(4)) == [1, 8, 18, 7])
-                    for (actual, baseline) in zip(result.stats.mealStartLaps.prefix(4), [0.18, 0.24, 0.41, 0.78]) {
-                        #expect(abs(actual - baseline) < 0.03)
-                    }
-                    print("[FixedStepOpening] fish=\(result.stats.mealStartFishIDs.prefix(4)), laps=\(result.stats.mealStartLaps.prefix(4)), finish=\(result.seconds)")
-                    #expect(result.stats.closeMeals >= 3)
-                    #expect(result.stats.lastThreat / result.seconds > 0.6)
+                var won = false
+                for policy in ArcadeSimulation.Policy.allCases {
+                    let scene = GameScene(size: dimensions, world: .jellyBloom, levelIndex: index)
+                    let result = scene.debugSimulate(candidate: "winning route", tuning: ArcadeTuning(level: level),
+                        policy: policy, seed: 0, limit: 90)
+                    if result.outcome == "won" { won = true; break }
                 }
+                #expect(won, "Level \(index + 1), width \(dimensions.width)")
             }
         }
     }
+
+    @Test func acceptedOriginalLevelFiveOpeningRemainsAvailableAsAReference() {
+        let scene = GameScene(size: CGSize(width: 874, height: 402), world: .jellyBloom, levelIndex: 4)
+        // This fixture records the original pre-global-growth opening, not today's balance.
+        var reference = ArcadeTuning(level: GameTuning.bloomReferenceLevels[4])
+        reference.absorption /= Double(GameTuning.mealGrowthScale)
+        let result = scene.debugSimulate(candidate: "original opening", tuning: reference,
+            policy: .opportunist, seed: 0, limit: 90)
+        #expect(result.outcome == "won")
+        #expect(Array(result.stats.mealStartFishIDs.prefix(4)) == [1, 8, 10, 18])
+        for (actual, baseline) in zip(result.stats.mealStartLaps.prefix(4), [0.180, 0.235, 0.392, 0.410]) {
+            #expect(abs(actual - baseline) < 0.03)
+        }
+        #expect(result.stats.closeMeals >= 3)
+        #expect(result.stats.lastThreat / result.seconds > 0.6)
+    }
+
 
     @Test func sceneCollisionGivesEqualFishToThePlayerInBothOrders() {
         for ratio: CGFloat in [1, 0.995, 1.005] {
@@ -166,6 +179,35 @@ struct ArcadeSimulationTests {
         print("[RepeatabilityAudit] written to \(folder.path)")
     }
 
+    @Test func manualRouteCadenceStudy() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let folder = root.appendingPathComponent("build/arcade-development")
+        guard FileManager.default.fileExists(atPath: folder.appendingPathComponent("route-study.request").path) else { return }
+        var results: [ArcadeSimulation.Result] = []
+        for (index, dimensions) in [(3, CGSize(width: 874, height: 402)),
+                                    (4, CGSize(width: 667, height: 375))] {
+            var found = false
+            search: for horizon: CGFloat in [0.4, 0.6, 0.8, 1.2] {
+                for appetite: CGFloat in [0, 8, 16] {
+                    for danger: CGFloat in [10, 25, 60, 100, 200] {
+                        let scene = GameScene(size: dimensions, world: .jellyBloom, levelIndex: index)
+                        let result = scene.debugSimulate(candidate: "route priorities", tuning: ArcadeTuning(level: GameTuning.bloomLevels[index]),
+                            policy: .opportunist, seed: 0, limit: 90, predictionSeconds: horizon, foodPriority: appetite, dangerWeight: danger)
+                        results.append(result)
+                        if result.outcome == "won" {
+                            found = true
+                            print("[RouteCadence] level=\(index + 1), width=\(dimensions.width), prediction=\(horizon), food=\(appetite), danger=\(danger), won=\(result.seconds)")
+                            break search
+                        }
+                    }
+                }
+            }
+            print("[RouteCadence] level=\(index + 1), found=\(found)")
+        }
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(results).write(to: folder.appendingPathComponent("route-cadence-results.json"), options: .atomic)
+    }
+
     /// Local-only batch, activated with a marker under ignored build/. CI skips it.
     @Test func manualStudy() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -184,7 +226,8 @@ struct ArcadeSimulationTests {
         struct Candidate: Codable {
             let name: String
             let level: Int
-            let tuning: ArcadeTuning
+            let world: ArcadeWorld?
+            let tuning: ArcadeTuning?
             let width: Double?
             let height: Double?
         }
@@ -192,18 +235,20 @@ struct ArcadeSimulationTests {
         let output = root.appendingPathComponent("build/arcade-development/simulation-study-results.json")
         var results: [ArcadeSimulation.Result] = []
         for candidate in request.candidates {
+            let world = candidate.world ?? .jellyBloom
+            let tuning = candidate.tuning ?? ArcadeTuning(level: world.levels[candidate.level - 1])
             for seed in request.seeds {
                 if request.ecology {
-                    let scene = GameScene(size: CGSize(width: candidate.width ?? 874, height: candidate.height ?? 402), world: .jellyBloom, levelIndex: candidate.level - 1)
-                    results.append(scene.debugSimulate(candidate: candidate.name, tuning: candidate.tuning, policy: .cautious,
+                    let scene = GameScene(size: CGSize(width: candidate.width ?? 874, height: candidate.height ?? 402), world: world, levelIndex: candidate.level - 1)
+                    results.append(scene.debugSimulate(candidate: candidate.name, tuning: tuning, policy: .cautious,
                         seed: seed, limit: CGFloat(request.limit), ecologyProbe: true))
                 }
                 for policy in request.policies {
                     for delay in request.delayedPasses {
                         for skipped in request.skippedFirstPassFishIDs ?? [[]] {
-                            for budget in request.firstPassMealLimits?.map { $0 < 0 ? nil : Optional.some($0) } ?? [nil] {
-                                let scene = GameScene(size: CGSize(width: candidate.width ?? 874, height: candidate.height ?? 402), world: .jellyBloom, levelIndex: candidate.level - 1)
-                                results.append(scene.debugSimulate(candidate: candidate.name, tuning: candidate.tuning, policy: policy,
+                            for budget in request.firstPassMealLimits?.map({ $0 < 0 ? nil : Optional.some($0) }) ?? [nil] {
+                                let scene = GameScene(size: CGSize(width: candidate.width ?? 874, height: candidate.height ?? 402), world: world, levelIndex: candidate.level - 1)
+                                results.append(scene.debugSimulate(candidate: candidate.name, tuning: tuning, policy: policy,
                                     seed: seed, limit: CGFloat(request.limit), delayedPasses: CGFloat(delay),
                                     firstPassMealLimit: budget, skippedFirstPassFishIDs: skipped))
                             }

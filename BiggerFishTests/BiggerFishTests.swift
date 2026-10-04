@@ -121,10 +121,10 @@ struct BloomAvoidanceTests {
 
 struct BounceCampaignBalanceTests {
     @Test func foodChainAllowsProgressFromSmallMealsThroughMediumFishToGiants() {
-        for level in GameTuning.bloomLevels.dropFirst() {
+        for level in GameTuning.bloomReferenceLevels.dropFirst() {
             let foodArea = level.spawnGroups.filter { $0.radii.upperBound < 1 }
                 .reduce(CGFloat.zero) { $0 + CGFloat($1.count) * $1.radii.lowerBound * $1.radii.lowerBound }
-            let grown = sqrt(1 + foodArea * level.absorptionEfficiency)
+            let grown = sqrt(1 + foodArea * level.effectiveAbsorptionEfficiency)
             // Easy food opens up the medium fish, but cannot erase the giants immediately.
             #expect(GameRules.encounter(grown, 1.60) == .firstEatsSecond)
             #expect(GameRules.encounter(grown, level.spawnGroups.last!.radii.upperBound) == .secondEatsFirst)
@@ -133,7 +133,7 @@ struct BounceCampaignBalanceTests {
                 #expect(GameRules.encounter(radius, group.radii.upperBound) == .firstEatsSecond)
                 for _ in 0..<group.count {
                     radius = GameRules.grownRadius(predator: radius, prey: group.radii.lowerBound,
-                                                  efficiency: level.absorptionEfficiency)
+                                                  efficiency: level.effectiveAbsorptionEfficiency)
                 }
             }
         }

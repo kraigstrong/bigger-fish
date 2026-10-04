@@ -3,8 +3,25 @@ import Testing
 @testable import BiggerFish
 
 struct ArcadeTuningTests {
+    @Test func oldSavedTuningStillDecodesAndNewDifficultyRegeneratesTheBudget() throws {
+        let original = ArcadeTuning(level: GameTuning.bloomReferenceLevels[3])
+        var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as! [String: Any]
+        object.removeValue(forKey: "difficulty")
+        let restored = try JSONDecoder().decode(ArcadeTuning.self, from: JSONSerialization.data(withJSONObject: object))
+        #expect(restored == original)
+        var draft = ArcadeTuning(level: GameTuning.bloomLevels[0])
+        draft.difficulty = 1
+        draft.jellyCount = 0
+        let level = draft.applying(to: GameTuning.bloomLevels[0])
+        #expect(level.encounterDifficulty?.minimumCatches == 11)
+        #expect(level.jellies?.count == 4)
+        #expect(GameTuning.freeEncounterExpectedCatchFraction(level.encounterDifficulty!.bounded) > GameTuning.freeEncounterExpectedCatchFraction(0))
+        #expect(level.freeEncounterMovement)
+        #expect(try JSONDecoder().decode(ArcadeTuning.self, from: JSONEncoder().encode(draft)) == draft)
+    }
+
     @Test func editsAreBoundedBeforeCreatingPhysicsRanges() {
-        var tuning = ArcadeTuning(level: GameTuning.bloomLevels[1])
+        var tuning = ArcadeTuning(level: GameTuning.bloomReferenceLevels[1])
         tuning.groups = [.init(count: 999, minimum: 2, maximum: 0.5)]
         tuning.aiMinimum = 150
         tuning.aiMaximum = 30
@@ -17,7 +34,7 @@ struct ArcadeTuningTests {
         #expect(value.aiMaximum == 150)
         #expect(value.absorption == 0.78)
         #expect(value.seedOffset == 0)
-        let level = value.applying(to: GameTuning.bloomLevels[1])
+        let level = value.applying(to: GameTuning.bloomReferenceLevels[1])
         #expect(level.jellies == nil)
         #expect(!level.sidePocketExperiment)
         #expect(!level.bounceFoodPockets)
@@ -29,7 +46,7 @@ struct ArcadeTuningTests {
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         let store = ArcadeTuningStore(defaults: defaults)
-        var tuning = ArcadeTuning(level: GameTuning.bloomLevels[1])
+        var tuning = ArcadeTuning(level: GameTuning.bloomReferenceLevels[1])
         tuning.aiMaximum = 100
         tuning.releaseSeconds = 8
         store.save(tuning, world: .jellyBloom, index: 1)
@@ -46,9 +63,9 @@ struct ArcadeTuningTests {
     }
 
     @Test func tuningCanReduceJelliesWithoutAnInvalidSidePocket() {
-        var tuning = ArcadeTuning(level: GameTuning.bloomLevels[1])
+        var tuning = ArcadeTuning(level: GameTuning.bloomReferenceLevels[1])
         tuning.jellyCount = 1
-        let level = tuning.applying(to: GameTuning.bloomLevels[1])
+        let level = tuning.applying(to: GameTuning.bloomReferenceLevels[1])
         #expect(level.jellies?.count == 1)
         #expect(level.jellies?.maintainsFloorLane == true)
         #expect(!level.sidePocketExperiment)

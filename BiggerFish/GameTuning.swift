@@ -53,6 +53,8 @@ enum GameTuning {
     static let nearEqualThreshold: CGFloat = 0.01
     /// Collision distance = (rA + rB) * collisionScale. Bodies are 1.35r long and 0.95r tall.
     static let collisionScale: CGFloat = 1.05
+    /// Applies to every arcade meal, including saved tuning overrides and AI meals.
+    static let mealGrowthScale: CGFloat = 0.90
     static let growDuration: CGFloat = 0.35
     /// Seconds for the mouth to open when a swallow begins, and to close after it ends.
     static let mouthOpenSeconds: CGFloat = 0.06
@@ -147,7 +149,7 @@ enum GameTuning {
 
     /// World 1 remains intact. Bloom's curve varies the food-race window, not chase AI.
     /// Profiles were selected by real-scene simulations; see docs/jelly-bloom-balance.md.
-    static let bloomLevels: [Level] = [
+    static let bloomReferenceLevels: [Level] = [
         Level(spawnGroups: [(9, 0.30...0.65), (5, 0.65...0.85)],
               aiSpeedRange: 30...80, aiVerticalSpeed: 35, screenCrossSeconds: 3.1,
               absorptionEfficiency: 0.90,
@@ -165,6 +167,98 @@ enum GameTuning {
                        efficiency: 0.82, jellyCount: 7, jellyRadius: 48, tentacles: 75,
                        seedOffset: 1, compactSpeedScale: 0.763, mediumSpeedMultiplier: 0.85),
     ]
+
+    /// Ten evenly spaced design targets. Human difficulty remains a playtest measurement.
+    static let bloomValidatedSeeds: [UInt64] = [1, 0, 4, 4, 6, 1, 3, 12, 26, 38]
+    static let bloomLevels: [Level] = (0..<10).map { index in
+        let difficulty = EncounterDifficulty(value: Double(index) / 9)
+        let speed: ClosedRange<CGFloat> = index == 1 ? 40...175
+            : (35 + CGFloat(difficulty.bounded) * 35)...(150 + CGFloat(difficulty.bounded) * 50)
+        return Level(spawnGroups: [(16, 0.65...3)],
+            aiSpeedRange: speed, aiVerticalSpeed: index == 1 ? 85 : 65 + CGFloat(difficulty.bounded) * 35,
+            screenCrossSeconds: 3.1, absorptionEfficiency: freeEncounterAbsorption,
+            jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6,
+                night: index >= 7, maintainsFloorLane: true),
+            roamingFoodChain: true, ecosystemSeedOffset: bloomValidatedSeeds[index],
+            encounterDifficulty: difficulty, freeEncounterMovement: true)
+    }
+
+    // Encounter groups are authoring budgets, never movement cages. Level 2 retains its accepted layout.
+    static let freeEncounterAbsorption: CGFloat = 0.55
+    static let freeEncounterCatchFraction: ClosedRange<CGFloat> = 0.55...0.90
+    static let freeEncounterCounts = [4, 3, 5, 4]
+    static let freeEncounterEdibleCounts = [3, 2, 3, 3]
+    static let freeEncounterEdibleSizes: ClosedRange<CGFloat> = 0.65...1.0
+    static let freeEncounterThreatSizes: ClosedRange<CGFloat> = 1.15...1.35
+    static let freeEncounterHeights: [CGFloat] = [0.32, 0.67, 0.40, 0.56]
+    static let freeEncounterReleaseScreens: CGFloat = 0.18
+    static let freeEncounterLingerScreens: CGFloat = 0.30
+    static let freeEncounterSpawnSpreadScreens: CGFloat = 0.28
+    static let freeEncounterFacingRate: CGFloat = 14
+    static let freeEncounterEdibleShare: ClosedRange<CGFloat> = 0.62...0.85
+    static let freeEncounterHeightVariation: CGFloat = 0.07
+    static let freeEncounterHorizontalVariation: CGFloat = 0.16
+
+    static func freeEncounterExpectedCatchFraction(_ difficulty: Double) -> CGFloat {
+        let value = CGFloat(min(1, max(0, difficulty)))
+        let anchor: CGFloat = 1.0 / 9
+        let accepted: CGFloat = freeEncounterCatchFraction.lowerBound
+            + anchor * (freeEncounterCatchFraction.upperBound - freeEncounterCatchFraction.lowerBound)
+        return value <= anchor ? 0.45 + (accepted - 0.45) * value / anchor
+            : accepted + (freeEncounterCatchFraction.upperBound - accepted) * (value - anchor) / (1 - anchor)
+    }
+
+    static func freeEncounterWaveBudgets(seed: UInt64, difficulty: Double, preserveLevelTwo: Bool) -> [(count: Int, edible: Int)] {
+        if preserveLevelTwo {
+            return zip(freeEncounterCounts, freeEncounterEdibleCounts).map { (count: $0.0, edible: $0.1) }
+        }
+        var generator = SeededGenerator(seed: seed &+ 0x94D049BB133111EB)
+        let counts = freeEncounterCounts.shuffled(using: &generator)
+        let share = freeEncounterEdibleShare.upperBound - CGFloat(min(1, max(0, difficulty)))
+            * (freeEncounterEdibleShare.upperBound - freeEncounterEdibleShare.lowerBound)
+        return counts.map { count in
+            let varied = share + CGFloat.random(in: -0.06...0.06, using: &generator)
+            return (count: count, edible: min(count - 1, max(2, Int((CGFloat(count) * varied).rounded()))))
+        }
+    }
+
+
+    static let encounterCatchBudget: ClosedRange<Double> = 3.5...10.5
+    static let encounterClearance: ClosedRange<CGFloat> = 10...32
+    static let encounterFoodSpacingScreens: CGFloat = 0.15
+    static let encounterThreatOffsetScreens: CGFloat = 0.18
+    static let encounterFormations: [EncounterFormation] = [
+        EncounterFormation(name: "opening", foodOffsets: [
+            CGPoint(x: -encounterFoodSpacingScreens, y: 0), .zero, CGPoint(x: encounterFoodSpacingScreens, y: 0)], threatOffset: encounterThreatOffsetScreens),
+        EncounterFormation(name: "descending", foodOffsets: [
+            CGPoint(x: -0.17, y: 24), CGPoint(x: -0.015, y: 12), CGPoint(x: 0.17, y: 0)], threatOffset: 0.20),
+        EncounterFormation(name: "ascending", foodOffsets: [
+            CGPoint(x: -0.17, y: 0), CGPoint(x: 0.015, y: 12), CGPoint(x: 0.17, y: 24)], threatOffset: -0.20),
+        EncounterFormation(name: "crest", foodOffsets: [
+            CGPoint(x: -0.19, y: 0), CGPoint(x: 0, y: 24), CGPoint(x: 0.19, y: 0)], threatOffset: 0.25),
+    ]
+
+    static func encounterFormationOrder(seed: UInt64) -> [EncounterFormation] {
+        var generator = SeededGenerator(seed: seed &+ 0xD1B54A32D192ED03)
+        return [encounterFormations[0]] + encounterFormations.dropFirst().shuffled(using: &generator)
+    }
+    static let encounterBellHeight: ClosedRange<CGFloat> = 0.30...0.43
+    static let encounterFoodRadius: CGFloat = 0.85
+    static let encounterAbsorption: CGFloat = 0.82
+    static let encounterCount = 4
+    static let encounterFoodCount = 3
+    static let encounterPatrolWidth: CGFloat = 42
+    static let encounterPatrolHeight: CGFloat = 12
+    static let encounterPatrolSpeedScale: CGFloat = 0.75
+    static let encounterTurnLead: CGFloat = 16
+    static let encounterFacingRate: CGFloat = 14
+    static let encounterSeparationPadding: CGFloat = 12
+    static let encounterSeparationLookAhead: CGFloat = 0.6
+    static let encounterSeparationSpeed: CGFloat = 65
+    static let encounterExitScreens: CGFloat = 0.45
+    static let encounterFirstScreens: CGFloat = 0.75
+    static let encounterSpacingScreens: CGFloat = 0.78
+    static let encounterJitterScreens: CGFloat = 0.04
 
     private static func bloomRaceLevel(foodCount: Int, giants: Int, speed: ClosedRange<CGFloat>,
                                        vertical: CGFloat, efficiency: CGFloat, jellyCount: Int,
@@ -227,6 +321,7 @@ struct Level {
     /// Seconds for the player to cross one screen width.
     let screenCrossSeconds: CGFloat
     let absorptionEfficiency: CGFloat
+    var effectiveAbsorptionEfficiency: CGFloat { absorptionEfficiency * GameTuning.mealGrowthScale }
     var jellies: JellyLayout? = nil
     var aiCanEat: Bool = true
     var requiredMeals: Int = 0
@@ -238,4 +333,6 @@ struct Level {
     var ecosystemSeedOffset: UInt64 = 0
     var compactAISpeedScale: CGFloat = 1
     var mediumAISpeedMultiplier: CGFloat = 1
+    var encounterDifficulty: EncounterDifficulty? = nil
+    var freeEncounterMovement: Bool = false
 }

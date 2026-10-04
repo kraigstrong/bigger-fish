@@ -1,5 +1,10 @@
 # Independent NPC movement sequences
 
+The campaign measurements below describe the original five-level profiles. The
+new ten-level encounter campaign and current validation are documented in
+[jelly-bloom-free-campaign.md](jelly-bloom-free-campaign.md). The original
+opening remains available as a reference; its checks are retained.
+
 Phase 2 gives every arcade NPC its own reproducible movement generator, derived from the ecosystem seed and stable fish ID. Spawning still uses the original shared generator, with no added draws: placement, size, initial speed, initial timers, and art selection keep their existing sequence. Both Shallow Reef and Jelly Bloom use the new movement streams.
 
 Turn intervals, vertical targets, and retarget intervals now consume only that fish’s stream. Swallowing or removing another fish cannot shift its random choices. Independent state is recreated on retry and released when a fish is removed. Newly added NPCs receive a stream too. Debug recordings identify the new behavior with `aiMovementRandomVersion: 1`.
@@ -43,7 +48,7 @@ At width 874, the cautious Level 5 opening changes:
 
 The first two catches stay almost identical, but fish 10 becomes available before the old third catch. This new route has three close meals and its last threat occurs at approximately 58% of the run, versus four close meals and 67% before.
 
-## Playtest decision
+## Historical phase 2 playtest decision
 
 The user chose to play the new behavior before deciding whether to preserve the old opening. No level balance changes or seed searches were made. The existing campaign-winning-route/opening regression remains enabled and currently fails; the phase 2 PR is a draft pending phone playtesting and balance decisions. It must not be treated as merge-ready merely because stream-independence checks pass.
 
@@ -64,12 +69,38 @@ Phone playtesting reported a stutter at every player meal. `AVAudioPlayer` setup
 voice selection, seeking, and playback previously ran on the gameplay thread.
 These now run exclusively on a serial audio worker; initialization is queued before
 playback requests. The hidden meal counter is no longer updated during campaign
-play. These remove two potential sources of main-thread work, but the physical-phone
-cause has not yet been measured or confirmed resolved.
+play. The user confirmed that this change resolved the meal stutter on the physical
+phone.
 
 Debug run files now include `frame_hitch` for display gaps or update work longer
 than about 41.7 ms, and `meal_hitch` for swallowing completion work longer than
 about 8.3 ms. Frame entries include elapsed time, update work time, player meals,
 remaining fish, and slowdown factor. These events use the existing asynchronous
 local writer; neither diagnostics nor their clock reads are included in Release.
-Rebuild on the phone and collect a few meals before concluding the hitch is fixed.
+Subsequent recordings can use these events to diagnose future performance regressions.
+
+## Historical follow-up CI investigation
+
+The user accepted the current gameplay baseline while noting further tuning is
+needed. CI’s old first-four-catches reference is now updated to fish 1, 8, 10, 18.
+The wide-phone Level 5 route uses the already-tested opportunist controller, which
+still wins with three close meals and threats continuing beyond 60% of the run.
+Neither the close-meal nor late-threat checks was weakened.
+
+An additional 390 controller rollouts varied reaction cadence (81), prediction
+horizon (189), and food/danger priorities (120). A 0.8-second prediction horizon
+with 0.10-second decisions finds a winning Level 3 route at width 667 in about
+30.55 seconds. This brings demonstrated winning level/size combinations to 13/15.
+Level 2 at widths 874 and 852 uses the cautious controller’s existing winning route.
+
+The complete local suite now reports only two failing expectations, both in the
+campaign route test: Level 4 at width 874 times out; Level 5 at width 667 loses.
+The other 62 test cases pass. These bot failures are not proofs of impossibility.
+The user is being asked whether to retain these as blocking checks or report them
+as advisory balance results during tuning. No CI check has yet been disabled and
+no shipped level, NPC seed, or gameplay rule changed during this investigation.
+
+Controller overrides and their values are included in debug simulation results;
+default controller settings are preserved. Local raw studies are under
+`build/arcade-development/route-cadence-baseline.json`,
+`route-prediction-results.json`, and `route-priority-results.json`.

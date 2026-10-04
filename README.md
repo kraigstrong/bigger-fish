@@ -5,9 +5,9 @@ There's always a bigger fish.
 Arcade prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
-The world map opens **Shallow Reef** (the original five levels) and **Jelly Bloom** (five new levels).
+The world map opens **Shallow Reef** (the original five levels) and **Jelly Bloom** (ten encounter-based levels).
 Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
-adds safe dome bounces and lethal tentacles, with food pockets above stepped and chained bounce routes.
+adds safe dome bounces and lethal tentacles, with protected first encounters followed by AI food races.
 A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
 the original drift behavior and tuning. Both worlds use numbered levels.
 
@@ -30,7 +30,7 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'p
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
-  - `ArcadeMaps.swift` — world selection and the five-stop level paths
+  - `ArcadeMaps.swift` — world selection and the level paths (five stops in Shallow Reef, ten in Bloom)
   - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and local campaign saves
   - `Jellyfish.swift` / `ArcadeArt.swift` — arcade-only hazard rules and procedural artwork
   - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them
@@ -107,8 +107,9 @@ python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-
 
 Every feel constant — movement, growth, swallow timing, AI behavior, spawn distribution,
 and the `aiFishCanEatEachOther` flag — lives in `BiggerFish/GameTuning.swift`.
-Shallow Reef's five levels are defined in `GameTuning.levels`; Jelly Bloom's five are in
-`GameTuning.bloomLevels`. Each sets the spawn mix, fish speeds, player speed, and meal growth;
+Shallow Reef's five levels are defined in `GameTuning.levels`; Jelly Bloom's ten are in
+`GameTuning.bloomLevels`. Bloom uses a continuous encounter difficulty target; its original five
+profiles remain in `GameTuning.bloomReferenceLevels` for comparison. Each sets fish speeds, player speed, and meal growth;
 Bloom also sets jelly count, tentacle length, sway, urchin beds, and its night palette.
 
 For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4` in Xcode (world ID
@@ -171,8 +172,8 @@ spawn shortfalls, and growth stalls. Simulation time excludes pauses and account
 The growth check repeatedly consumes edible fish using the game's area-growth and near-equal
 rules. It optimistically ignores geometry and future AI competition and checks stable snapshots
 without active swallows. If it still cannot eat all remaining fish, the current food chain needs
-an AI/hazard change to progress. This does not prove the whole level impossible: hazards can kill
-fish. Threat/cleanup metrics concern fish danger, not jelly danger. Thresholds such as five-second
+an AI/hazard change to progress. This does not prove the whole level impossible: future AI interactions can change the
+food chain. Jellyfish no longer kill AI fish. Threat/cleanup metrics concern fish danger, not jelly danger. Thresholds such as five-second
 early deaths are descriptive; fast deaths can be desirable opening tension. Cleanup tails are
 review signals, not a validated universal fun score.
 Compare them with player feedback, especially the favorite Shallow Reef level 4 recordings.
@@ -185,17 +186,19 @@ fractionally larger opponent. NPC ties still bump apart. New run headers include
 
 ### Simulate food races locally (Debug only)
 
-The five Jelly Bloom profiles were selected with 1,642 real-scene rollouts. Read
-[the balance study](docs/jelly-bloom-balance.md) for the growth-area calculation, pass-based
-recovery measurements, selected seeds, and limits of bot-based evaluation. Three phone sizes
-have demonstrated winning routes for every shipped level. Horizontal AI speeds are eased on
-smaller Bloom viewports; tuning controls specify the nominal reference-width speeds.
+The freely moving ten-level campaign and its 1,488 seed-search/validation runs are described in
+[the campaign report](docs/jelly-bloom-free-campaign.md). The debug tuner exposes difficulty,
+seed re-rolls, copyable full seeds, effective growth, and an advisory three-size winning-route check.
+
+The original five Jelly Bloom profiles and bounded-patrol experiments remain documented as
+historical studies in [the original balance report](docs/jelly-bloom-balance.md) and
+[the encounter experiment report](docs/jelly-bloom-difficulty-system.md).
 
 To repeat the final validation:
 
 ```sh
 python3 scripts/study-arcade-balance.py \
-  --profiles docs/jelly-bloom-study-profiles.json --seeds 0,7,13,23 --passes 0 \
+  --profiles docs/jelly-bloom-free-campaign-profiles.json --seeds 0 --passes 0 \
   --sizes 874x402,852x393,667x375 --limit 90 --run \
   --output build/arcade-development/studies/validation
 ```
@@ -206,3 +209,5 @@ The study uses simulator tests, does not render or record runs, and cannot write
 progress. Its activation marker is removed by the command afterward. Normal test runs skip
 large studies unless that marker was explicitly prepared. Shut down the simulator after a batch
 if you are done testing.
+
+Current Jelly Bloom playtest: [free-moving ten-level campaign](docs/jelly-bloom-free-campaign.md), with globally reduced meal growth.

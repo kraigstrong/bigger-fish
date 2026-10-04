@@ -67,6 +67,10 @@ enum ArcadeSimulation {
         let candidate: String
         let level: Int
         let policy: Policy
+        var decisionIntervalSeconds: Double? = nil
+        var predictionSeconds: Double? = nil
+        var foodPriority: Double? = nil
+        var dangerWeight: Double? = nil
         let seed: Int
         let width: Double
         let skippedFirstPassFishIDs: [Int]
@@ -97,7 +101,7 @@ enum ArcadeSimulation {
 
     /// Predict short local trajectories for both inputs. Only visible fish enter the observation.
     /// Prediction is approximate; the rollout itself always advances the actual scene physics.
-    static func holding(_ observation: Observation, policy: Policy, feeding: Bool = true) -> Bool {
+    static func holding(_ observation: Observation, policy: Policy, feeding: Bool = true, predictionSeconds: CGFloat = 0.6, foodPriority: CGFloat? = nil, dangerWeight: CGFloat? = nil) -> Bool {
         let p = observation.player
         let wrapped = WrappedWorld(width: observation.width)
         let food = observation.fish.filter { feeding && $0.canEat && GameRules.playerEncounter(p.radius, $0.radius) == .firstEatsSecond }
@@ -107,7 +111,7 @@ enum ArcadeSimulation {
                 if dx < -(p.radius + f.radius) { dx += observation.width }
                 let intercept = min(2, max(0, dx / max(60, observation.speed - f.vx)))
                 let vertical = abs(f.y + f.vy * intercept - p.y)
-                let mealValue: CGFloat = policy == .opportunist ? f.radius * 4 : 0
+                let mealValue = f.radius * (foodPriority ?? (policy == .opportunist ? 4 : 0))
                 return dx + vertical * 1.6 - mealValue
             }
             return value(a) < value(b)
@@ -120,13 +124,14 @@ enum ArcadeSimulation {
         var best = CGFloat.greatestFiniteMagnitude
         var choice = false
         // Four input sequences let the bot brake a fall or start a descent instead of holding forever.
+        let predictionSteps = max(2, Int((predictionSeconds * 30).rounded()))
         for sequence in 0..<4 {
             var y = p.y, vy = p.vy, x = p.x
             var cost: CGFloat = 0
             var bounced = observation.bouncing
-            for step in 1...18 {
+            for step in 1...predictionSteps {
                 let dt: CGFloat = 1.0 / 30
-                let hold = sequence & (step <= 9 ? 1 : 2) != 0
+                let hold = sequence & (step <= predictionSteps / 2 ? 1 : 2) != 0
                 var motion = GameTuning.motion
                 if bounced { motion.maxRiseSpeed = observation.bounceSpeed; motion.fallAcceleration *= 0.35 }
                 let old = CGPoint(x: x, y: y)
@@ -152,9 +157,9 @@ enum ArcadeSimulation {
                     let dy = f.y + f.vy * time - y
                     let gap = hypot(dx, dy) - (p.radius + f.radius) * GameTuning.collisionScale
                     if GameRules.playerEncounter(p.radius, f.radius) == .secondEatsFirst {
-                        let dangerWeight: CGFloat = policy == .cautious ? 140 : (policy == .opportunist ? 45 : 80)
+                        let threatCost: CGFloat = dangerWeight ?? (policy == .cautious ? 140 : (policy == .opportunist ? 45 : 80))
                         if gap < 0 { cost += 100_000 }
-                        else { cost += max(0, 75 - gap) * dangerWeight / 18 }
+                        else { cost += max(0, 75 - gap) * threatCost / CGFloat(predictionSteps) }
                     } else if GameRules.playerEncounter(p.radius, f.radius) == .firstEatsSecond && gap < 0 {
                         cost += feeding && f.canEat ? (policy == .opportunist ? -300 : -150) : 100_000
                     }
