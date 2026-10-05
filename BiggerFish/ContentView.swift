@@ -47,7 +47,7 @@ struct ContentView: View {
             .padding(.trailing, 12).padding(.bottom, 4)
         }
         .sheet(isPresented: $showsTuning) {
-            // The tuner edits campaign levels; from Reef Lab it opens on Shallow Reef.
+            // The tuner edits seeded campaign levels; from Shallow Reef 2 it opens on Shallow Reef.
             let current = scene?.arcadeWorld ?? selectedWorld ?? .jellyBloom
             let campaign = ArcadeWorld.campaign.contains(current)
             ArcadeTuningPanel(store: tuningStore, world: campaign ? current : .shallowReef,

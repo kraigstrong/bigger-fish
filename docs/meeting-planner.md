@@ -112,12 +112,12 @@ variations still plan on the device.
 
 ## Playing them
 
-Debug builds show **Reef Lab** as the third world on the map. Its levels unlock one at a time like the
-campaign's, with clears and best times saved under `reef-lab` IDs, so level N compares with Shallow Reef
-level N. **Tuning > Players** resets a world's progress for a new player. Reef Lab is hidden from Release
-and TestFlight builds (`ArcadeWorld.mapWorlds`).
+Every build, TestFlight included, shows Reef Lab as **Shallow Reef 2**, the third world on the map, so
+testers can compare it with Shallow Reef. Its levels unlock one at a time like the campaign's, with clears
+and best times saved under `reef-lab` IDs (also its anonymous analytics world), so level N compares with
+Shallow Reef level N. In Debug builds, **Tuning > Players** resets a world's progress for a new player.
 
-**Tuning > Reef Lab variations** plays other layouts of the same settings as practice runs, or launch with
+**Tuning > Shallow Reef 2 variations** (Debug) plays other layouts of the same settings as practice runs, or launch with
 `-arcadePlanner 10.3` (level 10, variation 3); `-arcadePlaytest reef-lab.10` plays the level itself.
 Recordings include each fish's role, fork lane, gate meals, routes, and slack.
 

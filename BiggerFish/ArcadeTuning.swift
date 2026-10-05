@@ -271,12 +271,12 @@ struct ArcadeTuningPanel: View {
                             Button("Reset \(resetWorld.title)", role: .destructive) { onResetProgress(resetWorld) }
                         }
                 }
-                Section("Reef Lab variations") {
-                    Text("Other layouts of the same Reef Lab settings: every fish swims freely but is timed to cross your path at a planned height. Practice runs only.")
+                Section("\(ArcadeWorld.reefLab.title) variations") {
+                    Text("Other layouts of the same \(ArcadeWorld.reefLab.title) settings: every fish swims freely but is timed to cross your path at a planned height. Practice runs only.")
                         .font(.footnote)
                     Stepper("Variation: \(plannerVariation)", value: $plannerVariation, in: 0...99)
                     ForEach(Array(GameTuning.reefLabSpecs.enumerated()), id: \.offset) { index, spec in
-                        Button("Play Reef Lab level \(index + 1)") {
+                        Button("Play \(ArcadeWorld.reefLab.title) level \(index + 1)") {
                             dismiss()
                             onPlanner(spec, plannerVariation)
                         }

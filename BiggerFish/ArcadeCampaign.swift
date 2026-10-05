@@ -4,33 +4,28 @@ import Foundation
 enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     case shallowReef = "shallow-reef"
     case jellyBloom = "jelly-bloom"
-    /// Planned-meeting levels for A/B testing against the campaign; see docs/meeting-planner.md.
+    /// Planned-meeting levels, shown as Shallow Reef 2, to A/B test against Shallow Reef; see
+    /// docs/meeting-planner.md. Its ID stays "reef-lab" for saved progress and analytics.
     case reefLab = "reef-lab"
 
-    /// The shipped campaign worlds, in map order.
+    /// The seeded campaign worlds, which the debug tuner edits.
     static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom]
-    /// Worlds on the map. Reef Lab is Debug-only for now.
-    static var mapWorlds: [ArcadeWorld] {
-        #if DEBUG
-        return campaign + [.reefLab]
-        #else
-        return campaign
-        #endif
-    }
+    /// Worlds on the map, in every build: TestFlight compares Shallow Reef with Shallow Reef 2.
+    static let mapWorlds: [ArcadeWorld] = campaign + [.reefLab]
 
     var id: String { rawValue }
     var title: String {
         switch self {
         case .shallowReef: "Shallow Reef"
         case .jellyBloom: "Jelly Bloom"
-        case .reefLab: "Reef Lab"
+        case .reefLab: "Shallow Reef 2"
         }
     }
     var subtitle: String {
         switch self {
         case .shallowReef: "Eat. Dodge. Grow."
         case .jellyBloom: "Bounce the tops. Dodge the tentacles."
-        case .reefLab: "Planned levels to compare with Shallow Reef."
+        case .reefLab: "Eat. Dodge. Grow."
         }
     }
     var levels: [Level] {
