@@ -66,26 +66,34 @@ pass each other.
 
 `GameTuning.reefLabSpecs` is a planned Shallow Reef, slot for slot with the campaign. Levels 2, 6, and 10
 are the playtested Easy, Medium, and Hard (their names seed their layouts); the levels between step every
-setting from one to the next, with speeds following Shallow Reef's authoring curve. Level 1 introduces
-gates without big fish; level 8 is Hard's shape without walls; walls arrive at level 9.
+setting from one to the next, with speeds following Shallow Reef's authoring curve. Level 1 introduces gates
+with a couple of big fish to avoid; level 8 is Hard's shape without walls; walls arrive at level 9.
 
-| | Fish | Forks | Misses survived per gate | Bot wins |
+Every level places all the big fish its settings ask for: one that can't be sized where it was asked for
+(an open-water slot, or a meal late in the lap) moves to the latest earlier slot or meal where it can be
+(`placesEveryThreat`). Easy, Medium, and Hard were calibrated before that and each keep one fewer.
+
+| Level | Fish | Forks | Misses survived per gate | First playtest (an experienced player) |
 |---|---:|---:|---|---|
-| 1 | 10 | 2 | 3+, 2 | 3/3 |
-| 2 (Easy) | 17 | 3 | 3+, 2, 2 | 3/3 |
-| 3–5 | 19–22 | 3 | 1–2 | 2/3–3/3 |
-| 6 (Medium) | 22 | 3 | 1, 1, 1 | 1/3 |
-| 7–8 | 24–25 | 4 | 1 | 1/3 |
-| 9 | 29 | 4 | 1 | 0/3 |
-| 10 (Hard) | 29 | 4 | 0, 0, 0 on the short lanes | 0/3 |
+| 1 | 12 | 2 | 3+, 2 | first try |
+| 2 (Easy) | 17 | 3 | 3+, 2, 2 | first try |
+| 3 | 19 | 3 | 1–2 | 5 tries: a spike above 4–8 |
+| 4–5 | 21–23 | 3 | 1–2 | 2 tries each |
+| 6 (Medium) | 22 | 3 | 1, 1, 1 | 2 tries |
+| 7 | 25 | 4 | 1 | 3 tries |
+| 8 | 26 | 4 | 1 | first try; "about perfect" |
+| 9 | 30 | 4 | 1 | 20 tries; "about perfect" |
+| 10 (Hard) | 29 | 4 | 0, 0, 0 on the short lanes | 17 tries; "about perfect" |
+
+Levels 8 and 9 each keep one fish slightly off its planned height (a 14–16 point miss) as playtested.
 
 Hard's meals are 76–90% of your size and its gates barely edible, so every catch is a close call. Its
 gates are walled (`walledGates`): a big fish crosses a tenth of a second before and after each gate,
 just above and below it, too tight to slip between and too quick to swim around, so a gate can't be
 dodged and saved for lap two. Starting a swallow makes you safe, so a big-enough player eats the gate
 and the walls pass by. The last gate goes unwalled when its walls couldn't be outgrown by lap two.
-Returning fish come back at 94–99% of the size you should be. Playtested: 17 attempts to the first win,
-deaths spread from 2.8 to 7.5 s, in line with Shallow Reef 10 (18 attempts). Because near-size meals
+Returning fish come back at 94–99% of the size you should be. Its first playtest took 17 attempts, deaths
+spread from 2.8 to 7.5 s, in line with Shallow Reef 10 (18 attempts). Because near-size meals
 grow routes apart quickly, Hard times its meetings against the player who barely makes each gate
 (`timesTheEdge`).
 
