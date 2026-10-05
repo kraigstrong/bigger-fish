@@ -48,7 +48,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showsTuning) {
             ArcadeTuningPanel(store: tuningStore, world: scene?.arcadeWorld ?? selectedWorld ?? .jellyBloom,
-                              index: scene?.debugLevelIndex ?? 1) { world, index in
+                              index: scene?.debugLevelIndex ?? 1, onPlanner: playPlanner) { world, index in
                 selectedWorld = world
                 play(world, index: index, practice: true)
             }
@@ -67,9 +67,24 @@ struct ContentView: View {
                 selectedWorld = selection.world
                 play(selection.world, index: selection.index)
             }
+            if scene == nil, let planner = ArcadePlaytest.planner {
+                playPlanner(planner.spec, variation: planner.variation)
+            }
             #endif
         }
     }
+
+    #if DEBUG
+    /// A planned test level, always a practice run: no clears, progress, or analytics.
+    private func playPlanner(_ spec: MeetingSpec, variation: Int) {
+        let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        game.debugUsePlanner(spec, variation: variation)
+        game.debugPracticeRun = true
+        game.onExit = { [weak game] in game?.exitMetrics(); scene = nil }
+        selectedWorld = .shallowReef
+        scene = game
+    }
+    #endif
 
     private func play(_ world: ArcadeWorld, index: Int, practice: Bool = false) {
         #if DEBUG

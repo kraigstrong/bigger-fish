@@ -318,6 +318,32 @@ enum GameTuning {
             encounterDifficulty: difficulty, freeEncounterMovement: true, ecosystemSeedIndex: index)
     }
 
+    // MARK: Meeting planner (prototype, fish-only)
+
+    /// Planned fish you haven't met only separate within this many points of the screen.
+    static let plannedContactScreenMargin: CGFloat = 100
+    /// The planner keeps unmet fish apart over a wider window, so route timing drift can't bring a contact on screen.
+    static let plannerContactScreenMargin: CGFloat = 180
+
+    /// Easy, medium, and hard planned Shallow Reef levels for phone testing. Speeds follow the campaign's
+    /// levels 2, 6, and 10; slack, routes, and danger are what the planner adds.
+    static let plannerPresets: [MeetingSpec] = [
+        MeetingSpec(name: "Easy",
+            segments: [.init(foods: 4, needed: 1), .init(foods: 4, needed: 2, dangerFoods: 1), .init(foods: 4, needed: 2)],
+            extraThreats: 3, headOnShare: 0.3, heightSwing: 0.1...0.45, foodSize: 0.68...0.84, gateMargin: 0.8,
+            dangerGap: 70, threatClearance: 110, spacing: 0.25, aiSpeed: 48...129, aiVertical: 64, crossSeconds: 2.86),
+        MeetingSpec(name: "Medium",
+            segments: [.init(foods: 4, needed: 2, dangerFoods: 1), .init(foods: 4, needed: 2, dangerFoods: 1),
+                       .init(foods: 4, needed: 3)],
+            extraThreats: 4, headOnShare: 0.45, heightSwing: 0.35...0.75, foodSize: 0.66...0.82, gateMargin: 0.45,
+            dangerGap: 45, threatClearance: 70, spacing: 0.22, aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68),
+        MeetingSpec(name: "Hard",
+            segments: [.init(foods: 3, needed: 2, dangerFoods: 1), .init(foods: 3, needed: 3, dangerFoods: 1),
+                       .init(foods: 4, needed: 3)],
+            extraThreats: 4, headOnShare: 0.6, heightSwing: 0.6...0.9, foodSize: 0.64...0.8, gateMargin: 0.15,
+            dangerGap: 28, threatClearance: 40, spacing: 0.22, aiSpeed: 70...200, aiVertical: 100, crossSeconds: 2.5),
+    ]
+
     /// Preserve the original campaign, including the favorite fourth level, for debug comparison.
     static let shallowReferenceLevels: [Level] = [
         Level(
@@ -367,6 +393,8 @@ struct Level {
     var freeEncounterMovement: Bool = false
     /// Seed identity is independent of the displayed campaign number.
     var ecosystemSeedIndex: Int? = nil
+    /// Planned meetings replace seeded spawning; see docs/meeting-planner.md.
+    var meetingPlan: MeetingPlan? = nil
     func spawnSeed(index: Int, bloom: Bool, offset: UInt64? = nil) -> UInt64 {
         GameTuning.spawnSeed &+ UInt64((ecosystemSeedIndex ?? index) + (bloom ? 100 : 0))
             &+ (offset ?? ecosystemSeedOffset)

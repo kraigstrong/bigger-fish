@@ -162,6 +162,12 @@ Presets are local, hold at most ten names, and can be applied to another level. 
 starting fish cannot always fit extreme combinations; the run analysis flags spawn shortfalls.
 These tools and overrides are absent in Release/TestFlight.
 
+### Meeting planner (Debug only)
+
+**Tuning > Meeting planner** plays easy, medium, and hard fish-only levels whose meetings are planned:
+each gate's slack and routes are designed, and every fish still swims freely into its meeting. Launch
+with `-arcadePlanner medium` to skip the menu. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
+
 ### Automatic run diagnostics
 
 Pulling recordings also writes `build/arcade-runs/analysis/report.md` and `metrics.json`.

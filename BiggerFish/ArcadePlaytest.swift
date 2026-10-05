@@ -19,6 +19,16 @@ enum ArcadePlaytest {
         return (world, number - 1)
     }
 
+    /// A planned test level: -arcadePlanner hard, or -arcadePlanner hard.3 for another variation.
+    static var planner: (spec: MeetingSpec, variation: Int)? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let flag = args.firstIndex(of: "-arcadePlanner"), args.indices.contains(flag + 1) else { return nil }
+        let parts = args[flag + 1].split(separator: ".")
+        guard let name = parts.first,
+              let spec = GameTuning.plannerPresets.first(where: { $0.name.lowercased() == name.lowercased() }) else { return nil }
+        return (spec, parts.count > 1 ? Int(parts[1]) ?? 0 : 0)
+    }
+
     /// A visual-only result preview; no clear or purchase is recorded.
     static var resultPreview: Bool? {
         let args = ProcessInfo.processInfo.arguments
