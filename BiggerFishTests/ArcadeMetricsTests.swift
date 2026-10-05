@@ -5,6 +5,10 @@ import Testing
 
 @MainActor
 struct ArcadeMetricsTests {
+    @Test func defaultCollectionStaysOffDuringTests() {
+        #expect(ArcadeAnalytics.isRunningTests)
+        #expect(!ArcadeAnalytics.defaultEnabled)
+    }
     @Test func growthBudgetHandlesTiesMissingFoodAndUnknownSwallows() {
         #expect(ArcadeGrowthSnapshot.measure(player: 10, opponents: [10], efficiency: 0.495).path == .available)
         #expect(ArcadeGrowthSnapshot.measure(player: 10, opponents: [20], efficiency: 0.495).path == .noPath)
