@@ -1,7 +1,13 @@
+import FishKit
+import SpriteKit
 import SwiftUI
 
 extension ArcadeWorld {
-    var color: Color { self == .shallowReef ? Color(red: 0.18, green: 0.78, blue: 0.72) : Color(red: 0.75, green: 0.52, blue: 1) }
+    var color: Color { Color(uiColor: mapColor) }
+    var mapColor: UIColor {
+        self == .shallowReef ? UIColor(red: 0.18, green: 0.78, blue: 0.72, alpha: 1)
+                            : UIColor(red: 0.75, green: 0.52, blue: 1, alpha: 1)
+    }
 }
 
 struct ArcadeWorldMap: View {
@@ -9,54 +15,52 @@ struct ArcadeWorldMap: View {
     let onSelect: (ArcadeWorld) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 31))
-                Spacer()
-                Text("CHOOSE YOUR WORLD").font(.custom("AvenirNext-DemiBold", size: 12)).tracking(2).opacity(0.75)
-            }
-            .padding(.horizontal, 24).padding(.top, 14)
-            GeometryReader { geometry in
-                let width = geometry.size.width
-                let height = geometry.size.height
-                let diameter = min(140.0, height * 0.52)
-                let centers = [CGPoint(x: width * 0.27, y: height * 0.47),
-                               CGPoint(x: width * 0.73, y: height * 0.47)]
-                Canvas { context, _ in
-                    var trail = Path()
-                    trail.move(to: CGPoint(x: centers[0].x, y: centers[0].y - 40))
-                    trail.addCurve(to: CGPoint(x: centers[1].x, y: centers[1].y - 40),
-                                   control1: CGPoint(x: width * 0.42, y: height * 0.85),
-                                   control2: CGPoint(x: width * 0.58, y: height * 0.05))
-                    context.stroke(trail, with: .color(.white.opacity(0.3)), style: StrokeStyle(lineWidth: 3, dash: [2, 10]))
-                }
-                ForEach(Array(ArcadeWorld.allCases.enumerated()), id: \.element.id) { index, world in
-                    let cleared = world.levels.indices.filter { progress.isCleared(world, $0) }.count
-                    Button { onSelect(world) } label: {
-                        VStack(spacing: 7) {
-                            ZStack {
-                                Circle().fill(world.color.opacity(0.16))
-                                    .overlay(Circle().stroke(world.color.opacity(0.65), lineWidth: 2))
-                                WorldIllustration(world: world).padding(diameter * 0.14)
+        GeometryReader { geometry in
+            let size = geometry.size
+            let width = max(size.width, CGFloat(ArcadeWorld.allCases.count) * 160 + 102)
+            let centers = OceanMapLayout.worldCenters(count: ArcadeWorld.allCases.count,
+                                                       size: CGSize(width: width, height: size.height))
+            let focus = ArcadeWorld.allCases.firstIndex { world in
+                world.levels.indices.contains { !progress.isCleared(world, $0) }
+            } ?? 0
+            ZStack(alignment: .topLeading) {
+                MapArtLayer(size: size, points: [], fishHome: nil, bed: true)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    ZStack(alignment: .topLeading) {
+                        MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
+                                    fishHome: CGPoint(x: centers[focus].x + 66, y: centers[focus].y + 14), bed: false)
+                        ForEach(Array(ArcadeWorld.allCases.enumerated()), id: \.element.id) { index, world in
+                            let cleared = world.levels.indices.filter { progress.isCleared(world, $0) }.count
+                            Button { onSelect(world) } label: {
+                                ZStack {
+                                    Circle().fill(world.color).overlay(Circle().stroke(.white, lineWidth: 4))
+                                        .frame(width: 80, height: 80)
+                                    Image(systemName: world == .shallowReef ? "fish.fill" : "water.waves")
+                                        .font(.system(size: 32, weight: .bold))
+                                    VStack(spacing: 4) {
+                                        Text(world.title).font(.custom("AvenirNext-Heavy", size: 16))
+                                        Text(cleared == world.levels.count ? "✓ World complete" : "\(cleared)/\(world.levels.count) cleared")
+                                            .font(.custom("AvenirNext-DemiBold", size: 13))
+                                    }.offset(y: 70)
+                                }
+                                .frame(width: 160, height: 180)
+                                .contentShape(Rectangle())
                             }
-                            .frame(width: diameter, height: diameter)
-                            .shadow(color: world.color.opacity(0.3), radius: 18)
-                            Text(world.title).font(.custom("AvenirNext-Heavy", size: 23))
-                            Text(world.subtitle).font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.85)
-                            Text(cleared == world.levels.count ? "✓ WORLD COMPLETE" : "\(cleared) / \(world.levels.count) LEVELS CLEARED")
-                                .font(.custom("AvenirNext-Bold", size: 11)).tracking(1).foregroundStyle(world.color)
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(world.title), \(cleared) of \(world.levels.count) levels cleared")
+                            .position(x: centers[index].x, y: size.height - centers[index].y)
                         }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(world.title), \(cleared) of \(world.levels.count) levels cleared")
-                    .position(centers[index])
+                    }.frame(width: width, height: size.height)
                 }
+                Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
+                    .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
+                VStack { Spacer(); Text("Choose a world")
+                    .font(.custom("AvenirNext-DemiBold", size: 13)).padding(.bottom, 12) }
+                    .frame(width: size.width).allowsHitTesting(false)
             }
-            Text("There's always a bigger fish.").font(.custom("AvenirNext-DemiBold", size: 14)).opacity(0.65)
-                .padding(.bottom, 13)
         }
         .foregroundStyle(.white)
-        .background(OceanBackdrop(bloom: false))
+        .background(MapWater())
     }
 }
 
@@ -67,84 +71,140 @@ struct ArcadeLevelMap: View {
     let onPlay: (Int) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button(action: onBack) { Label("Worlds", systemImage: "chevron.left") }
-                    .font(.custom("AvenirNext-DemiBold", size: 16)).buttonStyle(.plain)
-                    .padding(.vertical, 10)
-                Spacer()
-                VStack(spacing: 2) {
-                    Text(world.title).font(.custom("AvenirNext-Heavy", size: 27))
-                    Text(world.subtitle).font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.75)
-                }
-                Spacer()
-                Text("\(world.levels.indices.filter { progress.isCleared(world, $0) }.count)/\(world.levels.count) cleared")
-                    .font(.custom("AvenirNext-DemiBold", size: 13)).foregroundStyle(world.color)
-            }
-            .padding(.horizontal, 24).padding(.top, 10)
-            GeometryReader { geometry in
-                let width = geometry.size.width
-                let height = geometry.size.height
-                let rows = (world.levels.count + 4) / 5
-                let centers = world.levels.indices.map { i in
-                    let row = i / 5
-                    let column = row.isMultiple(of: 2) ? i % 5 : 4 - i % 5
-                    return CGPoint(x: width * (0.10 + Double(column) * 0.20),
-                        y: height * (rows == 1 ? (i.isMultiple(of: 2) ? 0.44 : 0.62) : (0.22 + Double(row) * 0.45)))
-                }
-                Canvas { context, _ in
-                    var path = Path()
-                    path.move(to: centers[0])
-                    for i in 1..<world.levels.count {
-                        path.addCurve(to: centers[i],
-                                      control1: CGPoint(x: (centers[i-1].x + centers[i].x) / 2, y: centers[i-1].y),
-                                      control2: CGPoint(x: (centers[i-1].x + centers[i].x) / 2, y: centers[i].y))
-                    }
-                    context.stroke(path, with: .color(.white.opacity(0.3)), style: StrokeStyle(lineWidth: 3, dash: [2, 9]))
-                }
-                ForEach(world.levels.indices, id: \.self) { index in
-                    let open = progress.isOpen(world, index)
-                    let cleared = progress.isCleared(world, index)
-                    let next = index == progress.nextLevel(in: world)
-                    Button { onPlay(index) } label: {
-                        VStack(spacing: rows > 1 ? 4 : 9) {
-                            ZStack {
-                                if next && open {
-                                    Circle().stroke(world.color.opacity(0.35), lineWidth: 7).frame(width: rows > 1 ? 58 : 75, height: rows > 1 ? 58 : 75)
+        GeometryReader { geometry in
+            let size = geometry.size
+            let width = max(size.width, OceanMapLayout.levelContentWidth(count: world.levels.count))
+            let centers = OceanMapLayout.levelCenters(count: world.levels.count, height: size.height)
+            let focus = progress.nextLevel(in: world)
+            ZStack(alignment: .topLeading) {
+                MapArtLayer(size: size, points: [], fishHome: nil, bed: true)
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        ZStack(alignment: .topLeading) {
+                            MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
+                                        fishHome: centers.indices.contains(focus) ? CGPoint(x: centers[focus].x, y: centers[focus].y + 58) : nil,
+                                        bed: false)
+                            ForEach(world.levels.indices, id: \.self) { index in
+                                let open = progress.isOpen(world, index)
+                                let cleared = progress.isCleared(world, index)
+                                Button { onPlay(index) } label: {
+                                    MapLevelStop(number: index + 1, color: world.color, open: open,
+                                                 cleared: cleared, current: index == focus,
+                                                 best: progress.save.bestTimes[world.levelID(index)])
                                 }
-                                Circle().fill(open ? world.color : Color.white.opacity(0.09))
-                                    .overlay(Circle().stroke(.white.opacity(open ? 0.9 : 0.25), lineWidth: 2.5))
-                                    .frame(width: rows > 1 ? 48 : 61, height: rows > 1 ? 48 : 61)
-                                if !open {
-                                    Image(systemName: "lock.fill").font(.system(size: 21)).foregroundStyle(.white.opacity(0.45))
-                                } else {
-                                    Text(cleared ? "✓" : "\(index + 1)").font(.custom("AvenirNext-Heavy", size: 27))
-                                        .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.24))
+                                .buttonStyle(.plain).disabled(!open)
+                                .accessibilityLabel("Level \(index + 1), \(open ? (cleared ? "cleared, replay" : "play") : "locked")")
+                                .position(x: centers[index].x, y: size.height - centers[index].y)
+                            }
+                            // Stable scroll targets are separate from the positioned buttons.
+                            HStack(spacing: 0) {
+                                Color.clear.frame(width: OceanMapLayout.levelStartX - OceanMapLayout.levelSpacing / 2)
+                                ForEach(world.levels.indices, id: \.self) { index in
+                                    Color.clear.frame(width: OceanMapLayout.levelSpacing, height: 1).id("level-\(index)")
                                 }
-                            }
-                            .frame(height: rows > 1 ? 58 : 76)
-                            Text(world.levelTitles[index]).font(.custom("AvenirNext-Bold", size: 13))
-                                .multilineTextAlignment(.center).frame(width: max(100, width * 0.18), height: rows > 1 ? 20 : 35)
-                                .opacity(open ? 1 : 0.45)
-                            if let best = progress.save.bestTimes[world.levelID(index)] {
-                                Text("Best \(Int(best))s").font(.custom("AvenirNext-DemiBold", size: 11)).foregroundStyle(world.color)
-                            } else {
-                                Text(open ? (next ? "PLAY" : "REPLAY") : "LOCKED")
-                                    .font(.custom("AvenirNext-Bold", size: 10)).tracking(1).opacity(0.6)
-                            }
-                        }
+                            }.allowsHitTesting(false)
+                        }.frame(width: width, height: size.height)
                     }
-                    .buttonStyle(.plain).disabled(!open)
-                    .accessibilityLabel("\(world.levelTitles[index]), \(open ? (cleared ? "cleared" : "play") : "locked")")
-                    .position(centers[index])
+                    .onAppear { proxy.scrollTo("level-\(focus)", anchor: .center) }
                 }
+                HStack(spacing: 14) {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left").font(.system(size: 18, weight: .bold))
+                            .frame(width: 44, height: 44)
+                            .background(.black.opacity(0.25), in: Circle())
+                            .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
+                    }.buttonStyle(.plain).accessibilityLabel("Back to worlds")
+                    Text(world.title).font(.custom("AvenirNext-Heavy", size: 26))
+                    Text("\(world.levels.indices.filter { progress.isCleared(world, $0) }.count)/\(world.levels.count) cleared")
+                        .font(.custom("AvenirNext-DemiBold", size: 14))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 24).padding(.top, 10)
+                VStack { Spacer(); Text("Clear a level to open the next. Swipe to explore.")
+                    .font(.custom("AvenirNext-DemiBold", size: 12)).padding(.bottom, 12) }
+                    .frame(width: size.width).allowsHitTesting(false)
             }
-            Text("Clear a level to open the next. Replay any cleared level.")
-                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.6)
-                .padding(.horizontal, 100).padding(.bottom, 12)
         }
         .foregroundStyle(.white)
-        .background(OceanBackdrop(bloom: world == .jellyBloom))
+        .background(MapWater())
+    }
+}
+
+private struct MapLevelStop: View {
+    let number: Int
+    let color: Color
+    let open: Bool
+    let cleared: Bool
+    let current: Bool
+    let best: Double?
+    @State private var halo = false
+
+    var body: some View {
+        ZStack {
+            if current && open && !cleared {
+                Circle().stroke(.white.opacity(halo ? 0 : 0.8), lineWidth: 3)
+                    .frame(width: 68, height: 68).scaleEffect(halo ? 1.25 : 1)
+                    .onAppear { withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: false)) { halo = true } }
+            }
+            Circle().fill(!open ? .white.opacity(0.15) : (cleared ? color : .white))
+                .overlay(Circle().stroke(open ? (cleared ? .white : color) : .white.opacity(0.3), lineWidth: 4))
+                .frame(width: 56, height: 56)
+            Text("\(number)").font(.custom("AvenirNext-Heavy", size: 21))
+                .foregroundStyle(!open ? .white.opacity(0.5) : (cleared ? .white : color))
+            if cleared {
+                Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).offset(y: -43)
+            }
+            VStack(spacing: 4) {
+                Text("Level \(number)").font(.custom("AvenirNext-DemiBold", size: 12))
+                if let best { Text("Best \(Int(best))s").font(.custom("AvenirNext-DemiBold", size: 11)) }
+                else if !open { Text("Locked").font(.custom("AvenirNext-DemiBold", size: 11)) }
+            }.opacity(open ? 0.95 : 0.55).offset(y: 51)
+        }
+        .frame(width: 108, height: 128).contentShape(Rectangle())
+    }
+}
+
+private struct MapWater: View {
+    var body: some View {
+        LinearGradient(colors: [Color(red: 0.20, green: 0.62, blue: 0.80),
+                                Color(red: 0.08, green: 0.35, blue: 0.60),
+                                Color(red: 0.03, green: 0.12, blue: 0.30)],
+                       startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+    }
+}
+
+private struct MapArtLayer: View {
+    private let scene: MapDecorationScene
+    init(size: CGSize, points: [CGPoint], fishHome: CGPoint?, bed: Bool) {
+        scene = MapDecorationScene(size: size, points: points, fishHome: fishHome, bed: bed)
+    }
+    var body: some View {
+        SpriteView(scene: scene, preferredFramesPerSecond: 30, options: [.allowsTransparency, .ignoresSiblingOrder])
+            .allowsHitTesting(false).accessibilityHidden(true)
+    }
+}
+
+private final class MapDecorationScene: SKScene {
+    private let marker = FishNode(style: .player, isPlayer: true, tailPhase: 0)
+    private let home: CGPoint?
+    init(size: CGSize, points: [CGPoint], fishHome: CGPoint?, bed: Bool) {
+        home = fishHome
+        super.init(size: size)
+        backgroundColor = .clear
+        scaleMode = .resizeFill
+        if bed { addChild(OceanMapArt.seabed(size: size)) }
+        addChild(OceanMapArt.dottedPath(through: points))
+        if let fishHome { marker.position = fishHome; addChild(marker) }
+        else { isPaused = true }
+    }
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    override func update(_ currentTime: TimeInterval) {
+        guard let home else { return }
+        let time = CGFloat(currentTime)
+        marker.position = CGPoint(x: home.x, y: home.y + sin(time * 2) * 4)
+        marker.apply(radius: 18, facing: 1, tilt: cos(time * 2) * 0.08, stretchX: 1, stretchY: 1,
+                     mouthOpen: 0, time: time, tailRate: 9)
     }
 }
 
@@ -177,61 +237,5 @@ struct OceanBackdrop: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }.ignoresSafeArea()
-    }
-}
-
-private struct WorldIllustration: View {
-    let world: ArcadeWorld
-    var body: some View {
-        Canvas { context, size in
-            let w = size.width, h = size.height
-            if world == .jellyBloom {
-                for (x, y, scale) in [(0.50, 0.43, 1.0), (0.20, 0.62, 0.50), (0.83, 0.62, 0.48)] {
-                    let r = w * 0.28 * scale
-                    let c = CGPoint(x: w * x, y: h * y)
-                    for i in -2...2 {
-                        var tentacle = Path()
-                        let tx = c.x + CGFloat(i) * r * 0.33
-                        tentacle.move(to: CGPoint(x: tx, y: c.y))
-                        tentacle.addCurve(to: CGPoint(x: tx + r * 0.12, y: c.y + r * 1.35),
-                                          control1: CGPoint(x: tx + r * 0.4, y: c.y + r * 0.5),
-                                          control2: CGPoint(x: tx - r * 0.3, y: c.y + r))
-                        context.stroke(tentacle, with: .color(Color.pink.opacity(0.9)), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    }
-                    var dome = Path()
-                    dome.move(to: CGPoint(x: c.x - r, y: c.y))
-                    dome.addCurve(to: CGPoint(x: c.x + r, y: c.y),
-                                  control1: CGPoint(x: c.x - r, y: c.y - r),
-                                  control2: CGPoint(x: c.x + r, y: c.y - r))
-                    dome.closeSubpath()
-                    context.fill(dome, with: .color(Color.cyan.opacity(0.55)))
-                    context.stroke(dome, with: .color(.white.opacity(0.9)), lineWidth: 2)
-                }
-            } else {
-                for i in 0..<5 {
-                    var coral = Path()
-                    let x = w * (0.12 + CGFloat(i) * 0.18)
-                    let height = h * (i.isMultiple(of: 2) ? 0.45 : 0.30)
-                    coral.move(to: CGPoint(x: x, y: h * 0.9))
-                    coral.addLine(to: CGPoint(x: x, y: h * 0.9 - height))
-                    coral.move(to: CGPoint(x: x, y: h * 0.9 - height * 0.4))
-                    coral.addLine(to: CGPoint(x: x + w * 0.1, y: h * 0.9 - height * 0.8))
-                    context.stroke(coral, with: .color(i.isMultiple(of: 2) ? .pink.opacity(0.8) : .orange.opacity(0.8)),
-                                   style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
-                }
-                let body = CGRect(x: w * 0.3, y: h * 0.16, width: w * 0.55, height: h * 0.34)
-                var tail = Path()
-                tail.move(to: CGPoint(x: w * 0.35, y: h * 0.33))
-                tail.addLine(to: CGPoint(x: w * 0.12, y: h * 0.15))
-                tail.addLine(to: CGPoint(x: w * 0.12, y: h * 0.50))
-                tail.closeSubpath()
-                context.fill(tail, with: .color(.yellow))
-                context.fill(Path(ellipseIn: body), with: .color(.orange))
-                context.stroke(Path(ellipseIn: body), with: .color(.white), lineWidth: 2)
-                let eye = CGRect(x: w * 0.66, y: h * 0.2, width: w * 0.11, height: w * 0.11)
-                context.fill(Path(ellipseIn: eye), with: .color(.white))
-                context.fill(Path(ellipseIn: eye.insetBy(dx: 3, dy: 3)), with: .color(.black))
-            }
-        }
     }
 }

@@ -184,7 +184,7 @@ struct ArcadeSceneTests {
         #expect(clears == 1)
         #expect(scene.debugMealsEaten == 0)
         #expect(scene.debugEdibleCount == 0)
-        #expect(scene.debugResultTitles == ["Play again", "Levels"])
+        #expect(scene.debugResultTitles == ["Back to world", "Play again"])
         withExtendedLifetime(view) {}
     }
 
@@ -238,12 +238,12 @@ struct ArcadeSceneTests {
         var exits = 0
         scene.onExit = { exits += 1 }
         scene.debugClearLevel()
-        #expect(scene.debugResultTitles == ["Play again", "Levels"])
+        #expect(scene.debugResultTitles == ["Back to world", "Play again"])
         scene.debugTapResult(.playAgain)
         #expect(scene.debugLevelIndex == 4)
         scene.debugStart()
         scene.debugClearLevel()
-        scene.debugTapResult(.levels)
+        scene.debugTapResult(.world)
         #expect(exits == 1)
         withExtendedLifetime(view) {}
     }
@@ -251,7 +251,7 @@ struct ArcadeSceneTests {
     @Test func lossOffersRetryAndLevels() {
         let (scene, view) = scene()
         #expect(scene.debugTouchTentacles(playerVictim: true))
-        #expect(scene.debugResultTitles == ["Try again", "Levels"])
+        #expect(scene.debugResultTitles == ["Retry", "Levels"])
         scene.debugTapResult(.tryAgain)
         #expect(scene.debugLevelIndex == 0)
         #expect(scene.debugResultTitles.isEmpty)
