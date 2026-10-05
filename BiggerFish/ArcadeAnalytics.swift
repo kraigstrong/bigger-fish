@@ -28,8 +28,8 @@ protocol ArcadeMetricSender {
 
 /// All calls originate on the UI thread. Local milestone markers and counters are never transmitted as IDs.
 final class ArcadeAnalytics {
-    // Enable in a separate change only after the endpoint, policy and App Store disclosures are live.
-    static let isEnabled = false
+    // Beta collection: the endpoint and policy are live; App Store disclosures remain a release check.
+    static let isEnabled = true
     static let revision = "2026-10-04.1"
     static let endpoint = URL(string: "https://brightbench.app/api/bigger-fish/events")!
     // Public noise filter, not authentication. Strict server validation is the protection.
