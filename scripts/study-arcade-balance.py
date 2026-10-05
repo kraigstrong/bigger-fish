@@ -2,7 +2,7 @@
 """Repeatable, local-only food-race studies using the real iOS scene.
 
 Example:
-  python3 scripts/study-arcade-balance.py --profiles docs/jelly-bloom-study-profiles.json \
+  python3 scripts/study-arcade-balance.py --profiles docs/jelly-bloom-free-campaign-profiles.json \
     --seeds 0,7,13 --passes 0,1,2 --run --output build/arcade-development/validation
 
 A pass is one full world circuit. Delayed runs cannot eat before that circuit;

@@ -124,7 +124,7 @@ Bigger Fish Xcode Debug builds automatically record runs locally in `Documents/A
 Release/TestFlight builds contain no recorder. Play normally, then pause or finish and keep your
 phone unlocked and connected. Xcode's console prints `[ArcadeRun]` start/outcome lines.
 
-Ask Codex to pull your runs, or run:
+To pull your runs:
 
 ```bash
 python3 scripts/pull-arcade-runs.py
@@ -140,7 +140,7 @@ JSONL includes configuration and seeded starts, tap/release transitions, player 
 interrupted-swallow hazard deaths, bounces, pause/resume, outcomes, and full world/camera snapshots
 at five per second plus event-time snapshots. Times are elapsed wall and simulation seconds;
 fish positions are wrapped world coordinates. Recordings stream on a background queue, flush
-periodically and on pause, and keep the latest 30 files. An interrupted run remains readable;
+periodically and on pause, and keep the latest 100 files. An interrupted run remains readable;
 an abrupt process kill may lose the most recent queued records. Nothing is uploaded automatically.
 Add `-arcadeDisableRunRecording` to Xcode's launch arguments to disable recording temporarily.
 
@@ -191,9 +191,8 @@ The freely moving ten-level campaign and its 1,488 seed-search/validation runs a
 [the campaign report](docs/jelly-bloom-free-campaign.md). The debug tuner exposes difficulty,
 seed re-rolls, copyable full seeds, effective growth, and an advisory three-size winning-route check.
 
-The original five Jelly Bloom profiles and bounded-patrol experiments remain documented as
-historical studies in [the original balance report](docs/jelly-bloom-balance.md) and
-[the encounter experiment report](docs/jelly-bloom-difficulty-system.md).
+The original five-level profiles remain in the debug tuner for comparison; their studies are in
+git history.
 
 To repeat the final validation:
 
@@ -216,8 +215,8 @@ Current Jelly Bloom playtest: [free-moving ten-level campaign](docs/jelly-bloom-
 ## Anonymous arcade diagnostics
 
 `ArcadeAnalytics.swift` and `ArcadeMetrics.swift` implement first-party gameplay summaries for
-Bigger Fish, separate from Math Reef. `ArcadeAnalytics.isEnabled` controls collection; beta
-collection requires a deployed companion endpoint, published policy and validated report access.
+Bigger Fish, separate from Math Reef. `ArcadeAnalytics.isEnabled` controls collection; it is
+on for the beta, with the endpoint, policy, and report live on brightbench.app.
 No player/install/session IDs, exact play timestamps, device information, or trajectories are sent.
 
 The schema records content identity (world, campaign/endless mode, displayed slot, original setup,
@@ -236,10 +235,7 @@ ordinary test launches do not collect. Gameplay counts saturate at 10,000, durat
 simulation seconds, and circuits at 100; these bounds censor telemetry only, never gameplay.
 
 The companion report is `/bigger-fish/stats` on BrightBench, behind a server-only reporting key.
-Its policy is `/bigger-fish/privacy`. Before distributing a beta, configure the endpoint/public app
-key/private report secret, validate deployed ingestion and report access, make the policy available
-to testers, and check collection from the actual phone build. Complete App Store privacy answers
-before public release. Production retention and provider-log handling remain release audit checks;
+Its policy is `/bigger-fish/privacy`. Complete the App Store privacy answers before public release. Production retention and provider-log handling remain release audit checks;
 successful ingestion alone does not verify them.
 
 New worlds and large/generated campaigns do not require a finite server-side level catalog.
