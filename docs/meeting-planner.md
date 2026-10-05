@@ -30,8 +30,13 @@ how many of those a level has and where.
 
 A `MeetingSpec` (presets in `GameTuning.plannerPresets`) describes a lap as segments. Each has some
 foods and a gate that needs `needed` of them, so `foods - needed` is that gate's slack. On top of that:
-threats beside chosen foods (eat near danger), open-water threats you outgrow by lap two, the share
-of fish swimming at you, how sharply meals change height, and speeds.
+threats beside chosen foods (eat near danger); open-water threats that come back on lap two near the
+size you should have reached (`lapTwoSize`), so lap two tests lap one; the share of fish swimming at
+you; how sharply meals change height; speeds; and the world's width.
+
+All planned meetings happen on the first lap: a fish's first crossing can't wait for lap two, and as you
+grow the camera zooms out and the lap speeds by (about ten seconds). A wider world buys a little more
+room; the rest of a level's length comes from lap two.
 
 1. **Sizes** follow the fewest-meal route: any `needed` foods make the gate edible, any fewer don't.
 2. **Times** are evenly spaced on screen, with a short beat beside danger and room after a gate's
@@ -41,6 +46,9 @@ of fish swimming at you, how sharply meals change height, and speeds.
    reachable and harder levels demand sharper dives.
 4. **Spawns** are solved backward (`MeetingSolver`): simulate the fish's own free swim to the meeting
    time, then start it that far back, trying movement streams until it arrives at the planned height.
+   A head-on fish met late in the lap starts out swimming your way and makes one ordinary turn while
+   it's far off screen. Fish you overtake come from the slow end of the speed range: a fish swimming
+   your way near your speed creeps toward you for seconds, as if fleeing.
 5. **Checks** (`EncounterAnalyzer`): for every fish, the fewest earlier meals that reach it, how many
    routes do, and how many misses it survives. A design is kept only if each gate needs its designed
    meals, has more than one route when it has slack, and every food is reachable.
@@ -51,15 +59,16 @@ pass each other.
 
 ## Presets
 
-| | Fish | Gates after | Misses survived | Routes | Bot wins |
-|---|---:|---|---|---|---|
-| Easy | 19 | 1, 4, 7 meals | 3+, 3+, 3+ | 4, 77, 656 | 3/3 |
-| Medium | 21 | 2, 4, 8 | 2, 2, 2 | 6, 8, 8 | 3/3 |
-| Hard | 18 | 2, 6, 10 | 1, 0, 0 | 3, 3, 3 | 1/3 |
+| | Fish | World | Gates after | Misses survived | Lap-two fish vs. your size | Bot wins |
+|---|---:|---:|---|---|---|---|
+| Easy | 18 | 4 screens | 1, 4, 6 meals | 3+, 3+, 3+ | 72–82% | 3/3, about 13 s |
+| Medium | 20 | 5 | 2, 5, 9 | 2, 2, 2 | 85–93% | 3/3, 14–19 s |
+| Hard | 18 | 5 | 2, 6, 10 | 1, 0, 0 | 86–93% | 0/3: they last 22–41 s, then lose lap two |
 
 In the real scene every fish crosses within 0.05 s and 3 points of its plan on the reference route.
-Eating only the minimum or everything shifts late meetings by up to about 0.7 s, but every fish still
-arrives. Bot wins show a route exists; they aren't a difficulty ranking.
+Eating only the minimum or everything shifts late meetings by up to about 0.6 s, but every fish still
+arrives. Bot wins show a route exists; they aren't a difficulty ranking, and Hard's analysis confirms
+a route through every gate and every lap-two fish for a player who eats what each gate needs.
 
 ## Playing them
 

@@ -18,8 +18,14 @@ struct MeetingSpec: Codable, Equatable {
     }
     var name: String
     var segments: [Segment]
-    /// Bigger fish crossing in open water, edible again by the end of the lap.
+    /// Screens around the world. A wider world gives a longer first lap, so more planned meetings fit
+    /// before the camera's zoom-out speeds you around.
+    var worldScreens: Double = Double(GameTuning.worldScreens)
+    /// Bigger fish crossing in open water on the first lap. They come back around on lap two.
     var extraThreats: Int
+    /// Those fish's size against yours at the end of lap one on the fewest-meal route. Near 1, lap two
+    /// tests lap one: they're edible only if you ate what every gate needed.
+    var lapTwoSize: ClosedRange<Double>
     /// Share of fish swimming toward you (a brief window) rather than being overtaken.
     var headOnShare: Double
     /// Height change between consecutive meals, as a share of the farthest you can swim in the time between them.
@@ -50,6 +56,8 @@ struct PlannedFish: Codable, Equatable {
     /// Your forward distance when you meet it.
     let meetingDistance: CGFloat
     let headOn: Bool
+    /// A late head-on fish starts out swimming your way and makes one ordinary turn, off screen, before the meeting.
+    let startHeading: CGFloat
     let spawn: CGPoint
     let cruiseSpeed: CGFloat
     let phase: CGFloat
@@ -60,7 +68,6 @@ struct PlannedFish: Codable, Equatable {
     /// Eaten on the reference route the meetings were timed against.
     let referenceMeal: Bool
 
-    var heading: CGFloat { headOn ? -1 : 1 }
 }
 
 struct MeetingPlan {
@@ -84,6 +91,7 @@ struct MeetingPlan {
             aiVerticalSpeed: CGFloat(spec.aiVertical), screenCrossSeconds: CGFloat(spec.crossSeconds),
             absorptionEfficiency: GameTuning.freeEncounterAbsorption, roamingFoodChain: true)
         level.freeEncounterMovement = true
+        level.worldScreens = CGFloat(spec.worldScreens)
         level.meetingPlan = self
         return level
     }
@@ -104,7 +112,7 @@ struct MeetingPlan {
     func radii(eating meals: Set<Int>) -> [CGFloat] {
         PlayerTimeline.reference(meals: fish.filter { meals.contains($0.id) }.map { ($0.meetingDistance, $0.radius) },
             crossSeconds: CGFloat(spec.crossSeconds),
-            until: GameTuning.playfieldSize.width * GameTuning.worldScreens * 1.05).radius
+            until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05).radius
     }
 
     /// Fewest meals before each planned gate on the designed route.
@@ -281,7 +289,8 @@ struct DesignedMeeting {
 enum MeetingDesigner {
     typealias T = GameTuning
     static let firstMeetingScreens: CGFloat = 0.6
-    static let lastMeetingScreens: CGFloat = 3.7
+    /// The last meeting comes this many screens before the lap ends.
+    static let lastMeetingMargin: CGFloat = 0.3
     /// A near-equal swallow takes up to 0.8 s; the next meeting waits a beat longer.
     static let gateSwallowSeconds: CGFloat = 1.0
     static let dangerOffsetScreens: CGFloat = 0.07
@@ -303,6 +312,7 @@ enum MeetingDesigner {
         // times are equal gaps on screen. Distances follow from the route's growth, so settle them over a few passes.
         var times = meetingTimes(meetings, spec: spec)
         var timeline = PlayerTimeline()
+        let lastDistance = (CGFloat(spec.worldScreens) - lastMeetingMargin) * T.playfieldSize.width
         for _ in 0..<6 {
             for i in meetings.indices {
                 let step = Int((times[i] / T.simulationStep).rounded())
@@ -312,14 +322,14 @@ enum MeetingDesigner {
             }
             timeline = PlayerTimeline.reference(
                 meals: meetings.filter(\.onReferenceRoute).map { ($0.distance, $0.size * T.baseRadius) },
-                crossSeconds: CGFloat(spec.crossSeconds), until: T.playfieldSize.width * T.worldScreens * 1.05)
+                crossSeconds: CGFloat(spec.crossSeconds), until: T.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05)
             // Squeeze the lap's meetings into its first pass if they run long.
-            let lastTime = CGFloat(timeline.step(reaching: lastMeetingScreens * T.playfieldSize.width)) * T.simulationStep * 0.99
+            let lastTime = CGFloat(timeline.step(reaching: lastDistance)) * T.simulationStep * 0.99
             if let first = times.first, let last = times.last, last > lastTime {
                 times = times.map { first + ($0 - first) * (lastTime - first) / (last - first) }
             }
         }
-        if let last = meetings.last, last.distance > lastMeetingScreens * T.playfieldSize.width + 1 {
+        if let last = meetings.last, last.distance > lastDistance + 1 {
             issues.append("meetings overflow the lap")
         }
         layHeights(&meetings, times: times, spec: spec, timeline: timeline, rng: &rng)
@@ -385,10 +395,11 @@ enum MeetingDesigner {
             let position = min(slot, window.upperBound)
             let playerMost = meetings[..<position].filter { $0.role != .threat }.reduce(CGFloat(1)) { grow($0, [$1.size]) }
             let lower = playerMost * 1.12
-            // Late in the lap even a player who ate everything is close to the ceiling; skip rather than fail.
-            guard lower < ceiling else { continue }
-            meetings.insert(DesignedMeeting(key: key, role: .threat, segment: meetings[position].segment,
-                size: CGFloat.random(in: lower...min(ceiling, lower * 1.25), using: &rng)), at: position)
+            let size = fewest * CGFloat(Double.random(in: spec.lapTwoSize, using: &rng))
+            // Late in the lap even a player who ate everything may already be big enough; skip rather than fail.
+            guard lower < size, size < fewest * 0.985 else { continue }
+            meetings.insert(DesignedMeeting(key: key, role: .threat, segment: meetings[position].segment, size: size),
+                            at: position)
             key += 1
         }
         for (food, playerMost) in dangerFoods {
@@ -493,12 +504,16 @@ enum MeetingSolver {
     /// Extra clear water planned paths keep before either fish has been passed, beyond the separation reach.
     static let contactMargin: CGFloat = 4
     static let contactPenalty: CGFloat = 50
+    /// Fish you overtake swim within this share of the slow end of the speed range.
+    static let sameDirectionSpeedShare = 0.3
+    /// About how long FreeSwim's easing takes to reverse a fish's swim.
+    static let turnSeconds: CGFloat = 1.6
     private static let unwrapped = WrappedWorld(width: 10_000_000)
 
     static func solve(_ meetings: [DesignedMeeting], spec: MeetingSpec, seed: UInt64,
                       timeline: PlayerTimeline) -> (fish: [PlannedFish], crossings: [EncounterCrossing], issues: [String]) {
         let width = T.playfieldSize.width
-        let worldWidth = width * T.worldScreens
+        let worldWidth = width * CGFloat(spec.worldScreens)
         let meetSteps = meetings.map { timeline.step(reaching: $0.distance) }
         let releaseSteps = meetings.map { timeline.step(reaching: $0.distance + width * T.freeEncounterReleaseScreens) }
         let horizon = releaseSteps.max() ?? 0
@@ -523,18 +538,32 @@ enum MeetingSolver {
             for attempt in 0..<attempts {
                 var draw = SeededGenerator(seed: seed &+ UInt64(id) &* 0x9E37_79B9_7F4A_7C15 &+ UInt64(attempt) &* 0xBF58_476D_1CE4_E5B9)
                 let headOn = attempt < attempts / 2 ? meeting.headOn : !meeting.headOn
-                let speed = attempt % (attempts / 2) < 100 ? meeting.speed
-                    : CGFloat(Double.random(in: spec.aiSpeed, using: &draw))
+                // A fish swimming your way near your speed creeps toward you for seconds, as if fleeing;
+                // slow ones are quick, lazy overtakes.
+                let speeds = headOn ? spec.aiSpeed
+                    : spec.aiSpeed.lowerBound...(spec.aiSpeed.lowerBound + (spec.aiSpeed.upperBound - spec.aiSpeed.lowerBound) * sameDirectionSpeedShare)
+                let speed = attempt % (attempts / 2) < 100 && speeds.contains(Double(meeting.speed)) ? meeting.speed
+                    : CGFloat(Double.random(in: speeds, using: &draw))
                 let phase = CGFloat.random(in: 0..<(2 * .pi), using: &draw)
-                // No turn before the meeting, so the approach direction is the planned one.
-                let turnTimer = CGFloat.random(in: max(T.aiTurnIntervalRange.lowerBound, meetTime + 1.5)...max(T.aiTurnIntervalRange.upperBound, meetTime + 6), using: &draw)
+                // A head-on fish met late would already have crossed your path, so every other try starts it
+                // swimming your way and turns it while it's still far off screen. Otherwise no turn before the meeting.
+                let closing = width / CGFloat(spec.crossSeconds) / zoom + speed
+                let onScreenSeconds = (width * (1 - T.playerScreenX) / zoom + T.plannerContactScreenMargin) / closing
+                let latestTurn = meetTime - onScreenSeconds - turnSeconds
+                let earliestTurn = max(0.3, meetTime - T.aiTurnIntervalRange.lowerBound + 0.5)
+                let turns = headOn && attempt % 2 == 1 && latestTurn > earliestTurn
+                let turnTimer = turns ? CGFloat.random(in: earliestTurn...latestTurn, using: &draw)
+                    : CGFloat.random(in: max(T.aiTurnIntervalRange.lowerBound, meetTime + 1.5)...max(T.aiTurnIntervalRange.upperBound, meetTime + 6), using: &draw)
+                let startHeading: CGFloat = headOn && !turns ? -1 : 1
                 let retargetTimer = CGFloat.random(in: T.aiRetargetRange, using: &draw)
                 var startY = CGFloat.random(in: (start.bottom + radius)...(start.top - radius), using: &draw)
                 // Horizontal travel ignores the movement stream, so infeasible spawns are rejected cheaply.
-                let spawnX = timeline.distance[meetStep] - horizontalTravel(heading: headOn ? -1 : 1, speed: speed, phase: phase, steps: meetStep)
+                let spawnX = timeline.distance[meetStep] - horizontalTravel(heading: startHeading, speed: speed, phase: phase,
+                                                                             turnTimer: turnTimer, steps: meetStep)
                 guard spawnX >= clearAhead, spawnX <= worldWidth - width * T.spawnClearBehind else { continue }
                 var candidate = PlannedFish(id: id, role: meeting.role, segment: meeting.segment, radius: radius,
-                    meetingDistance: meeting.distance, headOn: headOn, spawn: CGPoint(x: 0, y: startY), cruiseSpeed: speed,
+                    meetingDistance: meeting.distance, headOn: headOn, startHeading: startHeading,
+                    spawn: CGPoint(x: 0, y: startY), cruiseSpeed: speed,
                     phase: phase, turnTimer: turnTimer, retargetTimer: retargetTimer, variant: UInt64(attempt), styleSeed: 0,
                     referenceMeal: meeting.onReferenceRoute)
                 guard var early = path(candidate, seed: seed, vertical: CGFloat(spec.aiVertical), steps: meetStep, timeline: timeline) else { continue }
@@ -549,6 +578,11 @@ enum MeetingSolver {
                     startY = nudged; candidate = retry; early = path; error = path[meetStep].y - targetY
                 }
                 let fish = candidate.moved(to: CGPoint(x: timeline.distance[meetStep] - early[meetStep].x, y: startY))
+                if turns {
+                    // Nobody sees it swim away or turn: it's off screen until it's well into its approach.
+                    let settled = min(meetStep, Int((turnTimer + turnSeconds) / T.simulationStep))
+                    guard !(0...settled).contains(where: { visible(fish.spawn.x + early[$0].x, step: $0, timeline: timeline, world: world) }) else { continue }
+                }
                 if abs(error) > tolerance {
                     if fallback.map({ abs(error) < $0.error }) ?? true { fallback = (fish, early, abs(error)) }
                     continue
@@ -563,7 +597,7 @@ enum MeetingSolver {
                         let dx = world.delta(from: other.path[step].x, to: x)
                         let dy = full[step].y - other.path[step].y
                         guard dx * dx + dy * dy <= reach * reach else { continue }
-                        if visible(x, step: step, timeline: timeline) || visible(other.path[step].x, step: step, timeline: timeline) {
+                        if visible(x, step: step, timeline: timeline, world: world) || visible(other.path[step].x, step: step, timeline: timeline, world: world) {
                             clear = false; break
                         }
                     }
@@ -593,19 +627,21 @@ enum MeetingSolver {
     }
 
     /// Within the reference route's screen at `step`, plus the planner's margin.
-    private static func visible(_ x: CGFloat, step: Int, timeline: PlayerTimeline) -> Bool {
-        let world = WrappedWorld(width: T.playfieldSize.width * T.worldScreens)
+    private static func visible(_ x: CGFloat, step: Int, timeline: PlayerTimeline, world: WrappedWorld) -> Bool {
         let zoom = timeline.zoom[step]
         let dx = world.delta(from: timeline.distance[step], to: x)
         return dx > -T.playfieldSize.width * T.playerScreenX / zoom - T.plannerContactScreenMargin
             && dx < T.playfieldSize.width * (1 - T.playerScreenX) / zoom + T.plannerContactScreenMargin
     }
 
-    /// FreeSwim's horizontal motion before any turn: it doesn't use the movement stream, so it's a cheap
-    /// filter. The solver still takes the spawn from the full simulation.
-    static func horizontalTravel(heading: CGFloat, speed: CGFloat, phase: CGFloat, steps: Int) -> CGFloat {
+    /// FreeSwim's horizontal motion through at most one turn: it doesn't use the movement stream, so it's
+    /// a cheap filter. The solver still takes the spawn from the full simulation.
+    static func horizontalTravel(heading start: CGFloat, speed: CGFloat, phase: CGFloat, turnTimer: CGFloat, steps: Int) -> CGFloat {
+        var heading = start, timer = turnTimer
         var vx = heading * speed, x: CGFloat = 0
         for step in stride(from: 1, through: steps, by: 1) {
+            timer -= T.simulationStep
+            if timer <= 0 { heading = -heading; timer = .greatestFiniteMagnitude }
             let target = heading * speed * (1 + 0.15 * sin(CGFloat(step) * T.simulationStep * 0.7 + phase))
             vx += (target - vx) * min(1, T.simulationStep * 1.5)
             x += vx * T.simulationStep
@@ -617,7 +653,7 @@ enum MeetingSolver {
     static func path(_ fish: PlannedFish, seed: UInt64, vertical: CGFloat, steps: Int, timeline: PlayerTimeline) -> [CGPoint]? {
         guard steps <= timeline.lastStep else { return nil }
         let f = Fish(id: fish.id, isPlayer: false, position: CGPoint(x: 0, y: fish.spawn.y), radius: fish.radius)
-        f.heading = fish.heading
+        f.heading = fish.startHeading
         f.cruiseSpeed = fish.cruiseSpeed
         f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
         f.facing = f.heading
@@ -663,12 +699,12 @@ enum MeetingSolver {
 private extension PlannedFish {
     func moved(to spawn: CGPoint) -> PlannedFish {
         PlannedFish(id: id, role: role, segment: segment, radius: radius, meetingDistance: meetingDistance, headOn: headOn,
-            spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer, retargetTimer: retargetTimer,
-            variant: variant, styleSeed: styleSeed, referenceMeal: referenceMeal)
+            startHeading: startHeading, spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer,
+            retargetTimer: retargetTimer, variant: variant, styleSeed: styleSeed, referenceMeal: referenceMeal)
     }
     func styled(_ seed: UInt64) -> PlannedFish {
         PlannedFish(id: id, role: role, segment: segment, radius: radius, meetingDistance: meetingDistance, headOn: headOn,
-            spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer, retargetTimer: retargetTimer,
-            variant: variant, styleSeed: seed, referenceMeal: referenceMeal)
+            startHeading: startHeading, spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer,
+            retargetTimer: retargetTimer, variant: variant, styleSeed: seed, referenceMeal: referenceMeal)
     }
 }

@@ -326,22 +326,27 @@ enum GameTuning {
     static let plannerContactScreenMargin: CGFloat = 180
 
     /// Easy, medium, and hard planned Shallow Reef levels for phone testing. Speeds follow the campaign's
-    /// levels 2, 6, and 10; slack, routes, and danger are what the planner adds.
+    /// levels 2, 6, and 10; slack, routes, and danger are what the planner adds. Open-water threats come
+    /// back on lap two near the size you should have reached, so a harder lap two tests lap one.
     static let plannerPresets: [MeetingSpec] = [
         MeetingSpec(name: "Easy",
             segments: [.init(foods: 4, needed: 1), .init(foods: 4, needed: 2, dangerFoods: 1), .init(foods: 4, needed: 2)],
-            extraThreats: 3, headOnShare: 0.3, heightSwing: 0.1...0.45, foodSize: 0.68...0.84, gateMargin: 0.8,
-            dangerGap: 70, threatClearance: 110, spacing: 0.25, aiSpeed: 48...129, aiVertical: 64, crossSeconds: 2.86),
+            extraThreats: 3, lapTwoSize: 0.72...0.82, headOnShare: 0.55, heightSwing: 0.1...0.45, foodSize: 0.68...0.84,
+            gateMargin: 0.8, dangerGap: 70, threatClearance: 110, spacing: 0.25, aiSpeed: 48...129, aiVertical: 64,
+            crossSeconds: 2.86),
         MeetingSpec(name: "Medium",
             segments: [.init(foods: 4, needed: 2, dangerFoods: 1), .init(foods: 4, needed: 2, dangerFoods: 1),
                        .init(foods: 4, needed: 3)],
-            extraThreats: 4, headOnShare: 0.45, heightSwing: 0.35...0.75, foodSize: 0.66...0.82, gateMargin: 0.45,
-            dangerGap: 45, threatClearance: 70, spacing: 0.22, aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68),
+            worldScreens: 5, extraThreats: 4, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
+            foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
+            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68),
+        // Bursts of quick meals, each ending in a gate, with little or no room to miss.
         MeetingSpec(name: "Hard",
             segments: [.init(foods: 3, needed: 2, dangerFoods: 1), .init(foods: 3, needed: 3, dangerFoods: 1),
                        .init(foods: 4, needed: 3)],
-            extraThreats: 4, headOnShare: 0.6, heightSwing: 0.6...0.9, foodSize: 0.64...0.8, gateMargin: 0.15,
-            dangerGap: 28, threatClearance: 40, spacing: 0.22, aiSpeed: 70...200, aiVertical: 100, crossSeconds: 2.5),
+            worldScreens: 5, extraThreats: 4, lapTwoSize: 0.86...0.93, headOnShare: 0.65, heightSwing: 0.5...0.85,
+            foodSize: 0.64...0.8, gateMargin: 0.15, dangerGap: 28, threatClearance: 40, spacing: 0.22,
+            aiSpeed: 70...200, aiVertical: 100, crossSeconds: 2.5),
     ]
 
     /// Reef Lab plays each preset's first variation. Plans are computed once, on first use.
@@ -400,6 +405,7 @@ struct Level {
     var freeEncounterMovement: Bool = false
     /// Seed identity is independent of the displayed campaign number.
     var ecosystemSeedIndex: Int? = nil
+    var worldScreens: CGFloat = GameTuning.worldScreens
     /// Planned meetings replace seeded spawning; see docs/meeting-planner.md.
     var meetingPlan: MeetingPlan? = nil
     func spawnSeed(index: Int, bloom: Bool, offset: UInt64? = nil) -> UInt64 {

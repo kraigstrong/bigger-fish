@@ -406,7 +406,7 @@ final class GameScene: SKScene {
         lastUpdate = nil
         zoom = 1
 
-        world = WrappedWorld(width: size.width * T.worldScreens)
+        world = WrappedWorld(width: size.width * level.worldScreens)
         rng = SeededGenerator(seed: ecosystemSeed)
         spawnJellies()
         spawnEcosystem()
@@ -514,7 +514,7 @@ final class GameScene: SKScene {
         for planned in plan.fish {
             let f = Fish(id: planned.id, isPlayer: false, position: planned.spawn, radius: planned.radius)
             nextFishID = max(nextFishID, planned.id + 1)
-            f.heading = planned.heading
+            f.heading = planned.startHeading
             f.cruiseSpeed = planned.cruiseSpeed
             f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
             f.facing = f.heading
