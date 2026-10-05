@@ -359,16 +359,17 @@ enum GameTuning {
     static let plannerContactScreenMargin: CGFloat = 180
 
     /// Reef Lab: a ten-level planned Shallow Reef to A/B test against the campaign, slot for slot. Levels 2,
-    /// 6, and 10 are the playtested Easy, Medium, and Hard (their names seed their layouts, so keep them);
+    /// 6, and 10 are the playtested Easy, Medium, and Hard (their names seed their layouts, so keep them;
+    /// each has one fewer open-water threat than it asks for, as played);
     /// the levels between step their settings from one to the next. Speeds follow Shallow Reef's authoring
     /// curve. Forks offer a high and a low lane at once, the long lane buying margin beside danger; open-water
     /// threats return on lap two near the size you should have reached.
     static let reefLabSpecs: [MeetingSpec] = [
-        // An introduction: forgiving gates and no big fish beyond them.
+        // An introduction: forgiving gates and a couple of big fish to avoid, with plenty of room.
         MeetingSpec(name: "Reef Lab 1",
-            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1),
+            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
-            extraThreats: 0, lapTwoSize: 0.65...0.75, headOnShare: 0.5, heightSwing: 0.1...0.35, foodSize: 0.7...0.84,
+            extraThreats: 1, lapTwoSize: 0.9...0.96, headOnShare: 0.5, heightSwing: 0.1...0.35, foodSize: 0.7...0.84,
             gateMargin: 0.9, dangerGap: 80, threatClearance: 120, spacing: 0.27, aiSpeed: 45...120, aiVertical: 60,
             crossSeconds: 2.9),
         MeetingSpec(name: "Easy",
@@ -414,7 +415,7 @@ enum GameTuning {
             worldScreens: 5, extraThreats: 3, lapTwoSize: 0.88...0.94, headOnShare: 0.62, heightSwing: 0.4...0.78,
             foodSize: 0.7...0.85, gateMargin: 0.35, dangerGap: 36, threatClearance: 56, spacing: 0.24,
             aiSpeed: 62...173, aiVertical: 87, crossSeconds: 2.63),
-        // Hard's shape without its walls: near-size meals and little margin.
+        // Hard's shape without its walls: near-size meals and little margin. Playtested: "about perfect".
         MeetingSpec(name: "Reef Lab 8",
             segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
@@ -423,7 +424,7 @@ enum GameTuning {
             worldScreens: 5, extraThreats: 3, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
             foodSize: 0.73...0.87, gateMargin: 0.2, dangerGap: 26, threatClearance: 40, spacing: 0.25,
             aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true),
-        // Walls arrive: a gate can't be dodged and saved for lap two.
+        // Walls arrive: a gate can't be dodged and saved for lap two. Playtested: "about perfect".
         MeetingSpec(name: "Reef Lab 9",
             segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
@@ -444,6 +445,10 @@ enum GameTuning {
             foodSize: 0.76...0.9, gateMargin: 0.05, dangerGap: 16, threatClearance: 28, spacing: 0.26,
             aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, walledGates: true, timesTheEdge: true),
     ]
+
+    /// Playtested levels whose shipped plans are frozen: regenerating ReefLabPlans.json keeps them exactly
+    /// as played, so later planner changes can't reshuffle them. Remove a name to re-plan that level.
+    static let reefLabFrozen: Set<String> = Set(reefLabSpecs.map(\.name))
 
     /// Reef Lab's levels, planned on the Mac and shipped as data so no device plans them while you play.
     /// Regenerate with the `reef-lab-plans.request` marker (MeetingPlannerTests) after changing the specs or

@@ -66,26 +66,38 @@ pass each other.
 
 `GameTuning.reefLabSpecs` is a planned Shallow Reef, slot for slot with the campaign. Levels 2, 6, and 10
 are the playtested Easy, Medium, and Hard (their names seed their layouts); the levels between step every
-setting from one to the next, with speeds following Shallow Reef's authoring curve. Level 1 introduces
-gates without big fish; level 8 is Hard's shape without walls; walls arrive at level 9.
+setting from one to the next, with speeds following Shallow Reef's authoring curve. Level 1 introduces gates
+with a couple of big fish to avoid; level 8 is Hard's shape without walls; walls arrive at level 9.
 
-| | Fish | Forks | Misses survived per gate | Bot wins |
+Every level places all the big fish its settings ask for: one that can't be sized where it was asked for
+(an open-water slot, or a meal late in the lap), or whose slot another threat already took, moves to the
+latest earlier slot or meal where it can be.
+
+**Frozen levels.** A playtested level keeps its shipped plan exactly as played (`GameTuning.reefLabFrozen`):
+regenerating the data file leaves it alone, so later planner changes can't reshuffle it. All ten are frozen
+as first played; remove a name to re-plan that level. As played, Easy, Medium, and Hard have one fewer big
+fish than their settings ask for, level 8 has two big fish crossing together, and level 9 has one fish
+slightly off its planned height.
+
+| Level | Fish | Forks | Misses survived per gate | First playtest (an experienced player) |
 |---|---:|---:|---|---|
-| 1 | 10 | 2 | 3+, 2 | 3/3 |
-| 2 (Easy) | 17 | 3 | 3+, 2, 2 | 3/3 |
-| 3–5 | 19–22 | 3 | 1–2 | 2/3–3/3 |
-| 6 (Medium) | 22 | 3 | 1, 1, 1 | 1/3 |
-| 7–8 | 24–25 | 4 | 1 | 1/3 |
-| 9 | 29 | 4 | 1 | 0/3 |
-| 10 (Hard) | 29 | 4 | 0, 0, 0 on the short lanes | 0/3 |
+| 1 | 12 | 2 | 3+, 2 | first try |
+| 2 (Easy) | 17 | 3 | 3+, 2, 2 | first try |
+| 3 | 19 | 3 | 1–2 | 5 tries: a spike above 4–8 |
+| 4–5 | 21–23 | 3 | 1–2 | 2 tries each |
+| 6 (Medium) | 22 | 3 | 1, 1, 1 | 2 tries |
+| 7 | 25 | 4 | 1 | 3 tries |
+| 8 | 26 | 4 | 1 | first try; "about perfect" |
+| 9 | 30 | 4 | 1 | 20 tries; "about perfect" |
+| 10 (Hard) | 29 | 4 | 0, 0, 0 on the short lanes | 17 tries; "about perfect" |
 
 Hard's meals are 76–90% of your size and its gates barely edible, so every catch is a close call. Its
 gates are walled (`walledGates`): a big fish crosses a tenth of a second before and after each gate,
 just above and below it, too tight to slip between and too quick to swim around, so a gate can't be
 dodged and saved for lap two. Starting a swallow makes you safe, so a big-enough player eats the gate
 and the walls pass by. The last gate goes unwalled when its walls couldn't be outgrown by lap two.
-Returning fish come back at 94–99% of the size you should be. Playtested: 17 attempts to the first win,
-deaths spread from 2.8 to 7.5 s, in line with Shallow Reef 10 (18 attempts). Because near-size meals
+Returning fish come back at 94–99% of the size you should be. Its first playtest took 17 attempts, deaths
+spread from 2.8 to 7.5 s, in line with Shallow Reef 10 (18 attempts). Because near-size meals
 grow routes apart quickly, Hard times its meetings against the player who barely makes each gate
 (`timesTheEdge`).
 
@@ -99,17 +111,17 @@ choosing lanes; playtesting decides difficulty.
 Plans are deterministic, so Reef Lab's are made on the Mac and shipped in `BiggerFish/ReefLabPlans.json`:
 no device plans while you play, and every device plays the same level. After changing `reefLabSpecs` or
 the planner, regenerate the file by creating `build/arcade-development/reef-lab-plans.request` and running
-`MeetingPlannerTests`; `bundledReefLabPlansMatchThePlanner` fails until you do. The tuner's other
+`MeetingPlannerTests`; `bundledReefLabPlansMatchThePlanner` fails until you do. Frozen levels are kept. The tuner's other
 variations still plan on the device.
 
 ## Playing them
 
-Debug builds show **Reef Lab** as the third world on the map. Its levels unlock one at a time like the
-campaign's, with clears and best times saved under `reef-lab` IDs, so level N compares with Shallow Reef
-level N. **Tuning > Players** resets a world's progress for a new player. Reef Lab is hidden from Release
-and TestFlight builds (`ArcadeWorld.mapWorlds`).
+Every build, TestFlight included, shows Reef Lab as **Shallow Reef 2**, the third world on the map, so
+testers can compare it with Shallow Reef. Its levels unlock one at a time like the campaign's, with clears
+and best times saved under `reef-lab` IDs (also its anonymous analytics world), so level N compares with
+Shallow Reef level N. In Debug builds, **Tuning > Players** resets a world's progress for a new player.
 
-**Tuning > Reef Lab variations** plays other layouts of the same settings as practice runs, or launch with
+**Tuning > Shallow Reef 2 variations** (Debug) plays other layouts of the same settings as practice runs, or launch with
 `-arcadePlanner 10.3` (level 10, variation 3); `-arcadePlaytest reef-lab.10` plays the level itself.
 Recordings include each fish's role, fork lane, gate meals, routes, and slack.
 

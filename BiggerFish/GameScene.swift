@@ -1762,7 +1762,9 @@ final class GameScene: SKScene {
     /// World and current level only; reference presets use the same header.
     private func buildLevelIndicator() {
         levelIndicator.removeAllChildren()
-        let text = label(plannerName ?? "\(arcadeWorld.title) \(levelIndex + 1)", fontSize: 13, heavy: true)
+        // "Shallow Reef 2 3" would read as one number; spell out its level.
+        let heading = arcadeWorld == .reefLab ? "\(arcadeWorld.title) · Level \(levelIndex + 1)" : "\(arcadeWorld.title) \(levelIndex + 1)"
+        let text = label(plannerName ?? heading, fontSize: 13, heavy: true)
         text.horizontalAlignmentMode = .left
         text.alpha = 0.9
         levelIndicator.addChild(text)

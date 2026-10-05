@@ -5,7 +5,8 @@ There's always a bigger fish.
 Arcade prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
-The world map opens **Shallow Reef** and **Jelly Bloom**, with ten encounter-based levels each.
+The world map opens **Shallow Reef**, **Jelly Bloom**, and **Shallow Reef 2**, with ten levels each.
+Shallow Reef 2 is a planned version of Shallow Reef for A/B testing (see Meeting planner below).
 Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
 adds safe dome bounces and lethal tentacles, with protected first encounters followed by AI food races.
 A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
@@ -162,12 +163,13 @@ Presets are local, hold at most ten names, and can be applied to another level. 
 starting fish cannot always fit extreme combinations; the run analysis flags spawn shortfalls.
 These tools and overrides are absent in Release/TestFlight.
 
-### Meeting planner (Debug only)
+### Meeting planner
 
-Debug builds add a third world, **Reef Lab**: ten fish-only levels whose meetings are planned, to A/B
-test against Shallow Reef slot for slot. Each gate's slack and routes are designed, and every fish still
-swims freely into its meeting. **Tuning > Players** resets a world for a new player; **Tuning > Reef Lab
-variations** plays other layouts. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
+The third world, **Shallow Reef 2** (internally Reef Lab, ID `reef-lab`), has ten fish-only levels whose
+meetings are planned, to A/B test against Shallow Reef slot for slot, TestFlight included. Each gate's
+slack and routes are designed, and every fish still swims freely into its meeting. In Debug builds,
+**Tuning > Players** resets a world for a new player and **Tuning > Shallow Reef 2 variations** plays
+other layouts. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
 
 ### Automatic run diagnostics
 

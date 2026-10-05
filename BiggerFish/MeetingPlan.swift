@@ -20,8 +20,8 @@ struct MeetingSpec: Codable, Equatable {
         /// How many meals make the gate edible. Fewer than the most you can eat leaves slack, and a
         /// short lane that still reaches `needed` makes the long lane a choice rather than the only way.
         var needed: Int
-        /// Meals with a bigger fish crossing close by (long lanes first), when that fish can still be
-        /// outgrown by lap two.
+        /// Meals with a bigger fish crossing close by, long lanes first. Near the end of the lap, where no
+        /// fish could be both bigger than you and outgrown by lap two, it crosses beside an earlier meal.
         var dangerFoods: Int = 0
 
         var foods: Int { singles + forks.reduce(0) { $0 + $1.long + $1.short } }
@@ -479,11 +479,22 @@ enum MeetingDesigner {
         for slot in Set(slots).sorted(by: >) where gates.count > 1 {
             var position = min(slot, window.upperBound)
             while position < meetings.count, let fork = meetings[position].fork, meetings[position - 1].fork == fork { position += 1 }
-            let playerMost = meetings[..<position].filter { $0.role != .threat && $0.lane == 0 }.reduce(CGFloat(1)) { grow($0, [$1.size]) }
-            let lower = playerMost * 1.12
             let size = fewest * CGFloat(Double.random(in: spec.lapTwoSize, using: &rng))
-            // Late in the lap even a player who ate everything may already be big enough; skip rather than fail.
-            guard lower < size, size < fewest * 0.985 else { continue }
+            guard size < fewest * 0.985 else { continue }
+            // A threat goes outside forks, never beside another threat, and only where it's bigger than anyone
+            // could be yet. Late in the lap a player who ate everything may already be this big, and an earlier
+            // threat may have moved into this slot: either way it takes the latest earlier slot that fits.
+            func fits(_ slot: Int) -> Bool {
+                guard slot >= T.plannerEarliestDangerMeal, slot < meetings.count,
+                      meetings[slot].role != .threat, meetings[slot - 1].role != .threat else { return false }
+                if let fork = meetings[slot].fork, meetings[slot - 1].fork == fork { return false }
+                let most = meetings[..<slot].filter { $0.role != .threat && $0.lane == 0 }.reduce(CGFloat(1)) { grow($0, [$1.size]) }
+                return most * 1.12 < size
+            }
+            if !fits(position) {
+                guard let earlier = stride(from: position - 1, through: 1, by: -1).first(where: fits) else { continue }
+                position = earlier
+            }
             meetings.insert(DesignedMeeting(key: key, role: .threat, segment: meetings[min(position, meetings.count - 1)].segment, size: size),
                             at: position)
             key += 1
@@ -500,15 +511,28 @@ enum MeetingDesigner {
                 key += 1
             }
         }
+        var guarded = Set(dangerFoods.map(\.key))
         for (food, playerMost) in dangerFoods {
-            let lower = playerMost * 1.12
-            guard let index = meetings.firstIndex(where: { $0.key == food }) else { continue }
-            guard lower < ceiling else {
-                if meetings[index].segment < spec.segments.count - 1 { issues.append("no room for the threat beside food \(food)") }
-                continue
+            var lower = playerMost * 1.12
+            guard var index = meetings.firstIndex(where: { $0.key == food }) else { continue }
+            if lower >= ceiling {
+                // Late in the lap, a fish bigger than anyone could be then couldn't be outgrown by lap two:
+                // it crosses beside the latest earlier meal where it can be both.
+                func mostBefore(_ slot: Int) -> CGFloat {
+                    meetings[..<slot].filter { $0.role != .threat && $0.lane == 0 }.reduce(CGFloat(1)) { grow($0, [$1.size]) }
+                }
+                let earlier = stride(from: index - 1, through: T.plannerEarliestDangerMeal, by: -1)
+                    .first { meetings[$0].role == .food && !guarded.contains(meetings[$0].key) && mostBefore($0) * 1.12 < ceiling }
+                guard let earlier else {
+                    if meetings[index].segment < spec.segments.count - 1 { issues.append("no room for the threat beside food \(food)") }
+                    continue
+                }
+                index = earlier
+                lower = mostBefore(earlier) * 1.12
+                guarded.insert(meetings[earlier].key)
             }
             var threat = DesignedMeeting(key: key, role: .threat, segment: meetings[index].segment,
-                size: CGFloat.random(in: lower...min(ceiling, lower * 1.2), using: &rng), guards: food)
+                size: CGFloat.random(in: lower...min(ceiling, lower * 1.2), using: &rng), guards: meetings[index].key)
             threat.guardsAfter = Bool.random(using: &rng)
             meetings.insert(threat, at: index + 1)
             key += 1
