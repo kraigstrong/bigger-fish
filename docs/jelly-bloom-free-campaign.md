@@ -51,8 +51,6 @@ Fixed-playfield verification before reordering: 78 non-route tests passed, inclu
 
 Load shipped settings and Apply & Play for each level to clear old saved overrides. Seed re-roll and effective growth controls remain available in the tuner; recordings include expected catch fraction, starting wave budgets, per-fish release events, meal ratios, and actual effective growth.
 
-Historical patrol/food-race reports remain in `jelly-bloom-difficulty-system.md`; they are not measurements of this new campaign.
-
 ## Selected seed results
 
 The seed search evaluated 1,368 rollouts, followed by 120 validation runs of the selected seeds after the spawn-clearance fix. These numerical measurements precede the protected-contact separation follow-up; that follow-up is checked by the current route regression. At the time of that study, every selected seed had a winning route on each tested screen size, no missing initial fish, and a viable initial growth chain. Bot win counts and uncontested food-race deadlines are **not monotonic**: these do not establish a linear human difficulty curve. The catch-percentage model is the first design pass.

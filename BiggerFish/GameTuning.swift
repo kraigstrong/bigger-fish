@@ -158,7 +158,7 @@ enum GameTuning {
     static let bloomFoodRadiusFraction: ClosedRange<CGFloat> = 0.45...0.65
 
     /// World 1 remains intact. Bloom's curve varies the food-race window, not chase AI.
-    /// Profiles were selected by real-scene simulations; see docs/jelly-bloom-balance.md.
+    /// The original five profiles, kept for comparison in the debug tuner.
     static let bloomReferenceLevels: [Level] = [
         Level(spawnGroups: [(9, 0.30...0.65), (5, 0.65...0.85)],
               aiSpeedRange: 30...80, aiVerticalSpeed: 35, screenCrossSeconds: 3.1,

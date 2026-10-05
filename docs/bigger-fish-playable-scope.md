@@ -1,20 +1,27 @@
-# Bigger Fish: first two-world playable
+# Bigger Fish: two-world playable
 
 Based on Kraig's Bigger Fish design draft dated September 29, 2026, with decisions made during
-implementation on October 1. The draft is a longer-term vision, not the scope of this build.
+implementation and family playtesting through October 4. The draft is a longer-term vision, not the
+scope of this build.
 
 ## Accepted decisions
 
 - Keep continuous area-based growth and relative-size eating. Ignore the draft's fixed tiers.
-- Keep the original five levels and control tuning as World 1, **Shallow Reef**.
-- Both worlds are available during development; levels unlock sequentially within each world.
-- Add World 2, **Jelly Bloom**, with five numbered levels; both worlds show Level 1–5, without names.
-- Dome tops bounce; tentacles remain lethal. Remove all urchins, chasing, and fleeing.
-- Bloom's larger fish swim normally and can be outgrown through eating; baiting is optional.
-- AI-on-AI eating is essential in every Bloom level: take a risky meal before another fish eats it
-  and grows into a threat. Retain the existing 1.5-second opening grace period.
+- Two worlds, **Shallow Reef** (fish only) and **Jelly Bloom** (jellyfish), with ten numbered
+  levels each. Both worlds are open; levels unlock sequentially within each world.
+- Jellyfish domes bounce the player and AI fish; tentacles kill only the player. No urchins,
+  chasing, or fleeing.
+- AI-on-AI eating is essential: take a risky meal before another fish eats it and grows into a
+  threat. Each fish is protected from AI eating until the player has passed its starting area.
+- Near-equal encounters (within 1% radius) go to the player; NPC ties still bump apart.
+- One global 0.90 meal-growth multiplier applies to both worlds (effective absorption 0.495).
+- Gameplay runs at fixed 1/60-second steps on one 874 × 402 logical playfield, and every NPC has
+  its own seeded movement stream, so retries start identically on every device.
+- Campaign order comes from phone playtesting, not the authoring difficulty targets. Level IDs
+  are campaign slots; a reorder moves whole setups (seed, speeds, growth) between slots.
 - Save level clears and fastest clear times locally, with stable IDs and a Bigger Fish-only key.
-- Keep new code and copied assets in BiggerFish; defer shared engine consolidation while Math Reef is in review.
+- Map art and layout are shared with Math Reef through FishKit (`OceanMapArt`, `OceanMapLayout`);
+  game code and assets stay in `BiggerFish/`.
 
 ## Playable slice
 
@@ -22,28 +29,20 @@ World map -> level path -> instructions -> play -> win/retry/next level/level ma
 Results use Math Reef's choices: Next level / Play again / Levels after a clear, or Try again / Levels
 after a loss. The final level offers Play again / Levels. Only buttons advance the game.
 Pausing offers Resume, Restart, and Level map. Cleared levels remain replayable. World completion
-returns to its map rather than immediately restarting the campaign.
-
-Level 1 retains its four-domed, smaller-fish opening. Levels 2–5 place opening food pockets above their jellyfish. Food fish start near their pockets, then roam after four simulation seconds in Levels 2–5.
-Level 2 has a single placement experiment at its second dome: meals sit beyond the far
-shoulder, slightly below the rim, with one larger fish swimming nearby. An early bounce
-can carry the player above the meals; skimming the shoulder is an alternative. Food pockets follow the new seeded jelly positions. Bounce strength, AI competition, and the grown-fish escape lane stay intact.
-Levels 2–5 now experiment with Shallow Reef Level 4's size mix: 3 small, 5 edible,
-5 near-equal, 4 medium, and 2 giant fish. Absorption efficiency is 0.78, so small meals
-unlock medium fish before the giants. AI use Shallow Reef Level 4's speeds (65–155 horizontal, 80 vertical); player speed remains
-unchanged. Jelly positions vary in spacing and height using a stable per-level seed, with
-minimum bell spacing, an open start, and the existing growing-fish lower passage. Level 1
-retains its original movement and layout.
-Larger fish use ordinary distributed starts rather than the former widely separated slots;
-only the first larger fish in Level 2 is assigned to the far-side pocket. AI competition
-can change this progression during play. Jellyfish serve as obstacles and optional bounces.
-Bells are broader and tentacles shorter than the former predator layouts.
+returns to its map with the final level focused rather than restarting the campaign.
 
 A clear means becoming the last fish swimming, with no meal quota or replenishment. Meal counters
-and HUD code remain dormant for future endless mode. Ordinary Bloom swimmers look ahead and steer
-around tentacles. Every level keeps a lower passage sized for the growing player. Same-frame
-bouncing and touch controls remain intact.
-All physics, hazard dimensions, and speeds live in `GameTuning` and need device playtesting.
+and HUD code remain dormant for a future endless mode. All tuning lives in `GameTuning`; the
+current campaigns are described in [shallow-reef-ten-level-campaign.md](shallow-reef-ten-level-campaign.md)
+and [jelly-bloom-free-campaign.md](jelly-bloom-free-campaign.md).
+
+## Privacy
+
+No ads or third-party SDKs. The app sends anonymous first-party gameplay summaries
+(`ArcadeAnalytics.swift`) to brightbench.app: no identifiers, timestamps, device details, or
+trajectories. The policy is at brightbench.app/bigger-fish/privacy; keep it,
+`BiggerFish/PrivacyInfo.xcprivacy`, and the endpoint's validator in step with any payload change.
+Debug builds record full runs locally only.
 
 ## Deferred vision
 
@@ -55,13 +54,12 @@ All physics, hazard dimensions, and speeds live in `GameTuning` and need device 
 - Future worlds: Kelp Forest (ambush), The Deep (limited information), Riptide Reef (currents after
   controls are validated), Frozen Trench (space management).
 - Fishpedia, daily seeded runs, expanded cosmetics, and a later decision about Game Center.
-- Consolidating map, audio, and reusable art infrastructure with Math Reef through FishKit.
+- Whether player growth (camera zoom) should keep widening every NPC's swimming area.
 
 Size readability remains the priority. Cosmetics must never change the fish's apparent body size.
-No ads, third-party tracking, or network services are added to this build.
 
-## Release isolation
+## Branches
 
-Development lives on `codex/bigger-fish-arcade`. Math Reef 1.0.0 build 2 stays at
-`math-reef-v1.0.0`; if Apple requests a change, branch from that tag and increment its build there.
-Merge release fixes back into main and then into the arcade branch rather than cherry-picking.
+Development integrates on `codex/bigger-fish-integration`; feature branches open PRs into it, and
+it merges to `main` when ready. Math Reef releases are tagged (`math-reef-v1.0.0`); a Math Reef
+hotfix branches from its tag, then merges back into `main` and from there into the integration branch.
