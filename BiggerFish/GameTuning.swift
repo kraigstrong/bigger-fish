@@ -378,7 +378,7 @@ enum GameTuning {
                        .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
             extraThreats: 2, lapTwoSize: 0.72...0.82, headOnShare: 0.55, heightSwing: 0.1...0.45, foodSize: 0.68...0.84,
             gateMargin: 0.8, dangerGap: 70, threatClearance: 110, spacing: 0.25, aiSpeed: 48...129, aiVertical: 64,
-            crossSeconds: 2.86, placesEveryThreat: false),
+            crossSeconds: 2.86),
         MeetingSpec(name: "Reef Lab 3",
             segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2, dangerFoods: 1),
@@ -406,7 +406,7 @@ enum GameTuning {
                        .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
             worldScreens: 5, extraThreats: 3, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
             foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
-            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68, placesEveryThreat: false),
+            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68),
         MeetingSpec(name: "Reef Lab 7",
             segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
@@ -443,9 +443,12 @@ enum GameTuning {
                              dangerFoods: 2)],
             worldScreens: 5, extraThreats: 3, lapTwoSize: 0.94...0.99, headOnShare: 0.7, heightSwing: 0.5...0.85,
             foodSize: 0.76...0.9, gateMargin: 0.05, dangerGap: 16, threatClearance: 28, spacing: 0.26,
-            aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, walledGates: true, timesTheEdge: true,
-            placesEveryThreat: false),
+            aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, walledGates: true, timesTheEdge: true),
     ]
+
+    /// Playtested levels whose shipped plans are frozen: regenerating ReefLabPlans.json keeps them exactly
+    /// as played, so later planner changes can't reshuffle them. Remove a name to re-plan that level.
+    static let reefLabFrozen: Set<String> = Set(reefLabSpecs.map(\.name))
 
     /// Reef Lab's levels, planned on the Mac and shipped as data so no device plans them while you play.
     /// Regenerate with the `reef-lab-plans.request` marker (MeetingPlannerTests) after changing the specs or

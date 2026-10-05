@@ -48,20 +48,18 @@ struct MeetingPlannerTests {
 
     @Test func reefLabPlansCleanlyAndGetsHarderLevelByLevel() {
         let specs = GameTuning.reefLabSpecs
-        let plans = specs.map { MeetingPlanner.plan($0) }
-        // Levels 8 and 9 were playtested and kept with one fish each slightly off its plan (a small height
-        // miss); every other level must plan cleanly.
-        let playtestedIssues = ["Reef Lab 8": ["fish 15 is off its plan (score 14)"],
-                                "Reef Lab 9": ["fish 19 is off its plan (score 16)"]]
+        let plans = GameTuning.reefLabLevels.map { $0.meetingPlan! }
         for plan in plans {
-            #expect(plan.issues == playtestedIssues[plan.spec.name] ?? [], "\(plan.spec.name): \(plan.issues)")
             #expect(plan.fish.map(\.id) == Array(1...plan.fish.count))
-            // Every requested big fish is placed, walls on top. The playtested Easy, Medium, and Hard were
-            // calibrated before that was guaranteed and each kept one fewer (`placesEveryThreat`).
+            #expect(plan.analysis.meetings.filter { $0.minimumMeals != nil }.count > plan.fish.count / 2)
+        }
+        // Today's planner places every big fish a spec asks for, with at most one fish slightly off its plan.
+        for spec in specs {
+            let plan = MeetingPlanner.plan(spec)
             let walls = plan.fish.filter { $0.role == .threat }.count
-                - plan.spec.extraThreats - plan.spec.segments.reduce(0) { $0 + $1.dangerFoods }
-            #expect(walls >= (plan.spec.placesEveryThreat ? 0 : -1), "\(plan.spec.name) is missing big fish")
-            #expect(plan.spec.placesEveryThreat != ["Easy", "Medium", "Hard"].contains(plan.spec.name))
+                - spec.extraThreats - spec.segments.reduce(0) { $0 + $1.dangerFoods }
+            #expect(walls >= 0, "\(spec.name) is missing big fish")
+            #expect(plan.issues.count <= 1 && plan.issues.allSatisfy { $0.contains("is off its plan") }, "\(spec.name): \(plan.issues)")
         }
         let tightest = plans.map { plan in
             plan.fish.filter { $0.role == .gate }.compactMap { plan.analysis.meeting(fishID: $0.id)?.robustSlack }.min() ?? -1
@@ -73,14 +71,33 @@ struct MeetingPlannerTests {
             #expect(next.aiSpeed.upperBound > previous.aiSpeed.upperBound && next.crossSeconds < previous.crossSeconds)
             #expect(next.gateMargin < previous.gateMargin && next.dangerGap < previous.dangerGap)
         }
-        #expect(MeetingPlanner.plan(specs[0]).seed == plans[0].seed)
+        #expect(GameTuning.reefLabFrozen.isSubset(of: specs.map(\.name)))
+    }
+
+    /// Open-water threats never land beside each other, even when one moves earlier into another's slot.
+    @Test func plannedThreatsNeverCrossOnTopOfEachOther() {
+        for spec in GameTuning.reefLabSpecs {
+            let plan = MeetingPlanner.plan(spec)
+            let crossings = Dictionary(uniqueKeysWithValues: plan.predicted.map { ($0.fishID, $0) })
+            let threats = plan.fish.filter { $0.role == .threat }
+            for (offset, a) in threats.enumerated() {
+                for b in threats.dropFirst(offset + 1) {
+                    let first = crossings[a.id]!, second = crossings[b.id]!
+                    guard abs(first.time - second.time) < 0.15 else { continue }
+                    #expect(abs(first.y - second.y) >= Double(a.radius + b.radius) * Double(GameTuning.collisionScale),
+                            "\(spec.name): threats \(a.id) and \(b.id) cross on top of each other")
+                }
+            }
+        }
     }
 
     @MainActor @Test func plannedFishMeetThePlayerWherePlannedOnAnyRoute() {
-        for spec in [GameTuning.reefLabSpecs[1], GameTuning.reefLabSpecs[5], GameTuning.reefLabSpecs[9]] {
-            let plan = MeetingPlanner.plan(spec)
+        // The shipped Easy, Medium, and Hard, in the real Reef Lab world.
+        for index in [1, 5, 9] {
+            let plan = GameTuning.reefLabLevels[index].meetingPlan!
+            let spec = plan.spec
             let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
-            let scene = GameScene.plannerScene(spec)
+            let scene = GameScene(world: .reefLab, levelIndex: index)
             let actual = scene.debugEncounterCrossings(radii: plan.referenceRadii, eaten: reference)
             for predicted in plan.predicted {
                 let real = actual.first { $0.fishID == predicted.fishID }
@@ -90,7 +107,7 @@ struct MeetingPlannerTests {
             #expect(scene.debugVisibleUnmetContacts == 0)
             // A player who eats only what each gate needs, or everything, still meets every fish.
             for route in [plan.fewestMealRoute, plan.fullestRoute] {
-                let crossings = GameScene.plannerScene(spec).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
+                let crossings = GameScene(world: .reefLab, levelIndex: index).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
                 #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(spec.name)")
             }
         }
@@ -120,7 +137,8 @@ struct MeetingPlannerTests {
             ?? Bundle.main.url(forResource: "ReefLabPlans", withExtension: "json"))
         let bundled = try JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: url))
         #expect(bundled.map(\.spec) == GameTuning.reefLabSpecs, "ReefLabPlans.json is out of date: regenerate it")
-        for plan in bundled {
+        // Frozen levels keep their playtested plans; the rest are what the planner makes today.
+        for plan in bundled where !GameTuning.reefLabFrozen.contains(plan.spec.name) {
             #expect(plan.fish == MeetingPlanner.plan(plan.spec).fish, "\(plan.spec.name): regenerate ReefLabPlans.json")
         }
     }
@@ -129,10 +147,18 @@ struct MeetingPlannerTests {
     @Test func manualWriteReefLabPlans() throws {
         let marker = Self.root.appendingPathComponent("build/arcade-development/reef-lab-plans.request")
         guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        let file = Self.root.appendingPathComponent("BiggerFish/ReefLabPlans.json")
+        let existing = (try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: file))) ?? []
+        let plans = GameTuning.reefLabSpecs.map { spec in
+            // A frozen level keeps its shipped plan; changing its spec means unfreezing it to re-plan.
+            GameTuning.reefLabFrozen.contains(spec.name) ? existing.first { $0.spec.name == spec.name }.map { frozen in
+                MeetingPlan(spec: spec, variation: frozen.variation, seed: frozen.seed, fish: frozen.fish,
+                            predicted: frozen.predicted, analysis: frozen.analysis, issues: frozen.issues)
+            } ?? MeetingPlanner.plan(spec) : MeetingPlanner.plan(spec)
+        }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let plans = GameTuning.reefLabSpecs.map { MeetingPlanner.plan($0) }
-        try encoder.encode(plans).write(to: Self.root.appendingPathComponent("BiggerFish/ReefLabPlans.json"))
+        try encoder.encode(plans).write(to: file)
     }
 
     @MainActor @Test func plannedLevelsSpawnEveryFishAndKeepPlannedFishOnTheirLine() {

@@ -70,8 +70,14 @@ setting from one to the next, with speeds following Shallow Reef's authoring cur
 with a couple of big fish to avoid; level 8 is Hard's shape without walls; walls arrive at level 9.
 
 Every level places all the big fish its settings ask for: one that can't be sized where it was asked for
-(an open-water slot, or a meal late in the lap) moves to the latest earlier slot or meal where it can be
-(`placesEveryThreat`). Easy, Medium, and Hard were calibrated before that and each keep one fewer.
+(an open-water slot, or a meal late in the lap), or whose slot another threat already took, moves to the
+latest earlier slot or meal where it can be.
+
+**Frozen levels.** A playtested level keeps its shipped plan exactly as played (`GameTuning.reefLabFrozen`):
+regenerating the data file leaves it alone, so later planner changes can't reshuffle it. All ten are frozen
+as first played; remove a name to re-plan that level. As played, Easy, Medium, and Hard have one fewer big
+fish than their settings ask for, level 8 has two big fish crossing together, and level 9 has one fish
+slightly off its planned height.
 
 | Level | Fish | Forks | Misses survived per gate | First playtest (an experienced player) |
 |---|---:|---:|---|---|
@@ -84,8 +90,6 @@ Every level places all the big fish its settings ask for: one that can't be size
 | 8 | 26 | 4 | 1 | first try; "about perfect" |
 | 9 | 30 | 4 | 1 | 20 tries; "about perfect" |
 | 10 (Hard) | 29 | 4 | 0, 0, 0 on the short lanes | 17 tries; "about perfect" |
-
-Levels 8 and 9 each keep one fish slightly off its planned height (a 14–16 point miss) as playtested.
 
 Hard's meals are 76–90% of your size and its gates barely edible, so every catch is a close call. Its
 gates are walled (`walledGates`): a big fish crosses a tenth of a second before and after each gate,
@@ -107,7 +111,7 @@ choosing lanes; playtesting decides difficulty.
 Plans are deterministic, so Reef Lab's are made on the Mac and shipped in `BiggerFish/ReefLabPlans.json`:
 no device plans while you play, and every device plays the same level. After changing `reefLabSpecs` or
 the planner, regenerate the file by creating `build/arcade-development/reef-lab-plans.request` and running
-`MeetingPlannerTests`; `bundledReefLabPlansMatchThePlanner` fails until you do. The tuner's other
+`MeetingPlannerTests`; `bundledReefLabPlansMatchThePlanner` fails until you do. Frozen levels are kept. The tuner's other
 variations still plan on the device.
 
 ## Playing them
