@@ -91,12 +91,7 @@ enum ArcadeSimulation {
     }
 
     static func hasGrowthPath(player: CGFloat, radii: [CGFloat], efficiency: CGFloat) -> Bool {
-        var radius = player
-        for prey in radii.sorted() {
-            guard GameRules.playerEncounter(radius, prey) == .firstEatsSecond else { return false }
-            radius = GameRules.grownRadius(predator: radius, prey: prey, efficiency: efficiency)
-        }
-        return true
+        ArcadeGrowthBudget.hasPath(player: player, radii: radii, efficiency: efficiency)
     }
 
     /// Predict short local trajectories for both inputs. Only visible fish enter the observation.
