@@ -68,7 +68,12 @@ pass each other.
 |---|---:|---:|---|---|---:|---|
 | Easy | 17 | 3 | 3+, 2, 2 | 4, 60, 34 | 3 | 3/3, about 14 s |
 | Medium | 22 | 3 | 1, 1, 1 | 4, 31, 28 | 5 | 1/3, 18 s |
-| Hard | 24 | 4 | 1, 1, 1 | 4, 27, 209 | 9 | 0/3 |
+| Hard | 24 | 4 | 0, 0, 0 on the short lanes | 3, 15, 90 | 9 | 0/3 |
+
+Hard's meals are 76–90% of your size and its gates barely edible, so every catch is a close call and
+skipping a gate leaves the next stretch's meals too big; its returning fish come back at 94–99% of the
+size you should be. Because near-size meals grow routes apart quickly, Hard times its meetings against
+the player who barely makes each gate (`timesTheEdge`).
 
 Lanes are exclusive in every fork: the most anyone can eat on lap one is every single, every gate, and
 one lane per fork. In the real scene every fish crosses within 0.05 s and 3 points of its plan on the

@@ -55,6 +55,10 @@ struct MeetingSpec: Codable, Equatable {
     var aiSpeed: ClosedRange<Double>
     var aiVertical: Double
     var crossSeconds: Double
+    /// Time meetings against the player who barely makes each gate rather than a random lane choice.
+    /// With near-size meals, routes grow and zoom apart quickly; precision matters most at the edge, and
+    /// players ahead of it have margin to spare.
+    var timesTheEdge = false
 }
 
 /// A planned fish: where and when you meet it, and the spawn that gets it there on its own free swim.
@@ -408,17 +412,21 @@ enum MeetingDesigner {
                 }
             }
             var sizes: [CGFloat] = []
-            var gate: CGFloat = 0, enoughRoute: [CGFloat] = []
+            var gate: CGFloat = 0, enoughRoute: [CGFloat] = [], enoughMeals: [Int] = []
             for _ in 0..<100 {
                 sizes = meals.map { _ in fewest * CGFloat(Double.random(in: spec.foodSize, using: &rng)) }
-                let viable = routes.filter { $0.count >= segment.needed }
-                guard let weakest = viable.map({ Array($0.map { sizes[$0] }.sorted().prefix(segment.needed)) })
-                        .min(by: { grow(fewest, $0) < grow(fewest, $1) }) else { break }
+                let viable = routes.filter { $0.count >= segment.needed }.map { route in
+                    Array(route.sorted { sizes[$0] < sizes[$1] }.prefix(segment.needed))
+                }
+                guard let weakestMeals = viable.min(by: { grow(fewest, $0.map { sizes[$0] }) < grow(fewest, $1.map { sizes[$0] }) })
+                else { break }
+                let weakest = weakestMeals.map { sizes[$0] }
                 let short = routes.map { grow(fewest, Array($0.map { sizes[$0] }.sorted().suffix(max(0, segment.needed - 1)))) }.max() ?? fewest
                 let lower = short * 1.035, upper = grow(fewest, weakest) * 0.985
                 if lower < upper {
                     gate = lower + (upper - lower) * CGFloat(1 - spec.gateMargin)
                     enoughRoute = weakest
+                    enoughMeals = weakestMeals
                     break
                 }
             }
@@ -426,7 +434,8 @@ enum MeetingDesigner {
                 issues.append("segment \(segmentIndex + 1) has no gate size")
                 gate = grow(fewest, sizes) * 0.98
             }
-            let referenceRoute = Set(routes.randomElement(using: &rng) ?? [])
+            let anyRoute = Set(routes.randomElement(using: &rng) ?? [])
+            let referenceRoute = spec.timesTheEdge ? Set(enoughMeals) : anyRoute
             // Danger crosses beside long lanes first, then singles; never in the opening.
             let longLane = meals.indices.filter { meals[$0].fork != nil && meals[$0].lane == 0 }.shuffled(using: &rng)
             let others = meals.indices.filter { meals[$0].fork == nil }.shuffled(using: &rng)

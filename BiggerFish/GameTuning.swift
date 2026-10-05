@@ -345,15 +345,16 @@ enum GameTuning {
             foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
             aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68),
         // Every gate can be reached by the short lanes with nothing to spare; the long lanes, beside tight
-        // danger, buy margin for the gates and lap two.
+        // danger, buy margin. Meals are close to your size, so every catch is a close call and skipping a
+        // gate leaves the next stretch's meals too big; gates and lap-two fish are barely edible.
         MeetingSpec(name: "Hard",
             segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
                        .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
                              dangerFoods: 2)],
-            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.9...0.96, headOnShare: 0.65, heightSwing: 0.5...0.85,
-            foodSize: 0.64...0.8, gateMargin: 0.15, dangerGap: 22, threatClearance: 34, spacing: 0.22,
-            aiSpeed: 70...200, aiVertical: 100, crossSeconds: 2.5),
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.94...0.99, headOnShare: 0.7, heightSwing: 0.5...0.85,
+            foodSize: 0.76...0.9, gateMargin: 0.05, dangerGap: 16, threatClearance: 28, spacing: 0.26,
+            aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, timesTheEdge: true),
     ]
 
     /// Reef Lab plays each preset's first variation. Plans are computed once, on first use.
