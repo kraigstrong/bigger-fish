@@ -33,7 +33,10 @@ struct ArcadeResultTests {
         scene.debugStart(); scene.debugClearLevel()
         let elements = scene.accessibilityElements as? [ArcadeResultAccessibilityElement]
         #expect(elements?.map(\.accessibilityLabel) == ["Next level", "Play again", "Levels"])
-        #expect(elements?.first?.accessibilityFrame.height ?? 0 >= 44)
+        // CI can host this window in portrait; verify coordinate conversion independently
+        // of orientation. Landscape touch-target sizing is checked below.
+        let scale = min(view.bounds.width / scene.size.width, view.bounds.height / scene.size.height)
+        #expect(abs((elements?.first?.accessibilityFrame.height ?? 0) - 58 * scale) < 0.5)
         scene.debugTapResult(.nextLevel)
         #expect(scene.accessibilityElements == nil)
         withExtendedLifetime(view) {}
@@ -47,10 +50,11 @@ struct ArcadeResultTests {
                 #expect(panel.primaryAction == expected)
                 let primary = panel.controls[0].frame
                 #expect(primary.width > panel.controls[1].frame.width)
-                #expect(primary.height >= 44)
+                let scale = GameTuning.fittedPlayfieldSize(in: size).width / GameTuning.playfieldSize.width
+                #expect(primary.height * scale >= 44)
                 for control in panel.controls.dropFirst() {
                     #expect(!primary.intersects(control.frame))
-                    #expect(control.frame.height >= 44)
+                    #expect(control.frame.height * scale >= 44)
                 }
                 var selected: ArcadeResultAction?
                 panel.onSelect = { selected = $0 }

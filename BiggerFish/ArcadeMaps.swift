@@ -75,7 +75,7 @@ struct ArcadeLevelMap: View {
             let size = geometry.size
             let width = max(size.width, OceanMapLayout.levelContentWidth(count: world.levels.count))
             let centers = OceanMapLayout.levelCenters(count: world.levels.count, height: size.height)
-            let focus = progress.nextLevel(in: world)
+            let focus = progress.mapFocus(in: world)
             ZStack(alignment: .topLeading) {
                 MapArtLayer(size: size, points: [], fishHome: nil, bed: true)
                 ScrollViewReader { proxy in

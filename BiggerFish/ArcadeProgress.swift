@@ -31,6 +31,11 @@ final class ArcadeProgress: ObservableObject {
         world.levels.indices.first { !isCleared(world, $0) } ?? 0
     }
 
+    /// Completed campaigns stay focused on the final stop when returning to their map.
+    func mapFocus(in world: ArcadeWorld) -> Int {
+        world.levels.indices.first { !isCleared(world, $0) } ?? max(0, world.levels.count - 1)
+    }
+
     func clear(_ world: ArcadeWorld, _ index: Int, seconds: Double) {
         guard world.levels.indices.contains(index), seconds.isFinite, seconds >= 0 else { return }
         let id = world.levelID(index)
