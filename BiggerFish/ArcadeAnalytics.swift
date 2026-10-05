@@ -39,7 +39,7 @@ final class ArcadeAnalytics {
     }
     static var defaultEnabled: Bool {
         #if DEBUG
-        if ArcadePlaytest.selection != nil { return false }
+        if ArcadePlaytest.selection != nil || ArcadePlaytest.planner != nil { return false }
         #endif
         return isEnabled && !isRunningTests
     }

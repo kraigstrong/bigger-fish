@@ -11,7 +11,7 @@ struct ArcadeCampaignTests {
 
     @Test func bothWorldsStartAtLevelOne() {
         let (progress, _) = fresh()
-        for world in ArcadeWorld.allCases {
+        for world in ArcadeWorld.campaign {
             #expect(progress.mapFocus(in: world) == 0)
             #expect(progress.isOpen(world, 0))
             #expect(!progress.isOpen(world, 1))
@@ -45,7 +45,7 @@ struct ArcadeCampaignTests {
 
     @Test func aCompletedWorldRemainsReplayable() {
         let (progress, _) = fresh()
-        for world in ArcadeWorld.allCases {
+        for world in ArcadeWorld.campaign {
             for index in world.levels.indices { progress.clear(world, index, seconds: 30) }
             #expect(progress.nextLevel(in: world) == 0)
             #expect(progress.mapFocus(in: world) == world.levels.count - 1)
@@ -63,7 +63,7 @@ struct ArcadeCampaignTests {
     }
 
     @Test func levelIDsAreUniqueAndOriginalWorldHasNoHazards() {
-        let ids = ArcadeWorld.allCases.flatMap { world in world.levels.indices.map { world.levelID($0) } }
+        let ids = ArcadeWorld.campaign.flatMap { world in world.levels.indices.map { world.levelID($0) } }
         #expect(Set(ids).count == 20)
         #expect(ids.first == "shallow-reef.1")
         #expect(ids.last == "jelly-bloom.10")
@@ -220,7 +220,7 @@ struct ArcadeSceneTests {
     }
 
     @Test func allBloomLevelsHaveNoUrchinsAndUseNumberedTitles() {
-        for world in ArcadeWorld.allCases {
+        for world in ArcadeWorld.campaign {
             #expect(world.levelTitles == world.levels.indices.map { "Level \($0 + 1)" })
         }
         #expect(GameTuning.bloomLevels.allSatisfy { $0.jellies?.urchinBeds == 0 })

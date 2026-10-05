@@ -23,24 +23,32 @@ final class ArcadeProgress: ObservableObject {
     }
 
     func isOpen(_ world: ArcadeWorld, _ index: Int) -> Bool {
-        guard world.levels.indices.contains(index) else { return false }
+        guard (0..<world.levelCount).contains(index) else { return false }
         return index == 0 || isCleared(world, index) || isCleared(world, index - 1)
     }
 
     func nextLevel(in world: ArcadeWorld) -> Int {
-        world.levels.indices.first { !isCleared(world, $0) } ?? 0
+        (0..<world.levelCount).first { !isCleared(world, $0) } ?? 0
     }
 
     /// Completed campaigns stay focused on the final stop when returning to their map.
     func mapFocus(in world: ArcadeWorld) -> Int {
-        world.levels.indices.first { !isCleared(world, $0) } ?? max(0, world.levels.count - 1)
+        (0..<world.levelCount).first { !isCleared(world, $0) } ?? max(0, world.levelCount - 1)
     }
 
     func clear(_ world: ArcadeWorld, _ index: Int, seconds: Double) {
-        guard world.levels.indices.contains(index), seconds.isFinite, seconds >= 0 else { return }
+        guard (0..<world.levelCount).contains(index), seconds.isFinite, seconds >= 0 else { return }
         let id = world.levelID(index)
         save.clearedLevels.insert(id)
         save.bestTimes[id] = min(save.bestTimes[id] ?? seconds, seconds)
+        persist()
+    }
+
+    /// Debug A/B testing: a new player starts the world from level 1.
+    func reset(_ world: ArcadeWorld) {
+        let prefix = world.rawValue + "."
+        save.clearedLevels = save.clearedLevels.filter { !$0.hasPrefix(prefix) }
+        save.bestTimes = save.bestTimes.filter { !$0.key.hasPrefix(prefix) }
         persist()
     }
 

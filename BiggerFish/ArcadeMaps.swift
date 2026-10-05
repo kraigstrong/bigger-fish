@@ -5,8 +5,11 @@ import SwiftUI
 extension ArcadeWorld {
     var color: Color { Color(uiColor: mapColor) }
     var mapColor: UIColor {
-        self == .shallowReef ? UIColor(red: 0.18, green: 0.78, blue: 0.72, alpha: 1)
-                            : UIColor(red: 0.75, green: 0.52, blue: 1, alpha: 1)
+        switch self {
+        case .shallowReef: UIColor(red: 0.18, green: 0.78, blue: 0.72, alpha: 1)
+        case .jellyBloom: UIColor(red: 0.75, green: 0.52, blue: 1, alpha: 1)
+        case .reefLab: UIColor(red: 1, green: 0.74, blue: 0.3, alpha: 1)
+        }
     }
 }
 
@@ -18,29 +21,30 @@ struct ArcadeWorldMap: View {
         GeometryReader { geometry in
             let size = geometry.size
             let centers = OceanMapLayout.worldCenters(count: 5, size: size)
-            let focus = ArcadeWorld.allCases.firstIndex { world in
-                world.levels.indices.contains { !progress.isCleared(world, $0) }
+            let worlds = ArcadeWorld.mapWorlds
+            let focus = ArcadeWorld.campaign.firstIndex { world in
+                (0..<world.levelCount).contains { !progress.isCleared(world, $0) }
             } ?? 0
             ZStack(alignment: .topLeading) {
                 MapArtLayer(size: size, points: centers,
                             fishHome: CGPoint(x: centers[focus].x + 66, y: centers[focus].y + 14))
                 ForEach(0..<5, id: \.self) { index in
-                    if ArcadeWorld.allCases.indices.contains(index) {
-                        let world = ArcadeWorld.allCases[index]
-                        let cleared = world.levels.indices.filter { progress.isCleared(world, $0) }.count
+                    if worlds.indices.contains(index) {
+                        let world = worlds[index]
+                        let cleared = (0..<world.levelCount).filter { progress.isCleared(world, $0) }.count
                         Button { onSelect(world) } label: {
                             WorldMapStop(title: world.title,
-                                         detail: cleared == world.levels.count ? "✓ World complete" : "\(cleared)/\(world.levels.count) cleared",
+                                         detail: cleared == world.levelCount ? "✓ World complete" : "\(cleared)/\(world.levelCount) cleared",
                                          world: world,
                                          color: world.color, placeholder: false)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(world.title), \(cleared) of \(world.levels.count) levels cleared")
+                        .accessibilityLabel("\(world.title), \(cleared) of \(world.levelCount) levels cleared")
                         .position(x: centers[index].x, y: size.height - centers[index].y)
                     } else {
-                        let title = ["Kelp Forest", "The Deep", "Riptide Reef"][index - 2]
+                        let title = ["Kelp Forest", "The Deep", "Riptide Reef"][index - worlds.count]
                         WorldMapStop(title: title, detail: "Coming soon", world: nil,
-                                     color: [.blue, .orange, .pink][index - 2], placeholder: true)
+                                     color: [.blue, .orange, .pink][index - worlds.count], placeholder: true)
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel("\(title), coming soon")
                             .position(x: centers[index].x, y: size.height - centers[index].y)
@@ -67,8 +71,8 @@ struct ArcadeLevelMap: View {
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
-            let width = max(size.width, OceanMapLayout.levelContentWidth(count: world.levels.count))
-            let centers = OceanMapLayout.levelCenters(count: world.levels.count, height: size.height)
+            let width = max(size.width, OceanMapLayout.levelContentWidth(count: world.levelCount))
+            let centers = OceanMapLayout.levelCenters(count: world.levelCount, height: size.height)
             let focus = progress.mapFocus(in: world)
             ZStack(alignment: .topLeading) {
                 ScrollViewReader { proxy in
@@ -77,22 +81,22 @@ struct ArcadeLevelMap: View {
                             MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
                                         fishHome: centers.indices.contains(focus) ? CGPoint(x: centers[focus].x, y: centers[focus].y + 58) : nil,
                                         pulsingStops: centers.indices.contains(focus) ? [centers[focus]] : [])
-                            ForEach(world.levels.indices, id: \.self) { index in
+                            ForEach(0..<world.levelCount, id: \.self) { index in
                                 let open = progress.isOpen(world, index)
                                 let cleared = progress.isCleared(world, index)
                                 Button { onPlay(index) } label: {
-                                    MapLevelStop(number: index + 1, color: world.color, open: open,
-                                                 cleared: cleared,
+                                    MapLevelStop(number: index + 1, title: world.levelTitles[index], color: world.color,
+                                                 open: open, cleared: cleared,
                                                  best: progress.save.bestTimes[world.levelID(index)])
                                 }
                                 .buttonStyle(.plain).disabled(!open)
-                                .accessibilityLabel("Level \(index + 1), \(open ? (cleared ? "cleared, replay" : "play") : "locked")")
+                                .accessibilityLabel("\(world.levelTitles[index]), \(open ? (cleared ? "cleared, replay" : "play") : "locked")")
                                 .position(x: centers[index].x, y: size.height - centers[index].y)
                             }
                             // Stable scroll targets are separate from the positioned buttons.
                             HStack(spacing: 0) {
                                 Color.clear.frame(width: OceanMapLayout.levelStartX - OceanMapLayout.levelSpacing / 2)
-                                ForEach(world.levels.indices, id: \.self) { index in
+                                ForEach(0..<world.levelCount, id: \.self) { index in
                                     Color.clear.frame(width: OceanMapLayout.levelSpacing, height: 1).id("level-\(index)")
                                 }
                             }.allowsHitTesting(false)
@@ -108,7 +112,7 @@ struct ArcadeLevelMap: View {
                             .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
                     }.buttonStyle(.plain).accessibilityLabel("Back to worlds")
                     Text(world.title).font(.custom("AvenirNext-Heavy", size: 26))
-                    Text("\(world.levels.indices.filter { progress.isCleared(world, $0) }.count)/\(world.levels.count) cleared")
+                    Text("\((0..<world.levelCount).filter { progress.isCleared(world, $0) }.count)/\(world.levelCount) cleared")
                         .font(.custom("AvenirNext-DemiBold", size: 14))
                     Spacer(minLength: 0)
                 }
@@ -153,6 +157,7 @@ private struct WorldMapStop: View {
 
 private struct MapLevelStop: View {
     let number: Int
+    let title: String
     let color: Color
     let open: Bool
     let cleared: Bool
@@ -169,7 +174,7 @@ private struct MapLevelStop: View {
                 Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).offset(y: -43)
             }
             VStack(spacing: 4) {
-                Text("Level \(number)").font(.custom("AvenirNext-DemiBold", size: 12))
+                Text(title).font(.custom("AvenirNext-DemiBold", size: 12))
                 if let best { Text("Best \(Int(best))s").font(.custom("AvenirNext-DemiBold", size: 11)) }
                 else if !open { Text("Locked").font(.custom("AvenirNext-DemiBold", size: 11)) }
             }.opacity(open ? 0.95 : 0.55).offset(y: 51)

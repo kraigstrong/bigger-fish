@@ -162,6 +162,13 @@ Presets are local, hold at most ten names, and can be applied to another level. 
 starting fish cannot always fit extreme combinations; the run analysis flags spawn shortfalls.
 These tools and overrides are absent in Release/TestFlight.
 
+### Meeting planner (Debug only)
+
+Debug builds add a third world, **Reef Lab**: ten fish-only levels whose meetings are planned, to A/B
+test against Shallow Reef slot for slot. Each gate's slack and routes are designed, and every fish still
+swims freely into its meeting. **Tuning > Players** resets a world for a new player; **Tuning > Reef Lab
+variations** plays other layouts. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
+
 ### Automatic run diagnostics
 
 Pulling recordings also writes `build/arcade-runs/analysis/report.md` and `metrics.json`.

@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import FishKit
 
 /// Every feel-related constant lives here so it can be tweaked quickly between device runs.
@@ -318,6 +319,146 @@ enum GameTuning {
             encounterDifficulty: difficulty, freeEncounterMovement: true, ecosystemSeedIndex: index)
     }
 
+    // MARK: Meeting planner (prototype, fish-only)
+
+    // Meeting layout shared by every planned level; each MeetingSpec sets its own spacing and sizes.
+    /// The first meeting comes this many screen widths into the run.
+    static let plannerFirstMeetingScreens: CGFloat = 0.6
+    /// The last meeting comes this many screens before the lap ends.
+    static let plannerLastMeetingMargin: CGFloat = 0.3
+    /// A near-equal swallow takes up to 0.8 s; the next meeting waits a beat longer.
+    static let plannerGateRecoverySeconds: CGFloat = 1.0
+    /// A danger meal's threat crosses this many screen widths of time before or after it.
+    static let plannerDangerOffsetScreens: CGFloat = 0.07
+    /// Seconds between a fork's two lanes crossing: too close to take both.
+    static let plannerForkOffsetSeconds: CGFloat = 0.12
+    /// Room, in meeting gaps, to reach either lane before a fork and to come back after it.
+    static let plannerForkLead: CGFloat = 1.3
+    /// Heights as a share of the water a fish can reach: single meals, fork lanes, and the meals either side of a fork.
+    static let plannerHeightLimits: ClosedRange<CGFloat> = 0.08...0.92
+    static let plannerHighLane: ClosedRange<CGFloat> = 0.78...0.92
+    static let plannerLowLane: ClosedRange<CGFloat> = 0.08...0.22
+    static let plannerMidWater: ClosedRange<CGFloat> = 0.42...0.58
+    /// Screen points of combined body overlap counted on top of swimming reach between meals.
+    static let plannerMealHeightTolerance: CGFloat = 20
+    /// The first meal (zero-based) a threat may cross beside.
+    static let plannerEarliestDangerMeal = 3
+    /// A gate's wall fish cross this long before and after it: apart enough that eating the gate comes
+    /// first, close enough that there's no time to swim around.
+    static let plannerWallOffsetSeconds: CGFloat = 0.1
+    /// Screen points between a gate and its wall fish: under a fish's width, so nobody slips between,
+    /// and clear of the separation reach planned fish keep from each other on screen.
+    static let plannerWallGap: CGFloat = 30
+    /// Fish you overtake swim within this share of the slow end of the speed range: near your speed they
+    /// creep toward you for seconds, as if fleeing.
+    static let plannerSameDirectionSpeedShare = 0.3
+
+    /// Planned fish you haven't met only separate within this many points of the screen.
+    static let plannedContactScreenMargin: CGFloat = 100
+    /// The planner keeps unmet fish apart over a wider window, so route timing drift can't bring a contact on screen.
+    static let plannerContactScreenMargin: CGFloat = 180
+
+    /// Reef Lab: a ten-level planned Shallow Reef to A/B test against the campaign, slot for slot. Levels 2,
+    /// 6, and 10 are the playtested Easy, Medium, and Hard (their names seed their layouts, so keep them);
+    /// the levels between step their settings from one to the next. Speeds follow Shallow Reef's authoring
+    /// curve. Forks offer a high and a low lane at once, the long lane buying margin beside danger; open-water
+    /// threats return on lap two near the size you should have reached.
+    static let reefLabSpecs: [MeetingSpec] = [
+        // An introduction: forgiving gates and no big fish beyond them.
+        MeetingSpec(name: "Reef Lab 1",
+            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
+            extraThreats: 0, lapTwoSize: 0.65...0.75, headOnShare: 0.5, heightSwing: 0.1...0.35, foodSize: 0.7...0.84,
+            gateMargin: 0.9, dangerGap: 80, threatClearance: 120, spacing: 0.27, aiSpeed: 45...120, aiVertical: 60,
+            crossSeconds: 2.9),
+        MeetingSpec(name: "Easy",
+            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
+            extraThreats: 2, lapTwoSize: 0.72...0.82, headOnShare: 0.55, heightSwing: 0.1...0.45, foodSize: 0.68...0.84,
+            gateMargin: 0.8, dangerGap: 70, threatClearance: 110, spacing: 0.25, aiSpeed: 48...129, aiVertical: 64,
+            crossSeconds: 2.86),
+        MeetingSpec(name: "Reef Lab 3",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2)],
+            extraThreats: 2, lapTwoSize: 0.76...0.85, headOnShare: 0.55, heightSwing: 0.2...0.55, foodSize: 0.68...0.84,
+            gateMargin: 0.7, dangerGap: 62, threatClearance: 95, spacing: 0.24, aiSpeed: 51...138, aiVertical: 69,
+            crossSeconds: 2.81),
+        MeetingSpec(name: "Reef Lab 4",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 2, lapTwoSize: 0.8...0.88, headOnShare: 0.58, heightSwing: 0.25...0.6,
+            foodSize: 0.67...0.83, gateMargin: 0.6, dangerGap: 55, threatClearance: 85, spacing: 0.23,
+            aiSpeed: 53...147, aiVertical: 73, crossSeconds: 2.77),
+        MeetingSpec(name: "Reef Lab 5",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.82...0.9, headOnShare: 0.6, heightSwing: 0.3...0.7,
+            foodSize: 0.66...0.82, gateMargin: 0.55, dangerGap: 50, threatClearance: 78, spacing: 0.22,
+            aiSpeed: 56...156, aiVertical: 76, crossSeconds: 2.72),
+        MeetingSpec(name: "Medium",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
+            foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
+            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68),
+        MeetingSpec(name: "Reef Lab 7",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.88...0.94, headOnShare: 0.62, heightSwing: 0.4...0.78,
+            foodSize: 0.7...0.85, gateMargin: 0.35, dangerGap: 36, threatClearance: 56, spacing: 0.24,
+            aiSpeed: 62...173, aiVertical: 87, crossSeconds: 2.63),
+        // Hard's shape without its walls: near-size meals and little margin.
+        MeetingSpec(name: "Reef Lab 8",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.2, dangerGap: 26, threatClearance: 40, spacing: 0.25,
+            aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true),
+        // Walls arrive: a gate can't be dodged and saved for lap two.
+        MeetingSpec(name: "Reef Lab 9",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.92...0.97, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.74...0.88, gateMargin: 0.12, dangerGap: 20, threatClearance: 34, spacing: 0.27,
+            aiSpeed: 67...191, aiVertical: 96, crossSeconds: 2.54, walledGates: true, timesTheEdge: true),
+        // Every gate can be reached by the short lanes with nothing to spare; the long lanes, beside tight
+        // danger, buy margin. Meals are close to your size, so every catch is a close call; gates are barely
+        // edible and walled; lap-two fish are barely edible.
+        MeetingSpec(name: "Hard",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.94...0.99, headOnShare: 0.7, heightSwing: 0.5...0.85,
+            foodSize: 0.76...0.9, gateMargin: 0.05, dangerGap: 16, threatClearance: 28, spacing: 0.26,
+            aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, walledGates: true, timesTheEdge: true),
+    ]
+
+    /// Reef Lab's levels, planned on the Mac and shipped as data so no device plans them while you play.
+    /// Regenerate with the `reef-lab-plans.request` marker (MeetingPlannerTests) after changing the specs or
+    /// the planner; a test fails while the file is out of date. A spec that's newer than the file is planned
+    /// on first use instead.
+    static let reefLabLevels: [Level] = {
+        let bundled = Bundle.main.url(forResource: "ReefLabPlans", withExtension: "json")
+            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
+        return reefLabSpecs.enumerated().map { index, spec in
+            var level = (bundled.first { $0.spec == spec && $0.variation == 0 } ?? MeetingPlanner.plan(spec)).level
+            level.ecosystemSeedIndex = index
+            return level
+        }
+    }()
+
     /// Preserve the original campaign, including the favorite fourth level, for debug comparison.
     static let shallowReferenceLevels: [Level] = [
         Level(
@@ -367,6 +508,9 @@ struct Level {
     var freeEncounterMovement: Bool = false
     /// Seed identity is independent of the displayed campaign number.
     var ecosystemSeedIndex: Int? = nil
+    var worldScreens: CGFloat = GameTuning.worldScreens
+    /// Planned meetings replace seeded spawning; see docs/meeting-planner.md.
+    var meetingPlan: MeetingPlan? = nil
     func spawnSeed(index: Int, bloom: Bool, offset: UInt64? = nil) -> UInt64 {
         GameTuning.spawnSeed &+ UInt64((ecosystemSeedIndex ?? index) + (bloom ? 100 : 0))
             &+ (offset ?? ecosystemSeedOffset)

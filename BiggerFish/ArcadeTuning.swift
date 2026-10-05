@@ -137,6 +137,18 @@ struct ArcadeTuning: Codable, Equatable {
     }
 }
 
+enum MeetingPlannerSummary {
+    /// "18 fish · gates after 2, 6, 10 meals · misses survived 1, 0, 0 · routes 3, 3, 3".
+    static func text(_ plan: MeetingPlan) -> String {
+        let gates = plan.fish.filter { $0.role == .gate }.compactMap { plan.analysis.meeting(fishID: $0.id) }
+        func list(_ values: [String]) -> String { values.joined(separator: ", ") }
+        var text = "\(plan.fish.count) fish · gates after \(list(gates.map { $0.minimumMeals.map(String.init) ?? "–" })) meals"
+        text += " · misses survived \(list(gates.map { $0.robustSlack.map { $0 >= EncounterAnalysis.slackCap ? "\($0)+" : String($0) } ?? "–" }))"
+        text += " · routes \(list(gates.map { String($0.routes) }))"
+        return plan.issues.isEmpty ? text : text + " · ⚠︎ " + plan.issues.joined(separator: "; ")
+    }
+}
+
 struct ArcadeTuningPreset: Codable, Identifiable {
     var id = UUID()
     var name: String
@@ -226,22 +238,55 @@ struct ArcadeTuningPanel: View {
     @State private var validation: ArcadeCandidateValidation.Report?
     @State private var validationTask: Task<Void, Never>?
     @State private var isChecking = false
+    @State private var plannerVariation = 0
+    @State private var plannerSummaries: [String: String] = [:]
+    @State private var resetWorld: ArcadeWorld = .reefLab
+    @State private var confirmsReset = false
+    let onPlanner: (MeetingSpec, Int) -> Void
+    let onResetProgress: (ArcadeWorld) -> Void
     let onPlay: (ArcadeWorld, Int) -> Void
 
-    init(store: ArcadeTuningStore, world: ArcadeWorld, index: Int, onPlay: @escaping (ArcadeWorld, Int) -> Void) {
+    init(store: ArcadeTuningStore, world: ArcadeWorld, index: Int, onPlanner: @escaping (MeetingSpec, Int) -> Void,
+         onResetProgress: @escaping (ArcadeWorld) -> Void, onPlay: @escaping (ArcadeWorld, Int) -> Void) {
         self.store = store
         _world = State(initialValue: world)
         _index = State(initialValue: index)
         _draft = State(initialValue: store.override(world, index) ?? ArcadeTuning(level: world.levels[index]))
+        self.onPlanner = onPlanner
+        self.onResetProgress = onResetProgress
         self.onPlay = onPlay
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                Section("Players") {
+                    Text("Start a world over from level 1 for a new player, for A/B testing.").font(.footnote)
+                    Picker("World", selection: $resetWorld) {
+                        ForEach(ArcadeWorld.mapWorlds) { Text($0.title).tag($0) }
+                    }
+                    Button("Reset \(resetWorld.title) progress", role: .destructive) { confirmsReset = true }
+                        .confirmationDialog("Clear every \(resetWorld.title) clear and best time on this device?",
+                                            isPresented: $confirmsReset, titleVisibility: .visible) {
+                            Button("Reset \(resetWorld.title)", role: .destructive) { onResetProgress(resetWorld) }
+                        }
+                }
+                Section("Reef Lab variations") {
+                    Text("Other layouts of the same Reef Lab settings: every fish swims freely but is timed to cross your path at a planned height. Practice runs only.")
+                        .font(.footnote)
+                    Stepper("Variation: \(plannerVariation)", value: $plannerVariation, in: 0...99)
+                    ForEach(Array(GameTuning.reefLabSpecs.enumerated()), id: \.offset) { index, spec in
+                        Button("Play Reef Lab level \(index + 1)") {
+                            dismiss()
+                            onPlanner(spec, plannerVariation)
+                        }
+                        Text(plannerSummaries[spec.name] ?? "Planning…").font(.footnote).monospacedDigit()
+                    }
+                }
+                .task(id: plannerVariation) { await summarizePlans() }
                 Section {
                     Picker("World", selection: $world) {
-                        ForEach(ArcadeWorld.allCases) { Text($0.title).tag($0) }
+                        ForEach(ArcadeWorld.campaign) { Text($0.title).tag($0) }
                     }
                     Picker("Level", selection: $index) {
                         ForEach(world.levels.indices, id: \.self) { Text("Level \($0 + 1)").tag($0) }
@@ -389,6 +434,19 @@ struct ArcadeTuningPanel: View {
             .onDisappear { validationTask?.cancel() }
         }
     }
+    /// Plans off the main thread; the planner caches them, so Play starts instantly afterward.
+    private func summarizePlans() async {
+        plannerSummaries = [:]
+        let variation = plannerVariation
+        for spec in GameTuning.reefLabSpecs {
+            let summary = await Task.detached(priority: .userInitiated) {
+                MeetingPlannerSummary.text(MeetingPlanner.plan(spec, variation: variation))
+            }.value
+            guard !Task.isCancelled, variation == plannerVariation else { return }
+            plannerSummaries[spec.name] = summary
+        }
+    }
+
     private func clearValidation() {
         validationTask?.cancel()
         validationTask = nil

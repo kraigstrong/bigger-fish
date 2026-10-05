@@ -87,7 +87,7 @@ struct ShallowCampaignTests {
     }
 
     @MainActor @Test func tunerSeedLabelMatchesReferenceRunsAndRerolls() {
-        for world in ArcadeWorld.allCases {
+        for world in ArcadeWorld.campaign {
             for index in world.levels.indices {
                 for reference in [false, true] {
                     var draft = ArcadeTuning(level: world.levels[index])
