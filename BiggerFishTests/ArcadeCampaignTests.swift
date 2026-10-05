@@ -12,6 +12,7 @@ struct ArcadeCampaignTests {
     @Test func bothWorldsStartAtLevelOne() {
         let (progress, _) = fresh()
         for world in ArcadeWorld.allCases {
+            #expect(progress.mapFocus(in: world) == 0)
             #expect(progress.isOpen(world, 0))
             #expect(!progress.isOpen(world, 1))
             #expect(!progress.isOpen(world, -1))
@@ -29,6 +30,7 @@ struct ArcadeCampaignTests {
         #expect(!restored.isOpen(.jellyBloom, 2))
         #expect(!restored.isOpen(.shallowReef, 1))
         #expect(restored.nextLevel(in: .jellyBloom) == 1)
+        #expect(restored.mapFocus(in: .jellyBloom) == 1)
     }
 
     @Test func replayKeepsTheFastestTimeAndCompletion() {
@@ -43,9 +45,12 @@ struct ArcadeCampaignTests {
 
     @Test func aCompletedWorldRemainsReplayable() {
         let (progress, _) = fresh()
-        for index in ArcadeWorld.jellyBloom.levels.indices { progress.clear(.jellyBloom, index, seconds: 30) }
-        #expect(progress.nextLevel(in: .jellyBloom) == 0)
-        #expect(ArcadeWorld.jellyBloom.levels.indices.allSatisfy { progress.isOpen(.jellyBloom, $0) })
+        for world in ArcadeWorld.allCases {
+            for index in world.levels.indices { progress.clear(world, index, seconds: 30) }
+            #expect(progress.nextLevel(in: world) == 0)
+            #expect(progress.mapFocus(in: world) == world.levels.count - 1)
+            #expect(world.levels.indices.allSatisfy { progress.isOpen(world, $0) })
+        }
     }
 
     @Test func corruptSaveFallsBackAndLessonPersists() {
@@ -184,7 +189,7 @@ struct ArcadeSceneTests {
         #expect(clears == 1)
         #expect(scene.debugMealsEaten == 0)
         #expect(scene.debugEdibleCount == 0)
-        #expect(scene.debugResultTitles == ["Play again", "Levels"])
+        #expect(scene.debugResultTitles == ["Back to world", "Play again"])
         withExtendedLifetime(view) {}
     }
 
@@ -238,12 +243,12 @@ struct ArcadeSceneTests {
         var exits = 0
         scene.onExit = { exits += 1 }
         scene.debugClearLevel()
-        #expect(scene.debugResultTitles == ["Play again", "Levels"])
+        #expect(scene.debugResultTitles == ["Back to world", "Play again"])
         scene.debugTapResult(.playAgain)
         #expect(scene.debugLevelIndex == 4)
         scene.debugStart()
         scene.debugClearLevel()
-        scene.debugTapResult(.levels)
+        scene.debugTapResult(.world)
         #expect(exits == 1)
         withExtendedLifetime(view) {}
     }
@@ -251,7 +256,7 @@ struct ArcadeSceneTests {
     @Test func lossOffersRetryAndLevels() {
         let (scene, view) = scene()
         #expect(scene.debugTouchTentacles(playerVictim: true))
-        #expect(scene.debugResultTitles == ["Try again", "Levels"])
+        #expect(scene.debugResultTitles == ["Retry", "Levels"])
         scene.debugTapResult(.tryAgain)
         #expect(scene.debugLevelIndex == 0)
         #expect(scene.debugResultTitles.isEmpty)

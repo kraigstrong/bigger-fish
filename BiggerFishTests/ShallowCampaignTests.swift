@@ -17,13 +17,13 @@ struct ShallowCampaignTests {
             scene.debugClearLevel()
             #expect(cleared == [index])
             if index == 9 {
-                #expect(scene.debugResultTitles == ["Play again", "Levels"])
+        #expect(scene.debugResultTitles == ["Back to world", "Play again"])
                 scene.debugTapResult(.playAgain)
                 #expect(scene.debugLevelIndex == 9)
                 #expect(scene.debugFishCount == 21)
                 scene.debugStart()
                 scene.debugClearLevel()
-                scene.debugTapResult(.levels)
+        scene.debugTapResult(.world)
                 #expect(exits == 1)
             } else {
                 #expect(scene.debugResultTitles == ["Next level", "Play again", "Levels"])

@@ -634,6 +634,7 @@ final class GameScene: SKScene {
     // MARK: - Phases
 
     private func setPhase(_ newPhase: Phase) {
+        if newPhase != .won && newPhase != .lost { accessibilityElements = nil }
         if newPhase == .ready || newPhase == .paused || phase == .ready || phase == .paused {
             frameAccumulator = 0
             simulationAccumulator = 0
@@ -652,11 +653,6 @@ final class GameScene: SKScene {
                                    : ["Be the last fish swimming.", "Bounce domes. Dodge tentacles."])
                 : ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish."]
             showMessage(arcadeWorld.levelTitles[levelIndex], lines: lines)
-            let start = label("Tap anywhere to swim", fontSize: 12, heavy: false)
-            start.alpha = 0.7
-            start.position = CGPoint(x: 0, y: -77)
-            messageNode.addChild(start)
-            addMapButton(to: messageNode, y: -111)
         case .playing, .paused:
             hideMessage()
         case .won:
@@ -680,6 +676,32 @@ final class GameScene: SKScene {
         resultPanel = panel
         messageNode.alpha = 0
         messageNode.run(.sequence([.wait(forDuration: passed ? 0.5 : 0.2), .fadeIn(withDuration: 0.2)]))
+        configureResultAccessibility(panel)
+    }
+
+    private func configureResultAccessibility(_ panel: ArcadeResultPanel) {
+        guard let view else { return }
+        view.isAccessibilityElement = false
+        isAccessibilityElement = false
+        // SKView exposes its scene as the accessibility container.
+        accessibilityElements = panel.controls.map { control in
+            let element = ArcadeResultAccessibilityElement(accessibilityContainer: self)
+            element.accessibilityLabel = control.action.title
+            element.accessibilityTraits = .button
+            let lower = convertPoint(toView: panel.convert(control.frame.origin, to: self))
+            let upper = convertPoint(toView: panel.convert(CGPoint(x: control.frame.maxX, y: control.frame.maxY), to: self))
+            let frame = CGRect(x: min(lower.x, upper.x), y: min(lower.y, upper.y),
+                               width: abs(upper.x - lower.x), height: abs(upper.y - lower.y))
+            element.accessibilityFrame = UIAccessibility.convertToScreenCoordinates(frame, in: view)
+            element.activate = { [weak self, weak panel] in
+                guard let self, self.resultPanel === panel,
+                      self.phase == .won || self.phase == .lost,
+                      self.realClock - self.endedAt >= T.restartDelay else { return false }
+                self.selectResult(control.action)
+                return true
+            }
+            return element
+        }
     }
 
     private func selectResult(_ action: ArcadeResultAction) {
@@ -691,7 +713,7 @@ final class GameScene: SKScene {
             resetGame(startPlaying: false)
         case .playAgain, .tryAgain:
             resetGame(startPlaying: false)
-        case .levels:
+        case .levels, .world:
             #if DEBUG
             finishRunRecording("level_map")
             #endif
@@ -786,9 +808,6 @@ final class GameScene: SKScene {
             let p = touch.location(in: self)
             switch phase {
             case .ready:
-                if let parent = mapButton.parent, mapButton.contains(parent.convert(p, from: self)) {
-                    onExit?(); return
-                }
                 startRun()
                 holdTouches.insert(touch)
             case .playing:
@@ -1758,17 +1777,20 @@ final class GameScene: SKScene {
 
         let titleLabel = label(title, fontSize: 40, heavy: true)
         let lineLabels = lines.map { label($0, fontSize: 19, heavy: false) }
+        let start = label("Tap anywhere to begin", fontSize: 22, heavy: true)
+        start.name = "beginPrompt"
         let maxTextWidth = max(240, (size.width - messageNode.position.x - 28) * 2 - 70)
-        for text in [titleLabel] + lineLabels where text.frame.width > maxTextWidth {
+        for text in [titleLabel, start] + lineLabels where text.frame.width > maxTextWidth {
             text.fontSize *= maxTextWidth / text.frame.width
         }
         let lineSpacing: CGFloat = 30
-        let height = 60 + CGFloat(lines.count) * lineSpacing + 30
-        let width = max(titleLabel.frame.width, lineLabels.map(\.frame.width).max() ?? 0) + 70
+        let height = 150 + CGFloat(lines.count) * lineSpacing
+        let width = max(titleLabel.frame.width, start.frame.width, lineLabels.map(\.frame.width).max() ?? 0) + 70
 
         let panel = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
         panel.fillColor = SKColor(white: 0, alpha: 0.3)
         panel.strokeColor = .clear
+        panel.name = "readyCard"
         messageNode.addChild(panel)
 
         var y = height / 2 - 45
@@ -1780,6 +1802,8 @@ final class GameScene: SKScene {
             messageNode.addChild(line)
             y -= lineSpacing
         }
+        start.position = CGPoint(x: 0, y: -height / 2 + 30)
+        messageNode.addChild(start)
 
         messageNode.alpha = 0
         messageNode.run(.sequence([.wait(forDuration: delay), .fadeIn(withDuration: 0.25)]))
