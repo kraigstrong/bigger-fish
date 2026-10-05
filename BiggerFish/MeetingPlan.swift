@@ -55,6 +55,10 @@ struct MeetingSpec: Codable, Equatable {
     var aiSpeed: ClosedRange<Double>
     var aiVertical: Double
     var crossSeconds: Double
+    /// A big fish crosses just above and just below each gate, too tight to slip between, so you can't
+    /// dodge a gate and save it for lap two: eat it or be eaten. Skipped when the wall couldn't be
+    /// outgrown by the end of the lap.
+    var walledGates = false
     /// Time meetings against the player who barely makes each gate rather than a random lane choice.
     /// With near-size meals, routes grow and zoom apart quickly; precision matters most at the edge, and
     /// players ahead of it have margin to spare.
@@ -302,9 +306,11 @@ struct DesignedMeeting {
     var height: CGFloat = 0.5
     var headOn = false
     var speed: CGFloat = 100
-    /// Key of the food this threat crosses beside, and whether it crosses just after it.
+    /// Key of the meal this threat crosses beside, and whether it crosses just after it.
     var guards: Int?
     var guardsAfter = false
+    /// A gate wall's side: 1 above the gate, -1 below.
+    var wall: CGFloat?
     /// A fork meal's fork (unique in the level), lane (0 long, 1 short), and place in the lane.
     var fork: Int?
     var lane = 0
@@ -333,6 +339,12 @@ enum MeetingDesigner {
     static let mealHeightTolerance: CGFloat = 20
     /// The first meal (zero-based) a threat may cross beside.
     static let earliestDangerMeal = 3
+    /// A gate's wall fish cross this long before and after it: apart enough that eating the gate comes
+    /// first, close enough that there's no time to swim around.
+    static let wallOffsetSeconds: CGFloat = 0.1
+    /// Screen points between a gate and its wall fish: under a fish's width, so nobody slips between,
+    /// and clear of the separation reach planned fish keep from each other on screen.
+    static let wallGap: CGFloat = 30
 
     static func design(_ spec: MeetingSpec, seed: UInt64) -> (meetings: [DesignedMeeting], timeline: PlayerTimeline, issues: [String]) {
         var rng = SeededGenerator(seed: seed)
@@ -383,6 +395,7 @@ enum MeetingDesigner {
         var fewest: CGFloat = 1, most: CGFloat = 1
         var meetings: [DesignedMeeting] = []
         var dangerFoods: [(key: Int, playerMost: CGFloat)] = []
+        var walledGates: [(key: Int, playerMost: CGFloat)] = []
         var forkCount = 0
         for (segmentIndex, segment) in spec.segments.enumerated() {
             // Lay out the segment's meals: singles before, the forks, singles after.
@@ -449,9 +462,10 @@ enum MeetingDesigner {
                 meetings.append(meal)
                 playerMost = grow(playerMost, [sizes[index]])
             }
+            let fullest = routes.map { grow(most, $0.map { sizes[$0] }) }.max() ?? most
+            if spec.walledGates { walledGates.append((meetings.count, fullest)) }
             meetings.append(DesignedMeeting(key: meetings.count, role: .gate, segment: segmentIndex, size: gate,
                                             onReferenceRoute: true))
-            let fullest = routes.map { grow(most, $0.map { sizes[$0] }) }.max() ?? most
             most = grow(fullest, [gate])
             fewest = grow(grow(fewest, enoughRoute), [gate])
         }
@@ -477,6 +491,18 @@ enum MeetingDesigner {
             meetings.insert(DesignedMeeting(key: key, role: .threat, segment: meetings[min(position, meetings.count - 1)].segment, size: size),
                             at: position)
             key += 1
+        }
+        for (gate, playerMost) in walledGates {
+            let lower = playerMost * 1.12
+            guard lower < ceiling, let index = meetings.firstIndex(where: { $0.key == gate }) else { continue }
+            for side: CGFloat in [1, -1] {
+                var wall = DesignedMeeting(key: key, role: .threat, segment: meetings[index].segment,
+                    size: CGFloat.random(in: lower...min(ceiling, lower * 1.15), using: &rng), guards: gate)
+                wall.wall = side
+                wall.guardsAfter = side < 0
+                meetings.insert(wall, at: index + 1)
+                key += 1
+            }
         }
         for (food, playerMost) in dangerFoods {
             let lower = playerMost * 1.12
@@ -520,7 +546,8 @@ enum MeetingDesigner {
         }
         for i in meetings.indices where meetings[i].role == .threat {
             if let guarded = meetings[i].guards, let food = meetings.firstIndex(where: { $0.key == guarded }) {
-                times[i] = times[food] + (meetings[i].guardsAfter ? 1 : -1) * dangerOffsetScreens * screen
+                let offset = meetings[i].wall != nil ? wallOffsetSeconds : dangerOffsetScreens * screen
+                times[i] = times[food] + (meetings[i].guardsAfter ? 1 : -1) * offset
             } else {
                 let before = meetings[..<i].lastIndex { $0.role != .threat }
                 let after = meetings[(i + 1)...].firstIndex { $0.role != .threat }
@@ -556,7 +583,8 @@ enum MeetingDesigner {
                 height = CGFloat.random(in: high == (meetings[i].lane == 0) ? highLane : lowLane, using: &rng)
             } else if position > 0 {
                 let neighbors = [meals[position - 1]] + (position + 1 < meals.count ? [meals[position + 1]] : [])
-                if neighbors.contains(where: { meetings[$0].fork != nil }) {
+                let walled = meetings[i].role == .gate && spec.walledGates
+                if walled || neighbors.contains(where: { meetings[$0].fork != nil }) {
                     height = CGFloat.random(in: middle, using: &rng)
                 } else {
                     let reach = EncounterAnalyzer.verticalReach(seconds: Double(times[i] - times[meals[position - 1]]))
@@ -601,9 +629,10 @@ enum MeetingDesigner {
             let foodRange = usable(food)
             let foodY = foodRange.low + (foodRange.high - foodRange.low) * food.height
             let zoom = timeline.zoom[timeline.step(reaching: food.distance)]
-            let offset = (food.size + meetings[i].size) * T.baseRadius * T.collisionScale + CGFloat(spec.dangerGap) / zoom
-            var sides: [CGFloat] = [1, -1]
-            if Bool.random(using: &rng) { sides.reverse() }
+            let gap = meetings[i].wall != nil ? wallGap : CGFloat(spec.dangerGap)
+            let offset = (food.size + meetings[i].size) * T.baseRadius * T.collisionScale + gap / zoom
+            var sides: [CGFloat] = meetings[i].wall.map { [$0] } ?? [1, -1]
+            if meetings[i].wall == nil && Bool.random(using: &rng) { sides.reverse() }
             let fraction: (CGFloat) -> CGFloat = { side in (foodY + side * offset - range.low) / max(1, range.high - range.low) }
             let side = sides.first { (0...1).contains(fraction($0)) } ?? sides[0]
             meetings[i].height = fraction(side).clamped(0, 1)

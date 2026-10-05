@@ -68,11 +68,15 @@ pass each other.
 |---|---:|---:|---|---|---:|---|
 | Easy | 17 | 3 | 3+, 2, 2 | 4, 60, 34 | 3 | 3/3, about 14 s |
 | Medium | 22 | 3 | 1, 1, 1 | 4, 31, 28 | 5 | 1/3, 18 s |
-| Hard | 24 | 4 | 0, 0, 0 on the short lanes | 3, 15, 90 | 9 | 0/3 |
+| Hard | 29 | 4 | 0, 0, 0 on the short lanes | 3, 16, 99 | 10 | 0/3 |
 
-Hard's meals are 76–90% of your size and its gates barely edible, so every catch is a close call and
-skipping a gate leaves the next stretch's meals too big; its returning fish come back at 94–99% of the
-size you should be. Because near-size meals grow routes apart quickly, Hard times its meetings against
+Hard's meals are 76–90% of your size and its gates barely edible, so every catch is a close call. Its
+gates are walled (`walledGates`): a big fish crosses a tenth of a second before and after each gate,
+just above and below it, too tight to slip between and too quick to swim around, so a gate can't be
+dodged and saved for lap two. Starting a swallow makes you safe, so a big-enough player eats the gate
+and the walls pass by. The last gate goes unwalled when its walls couldn't be outgrown by lap two.
+Returning fish come back at 94–99% of the size you should be. Playtested: 17 attempts to the first win,
+deaths spread from 2.8 to 7.5 s, in line with Shallow Reef 10 (18 attempts). Because near-size meals grow routes apart quickly, Hard times its meetings against
 the player who barely makes each gate (`timesTheEdge`).
 
 Lanes are exclusive in every fork: the most anyone can eat on lap one is every single, every gate, and
