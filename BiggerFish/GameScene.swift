@@ -1939,6 +1939,7 @@ final class GameScene: SKScene {
         let fish: [[String: Any]] = plan.fish.map { fish in
             let meeting = plan.analysis.meeting(fishID: fish.id)
             return ["id": fish.id, "role": fish.role.rawValue, "segment": fish.segment + 1,
+                    "fork": fish.fork.map { $0 + 1 } ?? 0, "lane": fish.fork == nil ? "" : (fish.lane == 0 ? "long" : "short"),
                     "radius": fish.radius, "meetingDistance": fish.meetingDistance, "headOn": fish.headOn,
                     "minimumMeals": meeting?.minimumMeals ?? -1, "routes": meeting?.routes ?? 0,
                     "robustSlack": meeting?.robustSlack ?? -1, "danger": meeting?.danger ?? false]

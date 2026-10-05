@@ -28,8 +28,11 @@ how many of those a level has and where.
 
 ## How a level is planned
 
-A `MeetingSpec` (presets in `GameTuning.plannerPresets`) describes a lap as segments. Each has some
-foods and a gate that needs `needed` of them, so `foods - needed` is that gate's slack. On top of that:
+A `MeetingSpec` (presets in `GameTuning.plannerPresets`) describes a lap as segments. Each has single
+meals, forks, and a gate that needs `needed` meals. A fork is a high lane and a low lane crossing at about
+the same moment, too far apart to take both: the long lane has more meals, and any danger in the fork
+crosses beside it. When the short lanes still reach `needed`, both lanes are real options and the long
+lane buys margin for later; playtesting showed zero slack leaves only one obvious route. On top of that:
 threats beside chosen foods (eat near danger); open-water threats that come back on lap two near the
 size you should have reached (`lapTwoSize`), so lap two tests lap one; the share of fish swimming at
 you; how sharply meals change height; speeds; and the world's width.
@@ -38,12 +41,14 @@ All planned meetings happen on the first lap: a fish's first crossing can't wait
 grow the camera zooms out and the lap speeds by (about ten seconds). A wider world buys a little more
 room; the rest of a level's length comes from lap two.
 
-1. **Sizes** follow the fewest-meal route: any `needed` foods make the gate edible, any fewer don't.
-2. **Times** are evenly spaced on screen, with a short beat beside danger and room after a gate's
-   long swallow. Distances follow from a reference route's growth (`PlayerTimeline` mirrors the
+1. **Sizes** follow the fewest-meal route: whichever lanes you take, any `needed` meals make the gate
+   edible, and no `needed - 1` do.
+2. **Times** are evenly spaced on screen: a fork's lanes a beat apart, extra room to reach either
+   lane and come back, a short beat beside danger, and room after a gate's long swallow. Distances follow from a reference route's growth (`PlayerTimeline` mirrors the
    scene's zoom and swallow order).
-3. **Heights** step by a share of the farthest you can swim between meals, so designed meals stay
-   reachable and harder levels demand sharper dives.
+3. **Heights**: single meals step by a share of the farthest you can swim between them, so they stay
+   reachable and harder levels demand sharper dives. Fork lanes sit near the top and bottom; the meals
+   either side of a fork stay mid-water so both lanes are in reach.
 4. **Spawns** are solved backward (`MeetingSolver`): simulate the fish's own free swim to the meeting
    time, then start it that far back, trying movement streams until it arrives at the planned height.
    A head-on fish met late in the lap starts out swimming your way and makes one ordinary turn while
@@ -59,16 +64,16 @@ pass each other.
 
 ## Presets
 
-| | Fish | World | Gates after | Misses survived | Lap-two fish vs. your size | Bot wins |
-|---|---:|---:|---|---|---|---|
-| Easy | 18 | 4 screens | 1, 4, 6 meals | 3+, 3+, 3+ | 72–82% | 3/3, about 13 s |
-| Medium | 20 | 5 | 2, 5, 9 | 2, 2, 2 | 85–93% | 3/3, 14–19 s |
-| Hard | 18 | 5 | 2, 6, 10 | 1, 0, 0 | 86–93% | 0/3: they last 22–41 s, then lose lap two |
+| | Fish | Forks | Misses survived per gate | Routes into gates | Danger meals | Bot wins |
+|---|---:|---:|---|---|---:|---|
+| Easy | 17 | 3 | 3+, 2, 2 | 4, 60, 34 | 3 | 3/3, about 14 s |
+| Medium | 22 | 3 | 1, 1, 1 | 4, 31, 28 | 5 | 1/3, 18 s |
+| Hard | 24 | 4 | 1, 1, 1 | 4, 27, 209 | 9 | 0/3 |
 
-In the real scene every fish crosses within 0.05 s and 3 points of its plan on the reference route.
-Eating only the minimum or everything shifts late meetings by up to about 0.6 s, but every fish still
-arrives. Bot wins show a route exists; they aren't a difficulty ranking, and Hard's analysis confirms
-a route through every gate and every lap-two fish for a player who eats what each gate needs.
+Lanes are exclusive in every fork: the most anyone can eat on lap one is every single, every gate, and
+one lane per fork. In the real scene every fish crosses within 0.05 s and 3 points of its plan on the
+reference route, and every fish still arrives on the fewest-meal and fullest routes. Bots are poor at
+choosing lanes; playtesting decides difficulty (an earlier, linear Hard was beaten on the second try).
 
 ## Playing them
 

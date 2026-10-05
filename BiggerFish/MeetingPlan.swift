@@ -7,14 +7,26 @@ import SpriteKit
 /// A lap is a run of segments; each ends at a gate: a fish about your size that becomes edible
 /// once you've eaten enough of the segment's food.
 struct MeetingSpec: Codable, Equatable {
+    /// Two lanes, one high and one low, crossing at about the same moment: you can only take one.
+    /// The long lane has more meals, and any danger in the fork crosses beside it.
+    struct Fork: Codable, Equatable {
+        var long: Int
+        var short: Int
+    }
     struct Segment: Codable, Equatable {
-        /// Edible fish you meet before this segment's gate.
-        var foods: Int
-        /// How many of them make the gate edible on the fewest-meal route. `foods - needed` is the slack.
+        /// Lone meals, split around the forks.
+        var singles: Int
+        var forks: [Fork] = []
+        /// How many meals make the gate edible. Fewer than the most you can eat leaves slack, and a
+        /// short lane that still reaches `needed` makes the long lane a choice rather than the only way.
         var needed: Int
-        /// Foods with a bigger fish crossing close by. Never in the last segment, whose threats
-        /// couldn't be outgrown by the end of the lap.
+        /// Meals with a bigger fish crossing close by (long lanes first), when that fish can still be
+        /// outgrown by lap two.
         var dangerFoods: Int = 0
+
+        var foods: Int { singles + forks.reduce(0) { $0 + $1.long + $1.short } }
+        /// Every single plus each fork's long lane.
+        var mostMeals: Int { singles + forks.reduce(0) { $0 + $1.long } }
     }
     var name: String
     var segments: [Segment]
@@ -51,6 +63,9 @@ struct PlannedFish: Codable, Equatable {
     let id: Int
     let role: Role
     let segment: Int
+    /// A fork meal's fork and lane (0 long, 1 short).
+    let fork: Int?
+    let lane: Int
     /// World points.
     let radius: CGFloat
     /// Your forward distance when you meet it.
@@ -106,7 +121,8 @@ struct MeetingPlan {
         }
         return ids
     }
-    var everyMealRoute: Set<Int> { Set(fish.filter { $0.role != .threat }.map(\.id)) }
+    /// A route with the most first-lap meals the analyzer found.
+    var fullestRoute: Set<Int> { Set(analysis.fullestRoute) }
 
     /// Player size per simulation step for a player who eats exactly `meals` at their meetings.
     func radii(eating meals: Set<Int>) -> [CGFloat] {
@@ -181,7 +197,9 @@ enum MeetingPlanner {
                 if meeting.minimumMeals.map({ $0 > gates[fish.id]! || $0 < gates[fish.id]! - 1 }) ?? true {
                     issues.append("gate \(fish.id) needs \(meeting.minimumMeals.map(String.init) ?? "unreachable") meals, designed \(gates[fish.id] ?? -1)")
                 }
-                if segment.foods > segment.needed && meeting.routes < 2 { issues.append("gate \(fish.id) has one route") }
+                if (segment.mostMeals > segment.needed || !segment.forks.isEmpty) && meeting.routes < 2 {
+                    issues.append("gate \(fish.id) has one route")
+                }
             case .threat:
                 if meeting.minimumMeals == 0 { issues.append("threat \(fish.id) is edible from the start") }
             }
@@ -280,8 +298,13 @@ struct DesignedMeeting {
     var height: CGFloat = 0.5
     var headOn = false
     var speed: CGFloat = 100
-    /// Key of the food this threat crosses beside.
+    /// Key of the food this threat crosses beside, and whether it crosses just after it.
     var guards: Int?
+    var guardsAfter = false
+    /// A fork meal's fork (unique in the level), lane (0 long, 1 short), and place in the lane.
+    var fork: Int?
+    var lane = 0
+    var rank = 0
     /// Eaten on the reference route used for timing.
     var onReferenceRoute = false
 }
@@ -294,7 +317,14 @@ enum MeetingDesigner {
     /// A near-equal swallow takes up to 0.8 s; the next meeting waits a beat longer.
     static let gateSwallowSeconds: CGFloat = 1.0
     static let dangerOffsetScreens: CGFloat = 0.07
+    /// Seconds between a fork's two lanes crossing: too close to take both.
+    static let forkOffsetSeconds: CGFloat = 0.12
+    /// Room, in meeting gaps, to reach either lane before a fork and to come back after it.
+    static let forkLead: CGFloat = 1.3
     static let heightLimits: ClosedRange<CGFloat> = 0.08...0.92
+    static let highLane: ClosedRange<CGFloat> = 0.78...0.92
+    static let lowLane: ClosedRange<CGFloat> = 0.08...0.22
+    static let middle: ClosedRange<CGFloat> = 0.42...0.58
     /// Screen points of combined body overlap counted on top of swimming reach between meals.
     static let mealHeightTolerance: CGFloat = 20
     /// The first meal (zero-based) a threat may cross beside.
@@ -311,6 +341,9 @@ enum MeetingDesigner {
         // Space meetings in time: you cross a screen width every `crossSeconds` at any zoom, so equal
         // times are equal gaps on screen. Distances follow from the route's growth, so settle them over a few passes.
         var times = meetingTimes(meetings, spec: spec)
+        let order = times.indices.sorted { times[$0] < times[$1] }
+        meetings = order.map { meetings[$0] }
+        times = order.map { times[$0] }
         var timeline = PlayerTimeline()
         let lastDistance = (CGFloat(spec.worldScreens) - lastMeetingMargin) * T.playfieldSize.width
         for _ in 0..<6 {
@@ -336,7 +369,8 @@ enum MeetingDesigner {
         return (meetings, timeline, issues)
     }
 
-    /// Sizes on the fewest-meal route: any `needed` foods of a segment make its gate edible, any fewer don't.
+    /// Sizes on the fewest-meal route: whichever lanes you take, any `needed` meals of a segment make
+    /// its gate edible, and no `needed - 1` do.
     private static func sizedMeetings(_ spec: MeetingSpec, rng: inout SeededGenerator, issues: inout [String]) -> [DesignedMeeting] {
         let efficiency = T.freeEncounterAbsorption * T.mealGrowthScale
         func grow(_ radius: CGFloat, _ prey: [CGFloat]) -> CGFloat {
@@ -345,46 +379,78 @@ enum MeetingDesigner {
         var fewest: CGFloat = 1, most: CGFloat = 1
         var meetings: [DesignedMeeting] = []
         var dangerFoods: [(key: Int, playerMost: CGFloat)] = []
+        var forkCount = 0
         for (segmentIndex, segment) in spec.segments.enumerated() {
-            var foods: [CGFloat] = []
-            var gate: CGFloat = 0
+            // Lay out the segment's meals: singles before, the forks, singles after.
+            var meals: [DesignedMeeting] = []
+            let before = (segment.singles + 1) / 2
+            func single() -> DesignedMeeting { DesignedMeeting(key: 0, role: .food, segment: segmentIndex, size: 0) }
+            meals += (0..<before).map { _ in single() }
+            for fork in segment.forks {
+                for rank in 0..<max(fork.long, fork.short) {
+                    for (lane, length) in [fork.long, fork.short].enumerated() where rank < length {
+                        var meal = single()
+                        meal.fork = forkCount
+                        meal.lane = lane
+                        meal.rank = rank
+                        meals.append(meal)
+                    }
+                }
+                forkCount += 1
+            }
+            meals += (before..<segment.singles).map { _ in single() }
+            // Every way through: one lane per fork, plus the singles.
+            let forkIDs = Array(Set(meals.compactMap(\.fork))).sorted()
+            let routes: [[Int]] = (0..<(1 << forkIDs.count)).map { choice in
+                meals.indices.filter { i in
+                    guard let fork = meals[i].fork else { return true }
+                    return meals[i].lane == (choice >> forkIDs.firstIndex(of: fork)! & 1)
+                }
+            }
+            var sizes: [CGFloat] = []
+            var gate: CGFloat = 0, enoughRoute: [CGFloat] = []
             for _ in 0..<100 {
-                foods = (0..<segment.foods).map { _ in fewest * CGFloat(Double.random(in: spec.foodSize, using: &rng)) }
-                let sorted = foods.sorted()
-                let enough = grow(fewest, Array(sorted.prefix(segment.needed)))
-                let short = grow(fewest, Array(sorted.suffix(max(0, segment.needed - 1))))
-                let lower = short * 1.035, upper = enough * 0.985
+                sizes = meals.map { _ in fewest * CGFloat(Double.random(in: spec.foodSize, using: &rng)) }
+                let viable = routes.filter { $0.count >= segment.needed }
+                guard let weakest = viable.map({ Array($0.map { sizes[$0] }.sorted().prefix(segment.needed)) })
+                        .min(by: { grow(fewest, $0) < grow(fewest, $1) }) else { break }
+                let short = routes.map { grow(fewest, Array($0.map { sizes[$0] }.sorted().suffix(max(0, segment.needed - 1)))) }.max() ?? fewest
+                let lower = short * 1.035, upper = grow(fewest, weakest) * 0.985
                 if lower < upper {
                     gate = lower + (upper - lower) * CGFloat(1 - spec.gateMargin)
+                    enoughRoute = weakest
                     break
                 }
             }
             if gate == 0 {
                 issues.append("segment \(segmentIndex + 1) has no gate size")
-                gate = grow(fewest, foods) * 0.98
+                gate = grow(fewest, sizes) * 0.98
             }
-            let reference = Set(foods.indices.shuffled(using: &rng)
-                .prefix(segment.needed + (segment.foods - segment.needed + 1) / 2))
-            let isLast = segmentIndex == spec.segments.count - 1
-            // A threat can't cross early: big fish start at least `spawnClearAheadDanger` screens ahead.
-            let eligible = foods.indices.filter { meetings.count + $0 >= earliestDangerMeal }
-            let danger = Set(eligible.shuffled(using: &rng).prefix(isLast ? 0 : segment.dangerFoods))
-            for (index, food) in foods.enumerated() {
-                if danger.contains(index) { dangerFoods.append((meetings.count, most)) }
-                meetings.append(DesignedMeeting(key: meetings.count, role: .food, segment: segmentIndex, size: food,
-                                                onReferenceRoute: reference.contains(index)))
-                most = grow(most, [food])
+            let referenceRoute = Set(routes.randomElement(using: &rng) ?? [])
+            // Danger crosses beside long lanes first, then singles; never in the opening.
+            let longLane = meals.indices.filter { meals[$0].fork != nil && meals[$0].lane == 0 }.shuffled(using: &rng)
+            let others = meals.indices.filter { meals[$0].fork == nil }.shuffled(using: &rng)
+            let danger = Set((longLane + others).filter { meetings.count + $0 >= earliestDangerMeal }.prefix(segment.dangerFoods))
+            var playerMost = most
+            for (index, var meal) in meals.enumerated() {
+                meal.key = meetings.count
+                meal.size = sizes[index]
+                meal.onReferenceRoute = referenceRoute.contains(index)
+                if danger.contains(index) { dangerFoods.append((meal.key, playerMost)) }
+                meetings.append(meal)
+                playerMost = grow(playerMost, [sizes[index]])
             }
             meetings.append(DesignedMeeting(key: meetings.count, role: .gate, segment: segmentIndex, size: gate,
                                             onReferenceRoute: true))
-            most = grow(most, [gate])
-            fewest = grow(grow(fewest, Array(foods.sorted().prefix(segment.needed))), [gate])
+            let fullest = routes.map { grow(most, $0.map { sizes[$0] }) }.max() ?? most
+            most = grow(fullest, [gate])
+            fewest = grow(grow(fewest, enoughRoute), [gate])
         }
         // Threats are bigger than even a player who ate everything so far, yet edible by the end of the lap.
         let ceiling = fewest * 0.9
         var key = meetings.count
         // Open-water threats spread between the first gate and the last segment, while there's still
-        // a lap to outgrow them, and never two in a row.
+        // a lap to outgrow them; never two in a row, and never inside a fork.
         let gates = meetings.indices.filter { meetings[$0].role == .gate }
         let window = gates.count > 1 ? (gates[0] + 1)...max(gates[0] + 1, gates[gates.count - 2]) : 1...1
         let slots = (0..<spec.extraThreats).map { index -> Int in
@@ -392,48 +458,77 @@ enum MeetingDesigner {
             return window.lowerBound + Int((CGFloat(window.count) * share).rounded(.down))
         }
         for slot in Set(slots).sorted(by: >) where gates.count > 1 {
-            let position = min(slot, window.upperBound)
-            let playerMost = meetings[..<position].filter { $0.role != .threat }.reduce(CGFloat(1)) { grow($0, [$1.size]) }
+            var position = min(slot, window.upperBound)
+            while position < meetings.count, let fork = meetings[position].fork, meetings[position - 1].fork == fork { position += 1 }
+            let playerMost = meetings[..<position].filter { $0.role != .threat && $0.lane == 0 }.reduce(CGFloat(1)) { grow($0, [$1.size]) }
             let lower = playerMost * 1.12
             let size = fewest * CGFloat(Double.random(in: spec.lapTwoSize, using: &rng))
             // Late in the lap even a player who ate everything may already be big enough; skip rather than fail.
             guard lower < size, size < fewest * 0.985 else { continue }
-            meetings.insert(DesignedMeeting(key: key, role: .threat, segment: meetings[position].segment, size: size),
+            meetings.insert(DesignedMeeting(key: key, role: .threat, segment: meetings[min(position, meetings.count - 1)].segment, size: size),
                             at: position)
             key += 1
         }
         for (food, playerMost) in dangerFoods {
             let lower = playerMost * 1.12
-            guard lower < ceiling, let index = meetings.firstIndex(where: { $0.key == food }) else {
-                issues.append("no room for the threat beside food \(food)"); continue
+            guard let index = meetings.firstIndex(where: { $0.key == food }) else { continue }
+            guard lower < ceiling else {
+                if meetings[index].segment < spec.segments.count - 1 { issues.append("no room for the threat beside food \(food)") }
+                continue
             }
-            let after = Bool.random(using: &rng)
-            meetings.insert(DesignedMeeting(key: key, role: .threat, segment: meetings[index].segment,
-                size: CGFloat.random(in: lower...min(ceiling, lower * 1.2), using: &rng), guards: food),
-                at: after ? index + 1 : index)
+            var threat = DesignedMeeting(key: key, role: .threat, segment: meetings[index].segment,
+                size: CGFloat.random(in: lower...min(ceiling, lower * 1.2), using: &rng), guards: food)
+            threat.guardsAfter = Bool.random(using: &rng)
+            meetings.insert(threat, at: index + 1)
             key += 1
         }
         return meetings
     }
 
-    /// Seconds into the run for each meeting: even spacing, a short beat between a danger meal and its threat,
-    /// and room after a gate for its long swallow.
+    /// Seconds into the run for each meeting: even spacing between meals; a fork's lanes a beat apart,
+    /// with room to reach either lane and come back; room after a gate for its long swallow; threats a
+    /// short beat from the meal they guard, open-water threats between meals. Not yet in time order.
     private static func meetingTimes(_ meetings: [DesignedMeeting], spec: MeetingSpec) -> [CGFloat] {
         let screen = CGFloat(spec.crossSeconds)
-        var time = firstMeetingScreens * screen
-        return meetings.indices.map { i in
-            if i > 0 {
-                var gap = CGFloat(spec.spacing) * screen
-                if meetings[i].guards != nil || meetings[i - 1].guards != nil { gap = dangerOffsetScreens * screen }
-                if meetings[i - 1].role == .gate { gap = max(gap, gateSwallowSeconds) }
-                time += gap
+        let spacing = CGFloat(spec.spacing) * screen
+        var times = Array(repeating: CGFloat(0), count: meetings.count)
+        var cursor = firstMeetingScreens * screen
+        var previous: DesignedMeeting?
+        for i in meetings.indices where meetings[i].role != .threat {
+            let meal = meetings[i]
+            defer { previous = meal }
+            guard let last = previous else { times[i] = cursor; continue }
+            if let fork = meal.fork, last.fork == fork {
+                // The other lane of this rank crosses a beat after; the next rank, a full gap after this one.
+                if meal.rank == last.rank { times[i] = cursor + forkOffsetSeconds; continue }
+                cursor += spacing
+            } else {
+                var gap = meal.fork != nil || last.fork != nil ? spacing * forkLead : spacing
+                if last.role == .gate { gap = max(gap, gateSwallowSeconds) }
+                cursor += gap
             }
-            return time
+            times[i] = cursor
         }
+        for i in meetings.indices where meetings[i].role == .threat {
+            if let guarded = meetings[i].guards, let food = meetings.firstIndex(where: { $0.key == guarded }) {
+                times[i] = times[food] + (meetings[i].guardsAfter ? 1 : -1) * dangerOffsetScreens * screen
+            } else {
+                let before = meetings[..<i].lastIndex { $0.role != .threat }
+                let after = meetings[(i + 1)...].firstIndex { $0.role != .threat }
+                times[i] = switch (before, after) {
+                case let (before?, after?): (times[before] + times[after]) / 2
+                case let (before?, nil): times[before] + spacing / 2
+                case let (nil, after?): max(0, times[after] - spacing / 2)
+                default: cursor
+                }
+            }
+        }
+        return times
     }
 
-    /// Meal heights walk up and down by a share of the farthest you can swim between them, so every
-    /// designed meal stays reachable from the one before; bigger shares demand sharper dives.
+    /// Single meals walk up and down by a share of the farthest you can swim between them. A fork's
+    /// lanes sit near the top and bottom, too far apart to switch, and the meals either side of a fork
+    /// stay mid-water so both lanes are in reach.
     private static func layHeights(_ meetings: inout [DesignedMeeting], times: [CGFloat], spec: MeetingSpec,
                                    timeline: PlayerTimeline, rng: inout SeededGenerator) {
         let screenWater = T.playfieldSize.height - T.waterTopMargin - T.waterBottomMargin
@@ -442,17 +537,28 @@ enum MeetingDesigner {
             let r = meeting.size * T.baseRadius
             return (bounds.bottom + r, bounds.top - r)
         }
+        let meals = meetings.indices.filter { meetings[$0].role != .threat }
+        var longLaneHigh: [Int: Bool] = [:]
         var height = CGFloat.random(in: 0.35...0.65, using: &rng)
-        var previousMeal: Int?
-        for i in meetings.indices where meetings[i].role != .threat {
-            defer { previousMeal = i }
-            if let previousMeal {
-                let reach = EncounterAnalyzer.verticalReach(seconds: Double(times[i] - times[previousMeal]))
-                let farthest = min(heightLimits.upperBound - heightLimits.lowerBound, (reach + mealHeightTolerance) / screenWater)
-                let swing = farthest * CGFloat(Double.random(in: spec.heightSwing, using: &rng))
-                var sign: CGFloat = Bool.random(using: &rng) ? 1 : -1
-                if !heightLimits.contains(height + sign * swing) { sign = -sign }
-                height = (height + sign * swing).clamped(heightLimits.lowerBound, heightLimits.upperBound)
+        for (position, i) in meals.enumerated() {
+            if let fork = meetings[i].fork {
+                let high = longLaneHigh[fork] ?? Bool.random(using: &rng)
+                longLaneHigh[fork] = high
+                height = CGFloat.random(in: high == (meetings[i].lane == 0) ? highLane : lowLane, using: &rng)
+            } else if position > 0 {
+                let neighbors = [meals[position - 1]] + (position + 1 < meals.count ? [meals[position + 1]] : [])
+                if neighbors.contains(where: { meetings[$0].fork != nil }) {
+                    height = CGFloat.random(in: middle, using: &rng)
+                } else {
+                    let reach = EncounterAnalyzer.verticalReach(seconds: Double(times[i] - times[meals[position - 1]]))
+                    let farthest = min(heightLimits.upperBound - heightLimits.lowerBound, (reach + mealHeightTolerance) / screenWater)
+                    let swing = farthest * CGFloat(Double.random(in: spec.heightSwing, using: &rng))
+                    var sign: CGFloat = Bool.random(using: &rng) ? 1 : -1
+                    if !heightLimits.contains(height + sign * swing) { sign = -sign }
+                    height = (height + sign * swing).clamped(heightLimits.lowerBound, heightLimits.upperBound)
+                }
+            } else if position + 1 < meals.count, meetings[meals[1]].fork != nil {
+                height = CGFloat.random(in: middle, using: &rng)
             }
             meetings[i].height = height
         }
@@ -561,7 +667,8 @@ enum MeetingSolver {
                 let spawnX = timeline.distance[meetStep] - horizontalTravel(heading: startHeading, speed: speed, phase: phase,
                                                                              turnTimer: turnTimer, steps: meetStep)
                 guard spawnX >= clearAhead, spawnX <= worldWidth - width * T.spawnClearBehind else { continue }
-                var candidate = PlannedFish(id: id, role: meeting.role, segment: meeting.segment, radius: radius,
+                var candidate = PlannedFish(id: id, role: meeting.role, segment: meeting.segment, fork: meeting.fork,
+                    lane: meeting.lane, radius: radius,
                     meetingDistance: meeting.distance, headOn: headOn, startHeading: startHeading,
                     spawn: CGPoint(x: 0, y: startY), cruiseSpeed: speed,
                     phase: phase, turnTimer: turnTimer, retargetTimer: retargetTimer, variant: UInt64(attempt), styleSeed: 0,
@@ -698,12 +805,14 @@ enum MeetingSolver {
 
 private extension PlannedFish {
     func moved(to spawn: CGPoint) -> PlannedFish {
-        PlannedFish(id: id, role: role, segment: segment, radius: radius, meetingDistance: meetingDistance, headOn: headOn,
+        PlannedFish(id: id, role: role, segment: segment, fork: fork, lane: lane, radius: radius,
+            meetingDistance: meetingDistance, headOn: headOn,
             startHeading: startHeading, spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer,
             retargetTimer: retargetTimer, variant: variant, styleSeed: styleSeed, referenceMeal: referenceMeal)
     }
     func styled(_ seed: UInt64) -> PlannedFish {
-        PlannedFish(id: id, role: role, segment: segment, radius: radius, meetingDistance: meetingDistance, headOn: headOn,
+        PlannedFish(id: id, role: role, segment: segment, fork: fork, lane: lane, radius: radius,
+            meetingDistance: meetingDistance, headOn: headOn,
             startHeading: startHeading, spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer,
             retargetTimer: retargetTimer, variant: variant, styleSeed: seed, referenceMeal: referenceMeal)
     }

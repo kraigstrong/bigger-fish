@@ -71,7 +71,7 @@ struct MeetingPlannerTests {
             }
             #expect(scene.debugVisibleUnmetContacts == 0)
             // A player who eats only what each gate needs, or everything, still meets every fish.
-            for route in [plan.fewestMealRoute, plan.everyMealRoute] {
+            for route in [plan.fewestMealRoute, plan.fullestRoute] {
                 let crossings = GameScene.plannerScene(spec).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
                 #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(spec.name)")
             }
@@ -114,6 +114,13 @@ struct MeetingPlannerTests {
             let plan = MeetingPlanner.plan(spec)
             lines.append("## \(spec.name): \(plan.fish.count) fish, seed \(plan.seed), planned in \(String(format: "%.2f", Date().timeIntervalSince(started))) s")
             lines.append("issues: \(plan.issues)")
+            // Forks are choices only if their lanes exclude each other: the most you can eat on lap one
+            // should be every single, every gate, and one lane per fork.
+            let designedMost = spec.segments.reduce(0) { $0 + $1.mostMeals + 1 }
+            let forkMeals = plan.fish.filter { $0.fork != nil }
+            let lanesEaten = Dictionary(grouping: forkMeals.filter { plan.fullestRoute.contains($0.id) }, by: { $0.fork! })
+                .mapValues { Set($0.map(\.lane)).count }
+            lines.append("most lap-one meals \(plan.analysis.maximumMeals), designed \(designedMost); forks with both lanes on the fullest route: \(lanesEaten.filter { $0.value > 1 }.count) of \(Set(forkMeals.compactMap(\.fork)).count)")
             let actual = GameScene.plannerScene(spec).debugEncounterCrossings(radii: plan.referenceRadii,
                 eaten: Set(plan.fish.filter(\.referenceMeal).map(\.id)))
             lines.append(Self.table(plan: plan, actual: actual))
@@ -122,7 +129,17 @@ struct MeetingPlannerTests {
                     policy: policy, seed: 0, limit: 90)
                 lines.append("\nbot \(policy.rawValue): \(result.outcome) in \(String(format: "%.1f", result.seconds)) s, \(result.stats.playerMeals) meals, \(result.reason)")
             }
-            for (route, meals) in [("fewest meals", plan.fewestMealRoute), ("every meal", plan.everyMealRoute)] {
+            // How close each gate and returning threat is for a player who eats everything on lap one.
+            let full = plan.radii(eating: plan.fullestRoute)
+            func size(at fish: PlannedFish) -> Double {
+                let time = plan.predicted.first { $0.fishID == fish.id }!.time
+                return Double(fish.radius / full[min(full.count - 1, Int(time / Double(GameTuning.simulationStep)))])
+            }
+            let gateRatios = plan.fish.filter { $0.role == .gate }.map { String(format: "%.2f", size(at: $0)) }
+            let threatRatios = plan.fish.filter { $0.role == .threat }.map { String(format: "%.2f", Double($0.radius / full.last!)) }
+            let guardedMeals = plan.analysis.meetings.filter(\.danger).count
+            lines.append("\neating everything: gates at \(gateRatios.joined(separator: ", ")) of your size; lap-two fish at \(threatRatios.joined(separator: ", ")) of your end size; danger meals \(guardedMeals)")
+            for (route, meals) in [("fewest meals", plan.fewestMealRoute), ("fullest", plan.fullestRoute)] {
                 let crossings = GameScene.plannerScene(spec).debugEncounterCrossings(radii: plan.radii(eating: meals), eaten: meals)
                 let drift = plan.predicted.compactMap { predicted -> (Int, Double, Double)? in
                     guard let real = crossings.first(where: { $0.fishID == predicted.fishID }) else { return (predicted.fishID, .infinity, .infinity) }

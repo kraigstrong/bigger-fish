@@ -326,26 +326,33 @@ enum GameTuning {
     static let plannerContactScreenMargin: CGFloat = 180
 
     /// Easy, medium, and hard planned Shallow Reef levels for phone testing. Speeds follow the campaign's
-    /// levels 2, 6, and 10; slack, routes, and danger are what the planner adds. Open-water threats come
-    /// back on lap two near the size you should have reached, so a harder lap two tests lap one.
+    /// levels 2, 6, and 10; slack, routes, and danger are what the planner adds. Forks offer a high lane
+    /// and a low lane at once: the long lane gives more margin for the next gate, usually beside danger.
+    /// Open-water threats come back on lap two near the size you should have reached.
     static let plannerPresets: [MeetingSpec] = [
         MeetingSpec(name: "Easy",
-            segments: [.init(foods: 4, needed: 1), .init(foods: 4, needed: 2, dangerFoods: 1), .init(foods: 4, needed: 2)],
-            extraThreats: 3, lapTwoSize: 0.72...0.82, headOnShare: 0.55, heightSwing: 0.1...0.45, foodSize: 0.68...0.84,
+            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
+            extraThreats: 2, lapTwoSize: 0.72...0.82, headOnShare: 0.55, heightSwing: 0.1...0.45, foodSize: 0.68...0.84,
             gateMargin: 0.8, dangerGap: 70, threatClearance: 110, spacing: 0.25, aiSpeed: 48...129, aiVertical: 64,
             crossSeconds: 2.86),
         MeetingSpec(name: "Medium",
-            segments: [.init(foods: 4, needed: 2, dangerFoods: 1), .init(foods: 4, needed: 2, dangerFoods: 1),
-                       .init(foods: 4, needed: 3)],
-            worldScreens: 5, extraThreats: 4, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
             foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
             aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68),
-        // Bursts of quick meals, each ending in a gate, with little or no room to miss.
+        // Every gate can be reached by the short lanes with nothing to spare; the long lanes, beside tight
+        // danger, buy margin for the gates and lap two.
         MeetingSpec(name: "Hard",
-            segments: [.init(foods: 3, needed: 2, dangerFoods: 1), .init(foods: 3, needed: 3, dangerFoods: 1),
-                       .init(foods: 4, needed: 3)],
-            worldScreens: 5, extraThreats: 4, lapTwoSize: 0.86...0.93, headOnShare: 0.65, heightSwing: 0.5...0.85,
-            foodSize: 0.64...0.8, gateMargin: 0.15, dangerGap: 28, threatClearance: 40, spacing: 0.22,
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.9...0.96, headOnShare: 0.65, heightSwing: 0.5...0.85,
+            foodSize: 0.64...0.8, gateMargin: 0.15, dangerGap: 22, threatClearance: 34, spacing: 0.22,
             aiSpeed: 70...200, aiVertical: 100, crossSeconds: 2.5),
     ]
 
