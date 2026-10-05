@@ -951,6 +951,8 @@ final class GameScene: SKScene {
     }
 
     private func movePlayer(_ p: Fish, _ dt: CGFloat) {
+        // Keep the winner in place; rendering and the victory ring continue animating.
+        guard phase != .won else { p.velocity = .zero; return }
         bounceRemaining = max(0, bounceRemaining - dt)
         bounceCooldown = max(0, bounceCooldown - dt)
         var motion = T.motion
@@ -2410,6 +2412,21 @@ final class GameScene: SKScene {
         beginSwallow(predator: player, prey: prey)
         advanceSwallows(1)
     }
+    func debugCompletionMotionCheck(replay: Bool) -> Bool {
+        debugStart()
+        debugClearLevel()
+        let position = player.position
+        let distance = forwardDistance
+        let clock = realClock
+        for _ in 0..<60 { advanceFrame(T.simulationStep) }
+        guard phase == .won, player.position == position, forwardDistance == distance,
+              player.velocity == .zero, realClock > clock, winGlow?.hasActions() == true else { return false }
+        debugTapResult(replay ? .playAgain : .nextLevel)
+        debugStart()
+        advanceFrame(T.simulationStep)
+        return phase == .playing && forwardDistance > 0 && winGlow == nil
+    }
+
     func debugClearLevel() {
         for f in fish where !f.isPlayer { f.state = .removed }
         simulate(1.0 / 30)
