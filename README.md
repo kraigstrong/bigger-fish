@@ -5,11 +5,11 @@ There's always a bigger fish.
 Arcade prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
-The world map opens **Shallow Reef** (the original five levels) and **Jelly Bloom** (ten encounter-based levels).
+The world map opens **Shallow Reef** and **Jelly Bloom**, with ten encounter-based levels each.
 Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
 adds safe dome bounces and lethal tentacles, with protected first encounters followed by AI food races.
 A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
-the original drift behavior and tuning. Both worlds use numbered levels.
+a fish-only environment. Both worlds use protected first opportunities, food-race budgets, and the same lower meal-growth rate. Both worlds use numbered levels.
 
 This playable slice has no purchases, endless mode, pearls, or shop yet. See
 [`docs/bigger-fish-playable-scope.md`](docs/bigger-fish-playable-scope.md) for the accepted scope and deferred vision.
@@ -30,7 +30,7 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'p
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
-  - `ArcadeMaps.swift` — world selection and the level paths (five stops in Shallow Reef, ten in Bloom)
+  - `ArcadeMaps.swift` — world selection and the level paths (ten stops in each world)
   - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and local campaign saves
   - `Jellyfish.swift` / `ArcadeArt.swift` — arcade-only hazard rules and procedural artwork
   - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them
@@ -107,10 +107,11 @@ python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-
 
 Every feel constant — movement, growth, swallow timing, AI behavior, spawn distribution,
 and the `aiFishCanEatEachOther` flag — lives in `BiggerFish/GameTuning.swift`.
-Shallow Reef's five levels are defined in `GameTuning.levels`; Jelly Bloom's ten are in
-`GameTuning.bloomLevels`. Bloom uses a continuous encounter difficulty target; its original five
-profiles remain in `GameTuning.bloomReferenceLevels` for comparison. Each sets fish speeds, player speed, and meal growth;
-Bloom also sets jelly count, tentacle length, sway, urchin beds, and its night palette.
+Shallow Reef's ten levels are defined in `GameTuning.levels`; Jelly Bloom's ten are in
+`GameTuning.bloomLevels`. Both use encounter difficulty targets; their original five
+profiles remain in `GameTuning.shallowReferenceLevels` and `GameTuning.bloomReferenceLevels` for comparison. Each sets fish speeds, player speed, and meal growth;
+Bloom also sets jelly count, tentacle length, sway, and its night palette. See
+[`docs/shallow-reef-ten-level-campaign.md`](docs/shallow-reef-ten-level-campaign.md) for the new fish-only campaign targets.
 
 For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4` in Xcode (world ID
 plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save.

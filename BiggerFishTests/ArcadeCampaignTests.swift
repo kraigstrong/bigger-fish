@@ -16,7 +16,7 @@ struct ArcadeCampaignTests {
             #expect(!progress.isOpen(world, 1))
             #expect(!progress.isOpen(world, -1))
             #expect(!progress.isOpen(world, world.levels.count))
-            #expect(world.levels.count == (world == .jellyBloom ? 10 : 5))
+            #expect(world.levels.count == 10)
         }
     }
 
@@ -59,7 +59,7 @@ struct ArcadeCampaignTests {
 
     @Test func levelIDsAreUniqueAndOriginalWorldHasNoHazards() {
         let ids = ArcadeWorld.allCases.flatMap { world in world.levels.indices.map { world.levelID($0) } }
-        #expect(Set(ids).count == 15)
+        #expect(Set(ids).count == 20)
         #expect(ids.first == "shallow-reef.1")
         #expect(ids.last == "jelly-bloom.10")
         #expect(GameTuning.levels.allSatisfy { $0.jellies == nil })

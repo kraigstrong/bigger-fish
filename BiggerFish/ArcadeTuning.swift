@@ -49,10 +49,27 @@ struct ArcadeTuning: Codable, Equatable {
         difficulty = enabled ? (level.encounterDifficulty?.bounded ?? 0) : nil
     }
 
+    func displayedSpawnSeed(world: ArcadeWorld, index: Int) -> UInt64 {
+        var base = world.levels[index]
+        if difficulty == nil {
+            if world == .shallowReef, index < GameTuning.shallowReferenceLevels.count {
+                base = GameTuning.shallowReferenceLevels[index]
+                base.ecosystemSeedIndex = index
+            } else if world == .jellyBloom {
+                let source = base.ecosystemSeedIndex ?? index
+                if source < GameTuning.bloomReferenceLevels.count {
+                    base = GameTuning.bloomReferenceLevels[source]
+                    base.ecosystemSeedIndex = source
+                }
+            }
+        }
+        return base.spawnSeed(index: index, bloom: world == .jellyBloom, offset: UInt64(sanitized.seedOffset))
+    }
+
     func encounterWaveBudgets(for level: Level, index: Int, bloom: Bool) -> [(count: Int, edible: Int)] {
         GameTuning.freeEncounterWaveBudgets(
             seed: level.spawnSeed(index: index, bloom: bloom, offset: UInt64(sanitized.seedOffset)),
-            difficulty: sanitized.difficulty ?? 0, preserveLevelTwo: bloom && index == 1)
+            difficulty: sanitized.difficulty ?? 0, preserveLevelTwo: bloom && index == 1, shallow: !bloom)
     }
 
     /// Bound saved and edited settings before they reach physics or spawn ranges.
@@ -85,7 +102,8 @@ struct ArcadeTuning: Codable, Equatable {
 
     func applying(to base: Level) -> Level {
         let value = sanitized
-        let difficulty = base.jellies == nil ? nil : value.difficulty.map { EncounterDifficulty(value: $0) }
+        let difficulty = (base.freeEncounterMovement || base.jellies != nil)
+            ? value.difficulty.map { EncounterDifficulty(value: $0) } : nil
         let groups: [(count: Int, radii: ClosedRange<CGFloat>)]
         if base.freeEncounterMovement && difficulty != nil {
             groups = base.spawnGroups
@@ -131,6 +149,9 @@ final class ArcadeTuningStore: ObservableObject {
     private static let overridesKey = "biggerFish.debug.tuning.v1"
     private static let presetsKey = "biggerFish.debug.tuning.presets.v1"
     private static let reorderedOverridesKey = "biggerFish.debug.tuning.reordered-3-6-7.v1"
+    private static let shallowCampaignOverridesKey = "biggerFish.debug.tuning.shallow-ten-level.v1"
+
+    private static let shallowReorderedOverridesKey = "biggerFish.debug.tuning.shallow-move-3-to-8.v1"
 
     init(defaults: UserDefaults = ArcadePlaytest.defaults) {
         self.defaults = defaults
@@ -143,6 +164,24 @@ final class ArcadeTuningStore: ObservableObject {
             }
             defaults.set(try? JSONEncoder().encode(reordered), forKey: Self.overridesKey)
             defaults.set(true, forKey: Self.reorderedOverridesKey)
+        }
+        if !defaults.bool(forKey: Self.shallowCampaignOverridesKey) {
+            let original = allOverrides
+            let oldShallow = original.filter { $0.key.hasPrefix("shallow-reef.") }
+            if !oldShallow.isEmpty {
+                defaults.set(try? JSONEncoder().encode(oldShallow), forKey: "biggerFish.debug.tuning.shallow-original-backup.v1")
+                defaults.set(try? JSONEncoder().encode(original.filter { !$0.key.hasPrefix("shallow-reef.") }), forKey: Self.overridesKey)
+            }
+            defaults.set(true, forKey: Self.shallowCampaignOverridesKey)
+        }
+        if !defaults.bool(forKey: Self.shallowReorderedOverridesKey) {
+            let original = allOverrides
+            var reordered = original
+            for (destination, source) in GameTuning.shallowCampaignOrder.enumerated() where destination != source {
+                reordered[ArcadeWorld.shallowReef.levelID(destination)] = original[ArcadeWorld.shallowReef.levelID(source)]
+            }
+            defaults.set(try? JSONEncoder().encode(reordered), forKey: Self.overridesKey)
+            defaults.set(true, forKey: Self.shallowReorderedOverridesKey)
         }
     }
     func override(_ world: ArcadeWorld, _ index: Int) -> ArcadeTuning? {
@@ -210,7 +249,7 @@ struct ArcadeTuningPanel: View {
                     Text("Apply starts a fresh practice run. Practice runs don't change campaign progress. Closing leaves your current run paused.")
                         .font(.footnote)
                 }
-                if world == .jellyBloom {
+                if world.levels[index].encounterDifficulty != nil {
                     Section("Encounter difficulty") {
                         Toggle("Use encounter difficulty", isOn: Binding(
                             get: { draft.difficulty != nil },
@@ -220,9 +259,9 @@ struct ArcadeTuningPanel: View {
                             slider("Difficulty", value: Binding(get: { draft.difficulty ?? 0 },
                                 set: { draft.difficulty = $0 }), range: 0...1, step: 0.01)
                             if world.levels[index].freeEncounterMovement {
-                                let percentage = 100 * Double(GameTuning.freeEncounterExpectedCatchFraction(value))
+                                let percentage = 100 * Double(GameTuning.freeEncounterExpectedCatchFraction(value, shallow: world == .shallowReef))
                                 Text("Expected growth assumes catching \(percentage, specifier: "%.0f")% of edible fish in each starting wave.")
-                                let budgets = draft.encounterWaveBudgets(for: world.levels[index], index: index, bloom: true)
+                                let budgets = draft.encounterWaveBudgets(for: world.levels[index], index: index, bloom: world == .jellyBloom)
                                 Text("Edible at expected arrival size: " + budgets.map { "\($0.edible) of \($0.count)" }.joined(separator: ", ") + ". Fish roam freely; each unlocks after you pass its starting position.")
                                     .font(.footnote)
                             } else {
@@ -275,8 +314,7 @@ struct ArcadeTuningPanel: View {
                     }
                 }
                 Section("Level seed") {
-                    LabeledContent("Seed", value: String(world.levels[index].spawnSeed(
-                        index: index, bloom: world == .jellyBloom, offset: UInt64(draft.sanitized.seedOffset))))
+                    LabeledContent("Seed", value: String(draft.displayedSpawnSeed(world: world, index: index)))
                         .monospacedDigit()
                         .textSelection(.enabled)
                     Text("\(world.title) · Level \(index + 1)")
@@ -304,6 +342,11 @@ struct ArcadeTuningPanel: View {
                     if world == .jellyBloom && index < GameTuning.bloomReferenceLevels.count {
                         Button("Load original five-level reference") {
                             draft = ArcadeTuning(level: GameTuning.bloomReferenceLevels[index])
+                        }
+                    }
+                    if world == .shallowReef && index < GameTuning.shallowReferenceLevels.count {
+                        Button("Load original five-level reference") {
+                            draft = ArcadeTuning(level: GameTuning.shallowReferenceLevels[index])
                         }
                     }
                     if world == .jellyBloom && index > 0 && index < GameTuning.bloomReferenceLevels.count {

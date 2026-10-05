@@ -212,8 +212,17 @@ enum GameTuning {
     static let freeEncounterHeightVariation: CGFloat = 0.07
     static let freeEncounterHorizontalVariation: CGFloat = 0.16
 
-    static func freeEncounterExpectedCatchFraction(_ difficulty: Double) -> CGFloat {
+    static let shallowEncounterCounts = [5, 4, 6, 5]
+    static let shallowExpectedCatchFraction: ClosedRange<CGFloat> = 0.45...0.90
+    static let shallowEdibleShare: ClosedRange<CGFloat> = 0.64...0.88
+    static let shallowSetupSeedOffsets: [UInt64] = [2, 7, 13, 23, 31, 47, 60, 71, 92, 101]
+
+    static func freeEncounterExpectedCatchFraction(_ difficulty: Double, shallow: Bool = false) -> CGFloat {
         let value = CGFloat(min(1, max(0, difficulty)))
+        if shallow {
+            return shallowExpectedCatchFraction.lowerBound
+                + value * (shallowExpectedCatchFraction.upperBound - shallowExpectedCatchFraction.lowerBound)
+        }
         let anchor: CGFloat = 1.0 / 9
         let accepted: CGFloat = freeEncounterCatchFraction.lowerBound
             + anchor * (freeEncounterCatchFraction.upperBound - freeEncounterCatchFraction.lowerBound)
@@ -221,14 +230,15 @@ enum GameTuning {
             : accepted + (freeEncounterCatchFraction.upperBound - accepted) * (value - anchor) / (1 - anchor)
     }
 
-    static func freeEncounterWaveBudgets(seed: UInt64, difficulty: Double, preserveLevelTwo: Bool) -> [(count: Int, edible: Int)] {
+    static func freeEncounterWaveBudgets(seed: UInt64, difficulty: Double, preserveLevelTwo: Bool, shallow: Bool = false) -> [(count: Int, edible: Int)] {
         if preserveLevelTwo {
             return zip(freeEncounterCounts, freeEncounterEdibleCounts).map { (count: $0.0, edible: $0.1) }
         }
         var generator = SeededGenerator(seed: seed &+ 0x94D049BB133111EB)
-        let counts = freeEncounterCounts.shuffled(using: &generator)
-        let share = freeEncounterEdibleShare.upperBound - CGFloat(min(1, max(0, difficulty)))
-            * (freeEncounterEdibleShare.upperBound - freeEncounterEdibleShare.lowerBound)
+        let counts = (shallow ? shallowEncounterCounts : freeEncounterCounts).shuffled(using: &generator)
+        let shares = shallow ? shallowEdibleShare : freeEncounterEdibleShare
+        let share = shares.upperBound - CGFloat(min(1, max(0, difficulty)))
+            * (shares.upperBound - shares.lowerBound)
         return counts.map { count in
             let varied = share + CGFloat.random(in: -0.06...0.06, using: &generator)
             return (count: count, edible: min(count - 1, max(2, Int((CGFloat(count) * varied).rounded()))))
@@ -293,9 +303,23 @@ enum GameTuning {
 
     // MARK: Levels
 
-    /// Each level ramps several levers at once: fewer easy meals, more near-equal and larger fish,
-    /// faster fish, a faster player, and less growth per meal.
-    static let levels: [Level] = [
+    /// Fish-only encounters use the same first-opportunity protection and growth as Jelly Bloom.
+    static let shallowCampaignOrder = [0, 1, 3, 4, 5, 6, 7, 2, 8, 9]
+    static let levels: [Level] = shallowCampaignOrder.map { shallowLevelSetups[$0] }
+    static let shallowLevelSetups: [Level] = (0..<10).map { index in
+        let value = Double(index) / 9
+        let difficulty = EncounterDifficulty(value: value)
+        return Level(spawnGroups: [(20, 0.65...3)],
+            aiSpeedRange: (45 + CGFloat(value) * 25)...(120 + CGFloat(value) * 80),
+            aiVerticalSpeed: 60 + CGFloat(value) * 40,
+            screenCrossSeconds: 2.9 - CGFloat(value) * 0.4,
+            absorptionEfficiency: freeEncounterAbsorption,
+            roamingFoodChain: true, ecosystemSeedOffset: shallowSetupSeedOffsets[index],
+            encounterDifficulty: difficulty, freeEncounterMovement: true, ecosystemSeedIndex: index)
+    }
+
+    /// Preserve the original campaign, including the favorite fourth level, for debug comparison.
+    static let shallowReferenceLevels: [Level] = [
         Level(
             spawnGroups: [(6, 0.30...0.55), (5, 0.55...0.80), (3, 0.90...1.15), (2, 1.35...1.70), (1, 2.10...2.50)],
             aiSpeedRange: 35...95, aiVerticalSpeed: 45, screenCrossSeconds: 2.75, absorptionEfficiency: 0.90
