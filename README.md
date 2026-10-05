@@ -212,3 +212,37 @@ large studies unless that marker was explicitly prepared. Shut down the simulato
 if you are done testing.
 
 Current Jelly Bloom playtest: [free-moving ten-level campaign](docs/jelly-bloom-free-campaign.md), with globally reduced meal growth.
+
+## Anonymous arcade diagnostics
+
+`ArcadeAnalytics.swift` and `ArcadeMetrics.swift` implement first-party gameplay summaries for
+Bigger Fish, separate from Math Reef. Collection is **disabled** by `ArcadeAnalytics.isEnabled`
+until the companion BrightBench endpoint/policy and App Store privacy answers are ready.
+No player/install/session IDs, exact play timestamps, device information, or trajectories are sent.
+
+The schema records content identity (world, campaign/endless mode, displayed slot, original setup,
+seed, content revision, app version/build/channel), outcomes, local attempts-to-first-clear,
+size/count diagnostics, close meals, bounces, growth-budget losses/recoveries, and cleanup time.
+The pre-fatal snapshot is taken at the committed collision, before the fatal meal or animation.
+Unresolved swallows produce `unknown` growth paths rather than double-counted food. A path is an
+optimistic size budget, not proof of safe navigation or future victory.
+
+Summary work is in-memory; growth checks run at ecosystem changes and boundaries. Pausing writes
+a checkpoint; a pending run is counted as abandoned on the next cold launch. Run IDs are never
+created. Decisions/reports retain their originating build when an update occurs. At-most-once
+sending drops failed/uncertain batches rather than introducing identifiers or duplicate retries.
+The local queue holds 100 events and sends batches of up to 25. Simulation/capture/tuner runs and
+ordinary test launches do not collect. Gameplay counts saturate at 10,000, durations at 3,600
+simulation seconds, and circuits at 100; these bounds censor telemetry only, never gameplay.
+
+The companion report is `/bigger-fish/stats` on BrightBench, behind a server-only reporting key.
+Its policy is `/bigger-fish/privacy`. Deployment and activation are separate release steps: review
+both PRs, configure the endpoint/public app key/private report secret, validate synthetic traffic
+against the deployed backend and retention, publish disclosures, then explicitly enable collection
+and check the actual TestFlight build. Do not enable sending just because the code builds.
+
+New worlds and large/generated campaigns do not require a finite server-side level catalog.
+Bump the content revision when seeds, rules, or tuning change so comparisons remain separate.
+Additive optional fields require server-first allowlist updates; old schema-1 summaries remain
+valid. Incompatible meaning/shape changes require a new schema version. Never add unrestricted
+metadata or identifiers under an extension field.

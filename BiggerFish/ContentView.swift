@@ -7,6 +7,8 @@ struct ContentView: View {
     #else
     @StateObject private var progress = ArcadeProgress()
     #endif
+    @State private var analytics = ArcadeAnalytics()
+    @State private var metricsLaunched = false
     @State private var selectedWorld: ArcadeWorld?
     @State private var scene: GameScene?
     #if DEBUG
@@ -56,6 +58,7 @@ struct ContentView: View {
         .persistentSystemOverlays(.hidden)
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
+            if !metricsLaunched { analytics.launched(); analytics.flush(); metricsLaunched = true }
             #if DEBUG
             if scene == nil, let world = ArcadePlaytest.mapSelection {
                 selectedWorld = world
@@ -79,6 +82,8 @@ struct ContentView: View {
         #if DEBUG
         game.debugPracticeRun = practice
         #endif
+        game.analytics = analytics
+        game.metricsHasCleared = { index in progress.isCleared(world, index) }
         game.onClear = { [weak game] index, seconds in
             #if DEBUG
             guard let game, !game.debugPracticeRun, !game.debugHasTuningOverride else { return }
@@ -91,7 +96,7 @@ struct ContentView: View {
             #endif
             progress.sawJellyLesson()
         }
-        game.onExit = { scene = nil }
+        game.onExit = { [weak game] in game?.exitMetrics(); scene = nil }
         scene = game
     }
 }

@@ -108,6 +108,43 @@ final class GameScene: SKScene {
         #endif
         return levelIndex == arcadeWorld.levels.count - 1
     }
+    var analytics: ArcadeAnalytics?
+    var metricsHasCleared: ((Int) -> Bool)?
+    private var metricAccumulator: ArcadeMetricAccumulator?
+    private var fatalMetrics: ArcadeRunMetrics?
+    private var metricDeathCause = "none"
+
+    private var metricContext: ArcadeMetricContext {
+        ArcadeMetricContext(world: arcadeWorld.rawValue, level: levelIndex + 1,
+            setup: (level.ecosystemSeedIndex ?? levelIndex) + 1, seed: String(ecosystemSeed), revision: ArcadeAnalytics.revision)
+    }
+    private func metricSnapshot() -> ArcadeGrowthSnapshot {
+        ArcadeGrowthSnapshot.measure(player: max(player.radius, player.targetRadius),
+            opponents: fish.filter { !$0.isPlayer && $0.state != .removed }.map { max($0.radius, $0.targetRadius) },
+            efficiency: level.effectiveAbsorptionEfficiency, inFlight: !swallows.isEmpty)
+    }
+    private func observeMetrics() {
+        guard metricAccumulator != nil, fatalMetrics == nil else { return }
+        metricAccumulator?.advance(seconds: Double(simClock), circuits: Double(forwardDistance / world.width))
+        metricAccumulator?.observe(metricSnapshot())
+    }
+    private func enqueueMetricOperation(_ operation: @escaping (ArcadeAnalytics) -> Void) {
+        guard let analytics, analytics.enabled else { return }
+        // Every scene lifecycle operation uses this FIFO, preserving order without disk work on contacts.
+        DispatchQueue.main.async { operation(analytics) }
+    }
+    private func finishMetrics(_ outcome: String) {
+        guard let accumulator = metricAccumulator else { return }
+        let summary = fatalMetrics ?? accumulator.summary
+        let cause = outcome == "death" ? metricDeathCause : "none"
+        metricAccumulator = nil; fatalMetrics = nil
+        enqueueMetricOperation { $0.finish(outcome, cause: cause, summary: summary) }
+    }
+    func exitMetrics() {
+        observeMetrics(); finishMetrics("quit")
+        enqueueMetricOperation { $0.leave(); $0.flush() }
+    }
+
     var onClear: ((Int, Double) -> Void)?
     var onExit: (() -> Void)?
     var onJellyLesson: (() -> Void)?
@@ -311,11 +348,14 @@ final class GameScene: SKScene {
     @objc private func appWillResignActive() {
         if phase == .playing { pauseRun() }
         holdTouches.removeAll()
+        if let summary = metricAccumulator?.summary { enqueueMetricOperation { $0.checkpoint(summary) } }
+        enqueueMetricOperation { $0.flush() }
     }
 
     // MARK: - Run setup
 
     private func resetGame(startPlaying: Bool) {
+        observeMetrics(); finishMetrics("quit")
         #if DEBUG
         finishRunRecording("restart")
         activeDebugTuning = simulationTuning ?? ArcadeTuningStore.sceneOverride(world: arcadeWorld, index: levelIndex)
@@ -665,6 +705,18 @@ final class GameScene: SKScene {
             showsJellyLesson = false
         }
         simClock = 0
+        var collects = analytics?.enabled == true
+        #if DEBUG
+        collects = collects && simulationTuning == nil && !debugPracticeRun && !debugHasTuningOverride && ArcadePlaytest.selection == nil
+        #endif
+        if collects {
+            metricAccumulator = ArcadeMetricAccumulator()
+            fatalMetrics = nil; metricDeathCause = "none"
+            let context = metricContext, count = arcadeWorld.levels.count
+            let cleared = metricsHasCleared?(levelIndex) ?? false
+            enqueueMetricOperation { $0.start(context, worldLevelCount: count, alreadyCleared: cleared) }
+            observeMetrics()
+        }
         setPhase(.playing)
         #if DEBUG
         startRunRecording()
@@ -675,6 +727,8 @@ final class GameScene: SKScene {
         buildPauseMenu()
         setPhase(.paused)
         holdTouches.removeAll()
+        observeMetrics()
+        if let summary = metricAccumulator?.summary { enqueueMetricOperation { $0.checkpoint(summary) } }
         #if DEBUG
         recordRunEvent("pause")
         recordRunSnapshot(force: true)
@@ -683,6 +737,7 @@ final class GameScene: SKScene {
     }
 
     private func win() {
+        observeMetrics(); finishMetrics("win")
         #if DEBUG
         finishRunRecording("won")
         #endif
@@ -709,6 +764,7 @@ final class GameScene: SKScene {
     }
 
     private func lose() {
+        finishMetrics("death")
         #if DEBUG
         finishRunRecording("lost", fields: ["reason": lossReason])
         #endif
@@ -890,6 +946,7 @@ final class GameScene: SKScene {
         )
         p.velocity = CGVector(dx: playerSpeed, dy: vy)
         forwardDistance += max(0, playerSpeed * dt)
+        metricAccumulator?.advance(seconds: Double(simClock), circuits: Double(forwardDistance / world.width))
         p.position = CGPoint(x: world.wrap(p.position.x + playerSpeed * dt), y: y)
         p.facing = 1
     }
@@ -1154,6 +1211,7 @@ final class GameScene: SKScene {
                                                      "x": f.position.x, "y": f.position.y, "vy": f.velocity.dy])
                     #endif
                     if f.isPlayer {
+                        metricAccumulator?.bounce()
                         bounceRemaining = T.jellyBounceSeconds
                         bounceCooldown = T.jellyBounceCooldown
                         f.pulse = T.pulseDuration
@@ -1172,6 +1230,11 @@ final class GameScene: SKScene {
     }
 
     private func removeByTentacles(_ victim: Fish, reason: String = "Caught in the tentacles.") {
+        if victim.isPlayer && metricAccumulator != nil {
+            observeMetrics()
+            metricDeathCause = reason == "Caught in the tentacles." ? "tentacles" : "urchin"
+            fatalMetrics = metricAccumulator?.summary
+        }
         #if DEBUG
         if simulationTuning != nil && !victim.isPlayer { simulationStats.aiHazardDeaths += 1 }
         recordRunEvent("hazard_death", fields: ["fishID": victim.id, "reason": reason,
@@ -1347,6 +1410,13 @@ final class GameScene: SKScene {
     }
 
     private func beginSwallow(predator: Fish, prey: Fish) {
+        if prey.isPlayer && metricAccumulator != nil {
+            observeMetrics()
+            metricDeathCause = "predator"
+            metricAccumulator?.fatal(ratio: Double(predator.radius / prey.radius))
+            fatalMetrics = metricAccumulator?.summary
+            finishMetrics("death") // The fatal interaction is committed; do not reclassify its animation as a quit.
+        }
         #if DEBUG
         if simulationTuning != nil && predator.isPlayer {
             simulationStats.mealStartLaps.append(Double(simulationLaps))
@@ -1374,6 +1444,7 @@ final class GameScene: SKScene {
             preyNode.zPosition = predatorNode.zPosition - 0.25
         }
 
+        observeMetrics()
         guard predator.isPlayer || prey.isPlayer else { return }
         if ratio >= T.slowMoRatio {
             slowMoFactor = T.closeCallSlowFactor
@@ -1464,6 +1535,8 @@ final class GameScene: SKScene {
                                       "preyRadius": prey.radius, "radiusAfter": predator.targetRadius])
         #endif
 
+        if !prey.isPlayer { metricAccumulator?.meal(player: predator.isPlayer, ratio: Double(s.ratio)) }
+        observeMetrics()
         if predator.isPlayer {
             mealsEaten += 1
             updateMealIndicator()
@@ -2297,6 +2370,13 @@ final class GameScene: SKScene {
         if playerSecond { fish.reverse() }
         resolveCollisions()
         return player.state == .swallowing(preyID: other.id) && other.state == .beingSwallowed(predatorID: player.id)
+    }
+
+    func debugCommitFatalSwallowForMetrics() {
+        let predator = Fish(id: nextFishID, isPlayer: false, position: player.position, radius: player.radius * 2)
+        nextFishID += 1
+        add(predator, style: .player)
+        beginSwallow(predator: predator, prey: player)
     }
 
     func debugEatMeal() {
