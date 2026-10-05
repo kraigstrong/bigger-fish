@@ -76,7 +76,7 @@ struct ArcadeLevelMap: View {
                         ZStack(alignment: .topLeading) {
                             MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
                                         fishHome: centers.indices.contains(focus) ? CGPoint(x: centers[focus].x, y: centers[focus].y + 58) : nil,
-                                        pulsingStops: centers.indices.filter { progress.isOpen(world, $0) && !progress.isCleared(world, $0) }.map { centers[$0] })
+                                        pulsingStops: centers.indices.contains(focus) ? [centers[focus]] : [])
                             ForEach(world.levels.indices, id: \.self) { index in
                                 let open = progress.isOpen(world, index)
                                 let cleared = progress.isCleared(world, index)
