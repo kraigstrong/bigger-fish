@@ -123,6 +123,12 @@ enum GameTuning {
     static let jellyBounceSpeed: CGFloat = 460
     static let jellyBounceSeconds: CGFloat = 0.28
     static let jellyBounceCooldown: CGFloat = 0.24
+    /// A stung fish jolts, rolls belly-up, and sinks out of sight; the result panel waits for it.
+    static let stingJoltSeconds: CGFloat = 0.45
+    static let stingRollSeconds: CGFloat = 0.35
+    static let stingFadeStart: CGFloat = 0.9
+    static let stingSeconds: CGFloat = 1.5
+    static let stingResultDelay: CGFloat = 1.1
     static let jellyAvoidancePredictionSteps = 8
     static let bloomFloorLanePadding: CGFloat = 20
     /// Alternating bell heights for authored layouts without per-level heights.

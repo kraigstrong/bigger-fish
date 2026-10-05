@@ -20,6 +20,17 @@ private struct BloomJelly {
     let phase: CGFloat
 }
 
+/// A fish stung by tentacles or urchins: it jolts, rolls belly-up, and sinks out of sight.
+private struct StungFish {
+    let id: Int
+    let node: FishNode
+    let zap: ZapNode
+    let start: CGFloat
+    let position: CGPoint
+    let radius: CGFloat
+    let facing: CGFloat
+}
+
 private struct Speck {
     let node: SKSpriteNode
     let parallax: CGFloat
@@ -275,6 +286,9 @@ final class GameScene: SKScene {
     private var slowMoRemaining: CGFloat = 0
     private var slowMoFactor: CGFloat = 1
     private var endedAt: CGFloat = 0
+    private var stungFish: [StungFish] = []
+    /// After a sting, the result waits until the death animation has played.
+    private var pendingLossResultAt: CGFloat?
     private var lastCameraX: CGFloat = 0
     private var hasLayers = false
     private var isBuilt = false
@@ -376,6 +390,9 @@ final class GameScene: SKScene {
         #endif
         for node in nodes.values { node.removeFromParent() }
         nodes.removeAll()
+        for stung in stungFish { stung.node.removeFromParent(); stung.zap.removeFromParent() }
+        stungFish.removeAll()
+        pendingLossResultAt = nil
         fish.removeAll()
         fishByID.removeAll()
         swallows.removeAll()
@@ -699,7 +716,7 @@ final class GameScene: SKScene {
         case .won:
             showResult(passed: true)
         case .lost:
-            showResult(passed: false)
+            if pendingLossResultAt == nil { showResult(passed: false) }
         }
     }
 
@@ -835,7 +852,8 @@ final class GameScene: SKScene {
         winGlow = glow
     }
 
-    private func lose() {
+    private func lose(resultDelay: CGFloat = 0) {
+        if resultDelay > 0 { pendingLossResultAt = realClock + resultDelay }
         finishMetrics("death")
         #if DEBUG
         finishRunRecording("lost", fields: ["reason": lossReason])
@@ -947,6 +965,10 @@ final class GameScene: SKScene {
         while frameAccumulator + epsilon >= step {
             frameAccumulator = max(0, frameAccumulator - step)
             realClock += step
+            if let at = pendingLossResultAt, realClock >= at {
+                pendingLossResultAt = nil
+                if phase == .lost { showResult(passed: false) }
+            }
             guard phase != .ready && phase != .paused else { continue }
             if slowMoRemaining > 0 {
                 slowMoRemaining = max(0, slowMoRemaining - step)
@@ -1181,9 +1203,13 @@ final class GameScene: SKScene {
                         waterBottom + (waterTop - waterBottom) * fraction)
             let origin = scattered.isEmpty ? CGPoint(x: world.wrap(x), y: y) : scattered[i]
             let phase = CGFloat(i) * 1.7
-            let node = JellyfishNode(radius: layout.radius, tentacleLength: layout.tentacleLength, phase: phase)
+            let node = JellyfishNode(radius: layout.radius, tentacleLength: layout.tentacleLength, phase: phase,
+                                     night: layout.night)
             hazardLayer.addChild(node)
-            jellies.append(BloomJelly(node: node, origin: origin, position: origin, phase: phase))
+            // A drifting bell starts where its drift has it at the first step, so it never jumps.
+            let start = layout.drifts ? JellyDrift.position(origin: origin, phase: phase, time: 0,
+                                                            screenWidth: size.width, world: world) : origin
+            jellies.append(BloomJelly(node: node, origin: origin, position: start, phase: phase))
         }
         for i in 0..<layout.urchinBeds {
             let center = size.width * 1.1 + CGFloat(i) * (world.width - size.width * 1.4) / CGFloat(max(1, layout.urchinBeds - 1))
@@ -1274,7 +1300,7 @@ final class GameScene: SKScene {
                         playSound(.bounce)
                     }
                 case .tentacles:
-                    if f.isPlayer { removeByTentacles(f); return }
+                    if f.isPlayer { jelly.node.sting(); removeByTentacles(f); return }
                     // NPCs steer around stingers; contact never removes ecosystem food.
                     if let avoidance = bloomAvoidance(for: f, velocity: f.velocity) {
                         f.velocity = avoidance
@@ -1308,11 +1334,17 @@ final class GameScene: SKScene {
         }
         swallows.removeAll { $0.predatorID == victim.id || $0.preyID == victim.id }
         victim.state = .removed
-        nodes[victim.id]?.run(.sequence([.fadeOut(withDuration: 0.18), .removeFromParent()]))
+        if let node = nodes[victim.id] {
+            let zap = ZapNode(seed: UInt64(victim.id) &+ UInt64(simClock * 60))
+            zap.zPosition = node.zPosition + 0.25
+            fishLayer.addChild(zap)
+            stungFish.append(StungFish(id: victim.id, node: node, zap: zap, start: realClock,
+                position: victim.position, radius: victim.radius, facing: victim.facing >= 0 ? 1 : -1))
+        }
         if victim.isPlayer {
             lossReason = reason
             eatenNotification.notificationOccurred(.error)
-            lose()
+            lose(resultDelay: T.stingResultDelay)
         } else {
             fish.removeAll { $0.id == victim.id }
             fishByID[victim.id] = nil
@@ -1339,7 +1371,9 @@ final class GameScene: SKScene {
             jelly.node.isHidden = x < -100 || x > size.width + 100
             jelly.node.position = CGPoint(x: x, y: waterCenter + (position.y - waterCenter) * zoom)
             jelly.node.setScale(zoom)
-            jelly.node.animate(time: time)
+            let previous = index < previousJellyPositions.count ? previousJellyPositions[index] : jelly.position
+            jelly.node.animate(time: time, drift: CGVector(dx: world.delta(from: previous.x, to: jelly.position.x) / T.simulationStep,
+                                                           dy: (jelly.position.y - previous.y) / T.simulationStep))
         }
     }
 
@@ -1666,7 +1700,7 @@ final class GameScene: SKScene {
         let anchorX = size.width * T.playerScreenX
         renderJellies(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
         for f in fish {
-            guard let node = nodes[f.id] else { continue }
+            guard let node = nodes[f.id], !stungFish.contains(where: { $0.id == f.id }) else { continue }
             let pose = presentationPose(f, fraction: fraction)
             let screenX = anchorX + world.delta(from: cameraX, to: pose.position.x) * zoom
             let margin = pose.radius * zoom * 3
@@ -1697,10 +1731,44 @@ final class GameScene: SKScene {
                 time: time, tailRate: f.isPlayer ? 14 : 9
             )
         }
+        renderStungFish(cameraX: cameraX, zoom: zoom, time: time)
         if let glow = winGlow, let playerNode = nodes[player.id] {
             glow.position = playerNode.position
         }
         return (cameraX, zoom)
+    }
+
+    /// A jolt with sparks, then the fish rolls belly-up and sinks as it fades.
+    private func renderStungFish(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
+        guard !stungFish.isEmpty else { return }
+        func ease(_ t: CGFloat) -> CGFloat { let t = t.clamped(0, 1); return t * t * (3 - 2 * t) }
+        for stung in stungFish {
+            let elapsed = time - stung.start
+            let jolting = elapsed < T.stingJoltSeconds
+            let limp = max(0, elapsed - T.stingJoltSeconds)
+            let roll = ease(limp / T.stingRollSeconds)
+            let shake = jolting ? CGPoint(x: sin(time * 97) * 2.5, y: cos(time * 83) * 2.5) : .zero
+            let sink = limp * (22 + 18 * limp)
+            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: stung.position.x) * zoom
+            stung.node.position = CGPoint(x: x + shake.x,
+                                          y: waterCenter + (stung.position.y - waterCenter) * zoom - sink + shake.y)
+            stung.node.alpha = 1 - ease((elapsed - T.stingFadeStart) / (T.stingSeconds - T.stingFadeStart))
+            let buzz = jolting ? sin(time * 53) * 0.1 : 0
+            stung.node.apply(radius: stung.radius * zoom, facing: stung.facing,
+                             tilt: jolting ? sin(time * 61) * 0.3 : -0.3 * roll * stung.facing,
+                             stretchX: 1 + buzz, stretchY: jolting ? 1 - buzz : cos(roll * .pi),
+                             mouthOpen: jolting ? 0.7 : 0.3, time: jolting ? time : stung.start,
+                             tailRate: jolting ? 40 : 0)
+            stung.zap.isHidden = !jolting
+            stung.zap.position = stung.node.position
+            if jolting { stung.zap.update(time: time, radius: stung.radius * zoom) }
+        }
+        for stung in stungFish where time - stung.start >= T.stingSeconds {
+            stung.zap.removeFromParent()
+            // The player's node stays for the next run's reset; anyone else's goes now.
+            if stung.id != player.id { stung.node.removeFromParent() } else { stung.node.isHidden = true }
+        }
+        stungFish.removeAll { time - $0.start >= T.stingSeconds && $0.id != player.id }
     }
 
     private func updateSpecks(realDt: CGFloat, cameraDelta: CGFloat) {
@@ -2175,6 +2243,9 @@ final class GameScene: SKScene {
 
     // Integration-test fixtures exercise the real scene update and hazard resolution.
     func debugStart() { startRun() }
+    func debugAdvance(seconds: CGFloat) {
+        for _ in 0..<Int((seconds / T.simulationStep).rounded(.up)) { advanceFrame(T.simulationStep) }
+    }
     private(set) var debugBounceRiseInContactFrame: CGFloat = 0
     func debugFallOntoDome() -> Bool {
         guard let jelly = jellies.first, let layout = level.jellies else { return false }

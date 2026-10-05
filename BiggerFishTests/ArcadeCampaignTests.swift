@@ -256,6 +256,9 @@ struct ArcadeSceneTests {
     @Test func lossOffersRetryAndLevels() {
         let (scene, view) = scene()
         #expect(scene.debugTouchTentacles(playerVictim: true))
+        // The result waits for the sting animation.
+        #expect(scene.debugResultTitles.isEmpty)
+        scene.debugAdvance(seconds: GameTuning.stingResultDelay + 0.05)
         #expect(scene.debugResultTitles == ["Retry", "Levels"])
         scene.debugTapResult(.tryAgain)
         #expect(scene.debugLevelIndex == 0)
