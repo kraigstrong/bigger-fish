@@ -63,10 +63,14 @@ arrives. Bot wins show a route exists; they aren't a difficulty ranking.
 
 ## Playing them
 
-Debug builds: **Tuning > Meeting planner > Play Easy / Medium / Hard**, with a variation stepper for
-other layouts of the same settings, or launch with `-arcadePlanner hard` (`hard.3` for variation 3).
-These are practice runs: no clears, progress, or analytics. Recordings include each fish's role,
-gate meals, routes, and slack.
+Debug builds show **Reef Lab** as the third world on the map: Easy, Medium, and Hard, all open, with
+clears and best times saved like any world (`reef-lab.1`–`.3`). These are new levels, not remakes. For
+an A/B comparison, their speeds match Shallow Reef 2, 6, and 10. Reef Lab is hidden from Release and
+TestFlight builds (`ArcadeWorld.mapWorlds`).
+
+**Tuning > Meeting planner** plays other variations of the same presets as practice runs, or launch
+with `-arcadePlanner hard` (`hard.3` for variation 3). Recordings include each fish's role, gate
+meals, routes, and slack.
 
 `MeetingPlannerTests` checks the presets, and its marker-gated studies report them
 (`build/arcade-development/meeting-study.request`) and the shipped campaign (`campaign-study.request`).

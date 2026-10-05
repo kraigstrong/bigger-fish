@@ -344,6 +344,13 @@ enum GameTuning {
             dangerGap: 28, threatClearance: 40, spacing: 0.22, aiSpeed: 70...200, aiVertical: 100, crossSeconds: 2.5),
     ]
 
+    /// Reef Lab plays each preset's first variation. Plans are computed once, on first use.
+    static let reefLabLevels: [Level] = plannerPresets.enumerated().map { index, spec in
+        var level = MeetingPlanner.plan(spec).level
+        level.ecosystemSeedIndex = index
+        return level
+    }
+
     /// Preserve the original campaign, including the favorite fourth level, for debug comparison.
     static let shallowReferenceLevels: [Level] = [
         Level(

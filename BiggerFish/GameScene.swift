@@ -63,6 +63,8 @@ final class GameScene: SKScene {
             base = T.shallowReferenceLevels[shallowReferenceIndex]
             base.ecosystemSeedIndex = shallowReferenceIndex
         }
+        // Debug tuning edits seeded campaign levels; a planned level is its plan.
+        if base.meetingPlan != nil { return base }
         return activeDebugTuning?.applying(to: base) ?? base
         #else
         return base
@@ -1755,7 +1757,8 @@ final class GameScene: SKScene {
     /// World and current level only; reference presets use the same header.
     private func buildLevelIndicator() {
         levelIndicator.removeAllChildren()
-        let text = label(plannerName ?? "\(arcadeWorld.title) \(levelIndex + 1)", fontSize: 13, heavy: true)
+        let text = label(plannerName ?? (arcadeWorld.opensEveryLevel ? "\(arcadeWorld.title) · \(levelTitle)"
+                                                                     : "\(arcadeWorld.title) \(levelIndex + 1)"), fontSize: 13, heavy: true)
         text.horizontalAlignmentMode = .left
         text.alpha = 0.9
         levelIndicator.addChild(text)

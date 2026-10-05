@@ -78,6 +78,22 @@ struct MeetingPlannerTests {
         }
     }
 
+    @MainActor @Test func reefLabIsTheThirdWorldWithEveryPlannedLevelOpen() {
+        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom, .reefLab])
+        let world = ArcadeWorld.reefLab
+        #expect(world.levelTitles == ["Easy", "Medium", "Hard"])
+        #expect(world.levels.count == world.levelCount)
+        #expect(world.levels.allSatisfy { $0.meetingPlan?.issues.isEmpty == true })
+        let progress = ArcadeProgress(defaults: UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!)
+        #expect((0..<3).allSatisfy { progress.isOpen(world, $0) } && !progress.isOpen(world, 3))
+        progress.clear(world, 2, seconds: 20)
+        #expect(progress.save.bestTimes["reef-lab.3"] == 20)
+        let scene = GameScene(world: world, levelIndex: 1)
+        #expect(scene.debugEncounterCrossings(laps: 0.01).isEmpty)
+        #expect(scene.debugFishCount == world.levels[1].meetingPlan!.fish.count + 1)
+        #expect(scene.debugMeetingPlan?.spec.name == "Medium")
+    }
+
     @MainActor @Test func plannedLevelsSpawnEveryFishAndKeepPlannedFishOnTheirLine() {
         let scene = GameScene.plannerScene(GameTuning.plannerPresets[1])
         let plan = scene.debugMeetingPlan!
@@ -132,7 +148,7 @@ struct MeetingPlannerTests {
         var lines = ["| world | slot | met | max meals | gates (meals/routes/slack) | tightest slack | danger meals | head-on | mean gap s |",
                      "|---|---|---|---|---|---|---|---|---|"]
         var json: [[String: Any]] = []
-        for world in ArcadeWorld.allCases {
+        for world in ArcadeWorld.campaign {
             for index in world.levels.indices {
                 let first = EncounterAnalyzer.analyze(GameScene(world: world, levelIndex: index).debugEncounterCrossings())
                 let byID = Dictionary(uniqueKeysWithValues: first.meetings.map { ($0.crossing.fishID, $0.crossing) })

@@ -164,9 +164,10 @@ These tools and overrides are absent in Release/TestFlight.
 
 ### Meeting planner (Debug only)
 
-**Tuning > Meeting planner** plays easy, medium, and hard fish-only levels whose meetings are planned:
-each gate's slack and routes are designed, and every fish still swims freely into its meeting. Launch
-with `-arcadePlanner medium` to skip the menu. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
+Debug builds add a third world, **Reef Lab**: easy, medium, and hard fish-only levels whose meetings
+are planned. Each gate's slack and routes are designed, and every fish still swims freely into its
+meeting. **Tuning > Meeting planner** plays other variations, or launch with `-arcadePlanner medium`.
+See [`docs/meeting-planner.md`](docs/meeting-planner.md).
 
 ### Automatic run diagnostics
 

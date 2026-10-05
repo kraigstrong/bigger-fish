@@ -15,7 +15,7 @@ enum ArcadePlaytest {
         guard let flag = args.firstIndex(of: "-arcadePlaytest"), args.indices.contains(flag + 1) else { return nil }
         let parts = args[flag + 1].split(separator: ".")
         guard parts.count == 2, let world = ArcadeWorld(rawValue: String(parts[0])),
-              let number = Int(parts[1]), world.levels.indices.contains(number - 1) else { return nil }
+              let number = Int(parts[1]), (0..<world.levelCount).contains(number - 1) else { return nil }
         return (world, number - 1)
     }
 

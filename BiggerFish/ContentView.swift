@@ -47,8 +47,11 @@ struct ContentView: View {
             .padding(.trailing, 12).padding(.bottom, 4)
         }
         .sheet(isPresented: $showsTuning) {
-            ArcadeTuningPanel(store: tuningStore, world: scene?.arcadeWorld ?? selectedWorld ?? .jellyBloom,
-                              index: scene?.debugLevelIndex ?? 1, onPlanner: playPlanner) { world, index in
+            // The tuner edits campaign levels; from Reef Lab it opens on Shallow Reef.
+            let current = scene?.arcadeWorld ?? selectedWorld ?? .jellyBloom
+            let campaign = ArcadeWorld.campaign.contains(current)
+            ArcadeTuningPanel(store: tuningStore, world: campaign ? current : .shallowReef,
+                              index: campaign ? scene?.debugLevelIndex ?? 1 : 0, onPlanner: playPlanner) { world, index in
                 selectedWorld = world
                 play(world, index: index, practice: true)
             }
@@ -58,6 +61,10 @@ struct ContentView: View {
         .persistentSystemOverlays(.hidden)
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
+            #if DEBUG
+            // Plan Reef Lab in the background so its levels start instantly.
+            Task.detached(priority: .utility) { _ = GameTuning.reefLabLevels }
+            #endif
             if !metricsLaunched { analytics.launched(); analytics.flush(); metricsLaunched = true }
             #if DEBUG
             if scene == nil, let world = ArcadePlaytest.mapSelection {

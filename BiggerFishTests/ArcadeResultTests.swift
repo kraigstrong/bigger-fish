@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct ArcadeResultTests {
     @Test func completionStopsMotionButKeepsAnimationAndResumesOnReplayOrNextLevel() {
-        for world in ArcadeWorld.allCases {
+        for world in ArcadeWorld.campaign {
             for replay in [false, true] {
                 let scene = GameScene(world: world)
                 let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
@@ -18,7 +18,7 @@ struct ArcadeResultTests {
     }
 
     @Test func readyPromptFitsTheCardAndHasNoMapAction() throws {
-        for world in ArcadeWorld.allCases {
+        for world in ArcadeWorld.campaign {
             let scene = GameScene(world: world, showsJellyLesson: true)
             let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
             view.presentScene(scene)

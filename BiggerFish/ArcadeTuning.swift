@@ -271,7 +271,7 @@ struct ArcadeTuningPanel: View {
                 .task(id: plannerVariation) { await summarizePlans() }
                 Section {
                     Picker("World", selection: $world) {
-                        ForEach(ArcadeWorld.allCases) { Text($0.title).tag($0) }
+                        ForEach(ArcadeWorld.campaign) { Text($0.title).tag($0) }
                     }
                     Picker("Level", selection: $index) {
                         ForEach(world.levels.indices, id: \.self) { Text("Level \($0 + 1)").tag($0) }
