@@ -24,7 +24,7 @@ final class ArcadeProgress: ObservableObject {
 
     func isOpen(_ world: ArcadeWorld, _ index: Int) -> Bool {
         guard (0..<world.levelCount).contains(index) else { return false }
-        return index == 0 || world.opensEveryLevel || isCleared(world, index) || isCleared(world, index - 1)
+        return index == 0 || isCleared(world, index) || isCleared(world, index - 1)
     }
 
     func nextLevel(in world: ArcadeWorld) -> Int {
@@ -41,6 +41,14 @@ final class ArcadeProgress: ObservableObject {
         let id = world.levelID(index)
         save.clearedLevels.insert(id)
         save.bestTimes[id] = min(save.bestTimes[id] ?? seconds, seconds)
+        persist()
+    }
+
+    /// Debug A/B testing: a new player starts the world from level 1.
+    func reset(_ world: ArcadeWorld) {
+        let prefix = world.rawValue + "."
+        save.clearedLevels = save.clearedLevels.filter { !$0.hasPrefix(prefix) }
+        save.bestTimes = save.bestTimes.filter { !$0.key.hasPrefix(prefix) }
         persist()
     }
 

@@ -62,13 +62,22 @@ Two rules apply only to planned levels, so fish you haven't met stay on schedule
 gives way to one you haven't (it turns away). Two unmet fish separate only on screen; off screen they
 pass each other.
 
-## Presets
+## Reef Lab's ten levels
 
-| | Fish | Forks | Misses survived per gate | Routes into gates | Danger meals | Bot wins |
-|---|---:|---:|---|---|---:|---|
-| Easy | 17 | 3 | 3+, 2, 2 | 4, 60, 34 | 3 | 3/3, about 14 s |
-| Medium | 22 | 3 | 1, 1, 1 | 4, 31, 28 | 5 | 1/3, 18 s |
-| Hard | 29 | 4 | 0, 0, 0 on the short lanes | 3, 16, 99 | 10 | 0/3 |
+`GameTuning.reefLabSpecs` is a planned Shallow Reef, slot for slot with the campaign. Levels 2, 6, and 10
+are the playtested Easy, Medium, and Hard (their names seed their layouts); the levels between step every
+setting from one to the next, with speeds following Shallow Reef's authoring curve. Level 1 introduces
+gates without big fish; level 8 is Hard's shape without walls; walls arrive at level 9.
+
+| | Fish | Forks | Misses survived per gate | Bot wins |
+|---|---:|---:|---|---|
+| 1 | 10 | 2 | 3+, 2 | 3/3 |
+| 2 (Easy) | 17 | 3 | 3+, 2, 2 | 3/3 |
+| 3–5 | 19–22 | 3 | 1–2 | 2/3–3/3 |
+| 6 (Medium) | 22 | 3 | 1, 1, 1 | 1/3 |
+| 7–8 | 24–25 | 4 | 1 | 1/3 |
+| 9 | 29 | 4 | 1 | 0/3 |
+| 10 (Hard) | 29 | 4 | 0, 0, 0 on the short lanes | 0/3 |
 
 Hard's meals are 76–90% of your size and its gates barely edible, so every catch is a close call. Its
 gates are walled (`walledGates`): a big fish crosses a tenth of a second before and after each gate,
@@ -76,24 +85,33 @@ just above and below it, too tight to slip between and too quick to swim around,
 dodged and saved for lap two. Starting a swallow makes you safe, so a big-enough player eats the gate
 and the walls pass by. The last gate goes unwalled when its walls couldn't be outgrown by lap two.
 Returning fish come back at 94–99% of the size you should be. Playtested: 17 attempts to the first win,
-deaths spread from 2.8 to 7.5 s, in line with Shallow Reef 10 (18 attempts). Because near-size meals grow routes apart quickly, Hard times its meetings against
-the player who barely makes each gate (`timesTheEdge`).
+deaths spread from 2.8 to 7.5 s, in line with Shallow Reef 10 (18 attempts). Because near-size meals
+grow routes apart quickly, Hard times its meetings against the player who barely makes each gate
+(`timesTheEdge`).
 
 Lanes are exclusive in every fork: the most anyone can eat on lap one is every single, every gate, and
 one lane per fork. In the real scene every fish crosses within 0.05 s and 3 points of its plan on the
 reference route, and every fish still arrives on the fewest-meal and fullest routes. Bots are poor at
-choosing lanes; playtesting decides difficulty (an earlier, linear Hard was beaten on the second try).
+choosing lanes; playtesting decides difficulty.
+
+## Shipped as data
+
+Plans are deterministic, so Reef Lab's are made on the Mac and shipped in `BiggerFish/ReefLabPlans.json`:
+no device plans while you play, and every device plays the same level. After changing `reefLabSpecs` or
+the planner, regenerate the file by creating `build/arcade-development/reef-lab-plans.request` and running
+`MeetingPlannerTests`; `bundledReefLabPlansMatchThePlanner` fails until you do. The tuner's other
+variations still plan on the device.
 
 ## Playing them
 
-Debug builds show **Reef Lab** as the third world on the map: Easy, Medium, and Hard, all open, with
-clears and best times saved like any world (`reef-lab.1`–`.3`). These are new levels, not remakes. For
-an A/B comparison, their speeds match Shallow Reef 2, 6, and 10. Reef Lab is hidden from Release and
-TestFlight builds (`ArcadeWorld.mapWorlds`).
+Debug builds show **Reef Lab** as the third world on the map. Its levels unlock one at a time like the
+campaign's, with clears and best times saved under `reef-lab` IDs, so level N compares with Shallow Reef
+level N. **Tuning > Players** resets a world's progress for a new player. Reef Lab is hidden from Release
+and TestFlight builds (`ArcadeWorld.mapWorlds`).
 
-**Tuning > Meeting planner** plays other variations of the same presets as practice runs, or launch
-with `-arcadePlanner hard` (`hard.3` for variation 3). Recordings include each fish's role, gate
-meals, routes, and slack.
+**Tuning > Reef Lab variations** plays other layouts of the same settings as practice runs, or launch with
+`-arcadePlanner 10.3` (level 10, variation 3); `-arcadePlaytest reef-lab.10` plays the level itself.
+Recordings include each fish's role, fork lane, gate meals, routes, and slack.
 
 `MeetingPlannerTests` checks the presets, and its marker-gated studies report them
 (`build/arcade-development/meeting-study.request`) and the shipped campaign (`campaign-study.request`).

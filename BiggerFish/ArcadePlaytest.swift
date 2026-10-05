@@ -19,14 +19,17 @@ enum ArcadePlaytest {
         return (world, number - 1)
     }
 
-    /// A planned test level: -arcadePlanner hard, or -arcadePlanner hard.3 for another variation.
+    /// Another variation of a Reef Lab level as a practice run: -arcadePlanner 10.3 (level, variation).
+    /// Use -arcadePlaytest reef-lab.10 for the level itself.
     static var planner: (spec: MeetingSpec, variation: Int)? {
         let args = ProcessInfo.processInfo.arguments
         guard let flag = args.firstIndex(of: "-arcadePlanner"), args.indices.contains(flag + 1) else { return nil }
         let parts = args[flag + 1].split(separator: ".")
-        guard let name = parts.first,
-              let spec = GameTuning.plannerPresets.first(where: { $0.name.lowercased() == name.lowercased() }) else { return nil }
-        return (spec, parts.count > 1 ? Int(parts[1]) ?? 0 : 0)
+        guard let number = parts.first.flatMap({ Int($0) }), GameTuning.reefLabSpecs.indices.contains(number - 1) else { return nil }
+        // The tuner's range; a negative or huge variation would overflow the planner's seed.
+        let variation = parts.count > 1 ? Int(parts[1]) : 0
+        guard let variation, (0...99).contains(variation) else { return nil }
+        return (GameTuning.reefLabSpecs[number - 1], variation)
     }
 
     /// A visual-only result preview; no clear or purchase is recorded.

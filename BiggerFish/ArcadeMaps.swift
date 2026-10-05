@@ -117,8 +117,7 @@ struct ArcadeLevelMap: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 24).padding(.top, 10)
-                VStack { Spacer(); Text(world.opensEveryLevel ? "Every level is open. Compare them with the campaign."
-                                                              : "Clear a level to open the next. Swipe to explore.")
+                VStack { Spacer(); Text("Clear a level to open the next. Swipe to explore.")
                     .font(.custom("AvenirNext-DemiBold", size: 12)).padding(.bottom, 12) }
                     .frame(width: size.width).allowsHitTesting(false)
             }

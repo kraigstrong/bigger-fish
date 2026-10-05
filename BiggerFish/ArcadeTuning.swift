@@ -240,28 +240,43 @@ struct ArcadeTuningPanel: View {
     @State private var isChecking = false
     @State private var plannerVariation = 0
     @State private var plannerSummaries: [String: String] = [:]
+    @State private var resetWorld: ArcadeWorld = .reefLab
+    @State private var confirmsReset = false
     let onPlanner: (MeetingSpec, Int) -> Void
+    let onResetProgress: (ArcadeWorld) -> Void
     let onPlay: (ArcadeWorld, Int) -> Void
 
     init(store: ArcadeTuningStore, world: ArcadeWorld, index: Int, onPlanner: @escaping (MeetingSpec, Int) -> Void,
-         onPlay: @escaping (ArcadeWorld, Int) -> Void) {
+         onResetProgress: @escaping (ArcadeWorld) -> Void, onPlay: @escaping (ArcadeWorld, Int) -> Void) {
         self.store = store
         _world = State(initialValue: world)
         _index = State(initialValue: index)
         _draft = State(initialValue: store.override(world, index) ?? ArcadeTuning(level: world.levels[index]))
         self.onPlanner = onPlanner
+        self.onResetProgress = onResetProgress
         self.onPlay = onPlay
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Meeting planner") {
-                    Text("Planned fish-only levels: every fish swims freely but is timed to cross your path at a planned height. Practice runs only.")
+                Section("Players") {
+                    Text("Start a world over from level 1 for a new player, for A/B testing.").font(.footnote)
+                    Picker("World", selection: $resetWorld) {
+                        ForEach(ArcadeWorld.mapWorlds) { Text($0.title).tag($0) }
+                    }
+                    Button("Reset \(resetWorld.title) progress", role: .destructive) { confirmsReset = true }
+                        .confirmationDialog("Clear every \(resetWorld.title) clear and best time on this device?",
+                                            isPresented: $confirmsReset, titleVisibility: .visible) {
+                            Button("Reset \(resetWorld.title)", role: .destructive) { onResetProgress(resetWorld) }
+                        }
+                }
+                Section("Reef Lab variations") {
+                    Text("Other layouts of the same Reef Lab settings: every fish swims freely but is timed to cross your path at a planned height. Practice runs only.")
                         .font(.footnote)
                     Stepper("Variation: \(plannerVariation)", value: $plannerVariation, in: 0...99)
-                    ForEach(GameTuning.plannerPresets, id: \.name) { spec in
-                        Button("Play \(spec.name)") {
+                    ForEach(Array(GameTuning.reefLabSpecs.enumerated()), id: \.offset) { index, spec in
+                        Button("Play Reef Lab level \(index + 1)") {
                             dismiss()
                             onPlanner(spec, plannerVariation)
                         }
@@ -423,7 +438,7 @@ struct ArcadeTuningPanel: View {
     private func summarizePlans() async {
         plannerSummaries = [:]
         let variation = plannerVariation
-        for spec in GameTuning.plannerPresets {
+        for spec in GameTuning.reefLabSpecs {
             let summary = await Task.detached(priority: .userInitiated) {
                 MeetingPlannerSummary.text(MeetingPlanner.plan(spec, variation: variation))
             }.value

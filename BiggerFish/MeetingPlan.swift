@@ -93,7 +93,7 @@ struct PlannedFish: Codable, Equatable {
 
 }
 
-struct MeetingPlan {
+struct MeetingPlan: Codable {
     let spec: MeetingSpec
     let variation: Int
     let seed: UInt64
@@ -102,8 +102,6 @@ struct MeetingPlan {
     /// Where each fish meets the reference route.
     let predicted: [EncounterCrossing]
     let analysis: EncounterAnalysis
-    /// Player radius after each simulation step on the reference route, for ghost checks.
-    let referenceRadii: [CGFloat]
     /// Empty when every planned meeting, gate, and option checked out.
     let issues: [String]
 
@@ -139,6 +137,9 @@ struct MeetingPlan {
             until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05).radius
     }
 
+    /// Player radius after each simulation step on the route the meetings were timed against, for ghost checks.
+    var referenceRadii: [CGFloat] { radii(eating: Set(fish.filter(\.referenceMeal).map(\.id))) }
+
     /// Fewest meals before each planned gate on the designed route.
     var designedGateMeals: [Int: Int] {
         var meals = 0
@@ -156,13 +157,29 @@ enum MeetingPlanner {
     static let designAttempts = 12
     private static let lock = NSLock()
     private static var cache: [String: MeetingPlan] = [:]
+    private static var inFlight: [String: DispatchGroup] = [:]
 
     /// Deterministic for a spec and variation; the first design that passes every check, else the best one.
+    /// Cached in memory. Reef Lab's own levels ship pre-planned (`ReefLabPlans.json`); this plans the tuner's
+    /// other variations and regenerates that file.
     static func plan(_ spec: MeetingSpec, variation: Int = 0) -> MeetingPlan {
-        let key = (try? JSONEncoder().encode(spec)).map { String(decoding: $0, as: UTF8.self) + "#\(variation)" } ?? spec.name
+        let key = cacheKey(spec, variation: variation)
         lock.lock()
         if let cached = cache[key] { lock.unlock(); return cached }
+        // Another thread is already planning this one (the launch-time background pass): wait for it.
+        if let pending = inFlight[key] {
+            lock.unlock()
+            pending.wait()
+            return plan(spec, variation: variation)
+        }
+        let done = DispatchGroup()
+        done.enter()
+        inFlight[key] = done
         lock.unlock()
+        defer {
+            lock.lock(); inFlight[key] = nil; lock.unlock()
+            done.leave()
+        }
         let base = GameTuning.spawnSeed &+ 7_000 &+ stableHash(spec.name) &+ UInt64(variation) &* 1_000_003
         var best: MeetingPlan?
         for attempt in 0..<designAttempts {
@@ -176,15 +193,18 @@ enum MeetingPlanner {
         return best!
     }
 
+    private static func cacheKey(_ spec: MeetingSpec, variation: Int) -> String {
+        (try? JSONEncoder().encode(spec)).map { String(decoding: $0, as: UTF8.self) + "#\(variation)" } ?? spec.name
+    }
+
     static func makePlan(_ spec: MeetingSpec, variation: Int, seed: UInt64) -> MeetingPlan {
         let design = MeetingDesigner.design(spec, seed: seed)
         let solved = MeetingSolver.solve(design.meetings, spec: spec, seed: seed, timeline: design.timeline)
         let analysis = EncounterAnalyzer.analyze(solved.crossings)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
-            predicted: solved.crossings, analysis: analysis, referenceRadii: design.timeline.radius, issues: [])
+            predicted: solved.crossings, analysis: analysis, issues: [])
         return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
-            analysis: analysis, referenceRadii: design.timeline.radius,
-            issues: design.issues + solved.issues + check(unchecked))
+            analysis: analysis, issues: design.issues + solved.issues + check(unchecked))
     }
 
     /// The analyzer must find the designed structure: every gate needs exactly its designed meals,
@@ -321,30 +341,6 @@ struct DesignedMeeting {
 
 enum MeetingDesigner {
     typealias T = GameTuning
-    static let firstMeetingScreens: CGFloat = 0.6
-    /// The last meeting comes this many screens before the lap ends.
-    static let lastMeetingMargin: CGFloat = 0.3
-    /// A near-equal swallow takes up to 0.8 s; the next meeting waits a beat longer.
-    static let gateSwallowSeconds: CGFloat = 1.0
-    static let dangerOffsetScreens: CGFloat = 0.07
-    /// Seconds between a fork's two lanes crossing: too close to take both.
-    static let forkOffsetSeconds: CGFloat = 0.12
-    /// Room, in meeting gaps, to reach either lane before a fork and to come back after it.
-    static let forkLead: CGFloat = 1.3
-    static let heightLimits: ClosedRange<CGFloat> = 0.08...0.92
-    static let highLane: ClosedRange<CGFloat> = 0.78...0.92
-    static let lowLane: ClosedRange<CGFloat> = 0.08...0.22
-    static let middle: ClosedRange<CGFloat> = 0.42...0.58
-    /// Screen points of combined body overlap counted on top of swimming reach between meals.
-    static let mealHeightTolerance: CGFloat = 20
-    /// The first meal (zero-based) a threat may cross beside.
-    static let earliestDangerMeal = 3
-    /// A gate's wall fish cross this long before and after it: apart enough that eating the gate comes
-    /// first, close enough that there's no time to swim around.
-    static let wallOffsetSeconds: CGFloat = 0.1
-    /// Screen points between a gate and its wall fish: under a fish's width, so nobody slips between,
-    /// and clear of the separation reach planned fish keep from each other on screen.
-    static let wallGap: CGFloat = 30
 
     static func design(_ spec: MeetingSpec, seed: UInt64) -> (meetings: [DesignedMeeting], timeline: PlayerTimeline, issues: [String]) {
         var rng = SeededGenerator(seed: seed)
@@ -361,7 +357,7 @@ enum MeetingDesigner {
         meetings = order.map { meetings[$0] }
         times = order.map { times[$0] }
         var timeline = PlayerTimeline()
-        let lastDistance = (CGFloat(spec.worldScreens) - lastMeetingMargin) * T.playfieldSize.width
+        let lastDistance = (CGFloat(spec.worldScreens) - T.plannerLastMeetingMargin) * T.playfieldSize.width
         for _ in 0..<6 {
             for i in meetings.indices {
                 let step = Int((times[i] / T.simulationStep).rounded())
@@ -452,7 +448,7 @@ enum MeetingDesigner {
             // Danger crosses beside long lanes first, then singles; never in the opening.
             let longLane = meals.indices.filter { meals[$0].fork != nil && meals[$0].lane == 0 }.shuffled(using: &rng)
             let others = meals.indices.filter { meals[$0].fork == nil }.shuffled(using: &rng)
-            let danger = Set((longLane + others).filter { meetings.count + $0 >= earliestDangerMeal }.prefix(segment.dangerFoods))
+            let danger = Set((longLane + others).filter { meetings.count + $0 >= T.plannerEarliestDangerMeal }.prefix(segment.dangerFoods))
             var playerMost = most
             for (index, var meal) in meals.enumerated() {
                 meal.key = meetings.count
@@ -527,7 +523,7 @@ enum MeetingDesigner {
         let screen = CGFloat(spec.crossSeconds)
         let spacing = CGFloat(spec.spacing) * screen
         var times = Array(repeating: CGFloat(0), count: meetings.count)
-        var cursor = firstMeetingScreens * screen
+        var cursor = T.plannerFirstMeetingScreens * screen
         var previous: DesignedMeeting?
         for i in meetings.indices where meetings[i].role != .threat {
             let meal = meetings[i]
@@ -535,18 +531,18 @@ enum MeetingDesigner {
             guard let last = previous else { times[i] = cursor; continue }
             if let fork = meal.fork, last.fork == fork {
                 // The other lane of this rank crosses a beat after; the next rank, a full gap after this one.
-                if meal.rank == last.rank { times[i] = cursor + forkOffsetSeconds; continue }
+                if meal.rank == last.rank { times[i] = cursor + T.plannerForkOffsetSeconds; continue }
                 cursor += spacing
             } else {
-                var gap = meal.fork != nil || last.fork != nil ? spacing * forkLead : spacing
-                if last.role == .gate { gap = max(gap, gateSwallowSeconds) }
+                var gap = meal.fork != nil || last.fork != nil ? spacing * T.plannerForkLead : spacing
+                if last.role == .gate { gap = max(gap, T.plannerGateRecoverySeconds) }
                 cursor += gap
             }
             times[i] = cursor
         }
         for i in meetings.indices where meetings[i].role == .threat {
             if let guarded = meetings[i].guards, let food = meetings.firstIndex(where: { $0.key == guarded }) {
-                let offset = meetings[i].wall != nil ? wallOffsetSeconds : dangerOffsetScreens * screen
+                let offset = meetings[i].wall != nil ? T.plannerWallOffsetSeconds : T.plannerDangerOffsetScreens * screen
                 times[i] = times[food] + (meetings[i].guardsAfter ? 1 : -1) * offset
             } else {
                 let before = meetings[..<i].lastIndex { $0.role != .threat }
@@ -580,22 +576,22 @@ enum MeetingDesigner {
             if let fork = meetings[i].fork {
                 let high = longLaneHigh[fork] ?? Bool.random(using: &rng)
                 longLaneHigh[fork] = high
-                height = CGFloat.random(in: high == (meetings[i].lane == 0) ? highLane : lowLane, using: &rng)
+                height = CGFloat.random(in: high == (meetings[i].lane == 0) ? T.plannerHighLane : T.plannerLowLane, using: &rng)
             } else if position > 0 {
                 let neighbors = [meals[position - 1]] + (position + 1 < meals.count ? [meals[position + 1]] : [])
                 let walled = meetings[i].role == .gate && spec.walledGates
                 if walled || neighbors.contains(where: { meetings[$0].fork != nil }) {
-                    height = CGFloat.random(in: middle, using: &rng)
+                    height = CGFloat.random(in: T.plannerMidWater, using: &rng)
                 } else {
                     let reach = EncounterAnalyzer.verticalReach(seconds: Double(times[i] - times[meals[position - 1]]))
-                    let farthest = min(heightLimits.upperBound - heightLimits.lowerBound, (reach + mealHeightTolerance) / screenWater)
+                    let farthest = min(T.plannerHeightLimits.upperBound - T.plannerHeightLimits.lowerBound, (reach + T.plannerMealHeightTolerance) / screenWater)
                     let swing = farthest * CGFloat(Double.random(in: spec.heightSwing, using: &rng))
                     var sign: CGFloat = Bool.random(using: &rng) ? 1 : -1
-                    if !heightLimits.contains(height + sign * swing) { sign = -sign }
-                    height = (height + sign * swing).clamped(heightLimits.lowerBound, heightLimits.upperBound)
+                    if !T.plannerHeightLimits.contains(height + sign * swing) { sign = -sign }
+                    height = (height + sign * swing).clamped(T.plannerHeightLimits.lowerBound, T.plannerHeightLimits.upperBound)
                 }
             } else if position + 1 < meals.count, meetings[meals[1]].fork != nil {
-                height = CGFloat.random(in: middle, using: &rng)
+                height = CGFloat.random(in: T.plannerMidWater, using: &rng)
             }
             meetings[i].height = height
         }
@@ -629,7 +625,7 @@ enum MeetingDesigner {
             let foodRange = usable(food)
             let foodY = foodRange.low + (foodRange.high - foodRange.low) * food.height
             let zoom = timeline.zoom[timeline.step(reaching: food.distance)]
-            let gap = meetings[i].wall != nil ? wallGap : CGFloat(spec.dangerGap)
+            let gap = meetings[i].wall != nil ? T.plannerWallGap : CGFloat(spec.dangerGap)
             let offset = (food.size + meetings[i].size) * T.baseRadius * T.collisionScale + gap / zoom
             var sides: [CGFloat] = meetings[i].wall.map { [$0] } ?? [1, -1]
             if meetings[i].wall == nil && Bool.random(using: &rng) { sides.reverse() }
@@ -648,8 +644,6 @@ enum MeetingSolver {
     /// Extra clear water planned paths keep before either fish has been passed, beyond the separation reach.
     static let contactMargin: CGFloat = 4
     static let contactPenalty: CGFloat = 50
-    /// Fish you overtake swim within this share of the slow end of the speed range.
-    static let sameDirectionSpeedShare = 0.3
     /// About how long FreeSwim's easing takes to reverse a fish's swim.
     static let turnSeconds: CGFloat = 1.6
     private static let unwrapped = WrappedWorld(width: 10_000_000)
@@ -685,7 +679,7 @@ enum MeetingSolver {
                 // A fish swimming your way near your speed creeps toward you for seconds, as if fleeing;
                 // slow ones are quick, lazy overtakes.
                 let speeds = headOn ? spec.aiSpeed
-                    : spec.aiSpeed.lowerBound...(spec.aiSpeed.lowerBound + (spec.aiSpeed.upperBound - spec.aiSpeed.lowerBound) * sameDirectionSpeedShare)
+                    : spec.aiSpeed.lowerBound...(spec.aiSpeed.lowerBound + (spec.aiSpeed.upperBound - spec.aiSpeed.lowerBound) * T.plannerSameDirectionSpeedShare)
                 let speed = attempt % (attempts / 2) < 100 && speeds.contains(Double(meeting.speed)) ? meeting.speed
                     : CGFloat(Double.random(in: speeds, using: &draw))
                 let phase = CGFloat.random(in: 0..<(2 * .pi), using: &draw)

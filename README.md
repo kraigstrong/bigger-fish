@@ -164,10 +164,10 @@ These tools and overrides are absent in Release/TestFlight.
 
 ### Meeting planner (Debug only)
 
-Debug builds add a third world, **Reef Lab**: easy, medium, and hard fish-only levels whose meetings
-are planned. Each gate's slack and routes are designed, and every fish still swims freely into its
-meeting. **Tuning > Meeting planner** plays other variations, or launch with `-arcadePlanner medium`.
-See [`docs/meeting-planner.md`](docs/meeting-planner.md).
+Debug builds add a third world, **Reef Lab**: ten fish-only levels whose meetings are planned, to A/B
+test against Shallow Reef slot for slot. Each gate's slack and routes are designed, and every fish still
+swims freely into its meeting. **Tuning > Players** resets a world for a new player; **Tuning > Reef Lab
+variations** plays other layouts. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
 
 ### Automatic run diagnostics
 

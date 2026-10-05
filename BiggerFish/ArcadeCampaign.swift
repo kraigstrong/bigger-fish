@@ -30,7 +30,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .shallowReef: "Eat. Dodge. Grow."
         case .jellyBloom: "Bounce the tops. Dodge the tentacles."
-        case .reefLab: "Planned meetings to compare."
+        case .reefLab: "Planned levels to compare with Shallow Reef."
         }
     }
     var levels: [Level] {
@@ -40,12 +40,9 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .reefLab: GameTuning.reefLabLevels
         }
     }
-    /// Counting levels never plans Reef Lab's, which takes a moment in Debug builds.
-    var levelCount: Int { self == .reefLab ? GameTuning.plannerPresets.count : levels.count }
-    var levelTitles: [String] {
-        self == .reefLab ? GameTuning.plannerPresets.map(\.name) : (0..<levelCount).map { "Level \($0 + 1)" }
-    }
-    /// Every Reef Lab level is open, so each can be compared without clearing the one before.
-    var opensEveryLevel: Bool { self == .reefLab }
+    func level(_ index: Int) -> Level { levels[index] }
+    /// Counting Reef Lab's levels doesn't load them.
+    var levelCount: Int { self == .reefLab ? GameTuning.reefLabSpecs.count : levels.count }
+    var levelTitles: [String] { (0..<levelCount).map { "Level \($0 + 1)" } }
     func levelID(_ index: Int) -> String { "\(rawValue).\(index + 1)" }
 }

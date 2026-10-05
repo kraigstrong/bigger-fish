@@ -45,9 +45,13 @@ final class GameScene: SKScene {
         GameRules.isWin(fish)
     }
     let arcadeWorld: ArcadeWorld
-    private var levelIndex: Int
+    private var levelIndex: Int {
+        didSet { worldLevel = arcadeWorld.level(levelIndex) }
+    }
+    /// This slot's level, looked up once: `level` is read for every fish on every step.
+    private var worldLevel: Level
     private var level: Level {
-        var base = arcadeWorld.levels[levelIndex]
+        var base = worldLevel
         #if DEBUG
         if let plannerLevel { return plannerLevel }
         let setupIndex = simulationReferenceIndex ?? base.ecosystemSeedIndex ?? levelIndex
@@ -110,7 +114,7 @@ final class GameScene: SKScene {
         if plannerLevel != nil { return true }
         if simulationReferenceIndex != nil { return levelIndex == T.bloomReferenceLevels.count - 1 }
         #endif
-        return levelIndex == arcadeWorld.levels.count - 1
+        return levelIndex == arcadeWorld.levelCount - 1
     }
     var analytics: ArcadeAnalytics?
     var metricsHasCleared: ((Int) -> Bool)?
@@ -214,7 +218,8 @@ final class GameScene: SKScene {
     init(world: ArcadeWorld = .shallowReef, levelIndex: Int = 0,
          showsJellyLesson: Bool = true) {
         arcadeWorld = world
-        self.levelIndex = min(max(0, levelIndex), world.levels.count - 1)
+        self.levelIndex = min(max(0, levelIndex), world.levelCount - 1)
+        worldLevel = world.level(self.levelIndex)
         self.showsJellyLesson = showsJellyLesson
         super.init(size: T.playfieldSize)
         scaleMode = .aspectFit
@@ -779,7 +784,7 @@ final class GameScene: SKScene {
         if collects {
             metricAccumulator = ArcadeMetricAccumulator()
             fatalMetrics = nil; metricDeathCause = "none"
-            let context = metricContext, count = arcadeWorld.levels.count
+            let context = metricContext, count = arcadeWorld.levelCount
             let cleared = metricsHasCleared?(levelIndex) ?? false
             enqueueMetricOperation { $0.start(context, worldLevelCount: count, alreadyCleared: cleared) }
             observeMetrics()
@@ -1757,8 +1762,7 @@ final class GameScene: SKScene {
     /// World and current level only; reference presets use the same header.
     private func buildLevelIndicator() {
         levelIndicator.removeAllChildren()
-        let text = label(plannerName ?? (arcadeWorld.opensEveryLevel ? "\(arcadeWorld.title) · \(levelTitle)"
-                                                                     : "\(arcadeWorld.title) \(levelIndex + 1)"), fontSize: 13, heavy: true)
+        let text = label(plannerName ?? "\(arcadeWorld.title) \(levelIndex + 1)", fontSize: 13, heavy: true)
         text.horizontalAlignmentMode = .left
         text.alpha = 0.9
         levelIndicator.addChild(text)
@@ -2048,7 +2052,7 @@ final class GameScene: SKScene {
                                  playerRadius: CGFloat = T.baseRadius, fixedStep: Bool = false,
                                  slowMotion: Bool = false, scriptedInput: Bool = false,
                                  removeOmittedFish: Bool = false) -> ArcadeSimulation.Audit {
-        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationTuning = ArcadeTuning(level: worldLevel)
         simulationEcologyProbe = true
         simulationHolding = false
         resetGame(startPlaying: true)
@@ -2096,7 +2100,7 @@ final class GameScene: SKScene {
     var debugGameplayClock: Double { Double(simClock) }
 
     func debugCheckPresentationIsolation() -> Bool {
-        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationTuning = ArcadeTuning(level: worldLevel)
         simulationEcologyProbe = true
         simulationHolding = false
         resetGame(startPlaying: true)
@@ -2124,7 +2128,7 @@ final class GameScene: SKScene {
     }
 
     func debugCheckFixedTimingLifecycle() -> Bool {
-        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationTuning = ArcadeTuning(level: worldLevel)
         simulationEcologyProbe = true
         resetGame(startPlaying: true)
         let step = T.simulationStep
@@ -2299,7 +2303,7 @@ final class GameScene: SKScene {
         simulationTuning = ArcadeTuning(level: T.bloomReferenceLevels[index])
     }
     func debugEncounterSpawnSafety() -> Bool {
-        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationTuning = ArcadeTuning(level: worldLevel)
         simulationEcologyProbe = true
         resetGame(startPlaying: true)
         let swimmers = fish.filter { !$0.isPlayer }
@@ -2321,7 +2325,7 @@ final class GameScene: SKScene {
         return true
     }
     func debugFreeEncounterMotionCheck() -> (travel: CGFloat, fastFish: Int, intact: Bool, heightSpread: CGFloat, individualReleases: Int) {
-        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationTuning = ArcadeTuning(level: worldLevel)
         simulationEcologyProbe = true
         resetGame(startPlaying: true)
         let original = fish.filter { !$0.isPlayer }
@@ -2372,7 +2376,7 @@ final class GameScene: SKScene {
     }
 
     func debugProtectedPatrolCheck() -> (minimumTravel: CGFloat, maximumThinFraction: Double, intact: Bool) {
-        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationTuning = ArcadeTuning(level: worldLevel)
         simulationEcologyProbe = true
         simulationHolding = false
         resetGame(startPlaying: true)
@@ -2532,7 +2536,7 @@ final class GameScene: SKScene {
     /// per simulation step (a reference route), so zoom and forward distance match a real run, and
     /// the `eaten` fish disappear as they cross, as that route's meals would.
     func debugEncounterCrossings(radii: [CGFloat]? = nil, eaten: Set<Int> = [], laps: CGFloat = 1) -> [EncounterCrossing] {
-        simulationTuning = ArcadeTuning(level: arcadeWorld.levels[levelIndex])
+        simulationTuning = ArcadeTuning(level: worldLevel)
         simulationEcologyProbe = true
         simulationHolding = false
         resetGame(startPlaying: true)

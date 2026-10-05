@@ -51,7 +51,8 @@ struct ContentView: View {
             let current = scene?.arcadeWorld ?? selectedWorld ?? .jellyBloom
             let campaign = ArcadeWorld.campaign.contains(current)
             ArcadeTuningPanel(store: tuningStore, world: campaign ? current : .shallowReef,
-                              index: campaign ? scene?.debugLevelIndex ?? 1 : 0, onPlanner: playPlanner) { world, index in
+                              index: campaign ? scene?.debugLevelIndex ?? 1 : 0, onPlanner: playPlanner,
+                              onResetProgress: { progress.reset($0) }) { world, index in
                 selectedWorld = world
                 play(world, index: index, practice: true)
             }
@@ -61,10 +62,6 @@ struct ContentView: View {
         .persistentSystemOverlays(.hidden)
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
-            #if DEBUG
-            // Plan Reef Lab in the background so its levels start instantly.
-            Task.detached(priority: .utility) { _ = GameTuning.reefLabLevels }
-            #endif
             if !metricsLaunched { analytics.launched(); analytics.flush(); metricsLaunched = true }
             #if DEBUG
             if scene == nil, let world = ArcadePlaytest.mapSelection {
