@@ -9,6 +9,7 @@ extension ArcadeWorld {
         case .shallowReef: UIColor(red: 0.18, green: 0.78, blue: 0.72, alpha: 1)
         case .jellyBloom: UIColor(red: 0.75, green: 0.52, blue: 1, alpha: 1)
         case .reefLab: UIColor(red: 1, green: 0.74, blue: 0.3, alpha: 1)
+        case .jellyLab: UIColor(red: 1, green: 0.45, blue: 0.75, alpha: 1)
         }
     }
 }
@@ -123,7 +124,7 @@ struct ArcadeLevelMap: View {
             }
         }
         .foregroundStyle(.white)
-        .background(OceanBackdrop(bloom: world == .jellyBloom))
+        .background(OceanBackdrop(bloom: world.hasJellies))
     }
 }
 
@@ -266,7 +267,7 @@ private struct WorldIllustration: View {
     var body: some View {
         Canvas { context, size in
             let w = size.width, h = size.height
-            if world == .jellyBloom {
+            if world.hasJellies {
                 for (x, y, scale) in [(0.50, 0.43, 1.0), (0.20, 0.62, 0.50), (0.83, 0.62, 0.48)] {
                     let r = w * 0.28 * scale
                     let c = CGPoint(x: w * x, y: h * y)

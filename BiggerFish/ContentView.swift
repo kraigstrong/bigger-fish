@@ -22,7 +22,7 @@ struct ContentView: View {
                 GeometryReader { geometry in
                     let fitted = GameTuning.fittedPlayfieldSize(in: geometry.size)
                     ZStack {
-                        OceanBackdrop(bloom: scene.arcadeWorld == .jellyBloom)
+                        OceanBackdrop(bloom: scene.arcadeWorld.hasJellies)
                         SpriteView(scene: scene, preferredFramesPerSecond: 120, options: [.ignoresSiblingOrder])
                             .id(ObjectIdentifier(scene))
                             .frame(width: fitted.width, height: fitted.height)

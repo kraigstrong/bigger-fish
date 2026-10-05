@@ -7,11 +7,21 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     /// Planned-meeting levels, shown as Shallow Reef 2, to A/B test against Shallow Reef; see
     /// docs/meeting-planner.md. Its ID stays "reef-lab" for saved progress and analytics.
     case reefLab = "reef-lab"
+    /// Jelly Bloom with drifting jellyfish, shown as Jelly Bloom 2. A Debug-only preview for now.
+    case jellyLab = "jelly-lab"
 
     /// The seeded campaign worlds, which the debug tuner edits.
     static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom]
-    /// Worlds on the map, in every build: TestFlight compares Shallow Reef with Shallow Reef 2.
-    static let mapWorlds: [ArcadeWorld] = campaign + [.reefLab]
+    /// Worlds on the map: TestFlight compares Shallow Reef with Shallow Reef 2. Jelly Bloom 2 is Debug-only for now.
+    static var mapWorlds: [ArcadeWorld] {
+        #if DEBUG
+        return campaign + [.reefLab, .jellyLab]
+        #else
+        return campaign + [.reefLab]
+        #endif
+    }
+    /// Jellyfish worlds share Jelly Bloom's look, lesson, and seeds.
+    var hasJellies: Bool { self == .jellyBloom || self == .jellyLab }
 
     var id: String { rawValue }
     var title: String {
@@ -19,6 +29,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .shallowReef: "Shallow Reef"
         case .jellyBloom: "Jelly Bloom"
         case .reefLab: "Shallow Reef 2"
+        case .jellyLab: "Jelly Bloom 2"
         }
     }
     var subtitle: String {
@@ -26,6 +37,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .shallowReef: "Eat. Dodge. Grow."
         case .jellyBloom: "Bounce the tops. Dodge the tentacles."
         case .reefLab: "Eat. Dodge. Grow."
+        case .jellyLab: "Bounce the tops. Dodge the tentacles."
         }
     }
     var levels: [Level] {
@@ -33,6 +45,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .shallowReef: GameTuning.levels
         case .jellyBloom: GameTuning.bloomLevels
         case .reefLab: GameTuning.reefLabLevels
+        case .jellyLab: GameTuning.jellyLabLevels
         }
     }
     func level(_ index: Int) -> Level { levels[index] }

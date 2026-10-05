@@ -11,6 +11,8 @@ struct JellyLayout {
     let night: Bool
     let maintainsFloorLane: Bool
     let heights: [CGFloat]
+    /// Wander slowly around each bell's home (Jelly Bloom 2) instead of the small fixed sway.
+    var drifts = false
 
     init(count: Int, radius: CGFloat = 38, tentacleLength: CGFloat = 90,
          sway: CGFloat = 12, urchinBeds: Int = 0, night: Bool = false, maintainsFloorLane: Bool = false, heights: [CGFloat] = []) {
@@ -49,6 +51,16 @@ enum JellyPlacement {
                 + GameRules.bloomFloorLaneClearance(fishRadius: GameTuning.baseRadius)
             return CGPoint(x: x, y: max(floor, waterBottom + (waterTop - waterBottom) * fraction))
         }
+    }
+}
+
+/// Jelly Bloom 2's slow wander: each bell floats side to side and bobs around its home, on its own phase,
+/// as a pure function of time so planned fish can predict it.
+enum JellyDrift {
+    static func position(origin: CGPoint, phase: CGFloat, time: CGFloat, screenWidth: CGFloat, world: WrappedWorld) -> CGPoint {
+        CGPoint(x: world.wrap(origin.x + sin(time * 2 * .pi / GameTuning.jellyDriftSeconds + phase)
+                    * screenWidth * GameTuning.jellyDriftScreens),
+                y: origin.y + sin(time * 2 * .pi / GameTuning.jellyBobSeconds + phase * 1.3) * GameTuning.jellyBobPoints)
     }
 }
 

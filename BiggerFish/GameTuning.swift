@@ -154,6 +154,13 @@ enum GameTuning {
     static let bloomSidePocketPatrolHalfWidth: CGFloat = 44
     static let bloomSidePredatorOffset: CGFloat = 200
 
+    /// Jelly Bloom 2: each bell wanders this far side to side (screen widths each way) and bobs this many
+    /// points, over these periods.
+    static let jellyDriftScreens: CGFloat = 0.1
+    static let jellyDriftSeconds: CGFloat = 12
+    static let jellyBobPoints: CGFloat = 22
+    static let jellyBobSeconds: CGFloat = 7
+
     static let bloomFoodRefillSeconds: CGFloat = 3
     static let bloomFoodRefillCount = 2
     static let bloomFoodRadiusFraction: ClosedRange<CGFloat> = 0.45...0.65
@@ -449,6 +456,13 @@ enum GameTuning {
     /// Playtested levels whose shipped plans are frozen: regenerating ReefLabPlans.json keeps them exactly
     /// as played, so later planner changes can't reshuffle them. Remove a name to re-plan that level.
     static let reefLabFrozen: Set<String> = Set(reefLabSpecs.map(\.name))
+
+    /// Jelly Bloom 2, for now a preview: Jelly Bloom's ten levels with drifting jellyfish.
+    static let jellyLabLevels: [Level] = bloomLevels.map { level in
+        var drifting = level
+        drifting.jellies?.drifts = true
+        return drifting
+    }
 
     /// Reef Lab's levels, planned on the Mac and shipped as data so no device plans them while you play.
     /// Regenerate with the `reef-lab-plans.request` marker (MeetingPlannerTests) after changing the specs or

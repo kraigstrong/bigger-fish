@@ -231,7 +231,7 @@ final class GameScene: SKScene {
     private var aiMovementRNGs: [Int: SeededGenerator] = [:]
     private var ecosystemSeed: UInt64 {
         if let plan = level.meetingPlan { return plan.seed }
-        return level.spawnSeed(index: levelIndex, bloom: arcadeWorld == .jellyBloom, offset: seedOffset)
+        return level.spawnSeed(index: levelIndex, bloom: arcadeWorld.hasJellies, offset: seedOffset)
     }
 
     /// Domain-separated streams use stable fish IDs, without consuming spawn randomness.
@@ -689,7 +689,7 @@ final class GameScene: SKScene {
         case .ready:
             resultPanel = nil
             messageNode.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
-            let lines = arcadeWorld == .jellyBloom
+            let lines = arcadeWorld.hasJellies
                 ? (showsJellyLesson ? ["Bounce the tops.", "Never touch the bottoms.", "Be the last fish swimming."]
                                    : ["Be the last fish swimming.", "Bounce domes. Dodge tentacles."])
                 : ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish."]
@@ -772,7 +772,7 @@ final class GameScene: SKScene {
     }
 
     private func startRun() {
-        if arcadeWorld == .jellyBloom && showsJellyLesson {
+        if arcadeWorld.hasJellies && showsJellyLesson {
             onJellyLesson?()
             showsJellyLesson = false
         }
@@ -1222,10 +1222,11 @@ final class GameScene: SKScene {
         guard let layout = level.jellies else { return }
         for i in jellies.indices {
             let previousJelly = jellies[i].position
-            jellies[i].position = CGPoint(
-                x: world.wrap(jellies[i].origin.x + sin(simClock * 0.45 + jellies[i].phase) * layout.sway),
-                y: jellies[i].origin.y + sin(simClock * 0.65 + jellies[i].phase) * layout.sway
-            )
+            jellies[i].position = layout.drifts
+                ? JellyDrift.position(origin: jellies[i].origin, phase: jellies[i].phase, time: simClock,
+                                      screenWidth: size.width, world: world)
+                : CGPoint(x: world.wrap(jellies[i].origin.x + sin(simClock * 0.45 + jellies[i].phase) * layout.sway),
+                          y: jellies[i].origin.y + sin(simClock * 0.65 + jellies[i].phase) * layout.sway)
             if layout.maintainsFloorLane || levelIndex == 0 {
                 // Preserve a lower passage as the fish grows and the camera eases outward.
                 jellies[i].position.y = max(jellies[i].position.y,
@@ -1720,7 +1721,7 @@ final class GameScene: SKScene {
         backgroundLayer.removeAllChildren()
         specks.removeAll()
 
-        let gradient = SKSpriteNode(texture: arcadeWorld == .jellyBloom
+        let gradient = SKSpriteNode(texture: arcadeWorld.hasJellies
                                     ? ArcadeArt.bloomWater(night: level.jellies?.night == true)
                                     : WaterTextures.gradient())
         gradient.anchorPoint = .zero

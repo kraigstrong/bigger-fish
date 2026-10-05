@@ -114,7 +114,7 @@ struct MeetingPlannerTests {
     }
 
     @MainActor @Test func reefLabIsATenLevelThirdWorldThatUnlocksAndResetsLikeACampaign() {
-        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom, .reefLab])
+        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom, .reefLab, .jellyLab])
         let world = ArcadeWorld.reefLab
         #expect(world.levelCount == 10 && world.levelTitles == (1...10).map { "Level \($0)" })
         let progress = ArcadeProgress(defaults: UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!)
