@@ -109,15 +109,15 @@ choosing lanes; playtesting decides difficulty.
 ### Bonus levels 11–15
 
 Five more levels at the difficulty of 8–10, each with its own feel. They unlock in order after level 10,
-like any other level. Each is frozen once it's been played: so far Frenzy ("really fun") and Gauntlet.
+like any other level. Each is frozen once it's been played: so far Frenzy and Gauntlet.
 
-| Level | Name | Feel | Fish | Misses survived per gate |
-|---|---|---|---:|---|
-| 11 | Crossroads | two forks before every gate, one of them three meals high or one low; unwalled | 31 | 1, 1, 2 |
-| 12 | Frenzy | quick meals, four walled gates; opens with a burst (three of the first four) | 34 | 1, 1, 1, 1 |
-| 13 | Gauntlet | six big fish in open water, all back on lap two a little smaller than you; unwalled | 33 | 2, 2, 2, 1 |
-| 14 | Heavyweights | few meals, each 85–93% of your size; one or two open each walled gate | 29 | 2, 1, 1, 1 |
-| 15 | Needle | most meals a beat from a big fish with little room; walled gates | 31 | 1, 1, 1 |
+| Level | Name | Feel | Fish | Misses survived per gate | First playtest |
+|---|---|---|---:|---|---|
+| 11 | Crossroads | two forks before every gate, one of them three meals high or one low; unwalled | 31 | 1, 1, 2 | 3 tries; "pretty easy" |
+| 12 | Frenzy | quick meals, four walled gates; opens with a burst (three of the first four) | 34 | 1, 1, 1, 1 | 6 tries; "really fun" |
+| 13 | Gauntlet | six big fish in open water, all back on lap two a little smaller than you; unwalled | 33 | 2, 2, 2, 1 | 27 tries; "the perfect level" |
+| 14 | Heavyweights | few meals, each 85–93% of your size; one or two open each walled gate | 29 | 2, 1, 1, 1 | |
+| 15 | Needle | most meals a beat from a big fish with little room; walled gates | 31 | 1, 1, 1 | |
 
 Fish only keep their plans if they don't touch where you could see it, and a player who eats more than the
 reference route zooms out and sees further. Gauntlet's giants first came back at 92–98% of your size and
