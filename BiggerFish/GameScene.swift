@@ -713,7 +713,10 @@ final class GameScene: SKScene {
         phase = newPhase
         pauseButton.isHidden = newPhase != .playing
         pauseMenu.isHidden = newPhase != .paused
-        if newPhase == .paused { buildSoundToggles() }
+        if newPhase == .paused {
+            buildSoundToggles()
+            configurePauseAccessibility()
+        }
         switch newPhase {
         case .ready:
             resultPanel = nil
@@ -905,11 +908,9 @@ final class GameScene: SKScene {
                 } else if restartButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     resetGame(startPlaying: false)
                 } else if effectsButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
-                    settings.soundEffectsOn.toggle()
-                    buildSoundToggles()
+                    toggleSound(effects: true)
                 } else if musicButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
-                    settings.musicOn.toggle()
-                    buildSoundToggles()
+                    toggleSound(effects: false)
                 } else if mapButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     #if DEBUG
                     finishRunRecording("level_map")
@@ -1914,6 +1915,50 @@ final class GameScene: SKScene {
         pauseMenu.addChild(musicButton)
     }
 
+    private func toggleSound(effects: Bool) {
+        if effects { settings.soundEffectsOn.toggle() } else { settings.musicOn.toggle() }
+        buildSoundToggles()
+        configurePauseAccessibility()
+    }
+
+    /// VoiceOver reaches the pause menu's actions and sound switches, like the result panel's controls.
+    private func configurePauseAccessibility() {
+        guard let view, phase == .paused else { return }
+        view.isAccessibilityElement = false
+        isAccessibilityElement = false
+        func element(_ node: SKNode, _ label: String, value: String? = nil,
+                     _ action: @escaping (GameScene) -> Void) -> UIAccessibilityElement {
+            let element = ArcadeResultAccessibilityElement(accessibilityContainer: self)
+            element.accessibilityLabel = label
+            element.accessibilityValue = value
+            element.accessibilityTraits = .button
+            let box = node.calculateAccumulatedFrame()
+            let lower = convertPoint(toView: convert(CGPoint(x: box.minX, y: box.minY), from: node.parent ?? self))
+            let upper = convertPoint(toView: convert(CGPoint(x: box.maxX, y: box.maxY), from: node.parent ?? self))
+            element.accessibilityFrame = UIAccessibility.convertToScreenCoordinates(
+                CGRect(x: min(lower.x, upper.x), y: min(lower.y, upper.y), width: abs(upper.x - lower.x), height: abs(upper.y - lower.y)),
+                in: view)
+            element.activate = { [weak self] in
+                guard let self, self.phase == .paused else { return false }
+                action(self)
+                return true
+            }
+            return element
+        }
+        accessibilityElements = [
+            element(resumeButton, "Resume") { $0.setPhase(.playing) },
+            element(restartButton, "Restart") { $0.resetGame(startPlaying: false) },
+            element(mapButton, "Level map") { scene in
+                #if DEBUG
+                scene.finishRunRecording("level_map")
+                #endif
+                scene.onExit?()
+            },
+            element(effectsButton, "Sound effects", value: settings.soundEffectsOn ? "On" : "Off") { $0.toggleSound(effects: true) },
+            element(musicButton, "Music", value: settings.musicOn ? "On" : "Off") { $0.toggleSound(effects: false) },
+        ]
+    }
+
     private func toggleButton(_ title: String, isOn: Bool, at position: CGPoint) -> SKShapeNode {
         let button = SKShapeNode(rectOf: CGSize(width: 150, height: 44), cornerRadius: 22)
         button.fillColor = isOn ? SKColor(white: 1, alpha: 0.92) : SKColor(white: 1, alpha: 0.08)
@@ -1923,7 +1968,6 @@ final class GameScene: SKScene {
         let text = label("\(title): \(isOn ? "On" : "Off")", fontSize: 18, heavy: true)
         text.fontColor = isOn ? SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1) : .white
         button.addChild(text)
-        button.accessibilityLabel = "\(title), \(isOn ? "on" : "off")"
         return button
     }
 
