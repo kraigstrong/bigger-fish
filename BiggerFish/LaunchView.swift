@@ -8,9 +8,9 @@ struct LaunchView: View {
     @State private var titleShown = false
     @State private var sliding = false
 
-    private static let track: CGFloat = 120
-    private static let fill: CGFloat = track * 0.22
-    private static let thickness: CGFloat = 4
+    private static let track = GameTuning.launchBarTrack
+    private static let fill = GameTuning.launchBarTrack * GameTuning.launchBarFillShare
+    private static let thickness = GameTuning.launchBarThickness
 
     var body: some View {
         ZStack {
@@ -37,7 +37,9 @@ struct LaunchView: View {
         .onAppear {
             withAnimation(.easeOut(duration: reduceMotion ? 0 : 0.4)) { titleShown = true }
             guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) { sliding = true }
+            withAnimation(.easeInOut(duration: GameTuning.launchBarSweepSeconds).repeatForever(autoreverses: true)) {
+                sliding = true
+            }
         }
     }
 }

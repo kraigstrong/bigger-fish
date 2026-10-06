@@ -41,6 +41,11 @@ enum GameTuning {
 
     /// The loading screen stays up at least this long, so a fast launch doesn't flash it.
     static let launchMinimumSeconds: Double = 0.8
+    /// The loading bar: a short dash sweeping back and forth along a thin track (points and seconds).
+    static let launchBarTrack: CGFloat = 120
+    static let launchBarFillShare: CGFloat = 0.22
+    static let launchBarThickness: CGFloat = 4
+    static let launchBarSweepSeconds: Double = 0.55
 
     // MARK: Camera
 
