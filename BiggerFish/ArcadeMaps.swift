@@ -99,6 +99,8 @@ struct SoundToggles: View {
 struct ArcadeLevelMap: View {
     let world: ArcadeWorld
     @ObservedObject var progress: ArcadeProgress
+    /// The level just played, when coming back from it.
+    var returnedFrom: Int? = nil
     let onBack: () -> Void
     let onPlay: (Int) -> Void
 
@@ -107,7 +109,7 @@ struct ArcadeLevelMap: View {
             let size = geometry.size
             let width = max(size.width, OceanMapLayout.levelContentWidth(count: world.levelCount))
             let centers = OceanMapLayout.levelCenters(count: world.levelCount, height: size.height)
-            let focus = progress.mapFocus(in: world)
+            let focus = progress.mapFocus(in: world, returningFrom: returnedFrom)
             ZStack(alignment: .topLeading) {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {

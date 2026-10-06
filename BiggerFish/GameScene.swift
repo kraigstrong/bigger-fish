@@ -61,6 +61,8 @@ final class GameScene: SKScene {
     }
     /// Plays the world's original seeded levels instead of its planned ones (the generator's tests).
     private let seeded: Bool
+    /// The level being played (it advances with Next level), for the map to return to.
+    var currentLevelIndex: Int { levelIndex }
     /// This slot's level, looked up once: `level` is read for every fish on every step.
     private var worldLevel: Level
     private var level: Level {

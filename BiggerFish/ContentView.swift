@@ -11,6 +11,8 @@ struct ContentView: View {
     @State private var metricsLaunched = false
     @State private var selectedWorld: ArcadeWorld?
     @State private var scene: GameScene?
+    /// The level last played in `selectedWorld`, so its map opens there; nil on first entry.
+    @State private var returnedFrom: Int?
     /// The loading screen shows until both worlds' levels are decoded.
     @State private var loaded = false
     #if DEBUG
@@ -35,10 +37,10 @@ struct ContentView: View {
                 }
                 .ignoresSafeArea()
             } else if let world = selectedWorld {
-                ArcadeLevelMap(world: world, progress: progress,
-                               onBack: { selectedWorld = nil }, onPlay: { play(world, index: $0) })
+                ArcadeLevelMap(world: world, progress: progress, returnedFrom: returnedFrom,
+                               onBack: { selectedWorld = nil; returnedFrom = nil }, onPlay: { play(world, index: $0) })
             } else {
-                ArcadeWorldMap(progress: progress, onSelect: { selectedWorld = $0 })
+                ArcadeWorldMap(progress: progress, onSelect: { selectedWorld = $0; returnedFrom = nil })
             }
         }
         #if DEBUG
@@ -102,7 +104,11 @@ struct ContentView: View {
         let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
         game.debugUsePlanner(spec, variation: variation)
         game.debugPracticeRun = true
-        game.onExit = { [weak game] in game?.exitMetrics(); scene = nil }
+        game.onExit = { [weak game] in
+            game?.exitMetrics()
+            returnedFrom = game?.currentLevelIndex
+            scene = nil
+        }
         selectedWorld = .shallowReef
         scene = game
     }
@@ -134,7 +140,11 @@ struct ContentView: View {
             #endif
             progress.sawJellyLesson()
         }
-        game.onExit = { [weak game] in game?.exitMetrics(); scene = nil }
+        game.onExit = { [weak game] in
+            game?.exitMetrics()
+            returnedFrom = game?.currentLevelIndex
+            scene = nil
+        }
         scene = game
     }
 }
