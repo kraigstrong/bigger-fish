@@ -116,7 +116,9 @@ pure function of time (`JellyDrift`), so the planner knows where every bell is a
   A *bounce* meal (`Segment.bounceMeals`) crosses high above a pocket half a second later: out of
   swimming reach, inside the bounce's. A fork can be *split* by a jelly (`Fork.bounce`): its long lane
   starts on the dome and climbs with the bounce, its short lane passes under the tentacles. A *sting*
-  meal crosses just under hanging tentacles; on levels 9–10 tentacles are a walled gate's upper wall.
+  meal crosses just under hanging tentacles; on levels 9–10 tentacles are a walled gate's upper wall
+  wherever the bell fits over the gate with the gate still in mid-water (elsewhere, early in the level
+  before the camera zooms out, the gate keeps both wall fish).
   *Open* jellies sit clear of the swim between two meals. Level 1's second plain meal is a *demo* fish
   that bounces off the first jelly while it's ahead of you on screen; the solver places that jelly
   under its swim.
@@ -127,13 +129,16 @@ pure function of time (`JellyDrift`), so the planner knows where every bell is a
 - **Routes know about bells.** The analyzer gets each jelly's pass: you must be above its dome or below
   its tentacles while it's in your column, or land on the dome and ride the bounce (`JellyRoutes`).
   `check` confirms bounce meals need their bounce and sting meals are close calls.
-- **Bells keep apart and below the surface,** with room above each dome for the level's biggest fish, so
-  nothing gets trapped bouncing between a dome and the surface.
+- **Bells keep apart and below the surface.** A fish with no room to rise above a dome slides over it
+  instead of bouncing (Jelly Bloom 2 only), so nothing rattles between a dome and the surface.
+- **Big fish in open water only have to stay clear of your path,** at any height that keeps their
+  clearance: near drifting bells they rarely swim to one exact height.
 
 The ramp: levels 1–2 have bells to bounce on if you like; from 3, sting meals; from 5, bounce meals,
 then split forks; 9–10 wall gates with tentacles. Plans ship in `BiggerFish/JellyLabPlans.json`; create
 `build/arcade-development/jelly-lab-plans.request` and run `MeetingPlannerTests` to regenerate it
 (several minutes: replanning ten jelly levels is slow, so CI only checks the file matches the specs).
+Levels 1–8 are frozen as played (`GameTuning.jellyLabFrozen`); regenerating keeps them.
 
 ## Shipped as data
 

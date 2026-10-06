@@ -185,6 +185,7 @@ struct MeetingPlannerTests {
             ?? Bundle.main.url(forResource: "JellyLabPlans", withExtension: "json"))
         let bundled = try JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: url))
         #expect(bundled.map(\.spec) == GameTuning.jellyLabSpecs, "JellyLabPlans.json is out of date: regenerate it")
+        #expect(GameTuning.jellyLabFrozen.isSubset(of: GameTuning.jellyLabSpecs.map(\.name)))
         for plan in bundled {
             #expect(plan.fish.map(\.id) == Array(1...plan.fish.count))
             #expect(plan.issues.allSatisfy { $0.contains("is off its plan") }, "\(plan.spec.name): \(plan.issues)")
@@ -195,10 +196,16 @@ struct MeetingPlannerTests {
     @Test func manualWriteJellyLabPlans() throws {
         let marker = Self.root.appendingPathComponent("build/arcade-development/jelly-lab-plans.request")
         guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        let file = Self.root.appendingPathComponent("BiggerFish/JellyLabPlans.json")
+        let existing = (try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: file))) ?? []
+        // Frozen levels keep their shipped plans.
+        let plans = GameTuning.jellyLabSpecs.map { spec in
+            GameTuning.jellyLabFrozen.contains(spec.name) ? existing.first { $0.spec == spec } ?? MeetingPlanner.plan(spec)
+                : MeetingPlanner.plan(spec)
+        }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        try encoder.encode(GameTuning.jellyLabSpecs.map { MeetingPlanner.plan($0) })
-            .write(to: Self.root.appendingPathComponent("BiggerFish/JellyLabPlans.json"))
+        try encoder.encode(plans).write(to: file)
     }
 
     @MainActor @Test func jellyLabFishMeetThePlayerWherePlannedAroundDriftingJellies() {

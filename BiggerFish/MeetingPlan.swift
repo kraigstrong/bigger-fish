@@ -238,6 +238,8 @@ struct MeetingPlan: Codable {
 
 enum MeetingPlanner {
     static let designAttempts = 12
+    /// Jelly levels are harder to solve cleanly, so they try more layouts.
+    static let jellyDesignAttempts = 36
     private static let lock = NSLock()
     private static var cache: [String: MeetingPlan] = [:]
     private static var inFlight: [String: DispatchGroup] = [:]
@@ -265,15 +267,25 @@ enum MeetingPlanner {
         }
         let base = GameTuning.spawnSeed &+ 7_000 &+ stableHash(spec.name) &+ UInt64(variation) &* 1_000_003
         var best: MeetingPlan?
-        for attempt in 0..<designAttempts {
+        for attempt in 0..<(spec.jellies == nil ? designAttempts : jellyDesignAttempts) {
             let plan = makePlan(spec, variation: variation, seed: base &+ UInt64(attempt) &* 0x9E37_79B9)
             if plan.issues.isEmpty { best = plan; break }
-            if best.map({ plan.issues.count < $0.issues.count }) ?? true { best = plan }
+            if best.map({ plan.issues.count < $0.issues.count || plan.issues.count == $0.issues.count && offPlanScore(plan) < offPlanScore($0) }) ?? true {
+                best = plan
+            }
         }
         lock.lock()
         cache[key] = best!
         lock.unlock()
         return best!
+    }
+
+    /// How far off plan a plan's fish are, in total ("fish 4 is off its plan (score 21)" counts 21).
+    private static func offPlanScore(_ plan: MeetingPlan) -> Int {
+        plan.issues.reduce(0) { total, issue in
+            guard let range = issue.range(of: "(score ") else { return total + 100 }
+            return total + (Int(issue[range.upperBound...].prefix { $0.isNumber }) ?? 100)
+        }
     }
 
     private static func cacheKey(_ spec: MeetingSpec, variation: Int) -> String {
@@ -491,6 +503,8 @@ struct DesignedMeeting {
     var under: Int?
     /// Bounces off the first jelly ahead of you before you meet it.
     var demo = false
+    /// An open-water threat on a jelly level: any height at least `by` from your path at `y` will do.
+    var clearOf: (y: CGFloat, by: CGFloat)?
 }
 
 /// A jelly the designer places beside a meeting (the solver adds the demo's).
@@ -542,7 +556,12 @@ enum MeetingDesigner {
         if let last = meetings.last, last.distance > lastDistance + 1 {
             issues.append("meetings overflow the lap")
         }
-        if let jellies = spec.jellies { markJellyMeals(&meetings, spec: jellies, rng: &rng, issues: &issues) }
+        if let jellies = spec.jellies {
+            // A gate that takes a tentacle wall loses its upper wall fish.
+            let dropped = markJellyMeals(&meetings, spec: jellies, timeline: timeline, rng: &rng, issues: &issues)
+            times = zip(meetings, times).filter { !dropped.contains($0.0.key) }.map(\.1)
+            meetings.removeAll { dropped.contains($0.key) }
+        }
         layHeights(&meetings, times: times, spec: spec, timeline: timeline, rng: &rng, issues: &issues)
         let jellies = spec.jellies.map { placeJellies(meetings, times: times, spec: spec, jellySpec: $0, timeline: timeline,
                                                       rng: &rng, issues: &issues) } ?? []
@@ -695,10 +714,7 @@ enum MeetingDesigner {
         for (gate, playerMost) in walledGates {
             let lower = playerMost * 1.12
             guard lower < ceiling, let index = meetings.firstIndex(where: { $0.key == gate }) else { continue }
-            // A jelly's tentacles can stand in for the upper wall.
-            let tentacles = spec.jellies?.tentacleWalls == true
-            if tentacles { meetings[index].jelly = .wall }
-            for side: CGFloat in tentacles ? [-1] : [1, -1] {
+            for side: CGFloat in [1, -1] {
                 var wall = DesignedMeeting(key: key, role: .threat, segment: meetings[index].segment,
                     size: CGFloat.random(in: lower...min(ceiling, lower * 1.15), using: &rng), guards: gate)
                 wall.wall = side
@@ -739,8 +755,26 @@ enum MeetingDesigner {
     /// Picks the demo meal, then spreads pocket and sting meals through the lap: plain singles first, then
     /// fork lanes (a pocket under a long lane, tentacles over a short one), each far enough from every other
     /// jelly that their drifts never overlap. Runs once meetings have their distances.
-    private static func markJellyMeals(_ meetings: inout [DesignedMeeting], spec: JellySpec, rng: inout SeededGenerator,
-                                       issues: inout [String]) {
+    /// Returns the keys of upper wall fish replaced by tentacles.
+    private static func markJellyMeals(_ meetings: inout [DesignedMeeting], spec: JellySpec, timeline: PlayerTimeline,
+                                       rng: inout SeededGenerator, issues: inout [String]) -> Set<Int> {
+        // Tentacles wall a gate from above wherever the bell fits over it with the gate still in mid-water;
+        // elsewhere (early, before the camera zooms out) the gate keeps both wall fish.
+        var dropped = Set<Int>()
+        if spec.tentacleWalls {
+            for index in meetings.indices where meetings[index].role == .gate {
+                guard let upper = meetings.first(where: { $0.guards == meetings[index].key && $0.wall == 1 }) else { continue }
+                let gate = meetings[index]
+                let zoom = timeline.zoom[timeline.step(reaching: gate.distance)]
+                let water = PlayerTimeline.waterBounds(zoom: zoom)
+                let r = gate.size * T.baseRadius
+                let midWater = water.bottom + r + (water.top - water.bottom - 2 * r) * T.plannerMidWater.lowerBound
+                let domeTop = midWater + r + T.plannerWallGap / zoom + CGFloat(spec.tentacleLength) + CGFloat(spec.radius) * 0.65
+                guard domeTop + domeHeadroom(zoom: zoom) <= water.top else { continue }
+                meetings[index].jelly = .wall
+                dropped.insert(upper.key)
+            }
+        }
         let meals = meetings.indices.filter { meetings[$0].role != .threat }
         func plain(_ index: Int) -> Bool {
             let meal = meetings[index]
@@ -786,6 +820,7 @@ enum MeetingDesigner {
             meetings[pick].jelly = role
             occupied.append(meetings[pick].distance)
         }
+        return dropped
     }
 
     /// Seconds into the run for each meeting: even spacing between meals; a fork's lanes a beat apart,
@@ -905,6 +940,8 @@ enum MeetingDesigner {
                 let fits = [CGFloat(1), -1].map { side in (side, (pathY + side * offset - range.low) / max(1, range.high - range.low)) }
                     .filter { (0...1).contains($0.1) }
                 meetings[i].height = (fits.randomElement(using: &rng)?.1 ?? (pathY > (range.low + range.high) / 2 ? 0 : 1))
+                // Around jellies, a big fish rarely swims to one exact height, and it only has to stay clear of you.
+                if spec.jellies != nil { meetings[i].clearOf = (pathY, offset) }
                 continue
             }
             guard let food = meetings.first(where: { $0.key == guarded }) else { continue }
@@ -958,7 +995,7 @@ extension MeetingDesigner {
         let low = water.bottom + r, high = water.top - r
         let R = CGFloat(spec.radius), L = CGFloat(spec.tentacleLength)
         let current = worldY(meeting, timeline: timeline)
-        let headroom = domeHeadroom(zoom: zoom, fishRadius: (meetings.map(\.size).max() ?? 1) * T.baseRadius)
+        let headroom = domeHeadroom(zoom: zoom)
         if meeting.demo {
             return low + (high - low) * CGFloat.random(in: T.plannerDemoHeight, using: &rng)
         }
@@ -1031,7 +1068,6 @@ extension MeetingDesigner {
                                         phase: centeredPhase(at: times[i], rng: &rng), fishID: i + 1))
         }
         let spacing = minimumJellySpacing(R)
-        let biggest = (meetings.map(\.size).max() ?? 1) * T.baseRadius
         let meals = meetings.indices.filter { meetings[$0].role != .threat }
         let demo = meals.firstIndex { meetings[$0].demo }
         var gaps = zip(meals, meals.dropFirst()).enumerated().filter { position, pair in
@@ -1053,7 +1089,7 @@ extension MeetingDesigner {
             let clearance = CGFloat(jellySpec.openClearance) / zoom + body
             let rims = [pathY - clearance - R * 0.65, pathY + clearance + L].filter { rim in
                 rim - L >= water.bottom - 10 / zoom && rim >= water.bottom + 10 / zoom
-                    && rim + R * 0.65 <= water.top - domeHeadroom(zoom: zoom, fishRadius: biggest)
+                    && rim + R * 0.65 <= water.top - domeHeadroom(zoom: zoom)
             }
             guard let rim = rims.randomElement(using: &rng) else { continue }
             placed.append(DesignedJelly(role: .open, time: time, position: CGPoint(x: x, y: rim),
@@ -1076,11 +1112,8 @@ extension MeetingDesigner {
         return phase - (phase / (2 * .pi)).rounded(.down) * 2 * .pi
     }
 
-    /// Water kept clear above a dome (bob included), so no fish up to `fishRadius` gets trapped bouncing
-    /// between it and the surface.
-    static func domeHeadroom(zoom: CGFloat, fishRadius: CGFloat) -> CGFloat {
-        max(T.plannerDomeHeadroom / zoom, fishRadius * 1.8 + 10) + T.jellyBobPoints
-    }
+    /// Water kept clear above a dome, bob included. (A fish too big to fit slides over it: JellySwim.)
+    static func domeHeadroom(zoom: CGFloat) -> CGFloat { T.plannerDomeHeadroom / zoom + T.jellyBobPoints }
 
     /// Homes this far apart keep two bells' drifts from ever overlapping.
     static func minimumJellySpacing(_ radius: CGFloat) -> CGFloat {
@@ -1145,6 +1178,12 @@ enum MeetingSolver {
             var lastResort: (fish: PlannedFish, path: [CGPoint], error: CGFloat)?
             let world = WrappedWorld(width: worldWidth)
             let tolerance = (meeting.demo ? T.plannerDemoHeightTolerance : heightTolerance) / zoom
+            /// How far a meeting at `y` misses: signed, so moving the start height by minus it helps.
+            func miss(_ y: CGFloat) -> CGFloat {
+                guard let clear = meeting.clearOf else { return y - targetY }
+                let gap = abs(y - clear.y)
+                return gap >= clear.by ? 0 : (y >= clear.y ? gap - clear.by : clear.by - gap)
+            }
             // With jellies, a second pass replays every swim around them before settling for one that wasn't.
             for search in 0..<(track == nil ? 1 : 2) where chosen == nil && (search == 0 || fallback == nil) {
             for attempt in 0..<attempts {
@@ -1181,17 +1220,17 @@ enum MeetingSolver {
                     referenceMeal: meeting.onReferenceRoute,
                     bounceFrom: meeting.bounceFrom.flatMap { key in meetings.firstIndex { $0.key == key } }.map { $0 + 1 })
                 guard var early = path(candidate, seed: seed, vertical: CGFloat(spec.aiVertical), steps: meetStep, timeline: timeline) else { continue }
-                var error = early[meetStep].y - targetY
+                var error = miss(early[meetStep].y)
                 // Starting height carries through until the fish settles on its own targets: nudge it toward the meeting.
                 for _ in 0..<2 where abs(error) > tolerance && abs(error) < 150 {
                     let nudged = (startY - error).clamped(start.bottom + radius, start.top - radius)
                     guard nudged != startY else { break }
                     let retry = candidate.moved(to: CGPoint(x: 0, y: nudged))
                     guard let path = path(retry, seed: seed, vertical: CGFloat(spec.aiVertical), steps: meetStep, timeline: timeline),
-                          abs(path[meetStep].y - targetY) < abs(error) else { break }
-                    startY = nudged; candidate = retry; early = path; error = path[meetStep].y - targetY
+                          abs(miss(path[meetStep].y)) < abs(error) else { break }
+                    startY = nudged; candidate = retry; early = path; error = miss(path[meetStep].y)
                 }
-                let fish = candidate.moved(to: CGPoint(x: timeline.distance[meetStep] - early[meetStep].x, y: startY))
+                var fish = candidate.moved(to: CGPoint(x: timeline.distance[meetStep] - early[meetStep].x, y: startY))
                 // Around the jellies: the same swim, steered and bounced as the game will. Steering that changes
                 // where it meets you would move its spawn, so those swims are rejected.
                 var attemptJelly: PlannedJelly?
@@ -1203,17 +1242,33 @@ enum MeetingSolver {
                 if var current = track, let jellySpec = spec.jellies {
                     if meeting.demo {
                         guard let jelly = demoJelly(for: fish, path: early, meetStep: meetStep, spec: jellySpec, timeline: timeline,
-                                                    world: world, biggest: (meetings.map(\.size).max() ?? 1) * T.baseRadius, draw: &draw),
+                                                    world: world, draw: &draw),
                               MeetingDesigner.crowdedJellies([jelly] + jellies, radius: CGFloat(jellySpec.radius), world: world) == nil
                         else { continue }
                         current = JellyTrack([jelly] + jellies, spec: jellySpec, worldWidth: worldWidth, steps: horizon)
                         attemptJelly = jelly
                     }
                     var bounces: [(step: Int, jelly: Int)] = []
-                    guard let swim = path(fish, seed: seed, vertical: CGFloat(spec.aiVertical), steps: meetStep, timeline: timeline,
-                                          jellies: current, release: releaseSteps[index], events: { step, event in
-                                              if case .bounced(let jelly) = event { bounces.append((step, jelly)) } }),
-                          abs(swim[meetStep].x - early[meetStep].x) < 0.5 else { continue }
+                    func replay(_ candidate: PlannedFish) -> [CGPoint]? {
+                        bounces = []
+                        return path(candidate, seed: seed, vertical: CGFloat(spec.aiVertical), steps: meetStep, timeline: timeline,
+                                    jellies: current, release: releaseSteps[index], events: { step, event in
+                                        if case .bounced(let jelly) = event { bounces.append((step, jelly)) } })
+                    }
+                    guard var swim = replay(fish) else { continue }
+                    // Steering around a bell on screen moves where it meets you: start it where the steered swim
+                    // meets you instead, a few times over, since the new start changes the steering a little.
+                    // (Not the demo: its jelly sits under the swim as first drawn.)
+                    var settled = abs(timeline.distance[meetStep] - fish.spawn.x - swim[meetStep].x) < 0.5
+                    for _ in 0..<(meeting.demo ? 0 : T.plannerSteeredRespawns) where !settled {
+                        let moved = fish.moved(to: CGPoint(x: timeline.distance[meetStep] - swim[meetStep].x, y: startY))
+                        guard moved.spawn.x >= clearAhead, moved.spawn.x <= worldWidth - width * T.spawnClearBehind,
+                              let again = replay(moved) else { break }
+                        fish = moved
+                        swim = again
+                        settled = abs(timeline.distance[meetStep] - fish.spawn.x - swim[meetStep].x) < 0.5
+                    }
+                    guard settled else { continue }
                     if meeting.demo {
                         // It must land on the demo jelly while you can see it ahead of you.
                         guard bounces.contains(where: { $0.jelly == 0 && demoVisible(fish.spawn.x + swim[$0.step].x, step: $0.step,
@@ -1221,7 +1276,7 @@ enum MeetingSolver {
                         else { continue }
                     }
                     early = swim
-                    error = early[meetStep].y - targetY
+                    error = miss(early[meetStep].y)
                 }
                 if turns {
                     // Nobody sees it swim away or turn: it's off screen until it's well into its approach.
@@ -1288,7 +1343,7 @@ enum MeetingSolver {
     /// A jelly under the demo fish's swim: where it's heading down, ahead of you on screen, the bell's top
     /// meets its belly. The fish's swim with the jelly decides whether it really bounces.
     private static func demoJelly(for fish: PlannedFish, path: [CGPoint], meetStep: Int, spec: JellySpec, timeline: PlayerTimeline,
-                                  world: WrappedWorld, biggest: CGFloat, draw: inout SeededGenerator) -> PlannedJelly? {
+                                  world: WrappedWorld, draw: inout SeededGenerator) -> PlannedJelly? {
         let R = CGFloat(spec.radius), L = CGFloat(spec.tentacleLength)
         let lead = Int(T.plannerDemoLeadSeconds / T.simulationStep)
         guard meetStep - lead > lead else { return nil }
@@ -1297,7 +1352,7 @@ enum MeetingSolver {
             let x = fish.spawn.x + path[step].x
             let rim = path[step].y - fish.radius * T.hazardHitboxScale - R * 0.65
             return path[step].y < path[step - 1].y - 0.3 && demoVisible(x, step: step, timeline: timeline, world: world)
-                && rim - L >= water.bottom + 12 && rim + R * 0.65 <= water.top - MeetingDesigner.domeHeadroom(zoom: 1, fishRadius: biggest)
+                && rim - L >= water.bottom + 12 && rim + R * 0.65 <= water.top - MeetingDesigner.domeHeadroom(zoom: 1)
         }
         guard let step = landings.randomElement(using: &draw) else { return nil }
         let phase = CGFloat.random(in: 0..<(2 * .pi), using: &draw)
@@ -1427,6 +1482,8 @@ enum MeetingSolver {
                 switch touch.contact {
                 case .none: break
                 case .bounce:
+                    if JellySwim.slideIfCramped(f, at: touch.at, jellyY: now[jelly].y, layout: jellies.layout,
+                                                ceiling: bounds.top - fish.radius) { continue }
                     JellySwim.bounce(f, at: touch.at, previous: touch.previous, jellyY: now[jelly].y, layout: jellies.layout,
                                      speed: T.jellyBounceSpeed / zoom, dt: dt, ceiling: bounds.top - fish.radius)
                     events?(step, .bounced(jelly))

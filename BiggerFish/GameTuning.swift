@@ -374,7 +374,7 @@ enum GameTuning {
     /// Screen points of water between a pocket meal's body and the dome under it (plus a fifth of its radius).
     static let plannerPocketGap: CGFloat = 8
     /// Screen points kept clear between any dome and the surface, beyond its bob: room for a fish to pass over.
-    static let plannerDomeHeadroom: CGFloat = 70
+    static let plannerDomeHeadroom: CGFloat = 40
     /// Screen points a pocket meal keeps below the top of the water, room to bounce.
     static let plannerPocketHeadroom: CGFloat = 50
     /// Screen points a bounce meal sits beyond swimming reach and within the bounce's.
@@ -388,6 +388,8 @@ enum GameTuning {
     static let plannerDemoLeadSeconds: CGFloat = 0.6
     /// The solver only replays a swim around the jellies when it's within this many screen points of its height.
     static let plannerJellyReplayMargin: CGFloat = 30
+    /// Times the solver restarts a fish where its swim, steered around bells on screen, actually meets you.
+    static let plannerSteeredRespawns = 3
     /// Jellies leave room for a player this much bigger than the reference route's.
     static let plannerJellyPlayerAllowance: CGFloat = 1.2
 
@@ -571,6 +573,9 @@ enum GameTuning {
             aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, walledGates: true, timesTheEdge: true,
             jellies: JellySpec(night: true, stingMeals: 1, tentacleWalls: true)),
     ]
+
+    /// Playtested Jelly Bloom 2 levels whose shipped plans are kept exactly as played (see `reefLabFrozen`).
+    static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.prefix(8).map(\.name))
 
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")

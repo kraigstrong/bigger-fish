@@ -1280,9 +1280,11 @@ final class GameScene: SKScene {
                 case .none: break
                 case .bounce:
                     guard !f.isPlayer || bounceCooldown <= 0 else { continue }
+                    let ceiling = waterTop - f.radius * (f.isPlayer ? 0.95 : 1)
+                    if !f.isPlayer && JellySwim.slideIfCramped(f, at: touch.at, jellyY: jelly.position.y, layout: layout,
+                                                               ceiling: ceiling) { continue }
                     let remaining = JellySwim.bounce(f, at: touch.at, previous: touch.previous, jellyY: jelly.position.y,
-                        layout: layout, speed: bounceSpeed / zoom, dt: dt,
-                        ceiling: waterTop - f.radius * (f.isPlayer ? 0.95 : 1))
+                        layout: layout, speed: bounceSpeed / zoom, dt: dt, ceiling: ceiling)
                     jelly.node.bounce()
                     #if DEBUG
                     debugBounces.append((f.id, i, simClock, size.width * T.playerScreenX

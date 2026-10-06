@@ -118,6 +118,22 @@ enum JellySwim {
                                    tentacleLength: layout.tentacleLength), p, previous)
     }
 
+    /// Where a fish's center rests on a bell's dome.
+    static func restingY(_ f: Fish, at p: CGPoint, jellyY: CGFloat, layout: JellyLayout) -> CGFloat {
+        let x = min(1, abs(p.x) / (layout.radius + f.radius * GameTuning.hazardHitboxScale))
+        return jellyY + layout.radius * 0.65 * sqrt(max(0, 1 - x * x)) + f.radius * GameTuning.hazardHitboxScale + 2
+    }
+
+    /// Drifting bells (Jelly Bloom 2) can come close to the surface. A fish with no room to rise there
+    /// slides over the dome instead of rattling between it and the surface. Returns whether it slid.
+    static func slideIfCramped(_ f: Fish, at p: CGPoint, jellyY: CGFloat, layout: JellyLayout, ceiling: CGFloat) -> Bool {
+        let resting = restingY(f, at: p, jellyY: jellyY, layout: layout)
+        guard layout.drifts, resting + f.radius > ceiling else { return false }
+        f.position.y = min(ceiling, resting)
+        f.velocity.dy = max(0, f.velocity.dy)
+        return true
+    }
+
     /// Launches a fish off a bell at `speed` (world points per second), spending only the rest of the
     /// frame after contact rising. Returns that remaining time.
     @discardableResult
