@@ -875,7 +875,8 @@ final class GameScene: SKScene {
         #if DEBUG
         finishRunRecording("lost", fields: ["reason": lossReason])
         #endif
-        playSound(.lose)
+        // A delayed result (a sting) sounds the loss when the result appears, after the zap.
+        if resultDelay == 0 { playSound(.lose) }
         setPhase(.lost)
         endedAt = realClock
     }
@@ -988,7 +989,7 @@ final class GameScene: SKScene {
             realClock += step
             if let at = pendingLossResultAt, realClock >= at {
                 pendingLossResultAt = nil
-                if phase == .lost { showResult(passed: false) }
+                if phase == .lost { playSound(.lose); showResult(passed: false) }
             }
             guard phase != .ready && phase != .paused else { continue }
             if slowMoRemaining > 0 {
@@ -1366,6 +1367,7 @@ final class GameScene: SKScene {
         if victim.isPlayer {
             lossReason = reason
             eatenNotification.notificationOccurred(.error)
+            playSound(.sting)
             lose(resultDelay: T.stingResultDelay)
         } else {
             fish.removeAll { $0.id == victim.id }

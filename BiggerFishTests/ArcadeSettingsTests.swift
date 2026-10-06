@@ -19,6 +19,15 @@ struct ArcadeSettingsTests {
         defaults.removePersistentDomain(forName: suite)
     }
 
+    @Test func everySoundShipsInTheApp() {
+        for effect in ArcadeAudio.Effect.allCases {
+            #expect(Bundle.main.url(forResource: effect.rawValue, withExtension: "caf") != nil, "\(effect) is missing")
+        }
+        for music in ArcadeAudio.Music.allCases {
+            #expect(Bundle.main.url(forResource: music.rawValue, withExtension: "m4a") != nil, "\(music) is missing")
+        }
+    }
+
     @MainActor @Test func voiceOverReachesThePauseMenuAndItsSoundSwitches() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))

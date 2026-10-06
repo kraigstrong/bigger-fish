@@ -47,6 +47,18 @@ enum GameTuning {
     static let launchBarThickness: CGFloat = 4
     static let launchBarSweepSeconds: Double = 0.55
 
+    // MARK: Sound
+
+    static let effectVolume: Float = 0.7
+    /// The level-clear chime is fuller than the other effects, so it plays a little quieter.
+    static let clearSoundVolume: Float = 0.55
+    /// A jellyfish bounce reuses the gulp, sped up (and pitched up) by this much.
+    static let bounceSoundRate: Float = 1.35
+    /// Music sits under the effects; both tracks are normalized to -18 LUFS before this.
+    static let musicVolume: Float = 0.45
+    /// Crossfade between the menu and game tracks.
+    static let musicFadeSeconds: Double = 1.0
+
     // MARK: Camera
 
     /// The camera starts zooming out once the player is this many times its starting radius.

@@ -67,6 +67,7 @@ struct ContentView: View {
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .task { await warmUp() }
+        .onChange(of: music, initial: true) { _, music in ArcadeAudio.shared.playMusic(music) }
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             if !metricsLaunched { analytics.launched(); analytics.flush(); metricsLaunched = true }
@@ -83,6 +84,12 @@ struct ContentView: View {
             }
             #endif
         }
+    }
+
+    /// Menu music under the maps, game music under a level, quiet while loading.
+    private var music: ArcadeAudio.Music? {
+        guard loaded else { return nil }
+        return scene == nil ? .menu : .game
     }
 
     /// Decodes both worlds' levels off the main thread, keeping the loading screen up
