@@ -32,9 +32,6 @@ PCM `.caf` so it plays without decoding delay. Source URLs take the form
 - `win.caf` (the player is the last fish swimming)
   - Mixkit 2018, "Winning notification"
   - Trimmed 1.75s → 1.39s. Peak -1.5 dBFS.
-- `start.caf` (the tap that begins a level)
-  - Mixkit 2830, "Video game magic potion"
-  - Trimmed 2.81s → 2.27s. Peak -3.0 dBFS.
 
 ## Music
 

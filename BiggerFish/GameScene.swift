@@ -824,7 +824,6 @@ final class GameScene: SKScene {
             observeMetrics()
         }
         setPhase(.playing)
-        playSound(.start)
         #if DEBUG
         startRunRecording()
         #endif

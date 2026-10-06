@@ -25,7 +25,7 @@ final class ArcadeAudio {
     static let shared = ArcadeAudio()
     /// Raw values are the `.caf` files in Sounds/.
     enum Effect: String, CaseIterable {
-        case eat = "pop", bounce = "gulp", sting = "zap", lose = "wrong", clear = "win", start
+        case eat = "pop", bounce = "gulp", sting = "zap", lose = "wrong", clear = "win"
     }
     /// Raw values are the `.m4a` files in Sounds/.
     enum Music: String, CaseIterable {
