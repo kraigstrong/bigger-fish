@@ -49,6 +49,9 @@ struct ArcadeCampaignTests {
             for index in world.levels.indices { progress.clear(world, index, seconds: 30) }
             #expect(progress.nextLevel(in: world) == 0)
             #expect(progress.mapFocus(in: world) == world.levels.count - 1)
+            // Coming back from a level, the marker sits on that level instead, even a replayed early one.
+            #expect(progress.mapFocus(in: world, returningFrom: 2) == 2)
+            #expect(progress.mapFocus(in: world, returningFrom: 99) == world.levels.count - 1)
             #expect(world.levels.indices.allSatisfy { progress.isOpen(world, $0) })
         }
     }

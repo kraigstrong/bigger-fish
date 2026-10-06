@@ -32,8 +32,11 @@ final class ArcadeProgress: ObservableObject {
     }
 
     /// Completed campaigns stay focused on the final stop when returning to their map.
-    func mapFocus(in world: ArcadeWorld) -> Int {
-        (0..<world.levelCount).first { !isCleared(world, $0) } ?? max(0, world.levelCount - 1)
+    /// The level map's marker: the level you just left when coming back from one, otherwise the first
+    /// level not yet cleared (or the last level once the world is complete).
+    func mapFocus(in world: ArcadeWorld, returningFrom left: Int? = nil) -> Int {
+        if let left, (0..<world.levelCount).contains(left) { return left }
+        return (0..<world.levelCount).first { !isCleared(world, $0) } ?? max(0, world.levelCount - 1)
     }
 
     func clear(_ world: ArcadeWorld, _ index: Int, seconds: Double) {
