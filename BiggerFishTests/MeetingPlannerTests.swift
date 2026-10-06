@@ -87,7 +87,9 @@ struct MeetingPlannerTests {
         // Levels 2, 6, and 10 are the playtested Easy, Medium, and Hard.
         #expect(tightest[1] >= tightest[5] && tightest[5] >= tightest[9] && tightest[1] > tightest[9])
         #expect([specs[1].name, specs[5].name, specs[9].name] == ["Easy", "Medium", "Hard"])
-        for (previous, next) in zip(specs, specs.dropFirst()) {
+        // The first ten ramp up; the bonus levels after them each have their own feel at levels 8–10's difficulty.
+        let campaign = specs.prefix(10)
+        for (previous, next) in zip(campaign, campaign.dropFirst()) {
             #expect(next.aiSpeed.upperBound > previous.aiSpeed.upperBound && next.crossSeconds < previous.crossSeconds)
             #expect(next.gateMargin < previous.gateMargin && next.dangerGap < previous.dangerGap)
         }
@@ -133,11 +135,28 @@ struct MeetingPlannerTests {
         }
     }
 
-    @MainActor @Test func shallowReefPlaysTenPlannedLevelsThatUnlockAndResetLikeACampaign() {
+    /// Planned fish that touch where you could see it push apart and lose their meetings, and a player who eats
+    /// more zooms out and sees further. Gauntlet's first giants knocked each other into an impassable wall.
+    @MainActor @Test func bonusLevelsFishDontBumpOnTheWayToTheirMeetings() {
+        for index in 10..<GameTuning.reefLabLevels.count {
+            let plan = GameTuning.reefLabLevels[index].meetingPlan!
+            let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
+            for route in [plan.fewestMealRoute, reference, plan.fullestRoute] {
+                let scene = GameScene(world: .shallowReef, levelIndex: index)
+                let crossings = scene.debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
+                #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(plan.spec.name)")
+                // Eating everything zooms out furthest; a couple of brushes there is as good as Hard does.
+                #expect(scene.debugVisibleUnmetContacts <= (route == plan.fullestRoute ? 2 : 0), "\(plan.spec.name)")
+            }
+        }
+    }
+
+    @MainActor @Test func shallowReefPlaysFifteenPlannedLevelsThatUnlockAndResetLikeACampaign() {
         #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom])
         #expect(ArcadeWorld.jellyBloom.levels.allSatisfy { $0.meetingPlan != nil && $0.jellies != nil })
         let world = ArcadeWorld.shallowReef
-        #expect(world.levelCount == 10 && world.levelTitles == (1...10).map { "Level \($0)" })
+        #expect(world.levelCount == 15 && world.levelTitles == (1...15).map { "Level \($0)" })
+        #expect(world.levels.allSatisfy { $0.meetingPlan != nil && $0.jellies == nil })
         let progress = ArcadeProgress(defaults: UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!)
         #expect(progress.isOpen(world, 0) && !progress.isOpen(world, 1) && !progress.isOpen(world, 10))
         progress.clear(world, 0, seconds: 20)
