@@ -39,6 +39,9 @@ enum GameTuning {
     /// Where the player sits horizontally on screen (fraction of width).
     static let playerScreenX: CGFloat = 0.30
 
+    /// The loading screen stays up at least this long, so a fast launch doesn't flash it.
+    static let launchMinimumSeconds: Double = 0.8
+
     // MARK: Camera
 
     /// The camera starts zooming out once the player is this many times its starting radius.

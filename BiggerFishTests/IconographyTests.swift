@@ -13,7 +13,8 @@ import UIKit
     private static let assets = root.appendingPathComponent("BiggerFish/Assets.xcassets")
 
     @Test func shippedIconographyExists() {
-        for name in ["WorldShallowReef", "WorldJellyBloom"] { #expect(UIImage(named: name) != nil, "\(name) is missing") }
+        for name in ["WorldShallowReef", "WorldJellyBloom", "LaunchArt"] { #expect(UIImage(named: name) != nil, "\(name) is missing") }
+        #expect(UIColor(named: "LaunchBackground") != nil)
         let icon = Self.assets.appendingPathComponent("AppIcon.appiconset/AppIcon-1024.png")
         let image = CGImageSourceCreateWithURL(icon as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
         #expect(image?.width == 1024 && image?.height == 1024)
@@ -27,6 +28,7 @@ import UIKit
         try write(appIcon(), to: "AppIcon.appiconset/AppIcon-1024.png", opaque: true)
         try write(worldIcon(shallowReef()), to: "WorldShallowReef.imageset/WorldShallowReef.png", opaque: false)
         try write(worldIcon(jellyBloom()), to: "WorldJellyBloom.imageset/WorldJellyBloom.png", opaque: false)
+        try write(launchChase(), to: "LaunchArt.imageset/LaunchArt.png", opaque: false)
     }
 
     // MARK: Art
@@ -132,10 +134,34 @@ import UIKit
         return (view, art, scene.size)
     }
 
+    /// The loading screen's art: the icon's three fish in a line, each about to eat the next.
+    private func launchChase() -> (SKView, SKNode, CGSize) {
+        let art = SKNode()
+        art.addChild(fish(Self.pink, player: false, radius: 27, at: CGPoint(x: 280, y: 28), tilt: 0.05))
+        art.addChild(fish(Self.purple, player: false, radius: 50, at: CGPoint(x: 112, y: 12), mouth: 0.8, tilt: 0.05))
+        art.addChild(fish(.player, player: true, radius: 82, at: CGPoint(x: -150, y: -10), mouth: 0.95, tilt: 0.05))
+        return render(art, size: CGSize(width: 680, height: 240))
+    }
+
+    private func render(_ art: SKNode, size: CGSize) -> (SKView, SKNode, CGSize) {
+        let scene = SKScene(size: size)
+        scene.backgroundColor = .clear
+        art.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        scene.addChild(art)
+        let view = SKView(frame: CGRect(origin: .zero, size: size))
+        view.allowsTransparency = true
+        view.presentScene(scene)
+        return (view, art, size)
+    }
+
     // MARK: Output
 
     /// Draws the node at `size` points, 1 pixel per point; `opaque` drops the alpha channel.
     private func write(_ render: (SKView, SKNode, CGSize), to path: String, opaque: Bool) throws {
+        try write(render, toURL: Self.assets.appendingPathComponent(path), opaque: opaque)
+    }
+
+    private func write(_ render: (SKView, SKNode, CGSize), toURL url: URL, opaque: Bool) throws {
         let (view, node, size) = render
         let texture = try #require(view.texture(from: node))
         let context = try #require(CGContext(data: nil, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8,
@@ -144,7 +170,6 @@ import UIKit
         context.interpolationQuality = .high
         context.draw(texture.cgImage(), in: CGRect(origin: .zero, size: size))
         let image = try #require(context.makeImage())
-        let url = Self.assets.appendingPathComponent(path)
         let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil))
         CGImageDestinationAddImage(destination, image, nil)
         #expect(CGImageDestinationFinalize(destination))
