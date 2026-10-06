@@ -575,7 +575,7 @@ enum GameTuning {
     ]
 
     /// Playtested Jelly Bloom 2 levels whose shipped plans are kept exactly as played (see `reefLabFrozen`).
-    /// Level 10 is the plan first played there, with one big fish (21) started 30 points lower and 900 ahead
+    /// Level 10 is the plan first played there, with one big fish (21) started 30 points lower and 500 ahead
     /// so it no longer hovers over the bell that splits its late fork.
     static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name))
 
