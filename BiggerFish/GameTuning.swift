@@ -509,11 +509,63 @@ enum GameTuning {
             worldScreens: 5, extraThreats: 3, lapTwoSize: 0.94...0.99, headOnShare: 0.7, heightSwing: 0.5...0.85,
             foodSize: 0.76...0.9, gateMargin: 0.05, dangerGap: 16, threatClearance: 28, spacing: 0.26,
             aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, walledGates: true, timesTheEdge: true),
+
+        // Bonus levels 11–15: levels 8–10's difficulty, each with a feel of its own.
+        // Crossroads: two forks before every gate, so there are many ways through; one late fork is three meals
+        // high or one low. Unwalled, like level 8.
+        MeetingSpec(name: "Crossroads",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 3, short: 1), .init(long: 1, short: 1)], needed: 3, dangerFoods: 2)],
+            worldScreens: 6, extraThreats: 3, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.2, dangerGap: 26, threatClearance: 40, spacing: 0.25,
+            aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true),
+        // Frenzy: quick meals and four walled gates. It opens with a burst: eat three of the first four or the
+        // first gate eats you.
+        MeetingSpec(name: "Frenzy",
+            segments: [.init(singles: 3, forks: [.init(long: 1, short: 1)], needed: 3),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 6, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.66...0.8, gateMargin: 0.15, dangerGap: 24, threatClearance: 38, spacing: 0.21,
+            aiSpeed: 64...186, aiVertical: 93, crossSeconds: 2.57, walledGates: true, timesTheEdge: true),
+        // Gauntlet: big fish everywhere in open water, threading between meals, and they all come back on
+        // lap two at nearly your size.
+        MeetingSpec(name: "Gauntlet",
+            segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 6.5, extraThreats: 6, lapTwoSize: 0.92...0.98, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.18, dangerGap: 24, threatClearance: 30, spacing: 0.26,
+            aiSpeed: 66...188, aiVertical: 94, crossSeconds: 2.56, timesTheEdge: true),
+        // Heavyweights: few meals, each nearly your size, so every bite is a close call; one or two meals
+        // open each walled gate.
+        MeetingSpec(name: "Heavyweights",
+            segments: [.init(singles: 1, forks: [.init(long: 1, short: 1)], needed: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 0, forks: [.init(long: 1, short: 1)], needed: 1, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.45...0.82,
+            foodSize: 0.85...0.93, gateMargin: 0.1, dangerGap: 22, threatClearance: 34, spacing: 0.3,
+            aiSpeed: 66...190, aiVertical: 95, crossSeconds: 2.55, walledGates: true, timesTheEdge: true),
+        // Needle: tight windows. Most meals cross a beat from a big fish with little room between, and every
+        // gate is walled.
+        MeetingSpec(name: "Needle",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 3),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 3)],
+            worldScreens: 5, extraThreats: 2, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.74...0.88, gateMargin: 0.1, dangerGap: 12, threatClearance: 30, spacing: 0.26,
+            aiSpeed: 70...200, aiVertical: 100, crossSeconds: 2.48, walledGates: true, timesTheEdge: true),
     ]
 
     /// Playtested levels whose shipped plans are frozen: regenerating ReefLabPlans.json keeps them exactly
     /// as played, so later planner changes can't reshuffle them. Remove a name to re-plan that level.
-    static let reefLabFrozen: Set<String> = Set(reefLabSpecs.map(\.name))
+    /// The bonus levels (11 on) join once they've been played.
+    static let reefLabFrozen: Set<String> = Set(reefLabSpecs.prefix(10).map(\.name))
 
     /// Jelly Bloom 2: Shallow Reef 2's ten fish curves, with drifting jellyfish brought in a mechanic at a time.
     /// Levels 1–2: bells to bounce on if you like, with lots of room (level 1 shows a fish bouncing). From 3,

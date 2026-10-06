@@ -5,8 +5,9 @@ There's always a bigger fish.
 Arcade prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
-The world map opens **Shallow Reef** and **Jelly Bloom**, with ten planned levels each (see Meeting
-planner below), and three locked worlds marked coming soon.
+The world map opens **Shallow Reef** (ten planned levels, then five bonus levels at its hardest
+difficulty) and **Jelly Bloom** (ten planned levels; see Meeting planner below), and three locked worlds
+marked coming soon.
 Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
 adds safe dome bounces and lethal tentacles, with protected first encounters followed by AI food races.
 A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
@@ -31,7 +32,7 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'p
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
-  - `ArcadeMaps.swift` — world selection and the level paths (ten stops in each world)
+  - `ArcadeMaps.swift` — world selection and the level paths (one stop per level)
   - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and local campaign saves
   - `Jellyfish.swift` / `ArcadeArt.swift` — arcade-only hazard rules and procedural artwork
   - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them

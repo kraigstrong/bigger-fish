@@ -17,7 +17,7 @@ struct ArcadeCampaignTests {
             #expect(!progress.isOpen(world, 1))
             #expect(!progress.isOpen(world, -1))
             #expect(!progress.isOpen(world, world.levels.count))
-            #expect(world.levels.count == 10)
+            #expect(world.levels.count == (world == .shallowReef ? 15 : 10))
         }
     }
 
@@ -67,9 +67,9 @@ struct ArcadeCampaignTests {
 
     @Test func levelIDsAreUniqueAndOriginalWorldHasNoHazards() {
         let ids = ArcadeWorld.campaign.flatMap { world in world.levels.indices.map { world.levelID($0) } }
-        #expect(Set(ids).count == 20)
+        #expect(Set(ids).count == 25)
         #expect(ids.first == "shallow-reef.1")
-        #expect(ids.last == "jelly-bloom.10")
+        #expect(ids.contains("shallow-reef.15") && ids.last == "jelly-bloom.10")
         #expect(GameTuning.levels.allSatisfy { $0.jellies == nil })
         #expect(GameTuning.bloomLevels.allSatisfy { $0.jellies != nil })
         #expect(GameTuning.bloomLevels.allSatisfy { $0.aiCanEat })

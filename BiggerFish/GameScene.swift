@@ -131,7 +131,8 @@ final class GameScene: SKScene {
         if plannerLevel != nil { return true }
         if simulationReferenceIndex != nil { return levelIndex == T.bloomReferenceLevels.count - 1 }
         #endif
-        return levelIndex == arcadeWorld.levelCount - 1
+        // The original seeded campaigns stop at ten; the planned Shallow Reef goes on to its bonus levels.
+        return levelIndex == (seeded ? arcadeWorld.seededLevels.count : arcadeWorld.levelCount) - 1
     }
     var analytics: ArcadeAnalytics?
     var metricsHasCleared: ((Int) -> Bool)?
@@ -237,7 +238,7 @@ final class GameScene: SKScene {
          showsJellyLesson: Bool = true, seeded: Bool = false) {
         arcadeWorld = world
         self.seeded = seeded
-        self.levelIndex = min(max(0, levelIndex), world.levelCount - 1)
+        self.levelIndex = min(max(0, levelIndex), (seeded ? world.seededLevels.count : world.levelCount) - 1)
         worldLevel = seeded ? world.seededLevels[self.levelIndex] : world.level(self.levelIndex)
         self.showsJellyLesson = showsJellyLesson
         super.init(size: T.playfieldSize)
