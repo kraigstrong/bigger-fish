@@ -11,6 +11,8 @@ struct ContentView: View {
     @State private var metricsLaunched = false
     @State private var selectedWorld: ArcadeWorld?
     @State private var scene: GameScene?
+    /// The loading screen shows until both worlds' levels are decoded.
+    @State private var loaded = false
     #if DEBUG
     @StateObject private var tuningStore = ArcadeTuningStore()
     @State private var showsTuning = false
@@ -18,7 +20,9 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if let scene {
+            if !loaded {
+                LaunchView().transition(.opacity)
+            } else if let scene {
                 GeometryReader { geometry in
                     let fitted = GameTuning.fittedPlayfieldSize(in: geometry.size)
                     ZStack {
@@ -60,6 +64,7 @@ struct ContentView: View {
         #endif
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
+        .task { await warmUp() }
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             if !metricsLaunched { analytics.launched(); analytics.flush(); metricsLaunched = true }
@@ -76,6 +81,19 @@ struct ContentView: View {
             }
             #endif
         }
+    }
+
+    /// Decodes both worlds' levels off the main thread, keeping the loading screen up
+    /// at least briefly so it doesn't flash.
+    private func warmUp() async {
+        guard !loaded else { return }
+        let started = Date()
+        await Task.detached(priority: .userInitiated) {
+            _ = GameTuning.reefLabLevels.count + GameTuning.jellyLabLevels.count
+        }.value
+        let remaining = GameTuning.launchMinimumSeconds - Date().timeIntervalSince(started)
+        if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
+        withAnimation(.easeOut(duration: 0.35)) { loaded = true }
     }
 
     #if DEBUG
