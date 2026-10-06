@@ -260,58 +260,13 @@ struct OceanBackdrop: View {
     }
 }
 
+/// Drawn from the game's own fish and jellyfish art (IconographyTests renders it).
 private struct WorldIllustration: View {
     let world: ArcadeWorld
     var body: some View {
-        Canvas { context, size in
-            let w = size.width, h = size.height
-            if world.hasJellies {
-                for (x, y, scale) in [(0.50, 0.43, 1.0), (0.20, 0.62, 0.50), (0.83, 0.62, 0.48)] {
-                    let r = w * 0.28 * scale
-                    let c = CGPoint(x: w * x, y: h * y)
-                    for i in -2...2 {
-                        var tentacle = Path()
-                        let tx = c.x + CGFloat(i) * r * 0.33
-                        tentacle.move(to: CGPoint(x: tx, y: c.y))
-                        tentacle.addCurve(to: CGPoint(x: tx + r * 0.12, y: c.y + r * 1.35),
-                                          control1: CGPoint(x: tx + r * 0.4, y: c.y + r * 0.5),
-                                          control2: CGPoint(x: tx - r * 0.3, y: c.y + r))
-                        context.stroke(tentacle, with: .color(Color.pink.opacity(0.9)), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    }
-                    var dome = Path()
-                    dome.move(to: CGPoint(x: c.x - r, y: c.y))
-                    dome.addCurve(to: CGPoint(x: c.x + r, y: c.y),
-                                  control1: CGPoint(x: c.x - r, y: c.y - r),
-                                  control2: CGPoint(x: c.x + r, y: c.y - r))
-                    dome.closeSubpath()
-                    context.fill(dome, with: .color(Color.cyan.opacity(0.55)))
-                    context.stroke(dome, with: .color(.white.opacity(0.9)), lineWidth: 2)
-                }
-            } else {
-                for i in 0..<5 {
-                    var coral = Path()
-                    let x = w * (0.12 + CGFloat(i) * 0.18)
-                    let height = h * (i.isMultiple(of: 2) ? 0.45 : 0.30)
-                    coral.move(to: CGPoint(x: x, y: h * 0.9))
-                    coral.addLine(to: CGPoint(x: x, y: h * 0.9 - height))
-                    coral.move(to: CGPoint(x: x, y: h * 0.9 - height * 0.4))
-                    coral.addLine(to: CGPoint(x: x + w * 0.1, y: h * 0.9 - height * 0.8))
-                    context.stroke(coral, with: .color(i.isMultiple(of: 2) ? .pink.opacity(0.8) : .orange.opacity(0.8)),
-                                   style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
-                }
-                let body = CGRect(x: w * 0.3, y: h * 0.16, width: w * 0.55, height: h * 0.34)
-                var tail = Path()
-                tail.move(to: CGPoint(x: w * 0.35, y: h * 0.33))
-                tail.addLine(to: CGPoint(x: w * 0.12, y: h * 0.15))
-                tail.addLine(to: CGPoint(x: w * 0.12, y: h * 0.50))
-                tail.closeSubpath()
-                context.fill(tail, with: .color(.yellow))
-                context.fill(Path(ellipseIn: body), with: .color(.orange))
-                context.stroke(Path(ellipseIn: body), with: .color(.white), lineWidth: 2)
-                let eye = CGRect(x: w * 0.66, y: h * 0.2, width: w * 0.11, height: w * 0.11)
-                context.fill(Path(ellipseIn: eye), with: .color(.white))
-                context.fill(Path(ellipseIn: eye.insetBy(dx: 3, dy: 3)), with: .color(.black))
-            }
-        }
+        Image(world.hasJellies ? "WorldJellyBloom" : "WorldShallowReef")
+            .resizable()
+            .scaledToFit()
+            .accessibilityHidden(true)
     }
 }
