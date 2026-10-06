@@ -531,13 +531,13 @@ enum GameTuning {
             foodSize: 0.66...0.8, gateMargin: 0.15, dangerGap: 24, threatClearance: 38, spacing: 0.21,
             aiSpeed: 64...186, aiVertical: 93, crossSeconds: 2.57, walledGates: true, timesTheEdge: true),
         // Gauntlet: big fish everywhere in open water, threading between meals, and they all come back on
-        // lap two at nearly your size.
+        // lap two a little smaller than you. (Bigger ones crowded each other off schedule.)
         MeetingSpec(name: "Gauntlet",
             segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
                        .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
-            worldScreens: 6.5, extraThreats: 6, lapTwoSize: 0.92...0.98, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            worldScreens: 6.5, extraThreats: 6, lapTwoSize: 0.86...0.93, headOnShare: 0.66, heightSwing: 0.45...0.82,
             foodSize: 0.73...0.87, gateMargin: 0.18, dangerGap: 24, threatClearance: 30, spacing: 0.26,
             aiSpeed: 66...188, aiVertical: 94, crossSeconds: 2.56, timesTheEdge: true),
         // Heavyweights: few meals, each nearly your size, so every bite is a close call; one or two meals
@@ -547,7 +547,7 @@ enum GameTuning {
                        .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
                        .init(singles: 0, forks: [.init(long: 1, short: 1)], needed: 1, dangerFoods: 1),
                        .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
-            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.45...0.82,
+            worldScreens: 5.5, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.45...0.82,
             foodSize: 0.85...0.93, gateMargin: 0.1, dangerGap: 22, threatClearance: 34, spacing: 0.3,
             aiSpeed: 66...190, aiVertical: 95, crossSeconds: 2.55, walledGates: true, timesTheEdge: true),
         // Needle: tight windows. Most meals cross a beat from a big fish with little room between, and every

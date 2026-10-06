@@ -115,14 +115,20 @@ like any other level. Each is frozen once it's been played: so far Frenzy ("real
 |---|---|---|---:|---|
 | 11 | Crossroads | two forks before every gate, one of them three meals high or one low; unwalled | 31 | 1, 1, 2 |
 | 12 | Frenzy | quick meals, four walled gates; opens with a burst (three of the first four) | 34 | 1, 1, 1, 1 |
-| 13 | Gauntlet | six big fish in open water, all back on lap two at nearly your size; unwalled | 33 | 2, 2, 2, 1 |
+| 13 | Gauntlet | six big fish in open water, all back on lap two a little smaller than you; unwalled | 33 | 2, 2, 2, 1 |
 | 14 | Heavyweights | few meals, each 85–93% of your size; one or two open each walled gate | 29 | 2, 1, 1, 1 |
 | 15 | Needle | most meals a beat from a big fish with little room; walled gates | 31 | 1, 1, 1 |
 
-Gauntlet has two fish and Heavyweights one fish slightly off their planned heights. As first planned,
-Gauntlet's first giant (fish 9) crossed over the high lane just as a big fish guarded the low one, too tight
-to get through in 20 tries; it now starts 380 points closer and crosses just after the first gate, above the
-swim to the next meal.
+Fish only keep their plans if they don't touch where you could see it, and a player who eats more than the
+reference route zooms out and sees further. Gauntlet's giants first came back at 92–98% of your size and
+bumped each other off schedule, lining two of them up into an impassable wall; at 86–93% they pass clear,
+and `bonusLevelsFishDontBumpOnTheWayToTheirMeetings` checks every bonus level in the real scene on the
+fewest-meal, reference, and fullest routes. Heavyweights failed that check in a five-screen world and
+passed in a 5.5-screen one, before anyone played it.
+
+As first planned, Gauntlet's first giant (fish 9) also crossed over the high lane just as a big fish
+guarded the low one, too tight to get through in 20 tries; it starts 380 points closer than planned, so it
+crosses just after the first gate, above the swim to the next meal.
 
 A swarm of small fish doesn't fit the planner yet. A gate must be edible after `needed` meals and not
 after one fewer, with a few percent of margin either side, and a meal half your size grows you less than

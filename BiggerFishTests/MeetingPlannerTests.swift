@@ -73,14 +73,13 @@ struct MeetingPlannerTests {
             #expect(plan.fish.map(\.id) == Array(1...plan.fish.count))
             #expect(plan.analysis.meetings.filter { $0.minimumMeals != nil }.count > plan.fish.count / 2)
         }
-        // Today's planner places every big fish a spec asks for, with at most one fish slightly off its plan
-        // (two on the crowded Gauntlet).
+        // Today's planner places every big fish a spec asks for, with at most one fish slightly off its plan.
         for spec in specs {
             let plan = MeetingPlanner.plan(spec)
             let walls = plan.fish.filter { $0.role == .threat }.count
                 - spec.extraThreats - spec.segments.reduce(0) { $0 + $1.dangerFoods }
             #expect(walls >= 0, "\(spec.name) is missing big fish")
-            #expect(plan.issues.count <= (spec.name == "Gauntlet" ? 2 : 1) && plan.issues.allSatisfy { $0.contains("is off its plan") }, "\(spec.name): \(plan.issues)")
+            #expect(plan.issues.count <= 1 && plan.issues.allSatisfy { $0.contains("is off its plan") }, "\(spec.name): \(plan.issues)")
         }
         let tightest = plans.map { plan in
             plan.fish.filter { $0.role == .gate }.compactMap { plan.analysis.meeting(fishID: $0.id)?.robustSlack }.min() ?? -1
@@ -132,6 +131,22 @@ struct MeetingPlannerTests {
             for route in [plan.fewestMealRoute, plan.fullestRoute] {
                 let crossings = GameScene(world: .shallowReef, levelIndex: index).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
                 #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(spec.name)")
+            }
+        }
+    }
+
+    /// Planned fish that touch where you could see it push apart and lose their meetings, and a player who eats
+    /// more zooms out and sees further. Gauntlet's first giants knocked each other into an impassable wall.
+    @MainActor @Test func bonusLevelsFishDontBumpOnTheWayToTheirMeetings() {
+        for index in 10..<GameTuning.reefLabLevels.count {
+            let plan = GameTuning.reefLabLevels[index].meetingPlan!
+            let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
+            for route in [plan.fewestMealRoute, reference, plan.fullestRoute] {
+                let scene = GameScene(world: .shallowReef, levelIndex: index)
+                let crossings = scene.debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
+                #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(plan.spec.name)")
+                // Eating everything zooms out furthest; a couple of brushes there is as good as Hard does.
+                #expect(scene.debugVisibleUnmetContacts <= (route == plan.fullestRoute ? 2 : 0), "\(plan.spec.name)")
             }
         }
     }
