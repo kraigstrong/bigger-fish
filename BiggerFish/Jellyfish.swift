@@ -62,9 +62,77 @@ enum JellyDrift {
                     * screenWidth * GameTuning.jellyDriftScreens),
                 y: origin.y + sin(time * 2 * .pi / GameTuning.jellyBobSeconds + phase * 1.3) * GameTuning.jellyBobPoints)
     }
+
+    /// The home that puts a bell's rim at `position` at `time`.
+    static func origin(for position: CGPoint, phase: CGFloat, time: CGFloat, screenWidth: CGFloat, world: WrappedWorld) -> CGPoint {
+        CGPoint(x: world.wrap(position.x - sin(time * 2 * .pi / GameTuning.jellyDriftSeconds + phase)
+                    * screenWidth * GameTuning.jellyDriftScreens),
+                y: position.y - sin(time * 2 * .pi / GameTuning.jellyBobSeconds + phase * 1.3) * GameTuning.jellyBobPoints)
+    }
 }
 
 enum JellyContact: Equatable { case none, bounce, tentacles }
+
+/// How a roaming fish meets jellyfish, shared by GameScene and the meeting planner so a planned fish
+/// swims around and bounces off bells exactly as predicted.
+enum JellySwim {
+    /// Steering away from the nearest curtain the fish is heading into; nil when its way is clear.
+    static func avoidance(for f: Fish, velocity: CGVector, jellies: [CGPoint], layout: JellyLayout,
+                          world: WrappedWorld, waterBottom: CGFloat, waterTop: CGFloat, zoom: CGFloat) -> CGVector? {
+        // Only a curtain within the look-ahead's reach can steer it; the rest would return nil anyway.
+        let reach = abs(velocity.dx) * GameTuning.bloomAvoidanceLookAhead + layout.radius * 0.72
+            + f.radius * GameTuning.hazardHitboxScale + GameTuning.bloomAvoidancePadding + 1
+        let nearby = jellies.filter { abs(world.delta(from: $0.x, to: f.position.x)) <= reach }
+            .sorted { world.distance(f.position, $0) < world.distance(f.position, $1) }
+        for jelly in nearby {
+            let relative = CGPoint(x: world.delta(from: jelly.x, to: f.position.x), y: f.position.y - jelly.y)
+            if let velocity = JellyRules.avoidance(at: relative, velocity: velocity, fishRadius: f.radius,
+                                                  domeRadius: layout.radius, tentacleLength: layout.tentacleLength,
+                                                  minY: waterBottom + f.radius - jelly.y,
+                                                  maxY: waterTop - f.radius - jelly.y, zoom: zoom) {
+                return velocity
+            }
+        }
+        return nil
+    }
+
+    /// Turns a free swimmer toward `avoidance`, aiming its next height at the way out.
+    static func steer(_ f: Fish, velocity: CGVector, toward avoidance: CGVector, dt: CGFloat,
+                      minY: CGFloat, maxY: CGFloat) -> CGVector {
+        let steer = min(1, dt * GameTuning.bloomAvoidanceTurnRate)
+        f.heading = avoidance.dx >= 0 ? 1 : -1
+        f.targetY = (f.position.y + avoidance.dy * GameTuning.bloomAvoidanceLookAhead).clamped(minY, maxY)
+        return CGVector(dx: velocity.dx + (avoidance.dx - velocity.dx) * steer,
+                        dy: velocity.dy + (avoidance.dy - velocity.dy) * steer)
+    }
+
+    /// A fish that moved from `old` against a jelly that moved from `previousJelly`, in the jelly's frame.
+    static func contact(_ f: Fish, old: CGPoint, jelly: CGPoint, previousJelly: CGPoint, layout: JellyLayout,
+                        world: WrappedWorld) -> (contact: JellyContact, at: CGPoint, previous: CGPoint) {
+        let p = CGPoint(x: world.delta(from: jelly.x, to: f.position.x), y: f.position.y - jelly.y)
+        // Keep both endpoints on the same wrapped branch. Independently wrapping them
+        // can draw a fictitious sweep through a jelly on the other side of the world.
+        let movement = world.delta(from: old.x, to: f.position.x) - world.delta(from: previousJelly.x, to: jelly.x)
+        let previous = CGPoint(x: p.x - movement, y: old.y - previousJelly.y)
+        return (JellyRules.contact(at: p, previous: previous, fishRadius: f.radius, domeRadius: layout.radius,
+                                   tentacleLength: layout.tentacleLength), p, previous)
+    }
+
+    /// Launches a fish off a bell at `speed` (world points per second), spending only the rest of the
+    /// frame after contact rising. Returns that remaining time.
+    @discardableResult
+    static func bounce(_ f: Fish, at p: CGPoint, previous: CGPoint, jellyY: CGFloat, layout: JellyLayout,
+                       speed: CGFloat, dt: CGFloat, ceiling: CGFloat) -> CGFloat {
+        let x = min(1, abs(p.x) / (layout.radius + f.radius * GameTuning.hazardHitboxScale))
+        let surface = layout.radius * 0.65 * sqrt(max(0, 1 - x * x))
+        let remaining = JellyRules.remainingBounceTime(at: p, previous: previous, fishRadius: f.radius,
+                                                      domeRadius: layout.radius, dt: dt)
+        f.velocity.dy = speed
+        let contactY = jellyY + surface + f.radius * GameTuning.hazardHitboxScale + 2
+        f.position.y = min(ceiling, contactY + f.velocity.dy * remaining)
+        return remaining
+    }
+}
 
 /// Coordinates are relative to the jelly's bell rim (y = 0); tentacles extend down.
 /// A swept test catches fast falls through the forgiving top of the dome.

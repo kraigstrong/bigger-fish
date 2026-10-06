@@ -16,6 +16,34 @@ struct EncounterCrossing: Codable, Equatable {
     let zoom: Double
 }
 
+/// A jellyfish crossing the player's column: stinging tentacles hang below its rim, and its dome
+/// launches you upward if you land on it from above.
+struct JellyPass: Codable, Equatable {
+    let jellyID: Int
+    let time: Double
+    /// World y of the bell's rim.
+    let rim: Double
+    let domeRadius: Double
+    let tentacleLength: Double
+    /// Your forward speed (world points per second) and the zoom when you pass it.
+    let speed: Double
+    let zoom: Double
+
+    /// Half the time the bell's curtain spends in your column, for a player of this radius.
+    func halfWindow(playerRadius: CGFloat) -> Double {
+        Double(CGFloat(domeRadius) * 0.72 + playerRadius * GameTuning.hazardHitboxScale) / speed
+    }
+    /// The heights where a player's center touches the tentacles or bumps the bell.
+    func band(playerRadius: CGFloat) -> ClosedRange<CGFloat> {
+        let body = playerRadius * GameTuning.hazardHitboxScale
+        return (CGFloat(rim - tentacleLength) - body)...domeTop(playerRadius: playerRadius)
+    }
+    /// A player's center resting on top of the dome.
+    func domeTop(playerRadius: CGFloat) -> CGFloat {
+        CGFloat(rim + domeRadius * 0.65) + playerRadius * GameTuning.hazardHitboxScale
+    }
+}
+
 /// Route structure of a lap: which fish you can reach, after how many meals, and how forgiving each is.
 /// Optimistic about steering (it plans the player's height perfectly) and about AI eating (fish are
 /// protected until you pass them, so every fish is still there when you meet it).
@@ -54,14 +82,52 @@ enum EncounterAnalyzer {
     static let dangerWindow: Double = 0.5
     static let dangerGap: CGFloat = 60
 
-    static func analyze(_ crossings: [EncounterCrossing],
+    static func analyze(_ crossings: [EncounterCrossing], jellies: [JellyPass] = [],
                         efficiency: CGFloat = GameTuning.freeEncounterAbsorption * GameTuning.mealGrowthScale,
                         startRadius: CGFloat = GameTuning.baseRadius,
                         startY: CGFloat = (GameTuning.waterBottomMargin + GameTuning.playfieldSize.height - GameTuning.waterTopMargin) / 2) -> EncounterAnalysis {
-        let graph = RouteGraph(crossings.sorted { $0.time < $1.time }, efficiency: efficiency,
-                               startRadius: startRadius, startY: startY)
+        let graph = RouteGraph(crossings.sorted { $0.time < $1.time }, jellies: jellies.sorted { $0.time < $1.time },
+                               efficiency: efficiency, startRadius: startRadius, startY: startY)
         return graph.analysis()
     }
+
+    /// Whether a player of `radius` who ate `from` (nil: the start) can reach `to` by swimming, and by
+    /// bouncing off a jelly between them. Optimistic about steering, like the route graph.
+    static func reach(from: EncounterCrossing?, to: EncounterCrossing, jellies: [JellyPass], radius: CGFloat,
+                      startY: CGFloat = (GameTuning.waterBottomMargin + GameTuning.playfieldSize.height - GameTuning.waterTopMargin) / 2) -> (swim: Bool, bounce: Bool) {
+        let tolerance = (radius + CGFloat(to.radius)) * catchTolerance
+        let start = (time: from?.time ?? 0, y: from.map { CGFloat($0.y) } ?? startY)
+        let jellies = jellies.sorted { $0.time < $1.time }
+        return (JellyRoutes.swim(from: start, to: (to.time, CGFloat(to.y), CGFloat(to.zoom)), tolerance: tolerance,
+                                 radius: radius, jellies: jellies),
+                JellyRoutes.bounce(from: start, to: (to.time, CGFloat(to.y), CGFloat(to.zoom)), tolerance: tolerance,
+                                   radius: radius, jellies: jellies,
+                                   startSlack: from.map { (radius + CGFloat($0.radius)) * catchTolerance } ?? 0))
+    }
+
+    /// Height gained (up) or lost (down) in `seconds` after a bounce at zoom 1, holding the whole time or
+    /// letting go at once.
+    static func bounceReach(seconds: Double) -> (up: CGFloat, down: CGFloat) {
+        guard seconds > 0 else { return (0, 0) }
+        let index = min(bounceTable.count - 1, Int((seconds / Double(GameTuning.simulationStep)).rounded(.down)))
+        return bounceTable[index]
+    }
+
+    private static let bounceTable: [(up: CGFloat, down: CGFloat)] = {
+        let step = GameTuning.simulationStep
+        var bounced = GameTuning.motion
+        bounced.maxRiseSpeed = GameTuning.jellyBounceSpeed
+        bounced.fallAcceleration *= 0.35
+        var up = (y: CGFloat(0), vy: GameTuning.jellyBounceSpeed), down = up
+        var table: [(up: CGFloat, down: CGFloat)] = [(0, 0)]
+        for index in 0..<(60 * 4) {
+            let tuning = CGFloat(index) * step < GameTuning.jellyBounceSeconds ? bounced : GameTuning.motion
+            up = PlayerMotion.step(y: up.y, vy: up.vy, holding: true, dt: step, minY: -10_000, maxY: 10_000, tuning: tuning)
+            down = PlayerMotion.step(y: down.y, vy: down.vy, holding: false, dt: step, minY: -10_000, maxY: 10_000, tuning: tuning)
+            table.append((up.y, down.y))
+        }
+        return table
+    }()
 
     /// Maximum vertical travel from rest in `seconds` at zoom 1, the slower of rising and falling.
     static func verticalReach(seconds: Double) -> CGFloat {
@@ -84,9 +150,92 @@ enum EncounterAnalyzer {
     }()
 }
 
+/// Getting between two meals around jellyfish: over or under each curtain as it passes, or off a dome.
+enum JellyRoutes {
+    typealias Point = (time: Double, y: CGFloat)
+
+    private static func reach(_ seconds: Double, zoom: CGFloat) -> CGFloat {
+        EncounterAnalyzer.verticalReach(seconds: seconds) / zoom
+    }
+
+    private static func water(radius: CGFloat, zoom: CGFloat) -> ClosedRange<CGFloat> {
+        let bounds = PlayerTimeline.waterBounds(zoom: zoom)
+        return (bounds.bottom + radius * 0.95)...max(bounds.bottom + radius * 0.95, bounds.top - radius * 0.95)
+    }
+
+    /// Passes whose curtain is in your column at some moment strictly between the two meals.
+    private static func passes(_ jellies: [JellyPass], from start: Double, to end: Double, radius: CGFloat) -> [JellyPass] {
+        jellies.filter { pass in
+            let window = pass.halfWindow(playerRadius: radius)
+            return pass.time + window > start && pass.time - window < end
+        }
+    }
+
+    /// Swimming only: every curtain on the way is passed above its dome or below its tentacles.
+    static func swim(from start: Point, to target: (time: Double, y: CGFloat, zoom: CGFloat), tolerance: CGFloat,
+                     radius: CGFloat, jellies: [JellyPass]) -> Bool {
+        let elapsed = target.time - start.time
+        guard elapsed > 0 else { return false }
+        let between = passes(jellies, from: start.time, to: target.time, radius: radius)
+        guard !between.isEmpty else {
+            return reach(elapsed, zoom: target.zoom) >= max(0, abs(target.y - start.y) - tolerance)
+        }
+        // Heights you could be at, as separate stretches of water, propagated pass by pass.
+        var spans: [ClosedRange<CGFloat>] = [start.y...start.y]
+        var time = start.time
+        for pass in between {
+            let zoom = CGFloat(pass.zoom)
+            let window = pass.halfWindow(playerRadius: radius)
+            let opens = max(time, pass.time - window), closes = min(target.time, pass.time + window)
+            let water = water(radius: radius, zoom: zoom)
+            let band = pass.band(playerRadius: radius)
+            let sides = [(water.lowerBound, min(water.upperBound, band.lowerBound)),
+                         (max(water.lowerBound, band.upperBound), water.upperBound)].filter { $0.0 < $0.1 }.map { $0.0...$0.1 }
+            let arrive = reach(opens - time, zoom: zoom), through = reach(closes - opens, zoom: zoom)
+            spans = sides.flatMap { side in
+                spans.compactMap { span -> ClosedRange<CGFloat>? in
+                    let low = max(side.lowerBound, span.lowerBound - arrive), high = min(side.upperBound, span.upperBound + arrive)
+                    guard low <= high else { return nil }
+                    return max(side.lowerBound, low - through)...min(side.upperBound, high + through)
+                }
+            }
+            time = closes
+            if spans.isEmpty { return false }
+        }
+        let last = reach(target.time - time, zoom: target.zoom)
+        return spans.contains { span in
+            target.y >= span.lowerBound - last - tolerance && target.y <= span.upperBound + last + tolerance
+        }
+    }
+
+    /// Landing on a dome between the meals and riding the bounce to the target.
+    /// `startSlack`: how far from the last meal's height you could have been while eating it.
+    static func bounce(from start: Point, to target: (time: Double, y: CGFloat, zoom: CGFloat), tolerance: CGFloat,
+                       radius: CGFloat, jellies: [JellyPass], startSlack: CGFloat = 0) -> Bool {
+        for pass in passes(jellies, from: start.time, to: target.time, radius: radius) {
+            let zoom = CGFloat(pass.zoom)
+            let window = pass.halfWindow(playerRadius: radius)
+            let dome = pass.domeTop(playerRadius: radius)
+            // Be above the dome before its curtain reaches you (or fall onto it from above), then land.
+            let landing = max(start.time, pass.time - window)
+            let ready = start.y + startSlack >= dome
+                ? reach(pass.time + window - start.time, zoom: zoom) + startSlack >= start.y - dome
+                : reach(landing - start.time, zoom: zoom) >= dome - start.y && landing > start.time
+            guard ready else { continue }
+            let bounced = max(start.time, pass.time)
+            let after = EncounterAnalyzer.bounceReach(seconds: target.time - bounced)
+            let water = water(radius: radius, zoom: target.zoom)
+            let high = min(water.upperBound, dome + after.up / target.zoom), low = max(water.lowerBound, dome + after.down / target.zoom)
+            if target.y >= low - tolerance && target.y <= high + tolerance { return true }
+        }
+        return false
+    }
+}
+
 /// Meetings in time order; node 0 is the run's start.
 private struct RouteGraph {
     let meetings: [EncounterCrossing]
+    let jellies: [JellyPass]
     let efficiency: CGFloat
     let startRadius: CGFloat
     let startY: CGFloat
@@ -94,8 +243,9 @@ private struct RouteGraph {
     private let simultaneous: [[Int]]
     private var count: Int { meetings.count }
 
-    init(_ meetings: [EncounterCrossing], efficiency: CGFloat, startRadius: CGFloat, startY: CGFloat) {
+    init(_ meetings: [EncounterCrossing], jellies: [JellyPass], efficiency: CGFloat, startRadius: CGFloat, startY: CGFloat) {
         self.meetings = meetings
+        self.jellies = jellies
         self.efficiency = efficiency
         self.startRadius = startRadius
         self.startY = startY
@@ -126,8 +276,16 @@ private struct RouteGraph {
             guard elapsed + EncounterAnalyzer.swallowLead >= swallow else { return false }
         }
         let tolerance = (player + prey) * EncounterAnalyzer.catchTolerance
-        let needed = max(0, abs(CGFloat(target.y) - fromY) - tolerance)
-        guard EncounterAnalyzer.verticalReach(seconds: elapsed) / CGFloat(target.zoom) >= needed else { return false }
+        if jellies.isEmpty {
+            let needed = max(0, abs(CGFloat(target.y) - fromY) - tolerance)
+            guard EncounterAnalyzer.verticalReach(seconds: elapsed) / CGFloat(target.zoom) >= needed else { return false }
+        } else {
+            let to = (time: target.time, y: CGFloat(target.y), zoom: CGFloat(target.zoom))
+            guard JellyRoutes.swim(from: (fromTime, fromY), to: to, tolerance: tolerance, radius: player, jellies: jellies)
+                || JellyRoutes.bounce(from: (fromTime, fromY), to: to, tolerance: tolerance, radius: player, jellies: jellies,
+                                      startSlack: previous.map { (player + CGFloat(meetings[$0].radius)) * EncounterAnalyzer.catchTolerance } ?? 0)
+            else { return false }
+        }
         // A bigger fish crossing on top of this one at the same moment makes the meal impossible.
         // A missed fish is still swimming, so this applies even to fish a route skips.
         for index in simultaneous[next] {
@@ -227,6 +385,12 @@ private struct RouteGraph {
                     && CGFloat(candidate.radius) > player
                     && abs(CGFloat(candidate.y - crossing.y)) - (player + CGFloat(candidate.radius)) * GameTuning.collisionScale
                         <= EncounterAnalyzer.dangerGap / CGFloat(crossing.zoom)
+            } || jellies.contains { pass in
+                // Tentacles hang just above it as you eat it.
+                let tips = CGFloat(pass.rim - pass.tentacleLength)
+                let clear = tips - CGFloat(crossing.y) - r
+                return abs(pass.time - crossing.time) <= pass.halfWindow(playerRadius: player) + 0.1
+                    && clear >= 0 && clear <= EncounterAnalyzer.dangerGap / CGFloat(crossing.zoom)
             }
             results.append(.init(crossing: crossing, minimumMeals: fewest - 1, maximumMeals: counts.max()! - 1,
                 routes: countRoutes(to: index, meals: fewest - 1), robustSlack: robustSlack(for: index),

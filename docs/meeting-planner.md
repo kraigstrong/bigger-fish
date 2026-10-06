@@ -106,6 +106,35 @@ one lane per fork. In the real scene every fish crosses within 0.05 s and 3 poin
 reference route, and every fish still arrives on the fewest-meal and fullest routes. Bots are poor at
 choosing lanes; playtesting decides difficulty.
 
+## Jelly Bloom 2
+
+Jelly Bloom 2 (ID `jelly-lab`, Debug-only for now) plans Jelly Bloom the same way, with Shallow Reef 2's
+ten fish curves and drifting jellyfish. A jelly wanders a tenth of a screen around its home and bobs, as a
+pure function of time (`JellyDrift`), so the planner knows where every bell is at every step.
+
+- **Jellies sit beside meetings.** A *pocket* meal crosses just above a dome, so you bounce as you eat it.
+  A *bounce* meal (`Segment.bounceMeals`) crosses high above a pocket half a second later: out of
+  swimming reach, inside the bounce's. A fork can be *split* by a jelly (`Fork.bounce`): its long lane
+  starts on the dome and climbs with the bounce, its short lane passes under the tentacles. A *sting*
+  meal crosses just under hanging tentacles; on levels 9–10 tentacles are a walled gate's upper wall.
+  *Open* jellies sit clear of the swim between two meals. Level 1's second plain meal is a *demo* fish
+  that bounces off the first jelly while it's ahead of you on screen; the solver places that jelly
+  under its swim.
+- **Fish swim around them exactly as the game does.** `JellySwim` holds the steering and bounce the scene
+  and the solver share. Like other unmet fish, a planned fish you haven't met ignores jellies while it's
+  off screen, so bells can't knock its meeting off schedule; on screen and after you meet it, it steers
+  and bounces as usual.
+- **Routes know about bells.** The analyzer gets each jelly's pass: you must be above its dome or below
+  its tentacles while it's in your column, or land on the dome and ride the bounce (`JellyRoutes`).
+  `check` confirms bounce meals need their bounce and sting meals are close calls.
+- **Bells keep apart and below the surface,** with room above each dome for the level's biggest fish, so
+  nothing gets trapped bouncing between a dome and the surface.
+
+The ramp: levels 1–2 have bells to bounce on if you like; from 3, sting meals; from 5, bounce meals,
+then split forks; 9–10 wall gates with tentacles. Plans ship in `BiggerFish/JellyLabPlans.json`; create
+`build/arcade-development/jelly-lab-plans.request` and run `MeetingPlannerTests` to regenerate it
+(several minutes: replanning ten jelly levels is slow, so CI only checks the file matches the specs).
+
 ## Shipped as data
 
 Plans are deterministic, so Reef Lab's are made on the Mac and shipped in `BiggerFish/ReefLabPlans.json`:

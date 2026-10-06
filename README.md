@@ -169,7 +169,8 @@ The third world, **Shallow Reef 2** (internally Reef Lab, ID `reef-lab`), has te
 meetings are planned, to A/B test against Shallow Reef slot for slot, TestFlight included. Each gate's
 slack and routes are designed, and every fish still swims freely into its meeting. In Debug builds,
 **Tuning > Players** resets a world for a new player and **Tuning > Shallow Reef 2 variations** plays
-other layouts. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
+other layouts. **Jelly Bloom 2** (ID `jelly-lab`, Debug-only for now) plans Jelly Bloom the same way,
+with drifting jellyfish to bounce off and dodge. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
 
 ### Automatic run diagnostics
 

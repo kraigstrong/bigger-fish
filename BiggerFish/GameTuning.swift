@@ -366,6 +366,31 @@ enum GameTuning {
     /// creep toward you for seconds, as if fleeing.
     static let plannerSameDirectionSpeedShare = 0.3
 
+    // Jelly Bloom 2's planned jellies.
+    /// A bounce meal crosses this long after the pocket meal you bounce from.
+    static let plannerBounceSeconds: CGFloat = 0.5
+    /// A pocket you bounce on is at most this share of your size, so it's swallowed before the climb.
+    static let plannerBouncePocketSize: CGFloat = 0.76
+    /// Screen points of water between a pocket meal's body and the dome under it (plus a fifth of its radius).
+    static let plannerPocketGap: CGFloat = 8
+    /// Screen points kept clear between any dome and the surface, beyond its bob: room for a fish to pass over.
+    static let plannerDomeHeadroom: CGFloat = 70
+    /// Screen points a pocket meal keeps below the top of the water, room to bounce.
+    static let plannerPocketHeadroom: CGFloat = 50
+    /// Screen points a bounce meal sits beyond swimming reach and within the bounce's.
+    static let plannerBounceMargin: CGFloat = 12
+    /// The demo meal crosses this high (share of the water); its bounce sends it up there.
+    static let plannerDemoHeight: ClosedRange<CGFloat> = 0.72...0.86
+    static let plannerDemoHeightTolerance: CGFloat = 60
+    /// The demo fish lands on its jelly while the jelly is this far across the screen, at least this long
+    /// after the start and before you meet it.
+    static let plannerDemoScreen: ClosedRange<CGFloat> = 0.5...0.85
+    static let plannerDemoLeadSeconds: CGFloat = 0.6
+    /// The solver only replays a swim around the jellies when it's within this many screen points of its height.
+    static let plannerJellyReplayMargin: CGFloat = 30
+    /// Jellies leave room for a player this much bigger than the reference route's.
+    static let plannerJellyPlayerAllowance: CGFloat = 1.2
+
     /// Planned fish you haven't met only separate within this many points of the screen.
     static let plannedContactScreenMargin: CGFloat = 100
     /// The planner keeps unmet fish apart over a wider window, so route timing drift can't bring a contact on screen.
@@ -463,26 +488,109 @@ enum GameTuning {
     /// as played, so later planner changes can't reshuffle them. Remove a name to re-plan that level.
     static let reefLabFrozen: Set<String> = Set(reefLabSpecs.map(\.name))
 
-    /// Jelly Bloom 2, for now a preview: Jelly Bloom's ten levels with drifting jellyfish.
-    static let jellyLabLevels: [Level] = bloomLevels.map { level in
-        var drifting = level
-        drifting.jellies?.drifts = true
-        return drifting
+    /// Jelly Bloom 2: Shallow Reef 2's ten fish curves, with drifting jellyfish brought in a mechanic at a time.
+    /// Levels 1–2: bells to bounce on if you like, with lots of room (level 1 shows a fish bouncing). From 3,
+    /// meals with tentacles hanging just above them. From 5, meals only a bounce reaches in time, then
+    /// forks split by a jelly: bounce off its dome into the high lane or dive under its tentacles.
+    /// Levels 9–10: tentacles wall the gates from above. Names seed the layouts; never rename one.
+    static let jellyLabSpecs: [MeetingSpec] = [
+        MeetingSpec(name: "Jelly Lab 1",
+            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
+            extraThreats: 1, lapTwoSize: 0.9...0.96, headOnShare: 0.5, heightSwing: 0.1...0.35, foodSize: 0.7...0.84,
+            gateMargin: 0.9, dangerGap: 80, threatClearance: 120, spacing: 0.27, aiSpeed: 45...120, aiVertical: 60,
+            crossSeconds: 2.9, jellies: JellySpec(demoBounce: true, pockets: 1, open: 1)),
+        MeetingSpec(name: "Jelly Lab 2",
+            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
+            extraThreats: 2, lapTwoSize: 0.72...0.82, headOnShare: 0.55, heightSwing: 0.1...0.45, foodSize: 0.68...0.84,
+            gateMargin: 0.8, dangerGap: 70, threatClearance: 110, spacing: 0.25, aiSpeed: 48...129, aiVertical: 64,
+            crossSeconds: 2.86, jellies: JellySpec(pockets: 2, open: 2)),
+        MeetingSpec(name: "Jelly Lab 3",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2)],
+            extraThreats: 2, lapTwoSize: 0.76...0.85, headOnShare: 0.55, heightSwing: 0.2...0.55, foodSize: 0.68...0.84,
+            gateMargin: 0.7, dangerGap: 62, threatClearance: 95, spacing: 0.24, aiSpeed: 51...138, aiVertical: 69,
+            crossSeconds: 2.81, jellies: JellySpec(pockets: 1, stingMeals: 1, open: 1)),
+        MeetingSpec(name: "Jelly Lab 4",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 2, lapTwoSize: 0.8...0.88, headOnShare: 0.58, heightSwing: 0.25...0.6,
+            foodSize: 0.67...0.83, gateMargin: 0.6, dangerGap: 55, threatClearance: 85, spacing: 0.23,
+            aiSpeed: 53...147, aiVertical: 73, crossSeconds: 2.77, jellies: JellySpec(pockets: 1, stingMeals: 2, open: 1)),
+        MeetingSpec(name: "Jelly Lab 5",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1, bounceMeals: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.82...0.9, headOnShare: 0.6, heightSwing: 0.3...0.7,
+            foodSize: 0.66...0.82, gateMargin: 0.55, dangerGap: 50, threatClearance: 78, spacing: 0.22,
+            aiSpeed: 56...156, aiVertical: 76, crossSeconds: 2.72, jellies: JellySpec(pockets: 1, stingMeals: 1, open: 1)),
+        MeetingSpec(name: "Jelly Lab 6",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1, bounceMeals: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
+            foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
+            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68, jellies: JellySpec(stingMeals: 2, open: 1)),
+        MeetingSpec(name: "Jelly Lab 7",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 2, bounceMeals: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.88...0.94, headOnShare: 0.62, heightSwing: 0.4...0.78,
+            foodSize: 0.7...0.85, gateMargin: 0.35, dangerGap: 36, threatClearance: 56, spacing: 0.24,
+            aiSpeed: 62...173, aiVertical: 87, crossSeconds: 2.63, jellies: JellySpec(stingMeals: 2, open: 1)),
+        MeetingSpec(name: "Jelly Lab 8",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1, bounce: true), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.2, dangerGap: 26, threatClearance: 40, spacing: 0.25,
+            aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true,
+            jellies: JellySpec(night: true, stingMeals: 2, open: 1)),
+        MeetingSpec(name: "Jelly Lab 9",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.92...0.97, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.74...0.88, gateMargin: 0.12, dangerGap: 20, threatClearance: 34, spacing: 0.27,
+            aiSpeed: 67...191, aiVertical: 96, crossSeconds: 2.54, walledGates: true, timesTheEdge: true,
+            jellies: JellySpec(night: true, stingMeals: 1, tentacleWalls: true)),
+        MeetingSpec(name: "Jelly Lab 10",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1, bounce: true), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.94...0.99, headOnShare: 0.7, heightSwing: 0.5...0.85,
+            foodSize: 0.76...0.9, gateMargin: 0.05, dangerGap: 16, threatClearance: 28, spacing: 0.26,
+            aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, walledGates: true, timesTheEdge: true,
+            jellies: JellySpec(night: true, stingMeals: 1, tentacleWalls: true)),
+    ]
+
+    /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
+    static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")
+
+    /// Planned levels from a bundled plan file; a spec newer than the file is planned on first use instead.
+    private static func plannedLevels(_ specs: [MeetingSpec], file: String) -> [Level] {
+        let bundled = Bundle.main.url(forResource: file, withExtension: "json")
+            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
+        return specs.enumerated().map { index, spec in
+            var level = (bundled.first { $0.spec == spec && $0.variation == 0 } ?? MeetingPlanner.plan(spec)).level
+            level.ecosystemSeedIndex = index
+            return level
+        }
     }
 
     /// Reef Lab's levels, planned on the Mac and shipped as data so no device plans them while you play.
     /// Regenerate with the `reef-lab-plans.request` marker (MeetingPlannerTests) after changing the specs or
     /// the planner; a test fails while the file is out of date. A spec that's newer than the file is planned
     /// on first use instead.
-    static let reefLabLevels: [Level] = {
-        let bundled = Bundle.main.url(forResource: "ReefLabPlans", withExtension: "json")
-            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
-        return reefLabSpecs.enumerated().map { index, spec in
-            var level = (bundled.first { $0.spec == spec && $0.variation == 0 } ?? MeetingPlanner.plan(spec)).level
-            level.ecosystemSeedIndex = index
-            return level
-        }
-    }()
+    static let reefLabLevels: [Level] = plannedLevels(reefLabSpecs, file: "ReefLabPlans")
 
     /// Preserve the original campaign, including the favorite fourth level, for debug comparison.
     static let shallowReferenceLevels: [Level] = [

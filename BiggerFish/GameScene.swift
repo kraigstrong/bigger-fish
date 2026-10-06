@@ -406,6 +406,7 @@ final class GameScene: SKScene {
         encounterNeighbors.removeAll()
         #if DEBUG
         recordedEncounterReleases.removeAll()
+        debugBounces.removeAll()
         #endif
         nextFishID = 1
         aiMovementRNGs.removeAll()
@@ -1098,12 +1099,10 @@ final class GameScene: SKScene {
                 }
             }
         }
-        if let avoidance = bloomAvoidance(for: f, velocity: CGVector(dx: vx, dy: vy)) {
-            let steer = min(1, dt * T.bloomAvoidanceTurnRate)
-            vx += (avoidance.dx - vx) * steer
-            vy += (avoidance.dy - vy) * steer
-            f.heading = avoidance.dx >= 0 ? 1 : -1
-            f.targetY = (f.position.y + avoidance.dy * T.bloomAvoidanceLookAhead).clamped(minY, maxY)
+        if plannedFishMeetsJellies(f), let avoidance = bloomAvoidance(for: f, velocity: CGVector(dx: vx, dy: vy)) {
+            let steered = JellySwim.steer(f, velocity: CGVector(dx: vx, dy: vy), toward: avoidance, dt: dt, minY: minY, maxY: maxY)
+            vx = steered.dx
+            vy = steered.dy
         }
 
         FreeSwim.integrate(f, velocity: CGVector(dx: vx, dy: vy), dt: dt, minY: minY, maxY: maxY, world: world)
@@ -1175,6 +1174,17 @@ final class GameScene: SKScene {
 
     private func spawnJellies() {
         guard let layout = level.jellies else { return }
+        if let planned = level.meetingPlan?.jellies {
+            // Planned jellies drift exactly where the planner put them, in its order.
+            for jelly in planned {
+                let node = JellyfishNode(radius: layout.radius, tentacleLength: layout.tentacleLength, phase: jelly.phase,
+                                         night: layout.night)
+                hazardLayer.addChild(node)
+                let start = JellyDrift.position(origin: jelly.origin, phase: jelly.phase, time: 0, screenWidth: size.width, world: world)
+                jellies.append(BloomJelly(node: node, origin: jelly.origin, position: start, phase: jelly.phase))
+            }
+            return
+        }
         var scattered = unevenJellies ? JellyPlacement.origins(layout: layout, screenWidth: size.width,
             waterBottom: waterBottom, waterTop: waterTop, seed: jellyLayoutSeed, variation: layoutVariation) : []
         if level.encounterDifficulty != nil {
@@ -1253,7 +1263,7 @@ final class GameScene: SKScene {
                                       screenWidth: size.width, world: world)
                 : CGPoint(x: world.wrap(jellies[i].origin.x + sin(simClock * 0.45 + jellies[i].phase) * layout.sway),
                           y: jellies[i].origin.y + sin(simClock * 0.65 + jellies[i].phase) * layout.sway)
-            if layout.maintainsFloorLane || levelIndex == 0 {
+            if (layout.maintainsFloorLane || levelIndex == 0) && level.meetingPlan == nil {
                 // Preserve a lower passage as the fish grows and the camera eases outward.
                 jellies[i].position.y = max(jellies[i].position.y,
                     waterBottom + layout.tentacleLength + GameRules.bloomFloorLaneClearance(fishRadius: player.radius))
@@ -1263,30 +1273,20 @@ final class GameScene: SKScene {
                 #if DEBUG
                 if simulationEcologyProbe && f.isPlayer { continue }
                 #endif
-                guard let old = previousFish[f.id] else { continue }
-                let p = CGPoint(x: world.delta(from: jelly.position.x, to: f.position.x),
-                                y: f.position.y - jelly.position.y)
-                // Keep both endpoints on the same wrapped branch. Independently wrapping them
-                // can draw a fictitious sweep through a jelly on the other side of the world.
-                let movement = world.delta(from: old.x, to: f.position.x)
-                    - world.delta(from: previousJelly.x, to: jelly.position.x)
-                let previous = CGPoint(x: p.x - movement, y: old.y - previousJelly.y)
-                switch JellyRules.contact(at: p, previous: previous, fishRadius: f.radius,
-                                          domeRadius: layout.radius, tentacleLength: layout.tentacleLength) {
+                guard let old = previousFish[f.id], plannedFishMeetsJellies(f) else { continue }
+                let touch = JellySwim.contact(f, old: old, jelly: jelly.position, previousJelly: previousJelly,
+                                              layout: layout, world: world)
+                switch touch.contact {
                 case .none: break
                 case .bounce:
                     guard !f.isPlayer || bounceCooldown <= 0 else { continue }
-                    let x = min(1, abs(p.x) / (layout.radius + f.radius * T.hazardHitboxScale))
-                    let surface = layout.radius * 0.65 * sqrt(max(0, 1 - x * x))
-                    let remaining = JellyRules.remainingBounceTime(at: p, previous: previous,
-                                                                  fishRadius: f.radius,
-                                                                  domeRadius: layout.radius, dt: dt)
-                    f.velocity.dy = bounceSpeed / zoom
-                    let contactY = jelly.position.y + surface + f.radius * T.hazardHitboxScale + 2
-                    f.position.y = min(waterTop - f.radius * (f.isPlayer ? 0.95 : 1),
-                                       contactY + f.velocity.dy * remaining)
+                    let remaining = JellySwim.bounce(f, at: touch.at, previous: touch.previous, jellyY: jelly.position.y,
+                        layout: layout, speed: bounceSpeed / zoom, dt: dt,
+                        ceiling: waterTop - f.radius * (f.isPlayer ? 0.95 : 1))
                     jelly.node.bounce()
                     #if DEBUG
+                    debugBounces.append((f.id, i, simClock, size.width * T.playerScreenX
+                        + world.delta(from: player.position.x, to: f.position.x) * zoom))
                     if simulationTuning != nil && f.isPlayer { simulationStats.bounces += 1 }
                     recordRunEvent("bounce", fields: ["fishID": f.id, "jellyID": i, "remainingFrame": remaining,
                                                      "x": f.position.x, "y": f.position.y, "vy": f.velocity.dy])
@@ -1380,20 +1380,8 @@ final class GameScene: SKScene {
     /// Bloom swimmers avoid tentacles while food fish stay near their bounce pockets.
     private func bloomAvoidance(for f: Fish, velocity: CGVector) -> CGVector? {
         guard let layout = level.jellies else { return nil }
-        let nearby = jellies.sorted {
-            world.distance(f.position, $0.position) < world.distance(f.position, $1.position)
-        }
-        for jelly in nearby {
-            let relative = CGPoint(x: world.delta(from: jelly.position.x, to: f.position.x),
-                                   y: f.position.y - jelly.position.y)
-            if let velocity = JellyRules.avoidance(at: relative, velocity: velocity, fishRadius: f.radius,
-                                                  domeRadius: layout.radius, tentacleLength: layout.tentacleLength,
-                                                  minY: waterBottom + f.radius - jelly.position.y,
-                                                  maxY: waterTop - f.radius - jelly.position.y, zoom: zoom) {
-                return velocity
-            }
-        }
-        return nil
+        return JellySwim.avoidance(for: f, velocity: velocity, jellies: jellies.map(\.position), layout: layout,
+                                   world: world, waterBottom: waterBottom, waterTop: waterTop, zoom: zoom)
     }
 
     private func advanceGrowth(_ dt: CGFloat) {
@@ -1452,6 +1440,12 @@ final class GameScene: SKScene {
                 }
             }
         }
+    }
+
+    /// Off screen, a planned fish you haven't met passes jellies by, like it passes other unmet fish, so
+    /// bells can't throw its meeting off; on screen it steers and bounces as usual.
+    private func plannedFishMeetsJellies(_ f: Fish) -> Bool {
+        level.meetingPlan == nil || f.isPlayer || !encounterProtected(f.id) || plannedContactVisible(f.position.x)
     }
 
     /// Off screen, two planned fish you haven't met pass each other so their meetings stay on time.
@@ -1832,7 +1826,8 @@ final class GameScene: SKScene {
     private func buildLevelIndicator() {
         levelIndicator.removeAllChildren()
         // "Shallow Reef 2 3" would read as one number; spell out its level.
-        let heading = arcadeWorld == .reefLab ? "\(arcadeWorld.title) · Level \(levelIndex + 1)" : "\(arcadeWorld.title) \(levelIndex + 1)"
+        let heading = arcadeWorld == .reefLab || arcadeWorld == .jellyLab
+            ? "\(arcadeWorld.title) · Level \(levelIndex + 1)" : "\(arcadeWorld.title) \(levelIndex + 1)"
         let text = label(plannerName ?? heading, fontSize: 13, heavy: true)
         text.horizontalAlignmentMode = .left
         text.alpha = 0.9
@@ -2243,6 +2238,8 @@ final class GameScene: SKScene {
 
     // Integration-test fixtures exercise the real scene update and hazard resolution.
     func debugStart() { startRun() }
+    /// Every bell landing this run: who, on which jelly, when, and where on screen.
+    private(set) var debugBounces: [(fishID: Int, jelly: Int, time: CGFloat, screenX: CGFloat)] = []
     func debugAdvance(seconds: CGFloat) {
         for _ in 0..<Int((seconds / T.simulationStep).rounded(.up)) { advanceFrame(T.simulationStep) }
     }

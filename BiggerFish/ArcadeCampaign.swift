@@ -7,7 +7,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     /// Planned-meeting levels, shown as Shallow Reef 2, to A/B test against Shallow Reef; see
     /// docs/meeting-planner.md. Its ID stays "reef-lab" for saved progress and analytics.
     case reefLab = "reef-lab"
-    /// Jelly Bloom with drifting jellyfish, shown as Jelly Bloom 2. A Debug-only preview for now.
+    /// Planned levels with drifting jellyfish, shown as Jelly Bloom 2. Debug-only for now.
     case jellyLab = "jelly-lab"
 
     /// The seeded campaign worlds, which the debug tuner edits.
@@ -49,8 +49,14 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         }
     }
     func level(_ index: Int) -> Level { levels[index] }
-    /// Counting Reef Lab's levels doesn't load them.
-    var levelCount: Int { self == .reefLab ? GameTuning.reefLabSpecs.count : levels.count }
+    /// Counting a planned world's levels doesn't load them.
+    var levelCount: Int {
+        switch self {
+        case .reefLab: GameTuning.reefLabSpecs.count
+        case .jellyLab: GameTuning.jellyLabSpecs.count
+        default: levels.count
+        }
+    }
     var levelTitles: [String] { (0..<levelCount).map { "Level \($0 + 1)" } }
     func levelID(_ index: Int) -> String { "\(rawValue).\(index + 1)" }
 }
