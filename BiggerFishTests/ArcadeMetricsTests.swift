@@ -73,6 +73,20 @@ struct ArcadeMetricsTests {
         #expect(!a.queue.contains { $0.name == "world_cleared" })
         #expect(a.queue.contains { $0.kind == .decision && $0.name == "retry" })
     }
+    @Test func aWorldThatGainsLevelsReportsItsNewCompletionOnce() {
+        let a = ArcadeAnalytics(defaults: defaults(), sender: Sender(), enabled: true)
+        func clear(_ setup: Int, of levels: Int) {
+            a.start(ArcadeMetricContext(world: "shallow-reef", level: setup, setup: setup, seed: "1", revision: "r"), worldLevelCount: levels)
+            a.finish("win", summary: ArcadeRunMetrics())
+        }
+        for setup in 1...10 { clear(setup, of: 10) }
+        clear(10, of: 10)
+        #expect(a.queue.filter { $0.name == "world_cleared" }.map(\.context?.level) == [10])
+        // The world grows to fifteen: finishing the new levels is a new completion, reported once.
+        for setup in 11...15 { clear(setup, of: 15) }
+        clear(15, of: 15)
+        #expect(a.queue.filter { $0.name == "world_cleared" }.map(\.context?.level) == [10, 15])
+    }
     @Test func queuedAndAbandonedEventsKeepTheirOriginatingBuild() throws {
         let d = defaults(), sender = Sender()
         let a = ArcadeAnalytics(defaults: d, sender: sender, enabled: true)

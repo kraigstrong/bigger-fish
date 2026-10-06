@@ -116,7 +116,9 @@ final class ArcadeAnalytics {
             var cleared = Set(defaults.stringArray(forKey: prefix + "world." + context.revision + "." + context.mode + "." + context.world) ?? [])
             cleared.insert(String(context.setup))
             defaults.set(Array(cleared), forKey: prefix + "world." + context.revision + "." + context.mode + "." + context.world)
-            if let expectedWorldLevels, expectedWorldLevels > 0, cleared.count >= expectedWorldLevels { milestone("world_cleared", context: context) }
+            if let expectedWorldLevels, expectedWorldLevels > 0, cleared.count >= expectedWorldLevels {
+                milestone("world_cleared", context: context, worldLevels: expectedWorldLevels)
+            }
         }
         if outcome == "win" || outcome == "death" {
             result = event
@@ -133,8 +135,13 @@ final class ArcadeAnalytics {
         result = nil; defaults.removeObject(forKey: prefix + "result")
     }
     private func contentKey(_ c: ArcadeMetricContext) -> String { "\(c.revision).\(c.mode).\(c.world).\(c.setup)" }
-    private func milestone(_ name: String, context: ArcadeMetricContext?) {
-        let scope = name.hasPrefix("world_") ? "\(context!.revision).\(context!.mode).\(context!.world)" : context.map(contentKey) ?? "install"
+    /// Worlds had ten levels before completions were scoped by level count; they keep that unsuffixed key,
+    /// so a world finished then doesn't report again.
+    private static let originalWorldLevels = 10
+    /// A world that gains levels (Shallow Reef's bonus levels) reports its completion again at its new size.
+    private func milestone(_ name: String, context: ArcadeMetricContext?, worldLevels: Int? = nil) {
+        var scope = name.hasPrefix("world_") ? "\(context!.revision).\(context!.mode).\(context!.world)" : context.map(contentKey) ?? "install"
+        if let worldLevels, worldLevels != Self.originalWorldLevels { scope += ".\(worldLevels)" }
         let key = prefix + "milestone." + name + "." + scope
         guard !defaults.bool(forKey: key) else { return }
         defaults.set(true, forKey: key)
