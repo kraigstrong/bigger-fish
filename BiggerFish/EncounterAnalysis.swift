@@ -212,7 +212,8 @@ enum JellyRoutes {
     /// `startSlack`: how far from the last meal's height you could have been while eating it.
     static func bounce(from start: Point, to target: (time: Double, y: CGFloat, zoom: CGFloat), tolerance: CGFloat,
                        radius: CGFloat, jellies: [JellyPass], startSlack: CGFloat = 0) -> Bool {
-        for pass in passes(jellies, from: start.time, to: target.time, radius: radius) {
+        let between = passes(jellies, from: start.time, to: target.time, radius: radius)
+        for pass in between {
             let zoom = CGFloat(pass.zoom)
             let window = pass.halfWindow(playerRadius: radius)
             let dome = pass.domeTop(playerRadius: radius)
@@ -223,6 +224,20 @@ enum JellyRoutes {
                 : reach(landing - start.time, zoom: zoom) >= dome - start.y && landing > start.time
             guard ready else { continue }
             let bounced = max(start.time, pass.time)
+            // Every other curtain on the way still has to be passed: over or under on the way to the dome,
+            // and with part of the bounce's reach clear of it afterward.
+            let others = between.filter { $0 != pass }
+            if bounced - start.time > 0.02 {
+                let before = others.filter { $0.time < bounced }
+                guard before.isEmpty || swim(from: start, to: (bounced, dome, zoom), tolerance: startSlack,
+                                             radius: radius, jellies: before) else { continue }
+            }
+            let laterClear = others.filter { $0.time > bounced }.allSatisfy { later in
+                let rise = EncounterAnalyzer.bounceReach(seconds: later.time - bounced)
+                let band = later.band(playerRadius: radius)
+                return dome + rise.down / CGFloat(later.zoom) < band.lowerBound || dome + rise.up / CGFloat(later.zoom) > band.upperBound
+            }
+            guard laterClear else { continue }
             let after = EncounterAnalyzer.bounceReach(seconds: target.time - bounced)
             let water = water(radius: radius, zoom: target.zoom)
             let high = min(water.upperBound, dome + after.up / target.zoom), low = max(water.lowerBound, dome + after.down / target.zoom)

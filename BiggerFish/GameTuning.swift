@@ -123,6 +123,11 @@ enum GameTuning {
     static let jellyBounceSpeed: CGFloat = 460
     static let jellyBounceSeconds: CGFloat = 0.28
     static let jellyBounceCooldown: CGFloat = 0.24
+    /// A jellyfish swims in strokes: a quick squeeze (this share of the stroke), then a slow release.
+    static let jellyStrokeSeconds: CGFloat = 1.7
+    static let jellySqueezeShare: CGFloat = 0.28
+    /// How long a jellyfish's tentacles flash after stinging.
+    static let jellyStingFlashSeconds: CGFloat = 0.6
     /// A stung fish jolts, rolls belly-up, and sinks out of sight; the result panel waits for it.
     static let stingJoltSeconds: CGFloat = 0.45
     static let stingRollSeconds: CGFloat = 0.35

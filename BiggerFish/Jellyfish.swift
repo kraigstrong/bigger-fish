@@ -271,10 +271,6 @@ final class JellyfishNode: SKNode {
         let speed: CGFloat
     }
 
-    /// One swim stroke: a quick squeeze, then a slow release.
-    static let strokeSeconds: CGFloat = 1.7
-    private static let squeezeShare: CGFloat = 0.28
-    private static let stingFlashSeconds: CGFloat = 0.6
     private static let tentacleColor = SKColor(red: 1, green: 0.36, blue: 0.68, alpha: 0.92)
     private static let armColor = SKColor(red: 0.92, green: 0.42, blue: 0.78, alpha: 0.72)
 
@@ -399,9 +395,9 @@ final class JellyfishNode: SKNode {
 
     /// 0 relaxed ... 1 fully squeezed.
     private func contraction(_ time: CGFloat) -> CGFloat {
-        let u = (time / Self.strokeSeconds + phase / (2 * .pi)).truncatingRemainder(dividingBy: 1)
-        if u < Self.squeezeShare { return sin(u / Self.squeezeShare * .pi / 2) }
-        return 0.5 + 0.5 * cos((u - Self.squeezeShare) / (1 - Self.squeezeShare) * .pi)
+        let u = (time / GameTuning.jellyStrokeSeconds + phase / (2 * .pi)).truncatingRemainder(dividingBy: 1)
+        if u < GameTuning.jellySqueezeShare { return sin(u / GameTuning.jellySqueezeShare * .pi / 2) }
+        return 0.5 + 0.5 * cos((u - GameTuning.jellySqueezeShare) / (1 - GameTuning.jellySqueezeShare) * .pi)
     }
 
     /// `drift` is the bell's velocity in world points per second; the tentacles trail behind it.
@@ -414,7 +410,7 @@ final class JellyfishNode: SKNode {
             bell.yScale = 1 + 0.11 * squeeze
         }
         trail += ((-drift.dx * 0.2).clamped(-radius * 0.14, radius * 0.14) - trail) * 0.06
-        let flash = stungAt.map { max(0, 1 - (time - $0) / Self.stingFlashSeconds) } ?? 0
+        let flash = stungAt.map { max(0, 1 - (time - $0) / GameTuning.jellyStingFlashSeconds) } ?? 0
         if flash == 0 { stungAt = nil }
         for strand in strands {
             let path = strandPath(strand, squeeze: squeeze, shock: flash * 3)

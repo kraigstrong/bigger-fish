@@ -61,6 +61,9 @@ struct MeetingPlannerTests {
         let reach = EncounterAnalyzer.reach(from: pocket, to: high, jellies: [jelly], radius: 18)
         #expect(!reach.swim && reach.bounce)
         #expect(EncounterAnalyzer.analyze([pocket, high], jellies: [jelly]).meeting(fishID: 2)?.maximumMeals == 1)
+        // Another curtain right after the bounce, across everywhere it could carry you: no way through.
+        let next = JellyPass(jellyID: 1, time: 2.2, rim: 300, domeRadius: 40, tentacleLength: 70, speed: 300, zoom: 1)
+        #expect(!EncounterAnalyzer.reach(from: pocket, to: high, jellies: [jelly, next], radius: 18).bounce)
     }
 
     @Test func reefLabPlansCleanlyAndGetsHarderLevelByLevel() {
