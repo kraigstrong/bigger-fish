@@ -50,7 +50,7 @@ struct ArcadeTuning: Codable, Equatable {
     }
 
     func displayedSpawnSeed(world: ArcadeWorld, index: Int) -> UInt64 {
-        var base = world.levels[index]
+        var base = world.seededLevels[index]
         if difficulty == nil {
             if world == .shallowReef, index < GameTuning.shallowReferenceLevels.count {
                 base = GameTuning.shallowReferenceLevels[index]
@@ -240,7 +240,7 @@ struct ArcadeTuningPanel: View {
     @State private var isChecking = false
     @State private var plannerVariation = 0
     @State private var plannerSummaries: [String: String] = [:]
-    @State private var resetWorld: ArcadeWorld = .reefLab
+    @State private var resetWorld: ArcadeWorld = .shallowReef
     @State private var confirmsReset = false
     let onPlanner: (MeetingSpec, Int) -> Void
     let onResetProgress: (ArcadeWorld) -> Void
@@ -251,7 +251,7 @@ struct ArcadeTuningPanel: View {
         self.store = store
         _world = State(initialValue: world)
         _index = State(initialValue: index)
-        _draft = State(initialValue: store.override(world, index) ?? ArcadeTuning(level: world.levels[index]))
+        _draft = State(initialValue: store.override(world, index) ?? ArcadeTuning(level: world.seededLevels[index]))
         self.onPlanner = onPlanner
         self.onResetProgress = onResetProgress
         self.onPlay = onPlay
@@ -271,12 +271,12 @@ struct ArcadeTuningPanel: View {
                             Button("Reset \(resetWorld.title)", role: .destructive) { onResetProgress(resetWorld) }
                         }
                 }
-                Section("\(ArcadeWorld.reefLab.title) variations") {
-                    Text("Other layouts of the same \(ArcadeWorld.reefLab.title) settings: every fish swims freely but is timed to cross your path at a planned height. Practice runs only.")
+                Section("\(ArcadeWorld.shallowReef.title) variations") {
+                    Text("Other layouts of the same \(ArcadeWorld.shallowReef.title) settings: every fish swims freely but is timed to cross your path at a planned height. Practice runs only.")
                         .font(.footnote)
                     Stepper("Variation: \(plannerVariation)", value: $plannerVariation, in: 0...99)
                     ForEach(Array(GameTuning.reefLabSpecs.enumerated()), id: \.offset) { index, spec in
-                        Button("Play \(ArcadeWorld.reefLab.title) level \(index + 1)") {
+                        Button("Play \(ArcadeWorld.shallowReef.title) level \(index + 1)") {
                             dismiss()
                             onPlanner(spec, plannerVariation)
                         }
@@ -289,24 +289,24 @@ struct ArcadeTuningPanel: View {
                         ForEach(ArcadeWorld.campaign) { Text($0.title).tag($0) }
                     }
                     Picker("Level", selection: $index) {
-                        ForEach(world.levels.indices, id: \.self) { Text("Level \($0 + 1)").tag($0) }
+                        ForEach(world.seededLevels.indices, id: \.self) { Text("Level \($0 + 1)").tag($0) }
                     }
-                    Text("Apply starts a fresh practice run. Practice runs don't change campaign progress. Closing leaves your current run paused.")
+                    Text("Tunes the original seeded levels the planned ones replaced. Apply starts a fresh practice run of the seeded level. Practice runs don't change campaign progress. Closing leaves your current run paused.")
                         .font(.footnote)
                 }
-                if world.levels[index].encounterDifficulty != nil {
+                if world.seededLevels[index].encounterDifficulty != nil {
                     Section("Encounter difficulty") {
                         Toggle("Use encounter difficulty", isOn: Binding(
                             get: { draft.difficulty != nil },
-                            set: { draft.setEncounterDifficultyEnabled($0, for: world.levels[index]) }))
+                            set: { draft.setEncounterDifficultyEnabled($0, for: world.seededLevels[index]) }))
                         if let value = draft.difficulty {
                             let target = EncounterDifficulty(value: value)
                             slider("Difficulty", value: Binding(get: { draft.difficulty ?? 0 },
                                 set: { draft.difficulty = $0 }), range: 0...1, step: 0.01)
-                            if world.levels[index].freeEncounterMovement {
+                            if world.seededLevels[index].freeEncounterMovement {
                                 let percentage = 100 * Double(GameTuning.freeEncounterExpectedCatchFraction(value, shallow: world == .shallowReef))
                                 Text("Expected growth assumes catching \(percentage, specifier: "%.0f")% of edible fish in each starting wave.")
-                                let budgets = draft.encounterWaveBudgets(for: world.levels[index], index: index, bloom: world == .jellyBloom)
+                                let budgets = draft.encounterWaveBudgets(for: world.seededLevels[index], index: index, bloom: world == .jellyBloom)
                                 Text("Edible at expected arrival size: " + budgets.map { "\($0.edible) of \($0.count)" }.joined(separator: ", ") + ". Fish roam freely; each unlocks after you pass its starting position.")
                                     .font(.footnote)
                             } else {
@@ -383,7 +383,7 @@ struct ArcadeTuningPanel: View {
                         .font(.footnote)
                 }
                 Section("Presets") {
-                    Button("Load shipped settings") { draft = ArcadeTuning(level: world.levels[index]) }
+                    Button("Load shipped settings") { draft = ArcadeTuning(level: world.seededLevels[index]) }
                     if world == .jellyBloom && index < GameTuning.bloomReferenceLevels.count {
                         Button("Load original five-level reference") {
                             draft = ArcadeTuning(level: GameTuning.bloomReferenceLevels[index])
@@ -467,8 +467,8 @@ struct ArcadeTuningPanel: View {
     }
     private func loadSelection() {
         clearValidation()
-        index = min(max(0, index), world.levels.count - 1)
-        draft = store.override(world, index) ?? ArcadeTuning(level: world.levels[index])
+        index = min(max(0, index), world.seededLevels.count - 1)
+        draft = store.override(world, index) ?? ArcadeTuning(level: world.seededLevels[index])
     }
     private func slider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double) -> some View {
         VStack(alignment: .leading) {

@@ -8,8 +8,6 @@ extension ArcadeWorld {
         switch self {
         case .shallowReef: UIColor(red: 0.18, green: 0.78, blue: 0.72, alpha: 1)
         case .jellyBloom: UIColor(red: 0.75, green: 0.52, blue: 1, alpha: 1)
-        case .reefLab: UIColor(red: 1, green: 0.74, blue: 0.3, alpha: 1)
-        case .jellyLab: UIColor(red: 1, green: 0.45, blue: 0.75, alpha: 1)
         }
     }
 }

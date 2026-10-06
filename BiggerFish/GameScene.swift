@@ -57,14 +57,18 @@ final class GameScene: SKScene {
     }
     let arcadeWorld: ArcadeWorld
     private var levelIndex: Int {
-        didSet { worldLevel = arcadeWorld.level(levelIndex) }
+        didSet { worldLevel = seeded ? arcadeWorld.seededLevels[levelIndex] : arcadeWorld.level(levelIndex) }
     }
+    /// Plays the world's original seeded levels instead of its planned ones (the generator's tests).
+    private let seeded: Bool
     /// This slot's level, looked up once: `level` is read for every fish on every step.
     private var worldLevel: Level
     private var level: Level {
         var base = worldLevel
         #if DEBUG
         if let plannerLevel { return plannerLevel }
+        // Planned levels are fixed data; debug references and overrides would throw their fish off plan.
+        if base.meetingPlan != nil { return base }
         let setupIndex = simulationReferenceIndex ?? base.ecosystemSeedIndex ?? levelIndex
         if arcadeWorld == .jellyBloom, activeDebugTuning?.difficulty == nil,
            activeDebugTuning != nil, setupIndex < T.bloomReferenceLevels.count {
@@ -227,10 +231,11 @@ final class GameScene: SKScene {
     private lazy var audio = ArcadeAudio()
 
     init(world: ArcadeWorld = .shallowReef, levelIndex: Int = 0,
-         showsJellyLesson: Bool = true) {
+         showsJellyLesson: Bool = true, seeded: Bool = false) {
         arcadeWorld = world
+        self.seeded = seeded
         self.levelIndex = min(max(0, levelIndex), world.levelCount - 1)
-        worldLevel = world.level(self.levelIndex)
+        worldLevel = seeded ? world.seededLevels[self.levelIndex] : world.level(self.levelIndex)
         self.showsJellyLesson = showsJellyLesson
         super.init(size: T.playfieldSize)
         scaleMode = .aspectFit
@@ -386,7 +391,9 @@ final class GameScene: SKScene {
         observeMetrics(); finishMetrics("quit")
         #if DEBUG
         finishRunRecording("restart")
-        activeDebugTuning = simulationTuning ?? (plannerLevel == nil ? ArcadeTuningStore.sceneOverride(world: arcadeWorld, index: levelIndex) : nil)
+        // Saved tuner overrides are for the old seeded levels; planned levels play as shipped.
+        activeDebugTuning = simulationTuning ?? (plannerLevel == nil && worldLevel.meetingPlan == nil
+            ? ArcadeTuningStore.sceneOverride(world: arcadeWorld, index: levelIndex) : nil)
         #endif
         for node in nodes.values { node.removeFromParent() }
         nodes.removeAll()
@@ -1828,8 +1835,7 @@ final class GameScene: SKScene {
     private func buildLevelIndicator() {
         levelIndicator.removeAllChildren()
         // "Shallow Reef 2 3" would read as one number; spell out its level.
-        let heading = arcadeWorld == .reefLab || arcadeWorld == .jellyLab
-            ? "\(arcadeWorld.title) · Level \(levelIndex + 1)" : "\(arcadeWorld.title) \(levelIndex + 1)"
+        let heading = "\(arcadeWorld.title) \(levelIndex + 1)"
         let text = label(plannerName ?? heading, fontSize: 13, heavy: true)
         text.horizontalAlignmentMode = .left
         text.alpha = 0.9

@@ -114,7 +114,7 @@ struct MeetingPlannerTests {
             let plan = GameTuning.reefLabLevels[index].meetingPlan!
             let spec = plan.spec
             let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
-            let scene = GameScene(world: .reefLab, levelIndex: index)
+            let scene = GameScene(world: .shallowReef, levelIndex: index)
             let actual = scene.debugEncounterCrossings(radii: plan.referenceRadii, eaten: reference)
             for predicted in plan.predicted {
                 let real = actual.first { $0.fishID == predicted.fishID }
@@ -124,24 +124,25 @@ struct MeetingPlannerTests {
             #expect(scene.debugVisibleUnmetContacts == 0)
             // A player who eats only what each gate needs, or everything, still meets every fish.
             for route in [plan.fewestMealRoute, plan.fullestRoute] {
-                let crossings = GameScene(world: .reefLab, levelIndex: index).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
+                let crossings = GameScene(world: .shallowReef, levelIndex: index).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
                 #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(spec.name)")
             }
         }
     }
 
-    @MainActor @Test func reefLabIsATenLevelThirdWorldThatUnlocksAndResetsLikeACampaign() {
-        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom, .reefLab, .jellyLab])
-        let world = ArcadeWorld.reefLab
+    @MainActor @Test func shallowReefPlaysTenPlannedLevelsThatUnlockAndResetLikeACampaign() {
+        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom])
+        #expect(ArcadeWorld.jellyBloom.levels.allSatisfy { $0.meetingPlan != nil && $0.jellies != nil })
+        let world = ArcadeWorld.shallowReef
         #expect(world.levelCount == 10 && world.levelTitles == (1...10).map { "Level \($0)" })
         let progress = ArcadeProgress(defaults: UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!)
         #expect(progress.isOpen(world, 0) && !progress.isOpen(world, 1) && !progress.isOpen(world, 10))
         progress.clear(world, 0, seconds: 20)
-        progress.clear(.shallowReef, 0, seconds: 30)
-        #expect(progress.isOpen(world, 1) && progress.save.bestTimes["reef-lab.1"] == 20)
+        progress.clear(.jellyBloom, 0, seconds: 30)
+        #expect(progress.isOpen(world, 1) && progress.save.bestTimes["shallow-reef.1"] == 20)
         progress.reset(world)
-        #expect(!progress.isCleared(world, 0) && progress.save.bestTimes["reef-lab.1"] == nil)
-        #expect(progress.isCleared(.shallowReef, 0))
+        #expect(!progress.isCleared(world, 0) && progress.save.bestTimes["shallow-reef.1"] == nil)
+        #expect(progress.isCleared(.jellyBloom, 0))
         let scene = GameScene(world: world, levelIndex: 5)
         #expect(scene.debugEncounterCrossings(laps: 0.01).isEmpty)
         #expect(scene.debugFishCount == world.level(5).meetingPlan!.fish.count + 1)
@@ -214,7 +215,7 @@ struct MeetingPlannerTests {
             let plan = GameTuning.jellyLabLevels[index].meetingPlan!
             #expect(!(plan.jellies ?? []).isEmpty)
             let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
-            let scene = GameScene(world: .jellyLab, levelIndex: index)
+            let scene = GameScene(world: .jellyBloom, levelIndex: index)
             let actual = scene.debugEncounterCrossings(radii: plan.referenceRadii, eaten: reference)
             for predicted in plan.predicted {
                 let real = actual.first { $0.fishID == predicted.fishID }

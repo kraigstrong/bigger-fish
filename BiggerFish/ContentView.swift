@@ -47,14 +47,14 @@ struct ContentView: View {
             .padding(.trailing, 12).padding(.bottom, 4)
         }
         .sheet(isPresented: $showsTuning) {
-            // The tuner edits seeded campaign levels; from Shallow Reef 2 it opens on Shallow Reef.
+            // Planned levels ignore the tuner's seeded settings; its Players and variations sections still apply.
             let current = scene?.arcadeWorld ?? selectedWorld ?? .jellyBloom
             let campaign = ArcadeWorld.campaign.contains(current)
             ArcadeTuningPanel(store: tuningStore, world: campaign ? current : .shallowReef,
                               index: campaign ? scene?.debugLevelIndex ?? 1 : 0, onPlanner: playPlanner,
                               onResetProgress: { progress.reset($0) }) { world, index in
                 selectedWorld = world
-                play(world, index: index, practice: true)
+                play(world, index: index, practice: true, seeded: true)
             }
         }
         #endif
@@ -90,14 +90,15 @@ struct ContentView: View {
     }
     #endif
 
-    private func play(_ world: ArcadeWorld, index: Int, practice: Bool = false) {
+    /// `seeded` (Debug, from the tuner) plays the world's original seeded level instead of its planned one.
+    private func play(_ world: ArcadeWorld, index: Int, practice: Bool = false, seeded: Bool = false) {
         #if DEBUG
         guard practice || progress.isOpen(world, index) || ArcadePlaytest.selection != nil else { return }
         #else
         guard progress.isOpen(world, index) else { return }
         #endif
         let game = GameScene(world: world, levelIndex: index,
-                             showsJellyLesson: !progress.save.hasSeenJellyLesson)
+                             showsJellyLesson: !progress.save.hasSeenJellyLesson, seeded: seeded)
         #if DEBUG
         game.debugPracticeRun = practice
         #endif

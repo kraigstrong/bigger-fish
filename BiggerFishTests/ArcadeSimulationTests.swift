@@ -13,7 +13,7 @@ struct ArcadeSimulationTests {
     @Test func identicalSimulationSeedsAndInputsRepeat() {
         let tuning = ArcadeTuning(level: GameTuning.bloomLevels[0])
         func run() -> ArcadeSimulation.Result {
-            let scene = GameScene(world: .jellyBloom)
+            let scene = GameScene(world: .jellyBloom, seeded: true)
             return scene.debugSimulate(candidate: "determinism", tuning: tuning, policy: .collector, seed: 0, limit: 5)
         }
         let first = run(), second = run()
@@ -33,7 +33,7 @@ struct ArcadeSimulationTests {
         ]
         for slow in [false, true] {
             func run(_ frames: [CGFloat]) -> ArcadeSimulation.Audit {
-                let scene = GameScene(world: .jellyBloom, levelIndex: 4)
+                let scene = GameScene(world: .jellyBloom, levelIndex: 4, seeded: true)
                 return scene.debugAuditRepeatability(frames: frames, fixedStep: true,
                     slowMotion: slow, scriptedInput: true)
             }
@@ -43,7 +43,7 @@ struct ArcadeSimulationTests {
     }
 
     @Test func fixedTimingBoundsHitchesAndDropsPausedDebt() {
-        let scene = GameScene(world: .jellyBloom)
+        let scene = GameScene(world: .jellyBloom, seeded: true)
         #expect(scene.debugCheckFixedTimingLifecycle())
     }
 
@@ -52,7 +52,7 @@ struct ArcadeSimulationTests {
         for world: ArcadeWorld in [.shallowReef, .jellyBloom] {
             for index in world.levels.indices {
                 func run(omitted: Set<Int> = [], remove: Bool = false) -> ArcadeSimulation.Audit {
-                    let scene = GameScene(world: world, levelIndex: index)
+                    let scene = GameScene(world: world, levelIndex: index, seeded: true)
                     return scene.debugAuditRepeatability(frames: frames, omittedIDs: omitted, removeOmittedFish: remove)
                 }
                 let control = run()
@@ -66,7 +66,7 @@ struct ArcadeSimulationTests {
     }
 
     @Test func removedFishReleaseTheirStreamsAndRetriesRecreateThem() {
-        let scene = GameScene(world: .jellyBloom)
+        let scene = GameScene(world: .jellyBloom, seeded: true)
         let tuning = ArcadeTuning(level: GameTuning.bloomLevels[0])
         _ = scene.debugSimulate(candidate: "stream lifecycle", tuning: tuning, policy: .collector, seed: 0, limit: 0)
         scene.debugHazardWipeout()
@@ -76,7 +76,7 @@ struct ArcadeSimulationTests {
     }
 
     @Test func ecologyProbeCannotDieOrFeed() {
-        let scene = GameScene(world: .jellyBloom, levelIndex: 1)
+        let scene = GameScene(world: .jellyBloom, levelIndex: 1, seeded: true)
         let result = scene.debugSimulate(candidate: "ecology", tuning: ArcadeTuning(level: GameTuning.bloomLevels[1]),
             policy: .cautious, seed: 1, limit: 10, ecologyProbe: true)
         #expect(result.outcome == "timeout")
@@ -86,7 +86,7 @@ struct ArcadeSimulationTests {
 
     @Test func shippedEcosystemsKeepTheirFoodBudget() {
         for (index, level) in GameTuning.bloomLevels.enumerated() {
-            let scene = GameScene(world: .jellyBloom, levelIndex: index)
+            let scene = GameScene(world: .jellyBloom, levelIndex: index, seeded: true)
             let result = scene.debugSimulate(candidate: "spawn budget", tuning: ArcadeTuning(level: level),
                 policy: .cautious, seed: 0, limit: 0)
             #expect(result.spawned == result.configured)
@@ -97,7 +97,7 @@ struct ArcadeSimulationTests {
     @Test func skippedPassDoesNotAccidentallyCollectMeals() {
         let tuning = ArcadeTuning(level: GameTuning.bloomLevels[0])
         func run(_ delay: CGFloat) -> ArcadeSimulation.Result {
-            GameScene(world: .jellyBloom).debugSimulate(
+            GameScene(world: .jellyBloom, seeded: true).debugSimulate(
                 candidate: "skipped pass", tuning: tuning, policy: .cautious, seed: 0, limit: 8, delayedPasses: delay)
         }
         let feeding = run(0), skipped = run(1)
@@ -112,7 +112,7 @@ struct ArcadeSimulationTests {
         for (index, level) in GameTuning.bloomLevels.enumerated() {
             var won = false
             for policy in ArcadeSimulation.Policy.allCases {
-                let scene = GameScene(world: .jellyBloom, levelIndex: index)
+                let scene = GameScene(world: .jellyBloom, levelIndex: index, seeded: true)
                 let result = scene.debugSimulate(candidate: "winning route", tuning: ArcadeTuning(level: level),
                     policy: policy, seed: 0, limit: 90)
                 if result.outcome == "won" { won = true; break }
@@ -122,7 +122,7 @@ struct ArcadeSimulationTests {
     }
 
     @Test func acceptedOriginalLevelFiveOpeningRemainsAvailableAsAReference() {
-        let scene = GameScene(world: .jellyBloom, levelIndex: 4)
+        let scene = GameScene(world: .jellyBloom, levelIndex: 4, seeded: true)
         // This fixture records the original pre-global-growth opening, not today's balance.
         var reference = ArcadeTuning(level: GameTuning.bloomReferenceLevels[4])
         reference.absorption /= Double(GameTuning.mealGrowthScale)
@@ -141,7 +141,7 @@ struct ArcadeSimulationTests {
     @Test func sceneCollisionGivesEqualFishToThePlayerInBothOrders() {
         for ratio: CGFloat in [1, 0.995, 1.005] {
             for second in [false, true] {
-                let scene = GameScene(world: .jellyBloom)
+                let scene = GameScene(world: .jellyBloom, seeded: true)
                 #expect(scene.debugResolvePlayerTie(otherRatio: ratio, playerSecond: second))
             }
         }
@@ -154,7 +154,7 @@ struct ArcadeSimulationTests {
         guard FileManager.default.fileExists(atPath: folder.appendingPathComponent("repeatability-investigation.request").path) else { return }
         func run(_ frames: [CGFloat], isolated: Bool = true, omitted: Set<Int> = [],
                  zoom: CGFloat = 1, radius: CGFloat = 16) -> ArcadeSimulation.Audit {
-            let scene = GameScene(world: .jellyBloom, levelIndex: 4)
+            let scene = GameScene(world: .jellyBloom, levelIndex: 4, seeded: true)
             return scene.debugAuditRepeatability(frames: frames, isolatedAI: isolated, omittedIDs: omitted,
                                                 fixedZoom: zoom, playerRadius: radius)
         }
@@ -188,7 +188,7 @@ struct ArcadeSimulationTests {
             search: for horizon: CGFloat in [0.4, 0.6, 0.8, 1.2] {
                 for appetite: CGFloat in [0, 8, 16] {
                     for danger: CGFloat in [10, 25, 60, 100, 200] {
-                        let scene = GameScene(world: .jellyBloom, levelIndex: index)
+                        let scene = GameScene(world: .jellyBloom, levelIndex: index, seeded: true)
                         let result = scene.debugSimulate(candidate: "route priorities", tuning: ArcadeTuning(level: GameTuning.bloomLevels[index]),
                             policy: .opportunist, seed: 0, limit: 90, predictionSeconds: horizon, foodPriority: appetite, dangerWeight: danger)
                         results.append(result)
@@ -235,7 +235,7 @@ struct ArcadeSimulationTests {
             let tuning = candidate.tuning ?? ArcadeTuning(level: world.levels[candidate.level - 1])
             for seed in request.seeds {
                 if request.ecology {
-                    let scene = GameScene(world: world, levelIndex: candidate.level - 1)
+                    let scene = GameScene(world: world, levelIndex: candidate.level - 1, seeded: true)
                     results.append(scene.debugSimulate(candidate: candidate.name, tuning: tuning, policy: .cautious,
                         seed: seed, limit: CGFloat(request.limit), ecologyProbe: true))
                 }
@@ -243,7 +243,7 @@ struct ArcadeSimulationTests {
                     for delay in request.delayedPasses {
                         for skipped in request.skippedFirstPassFishIDs ?? [[]] {
                             for budget in request.firstPassMealLimits?.map({ $0 < 0 ? nil : Optional.some($0) }) ?? [nil] {
-                                let scene = GameScene(world: world, levelIndex: candidate.level - 1)
+                                let scene = GameScene(world: world, levelIndex: candidate.level - 1, seeded: true)
                                 results.append(scene.debugSimulate(candidate: candidate.name, tuning: tuning, policy: policy,
                                     seed: seed, limit: CGFloat(request.limit), delayedPasses: CGFloat(delay),
                                     firstPassMealLimit: budget, skippedFirstPassFishIDs: skipped))

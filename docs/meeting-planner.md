@@ -108,7 +108,7 @@ choosing lanes; playtesting decides difficulty.
 
 ## Jelly Bloom 2
 
-Jelly Bloom 2 (ID `jelly-lab`, Debug-only for now) plans Jelly Bloom the same way, with Shallow Reef 2's
+Jelly Bloom 2, now Jelly Bloom (ID `jelly-bloom`), plans Jelly Bloom the same way, with Shallow Reef 2's
 ten fish curves and drifting jellyfish. A jelly wanders a tenth of a screen around its home and bobs, as a
 pure function of time (`JellyDrift`), so the planner knows where every bell is at every step.
 
@@ -150,13 +150,14 @@ variations still plan on the device.
 
 ## Playing them
 
-Every build, TestFlight included, shows Reef Lab as **Shallow Reef 2**, the third world on the map, so
-testers can compare it with Shallow Reef. Its levels unlock one at a time like the campaign's, with clears
-and best times saved under `reef-lab` IDs (also its anonymous analytics world), so level N compares with
-Shallow Reef level N. In Debug builds, **Tuning > Players** resets a world's progress for a new player.
+Reef Lab and Jelly Bloom 2 were A/B tested as Shallow Reef 2 and Jelly Bloom 2 against the seeded
+campaigns, won, and now are **Shallow Reef** and **Jelly Bloom**, under the original `shallow-reef` and
+`jelly-bloom` IDs (progress and anonymous analytics). The seeded levels stay in `GameTuning` for the
+debug tuner and the generator's tests (`GameScene(seeded: true)`). In Debug builds, **Tuning > Players**
+resets a world's progress for a new player.
 
-**Tuning > Shallow Reef 2 variations** (Debug) plays other layouts of the same settings as practice runs, or launch with
-`-arcadePlanner 10.3` (level 10, variation 3); `-arcadePlaytest reef-lab.10` plays the level itself.
+**Tuning > Shallow Reef variations** (Debug) plays other layouts of the same settings as practice runs, or launch with
+`-arcadePlanner 10.3` (level 10, variation 3); `-arcadePlaytest shallow-reef.10` plays the level itself.
 Recordings include each fish's role, fork lane, gate meals, routes, and slack.
 
 `MeetingPlannerTests` checks the presets, and its marker-gated studies report them
