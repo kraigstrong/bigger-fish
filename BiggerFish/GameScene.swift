@@ -228,7 +228,8 @@ final class GameScene: SKScene {
     private var recordingStartedAt: CGFloat = 0
     private var recordedEncounterReleases: Set<Int> = []
     #endif
-    private lazy var audio = ArcadeAudio()
+    private var audio: ArcadeAudio { .shared }
+    private var settings: ArcadeSettings { .shared }
 
     init(world: ArcadeWorld = .shallowReef, levelIndex: Int = 0,
          showsJellyLesson: Bool = true, seeded: Bool = false) {
@@ -276,6 +277,8 @@ final class GameScene: SKScene {
     private let levelIndicator = SKNode()
     private var resumeButton = SKShapeNode()
     private var restartButton = SKShapeNode()
+    private var effectsButton = SKShapeNode()
+    private var musicButton = SKShapeNode()
 
     private var holdTouches = Set<UITouch>()
     private var lastUpdate: TimeInterval?
@@ -710,6 +713,7 @@ final class GameScene: SKScene {
         phase = newPhase
         pauseButton.isHidden = newPhase != .playing
         pauseMenu.isHidden = newPhase != .paused
+        if newPhase == .paused { buildSoundToggles() }
         switch newPhase {
         case .ready:
             resultPanel = nil
@@ -900,6 +904,12 @@ final class GameScene: SKScene {
                     #endif
                 } else if restartButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     resetGame(startPlaying: false)
+                } else if effectsButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
+                    settings.soundEffectsOn.toggle()
+                    buildSoundToggles()
+                } else if musicButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
+                    settings.musicOn.toggle()
+                    buildSoundToggles()
                 } else if mapButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     #if DEBUG
                     finishRunRecording("level_map")
@@ -1890,6 +1900,31 @@ final class GameScene: SKScene {
         pauseMenu.addChild(resumeButton)
         pauseMenu.addChild(restartButton)
         addMapButton(to: pauseMenu, y: size.height / 2 - 120, x: size.width / 2)
+        buildSoundToggles()
+    }
+
+    /// Sound effects and music switches beside the pause menu's actions.
+    private func buildSoundToggles() {
+        effectsButton.removeFromParent()
+        musicButton.removeFromParent()
+        let x = size.width / 2 + 230
+        effectsButton = toggleButton("Effects", isOn: settings.soundEffectsOn, at: CGPoint(x: x, y: size.height / 2 + 5))
+        musicButton = toggleButton("Music", isOn: settings.musicOn, at: CGPoint(x: x, y: size.height / 2 - 60))
+        pauseMenu.addChild(effectsButton)
+        pauseMenu.addChild(musicButton)
+    }
+
+    private func toggleButton(_ title: String, isOn: Bool, at position: CGPoint) -> SKShapeNode {
+        let button = SKShapeNode(rectOf: CGSize(width: 150, height: 44), cornerRadius: 22)
+        button.fillColor = isOn ? SKColor(white: 1, alpha: 0.92) : SKColor(white: 1, alpha: 0.08)
+        button.strokeColor = isOn ? .clear : SKColor(white: 1, alpha: 0.6)
+        button.lineWidth = 2
+        button.position = position
+        let text = label("\(title): \(isOn ? "On" : "Off")", fontSize: 18, heavy: true)
+        text.fontColor = isOn ? SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1) : .white
+        button.addChild(text)
+        button.accessibilityLabel = "\(title), \(isOn ? "on" : "off")"
+        return button
     }
 
     private func addMapButton(to parent: SKNode, y: CGFloat, x: CGFloat = 0) {

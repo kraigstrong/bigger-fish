@@ -51,6 +51,9 @@ struct ArcadeWorldMap: View {
                 }
                 Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
                     .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
+                SoundToggles()
+                    .frame(width: size.width - 24, alignment: .trailing)
+                    .padding(.top, 14)
                 VStack { Spacer(); Text("Choose a world")
                     .font(.custom("AvenirNext-DemiBold", size: 13)).padding(.bottom, 12) }
                     .frame(width: size.width).allowsHitTesting(false)
@@ -58,6 +61,38 @@ struct ArcadeWorldMap: View {
         }
         .foregroundStyle(.white)
         .background(OceanBackdrop(bloom: false))
+    }
+}
+
+/// The sound effects and music switches, as two small round buttons.
+struct SoundToggles: View {
+    @ObservedObject var settings = ArcadeSettings.shared
+
+    var body: some View {
+        HStack(spacing: 10) {
+            toggle($settings.soundEffectsOn, symbol: "speaker.wave.2.fill", label: "Sound effects")
+            toggle($settings.musicOn, symbol: "music.note", label: "Music")
+        }
+    }
+
+    private func toggle(_ isOn: Binding<Bool>, symbol: String, label: String) -> some View {
+        Button { isOn.wrappedValue.toggle() } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .bold))
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(.white.opacity(isOn.wrappedValue ? 0.18 : 0.05)))
+                .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
+                .overlay {
+                    // Off: struck through and dimmed.
+                    if !isOn.wrappedValue {
+                        Capsule().frame(width: 2.5, height: 30).rotationEffect(.degrees(-45))
+                    }
+                }
+                .opacity(isOn.wrappedValue ? 1 : 0.55)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityValue(isOn.wrappedValue ? "On" : "Off")
     }
 }
 
