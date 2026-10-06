@@ -575,7 +575,7 @@ enum GameTuning {
     ]
 
     /// Playtested Jelly Bloom 2 levels whose shipped plans are kept exactly as played (see `reefLabFrozen`).
-    static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.prefix(8).map(\.name))
+    static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.prefix(9).map(\.name))
 
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")

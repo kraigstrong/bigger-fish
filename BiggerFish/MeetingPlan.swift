@@ -700,11 +700,18 @@ enum MeetingDesigner {
                 guard slot >= T.plannerEarliestDangerMeal, slot < meetings.count,
                       meetings[slot].role != .threat, meetings[slot - 1].role != .threat else { return false }
                 if let fork = meetings[slot].fork, meetings[slot - 1].fork == fork { return false }
+                // Nor beside a jelly's meals: above a bell, a big fish closes the way over it.
+                if [meetings[slot], meetings[slot - 1]].contains(where: { $0.jelly != nil || $0.bounceFrom != nil || $0.under != nil }) {
+                    return false
+                }
                 let most = meetings[..<slot].filter { $0.role != .threat && $0.lane == 0 }.reduce(CGFloat(1)) { grow($0, [$1.size]) }
                 return most * 1.12 < size
             }
             if !fits(position) {
-                guard let earlier = stride(from: position - 1, through: 1, by: -1).first(where: fits) else { continue }
+                guard let earlier = stride(from: position - 1, through: 1, by: -1).first(where: fits) else {
+                    issues.append("no room for an open-water big fish")
+                    continue
+                }
                 position = earlier
             }
             meetings.insert(DesignedMeeting(key: key, role: .threat, segment: meetings[min(position, meetings.count - 1)].segment, size: size),
@@ -788,12 +795,17 @@ enum MeetingDesigner {
         var occupied = meetings.filter { $0.jelly != nil }.map(\.distance)
         if let demo = meetings.first(where: \.demo) { occupied.append(demo.distance) }
         let guarded = Set(meetings.compactMap(\.guards))
+        // Meals crossing next to a big fish in open water: a bell there would leave no way past.
+        let besideOpenWater = Set(meetings.indices.filter { index in
+            [index - 1, index + 1].contains { meetings.indices.contains($0) && meetings[$0].role == .threat
+                && meetings[$0].guards == nil && meetings[$0].wall == nil }
+        }.map { meetings[$0].key })
         let splitForks = Set(meetings.filter { $0.under != nil }.compactMap(\.fork))
         func candidates(for role: PlannedJelly.Role) -> [Int] {
             let open = meals.dropFirst(2).filter { index in
                 let meal = meetings[index]
                 guard meal.role == .food, meal.jelly == nil, meal.bounceFrom == nil, meal.under == nil, !meal.demo,
-                      !guarded.contains(meal.key) else { return false }
+                      !guarded.contains(meal.key), !besideOpenWater.contains(meal.key) else { return false }
                 guard let fork = meal.fork else { return true }
                 // In a fork, the jelly takes the lane that keeps it clear of the other: under the high long
                 // lane, or over the low short lane.

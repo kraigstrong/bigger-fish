@@ -2587,6 +2587,8 @@ final class GameScene: SKScene {
     func debugUsePlanner(_ spec: MeetingSpec, variation: Int = 0) {
         plannerLevel = MeetingPlanner.plan(spec, variation: variation).level
     }
+    /// Play this exact plan (no replanning). Call before the scene is shown.
+    func debugUsePlan(_ plan: MeetingPlan) { plannerLevel = plan.level }
     var debugMeetingPlan: MeetingPlan? { level.meetingPlan }
 
     /// A fish you've passed, touching a planned fish you haven't met, turns away; the planned fish keeps its line.
