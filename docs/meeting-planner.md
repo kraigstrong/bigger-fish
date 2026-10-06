@@ -106,6 +106,40 @@ one lane per fork. In the real scene every fish crosses within 0.05 s and 3 poin
 reference route, and every fish still arrives on the fewest-meal and fullest routes. Bots are poor at
 choosing lanes; playtesting decides difficulty.
 
+## Jelly Bloom 2
+
+Jelly Bloom 2, now Jelly Bloom (ID `jelly-bloom`), plans Jelly Bloom the same way, with Shallow Reef 2's
+ten fish curves and drifting jellyfish. A jelly wanders a tenth of a screen around its home and bobs, as a
+pure function of time (`JellyDrift`), so the planner knows where every bell is at every step.
+
+- **Jellies sit beside meetings.** A *pocket* meal crosses just above a dome, so you bounce as you eat it.
+  A *bounce* meal (`Segment.bounceMeals`) crosses high above a pocket half a second later: out of
+  swimming reach, inside the bounce's. A fork can be *split* by a jelly (`Fork.bounce`): its long lane
+  starts on the dome and climbs with the bounce, its short lane passes under the tentacles. A *sting*
+  meal crosses just under hanging tentacles; on levels 9–10 tentacles are a walled gate's upper wall
+  wherever the bell fits over the gate with the gate still in mid-water (elsewhere, early in the level
+  before the camera zooms out, the gate keeps both wall fish).
+  *Open* jellies sit clear of the swim between two meals. Level 1's second plain meal is a *demo* fish
+  that bounces off the first jelly while it's ahead of you on screen; the solver places that jelly
+  under its swim.
+- **Fish swim around them exactly as the game does.** `JellySwim` holds the steering and bounce the scene
+  and the solver share. Like other unmet fish, a planned fish you haven't met ignores jellies while it's
+  off screen, so bells can't knock its meeting off schedule; on screen and after you meet it, it steers
+  and bounces as usual.
+- **Routes know about bells.** The analyzer gets each jelly's pass: you must be above its dome or below
+  its tentacles while it's in your column, or land on the dome and ride the bounce (`JellyRoutes`).
+  `check` confirms bounce meals need their bounce and sting meals are close calls.
+- **Bells keep apart and below the surface.** A fish with no room to rise above a dome slides over it
+  instead of bouncing (Jelly Bloom 2 only), so nothing rattles between a dome and the surface.
+- **Big fish in open water only have to stay clear of your path,** at any height that keeps their
+  clearance: near drifting bells they rarely swim to one exact height.
+
+The ramp: levels 1–2 have bells to bounce on if you like; from 3, sting meals; from 5, bounce meals,
+then split forks; 9–10 wall gates with tentacles. Plans ship in `BiggerFish/JellyLabPlans.json`; create
+`build/arcade-development/jelly-lab-plans.request` and run `MeetingPlannerTests` to regenerate it
+(several minutes: replanning ten jelly levels is slow, so CI only checks the file matches the specs).
+Levels 1–8 are frozen as played (`GameTuning.jellyLabFrozen`); regenerating keeps them.
+
 ## Shipped as data
 
 Plans are deterministic, so Reef Lab's are made on the Mac and shipped in `BiggerFish/ReefLabPlans.json`:
@@ -116,13 +150,14 @@ variations still plan on the device.
 
 ## Playing them
 
-Every build, TestFlight included, shows Reef Lab as **Shallow Reef 2**, the third world on the map, so
-testers can compare it with Shallow Reef. Its levels unlock one at a time like the campaign's, with clears
-and best times saved under `reef-lab` IDs (also its anonymous analytics world), so level N compares with
-Shallow Reef level N. In Debug builds, **Tuning > Players** resets a world's progress for a new player.
+Reef Lab and Jelly Bloom 2 were A/B tested as Shallow Reef 2 and Jelly Bloom 2 against the seeded
+campaigns, won, and now are **Shallow Reef** and **Jelly Bloom**, under the original `shallow-reef` and
+`jelly-bloom` IDs (progress and anonymous analytics). The seeded levels stay in `GameTuning` for the
+debug tuner and the generator's tests (`GameScene(seeded: true)`). In Debug builds, **Tuning > Players**
+resets a world's progress for a new player.
 
-**Tuning > Shallow Reef 2 variations** (Debug) plays other layouts of the same settings as practice runs, or launch with
-`-arcadePlanner 10.3` (level 10, variation 3); `-arcadePlaytest reef-lab.10` plays the level itself.
+**Tuning > Shallow Reef variations** (Debug) plays other layouts of the same settings as practice runs, or launch with
+`-arcadePlanner 10.3` (level 10, variation 3); `-arcadePlaytest shallow-reef.10` plays the level itself.
 Recordings include each fish's role, fork lane, gate meals, routes, and slack.
 
 `MeetingPlannerTests` checks the presets, and its marker-gated studies report them

@@ -7,7 +7,7 @@ import Testing
 struct ArcadeEncounterTests {
     @MainActor @Test func protectedFishSeparateAndTurnAwayEvenAgainstReleasedPredators() {
         for index in [0, 1, 9] {
-            let scene = GameScene(world: .jellyBloom, levelIndex: index)
+            let scene = GameScene(world: .jellyBloom, levelIndex: index, seeded: true)
             let view = SKView(frame: CGRect(x: 0, y: 0, width: 874, height: 402))
             view.presentScene(scene)
             scene.debugStart()
@@ -20,7 +20,7 @@ struct ArcadeEncounterTests {
         #expect(GameTuning.bloomLevels[1].freeEncounterMovement)
         #expect(GameTuning.bloomLevels.allSatisfy { $0.freeEncounterMovement })
         #expect(GameTuning.bloomLevels[1].absorptionEfficiency < GameTuning.encounterAbsorption)
-        let result = GameScene(world: .jellyBloom, levelIndex: 1).debugFreeEncounterMotionCheck()
+        let result = GameScene(world: .jellyBloom, levelIndex: 1, seeded: true).debugFreeEncounterMotionCheck()
         #expect(result.travel > 150)
         #expect(result.fastFish >= 3)
         #expect(result.intact)
@@ -29,7 +29,7 @@ struct ArcadeEncounterTests {
     }
 
     @MainActor @Test func movementAvoidanceAllowsARealAIBellBounce() {
-        let scene = GameScene(world: .jellyBloom, levelIndex: 1)
+        let scene = GameScene(world: .jellyBloom, levelIndex: 1, seeded: true)
         let view = SKView(frame: CGRect(x: 0, y: 0, width: 874, height: 402))
         view.presentScene(scene)
         scene.debugStart()
@@ -39,7 +39,7 @@ struct ArcadeEncounterTests {
 
     @MainActor @Test func evenProtectedAIFishCanBounceWithoutDyingFromStingers() {
         for index in [0, 1] {
-            let scene = GameScene(world: .jellyBloom, levelIndex: index)
+            let scene = GameScene(world: .jellyBloom, levelIndex: index, seeded: true)
             let view = SKView(frame: CGRect(x: 0, y: 0, width: 874, height: 402))
             view.presentScene(scene)
             scene.debugStart()
@@ -85,7 +85,7 @@ struct ArcadeEncounterTests {
 
     @MainActor @Test func variedWavesKeepTheirBudgetAndStartClearOfFishAndTentacles() {
         for index in 0..<10 {
-            let scene = GameScene(world: .jellyBloom, levelIndex: index)
+            let scene = GameScene(world: .jellyBloom, levelIndex: index, seeded: true)
             #expect(scene.debugEncounterSpawnSafety(), "Level \(index + 1)")
         }
     }
@@ -138,7 +138,7 @@ struct ArcadeEncounterTests {
 
     @MainActor @Test func scenePreservesFoodBeforeReleaseAndAllowsAICompetitionAfterIt() {
         for index in [0, 9] {
-            let scene = GameScene(world: .jellyBloom, levelIndex: index)
+            let scene = GameScene(world: .jellyBloom, levelIndex: index, seeded: true)
             let view = SKView(frame: CGRect(x: 0, y: 0, width: 874, height: 402))
             view.presentScene(scene)
             scene.debugStart()

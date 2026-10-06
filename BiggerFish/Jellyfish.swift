@@ -11,6 +11,8 @@ struct JellyLayout {
     let night: Bool
     let maintainsFloorLane: Bool
     let heights: [CGFloat]
+    /// Wander slowly around each bell's home (Jelly Bloom 2) instead of the small fixed sway.
+    var drifts = false
 
     init(count: Int, radius: CGFloat = 38, tentacleLength: CGFloat = 90,
          sway: CGFloat = 12, urchinBeds: Int = 0, night: Bool = false, maintainsFloorLane: Bool = false, heights: [CGFloat] = []) {
@@ -52,7 +54,101 @@ enum JellyPlacement {
     }
 }
 
+/// Jelly Bloom 2's slow wander: each bell floats side to side and bobs around its home, on its own phase,
+/// as a pure function of time so planned fish can predict it.
+enum JellyDrift {
+    static func position(origin: CGPoint, phase: CGFloat, time: CGFloat, screenWidth: CGFloat, world: WrappedWorld) -> CGPoint {
+        CGPoint(x: world.wrap(origin.x + sin(time * 2 * .pi / GameTuning.jellyDriftSeconds + phase)
+                    * screenWidth * GameTuning.jellyDriftScreens),
+                y: origin.y + sin(time * 2 * .pi / GameTuning.jellyBobSeconds + phase * 1.3) * GameTuning.jellyBobPoints)
+    }
+
+    /// The home that puts a bell's rim at `position` at `time`.
+    static func origin(for position: CGPoint, phase: CGFloat, time: CGFloat, screenWidth: CGFloat, world: WrappedWorld) -> CGPoint {
+        CGPoint(x: world.wrap(position.x - sin(time * 2 * .pi / GameTuning.jellyDriftSeconds + phase)
+                    * screenWidth * GameTuning.jellyDriftScreens),
+                y: position.y - sin(time * 2 * .pi / GameTuning.jellyBobSeconds + phase * 1.3) * GameTuning.jellyBobPoints)
+    }
+}
+
 enum JellyContact: Equatable { case none, bounce, tentacles }
+
+/// How a roaming fish meets jellyfish, shared by GameScene and the meeting planner so a planned fish
+/// swims around and bounces off bells exactly as predicted.
+enum JellySwim {
+    /// Steering away from the nearest curtain the fish is heading into; nil when its way is clear.
+    static func avoidance(for f: Fish, velocity: CGVector, jellies: [CGPoint], layout: JellyLayout,
+                          world: WrappedWorld, waterBottom: CGFloat, waterTop: CGFloat, zoom: CGFloat) -> CGVector? {
+        // Only a curtain within the look-ahead's reach can steer it; the rest would return nil anyway.
+        let reach = abs(velocity.dx) * GameTuning.bloomAvoidanceLookAhead + layout.radius * 0.72
+            + f.radius * GameTuning.hazardHitboxScale + GameTuning.bloomAvoidancePadding + 1
+        let nearby = jellies.filter { abs(world.delta(from: $0.x, to: f.position.x)) <= reach }
+            .sorted { world.distance(f.position, $0) < world.distance(f.position, $1) }
+        for jelly in nearby {
+            let relative = CGPoint(x: world.delta(from: jelly.x, to: f.position.x), y: f.position.y - jelly.y)
+            if let velocity = JellyRules.avoidance(at: relative, velocity: velocity, fishRadius: f.radius,
+                                                  domeRadius: layout.radius, tentacleLength: layout.tentacleLength,
+                                                  minY: waterBottom + f.radius - jelly.y,
+                                                  maxY: waterTop - f.radius - jelly.y, zoom: zoom) {
+                return velocity
+            }
+        }
+        return nil
+    }
+
+    /// Turns a free swimmer toward `avoidance`, aiming its next height at the way out.
+    static func steer(_ f: Fish, velocity: CGVector, toward avoidance: CGVector, dt: CGFloat,
+                      minY: CGFloat, maxY: CGFloat) -> CGVector {
+        let steer = min(1, dt * GameTuning.bloomAvoidanceTurnRate)
+        f.heading = avoidance.dx >= 0 ? 1 : -1
+        f.targetY = (f.position.y + avoidance.dy * GameTuning.bloomAvoidanceLookAhead).clamped(minY, maxY)
+        return CGVector(dx: velocity.dx + (avoidance.dx - velocity.dx) * steer,
+                        dy: velocity.dy + (avoidance.dy - velocity.dy) * steer)
+    }
+
+    /// A fish that moved from `old` against a jelly that moved from `previousJelly`, in the jelly's frame.
+    static func contact(_ f: Fish, old: CGPoint, jelly: CGPoint, previousJelly: CGPoint, layout: JellyLayout,
+                        world: WrappedWorld) -> (contact: JellyContact, at: CGPoint, previous: CGPoint) {
+        let p = CGPoint(x: world.delta(from: jelly.x, to: f.position.x), y: f.position.y - jelly.y)
+        // Keep both endpoints on the same wrapped branch. Independently wrapping them
+        // can draw a fictitious sweep through a jelly on the other side of the world.
+        let movement = world.delta(from: old.x, to: f.position.x) - world.delta(from: previousJelly.x, to: jelly.x)
+        let previous = CGPoint(x: p.x - movement, y: old.y - previousJelly.y)
+        return (JellyRules.contact(at: p, previous: previous, fishRadius: f.radius, domeRadius: layout.radius,
+                                   tentacleLength: layout.tentacleLength), p, previous)
+    }
+
+    /// Where a fish's center rests on a bell's dome.
+    static func restingY(_ f: Fish, at p: CGPoint, jellyY: CGFloat, layout: JellyLayout) -> CGFloat {
+        let x = min(1, abs(p.x) / (layout.radius + f.radius * GameTuning.hazardHitboxScale))
+        return jellyY + layout.radius * 0.65 * sqrt(max(0, 1 - x * x)) + f.radius * GameTuning.hazardHitboxScale + 2
+    }
+
+    /// Drifting bells (Jelly Bloom 2) can come close to the surface. A fish with no room to rise there
+    /// slides over the dome instead of rattling between it and the surface. Returns whether it slid.
+    static func slideIfCramped(_ f: Fish, at p: CGPoint, jellyY: CGFloat, layout: JellyLayout, ceiling: CGFloat) -> Bool {
+        let resting = restingY(f, at: p, jellyY: jellyY, layout: layout)
+        guard layout.drifts, resting + f.radius > ceiling else { return false }
+        f.position.y = min(ceiling, resting)
+        f.velocity.dy = max(0, f.velocity.dy)
+        return true
+    }
+
+    /// Launches a fish off a bell at `speed` (world points per second), spending only the rest of the
+    /// frame after contact rising. Returns that remaining time.
+    @discardableResult
+    static func bounce(_ f: Fish, at p: CGPoint, previous: CGPoint, jellyY: CGFloat, layout: JellyLayout,
+                       speed: CGFloat, dt: CGFloat, ceiling: CGFloat) -> CGFloat {
+        let x = min(1, abs(p.x) / (layout.radius + f.radius * GameTuning.hazardHitboxScale))
+        let surface = layout.radius * 0.65 * sqrt(max(0, 1 - x * x))
+        let remaining = JellyRules.remainingBounceTime(at: p, previous: previous, fishRadius: f.radius,
+                                                      domeRadius: layout.radius, dt: dt)
+        f.velocity.dy = speed
+        let contactY = jellyY + surface + f.radius * GameTuning.hazardHitboxScale + 2
+        f.position.y = min(ceiling, contactY + f.velocity.dy * remaining)
+        return remaining
+    }
+}
 
 /// Coordinates are relative to the jelly's bell rim (y = 0); tentacles extend down.
 /// A swept test catches fast falls through the forgiving top of the dome.
@@ -158,62 +254,269 @@ enum JellyRules {
     }
 }
 
-/// Procedural artwork keeps the rounded, safe bell distinct from the trailing danger zone.
+/// Procedural artwork drawn to the hitbox: the bell's top (the bounce surface) peaks at 0.65 of its
+/// radius, and the stinging tentacles hang inside the curtain below it, 0.72 of the radius to each
+/// side and `tentacleLength` deep. The bell swims in strokes, the tentacles ripple and trail behind
+/// its drift, and both react to bounces and stings.
 final class JellyfishNode: SKNode {
+    private struct Strand {
+        let outer: SKShapeNode
+        let core: SKShapeNode?
+        let color: SKColor
+        let baseX: CGFloat
+        let length: CGFloat
+        let wave: CGFloat
+        /// Side-to-side ripple at the tip.
+        let sway: CGFloat
+        let speed: CGFloat
+    }
+
+    private static let tentacleColor = SKColor(red: 1, green: 0.36, blue: 0.68, alpha: 0.92)
+    private static let armColor = SKColor(red: 0.92, green: 0.42, blue: 0.78, alpha: 0.72)
+
     private let bell = SKNode()
-    private let tendrils = SKNode()
+    private var strands: [Strand] = []
     private let radius: CGFloat
     private let phase: CGFloat
+    private var time: CGFloat = 0
+    private var stungAt: CGFloat?
+    private var trail: CGFloat = 0
 
-    init(radius r: CGFloat, tentacleLength: CGFloat, phase: CGFloat) {
+    init(radius r: CGFloat, tentacleLength: CGFloat, phase: CGFloat, night: Bool = false) {
         radius = r
         self.phase = phase
         super.init()
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: -r, y: 0))
-        path.addCurve(to: CGPoint(x: r, y: 0),
-                      control1: CGPoint(x: -r, y: r * 0.88),
-                      control2: CGPoint(x: r, y: r * 0.88))
-        path.addQuadCurve(to: CGPoint(x: -r, y: 0), control: CGPoint(x: 0, y: -r * 0.18))
-        let dome = SKShapeNode(path: path)
-        dome.fillColor = SKColor(red: 0.63, green: 0.76, blue: 1, alpha: 0.62)
-        dome.strokeColor = SKColor(red: 0.80, green: 0.95, blue: 1, alpha: 0.95)
-        dome.lineWidth = 2.5
-        dome.glowWidth = 2
-        bell.addChild(dome)
-        let rim = SKShapeNode(ellipseOf: CGSize(width: r * 1.85, height: r * 0.16))
-        rim.strokeColor = SKColor(red: 0.56, green: 1, blue: 0.97, alpha: 0.95)
-        rim.lineWidth = 2
-        bell.addChild(rim)
-        for i in 0..<7 {
-            let x = (CGFloat(i) - 3) * r * 0.25
-            let line = CGMutablePath()
-            line.move(to: CGPoint(x: x, y: -2))
-            line.addCurve(to: CGPoint(x: x + sin(CGFloat(i)) * 8, y: -tentacleLength),
-                          control1: CGPoint(x: x + 13, y: -tentacleLength * 0.35),
-                          control2: CGPoint(x: x - 13, y: -tentacleLength * 0.72))
-            let tentacle = SKShapeNode(path: line)
-            tentacle.strokeColor = SKColor(red: 1, green: 0.40, blue: 0.70, alpha: 0.8)
-            tentacle.lineWidth = i.isMultiple(of: 2) ? 3.5 : 2
-            tentacle.lineCap = .round
-            tendrils.addChild(tentacle)
+
+        // A soft glow: stacked faint ellipses fade out toward the edge.
+        for scale in [CGFloat(1), 0.8, 0.62] {
+            let halo = SKShapeNode(ellipseOf: CGSize(width: r * 2.6 * scale, height: r * 2 * scale))
+            halo.position = CGPoint(x: 0, y: r * 0.2)
+            halo.fillColor = SKColor(red: 0.55, green: 0.9, blue: 1, alpha: night ? 0.06 : 0.03)
+            halo.strokeColor = .clear
+            halo.zPosition = -1
+            addChild(halo)
         }
-        addChild(tendrils)
+
+        // Tentacles fan across the curtain; two frilly oral arms hang in the middle.
+        let tentacleLengths: [CGFloat] = [0.9, 0.84, 0.95, 0.88, 0.94, 0.83, 0.91]
+        for (i, share) in tentacleLengths.enumerated() {
+            let thick = i.isMultiple(of: 2)
+            strands.append(makeStrand(baseX: (CGFloat(i) - 3) / 3 * r * 0.56, length: tentacleLength * share,
+                width: thick ? 3.4 : 2, core: thick ? 1.3 : nil, color: Self.tentacleColor,
+                wave: CGFloat(i) * 1.9, sway: 5, speed: 2.6 + CGFloat(i % 3) * 0.3))
+        }
+        for (i, side) in [CGFloat(-1), 1].enumerated() {
+            strands.append(makeStrand(baseX: side * r * 0.13, length: tentacleLength * 0.55,
+                width: 7, core: 2.4, color: Self.armColor, wave: CGFloat(i) * 2.4 + 0.7, sway: 7, speed: 1.7))
+        }
+
+        let dome = SKShapeNode(path: Self.bellPath(r))
+        dome.fillColor = SKColor(red: 0.55, green: 0.85, blue: 1, alpha: 0.68)
+        dome.strokeColor = SKColor(red: 0.86, green: 0.97, blue: 1, alpha: 0.95)
+        dome.lineWidth = 3
+        dome.glowWidth = 1.5
+        bell.addChild(dome)
+
+        var inset = CGAffineTransform(scaleX: 0.74, y: 0.68)
+        if let inner = Self.bellPath(r).copy(using: &inset) {
+            let node = SKShapeNode(path: inner)
+            node.fillColor = SKColor(white: 1, alpha: 0.17)
+            node.strokeColor = .clear
+            node.position = CGPoint(x: 0, y: r * 0.04)
+            bell.addChild(node)
+        }
+
+        // A moon jelly's four-leaf clover, then a glossy highlight like the fish have.
+        for angle in stride(from: CGFloat.pi / 4, to: 2 * .pi, by: .pi / 2) {
+            let ring = SKShapeNode(ellipseOf: CGSize(width: r * 0.2, height: r * 0.15))
+            ring.position = CGPoint(x: cos(angle) * r * 0.15, y: r * 0.27 + sin(angle) * r * 0.1)
+            ring.strokeColor = SKColor(red: 1, green: 0.6, blue: 0.86, alpha: 0.6)
+            ring.fillColor = SKColor(red: 1, green: 0.75, blue: 0.92, alpha: 0.18)
+            ring.lineWidth = 2.2
+            bell.addChild(ring)
+        }
+        let shine = CGMutablePath()
+        shine.move(to: CGPoint(x: -r * 0.66, y: r * 0.2))
+        shine.addQuadCurve(to: CGPoint(x: -r * 0.2, y: r * 0.56), control: CGPoint(x: -r * 0.6, y: r * 0.52))
+        let highlight = SKShapeNode(path: shine)
+        highlight.strokeColor = SKColor(white: 1, alpha: 0.75)
+        highlight.lineWidth = 3.5
+        highlight.lineCap = .round
+        bell.addChild(highlight)
+        let glint = SKShapeNode(circleOfRadius: r * 0.05)
+        glint.position = CGPoint(x: -r * 0.04, y: r * 0.55)
+        glint.fillColor = SKColor(white: 1, alpha: 0.8)
+        glint.strokeColor = .clear
+        bell.addChild(glint)
+
+        bell.zPosition = 2
         addChild(bell)
+        animate(time: 0)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    func animate(time: CGFloat) {
-        let pulse = sin(time * 2.6 + phase)
-        if bell.action(forKey: "bounce") == nil { bell.yScale = 1 + pulse * 0.08 }
-        tendrils.zRotation = sin(time * 1.5 + phase) * 0.055
+    /// Dome from rim to rim, peaking at 0.66 r, with a scalloped lower edge.
+    private static func bellPath(_ r: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -r, y: 0))
+        path.addCurve(to: CGPoint(x: r, y: 0), control1: CGPoint(x: -r, y: r * 0.88), control2: CGPoint(x: r, y: r * 0.88))
+        let scallops = 6
+        for i in 0..<scallops {
+            let from = r - CGFloat(i) * 2 * r / CGFloat(scallops)
+            let to = from - 2 * r / CGFloat(scallops)
+            path.addQuadCurve(to: CGPoint(x: to, y: 0), control: CGPoint(x: (from + to) / 2, y: -r * 0.13))
+        }
+        path.closeSubpath()
+        return path
+    }
+
+    private func makeStrand(baseX: CGFloat, length: CGFloat, width: CGFloat, core: CGFloat?, color: SKColor,
+                            wave: CGFloat, sway: CGFloat, speed: CGFloat) -> Strand {
+        let outer = SKShapeNode()
+        outer.strokeColor = color
+        outer.lineWidth = width
+        outer.lineCap = .round
+        outer.lineJoin = .round
+        addChild(outer)
+        let coreNode = core.map { width -> SKShapeNode in
+            let node = SKShapeNode()
+            node.strokeColor = SKColor(red: 1, green: 0.84, blue: 0.94, alpha: 0.75)
+            node.lineWidth = width
+            node.lineCap = .round
+            node.zPosition = 0.1
+            addChild(node)
+            return node
+        }
+        return Strand(outer: outer, core: coreNode, color: color, baseX: baseX, length: length, wave: wave,
+                      sway: sway, speed: speed)
+    }
+
+    /// 0 relaxed ... 1 fully squeezed.
+    private func contraction(_ time: CGFloat) -> CGFloat {
+        let u = (time / GameTuning.jellyStrokeSeconds + phase / (2 * .pi)).truncatingRemainder(dividingBy: 1)
+        if u < GameTuning.jellySqueezeShare { return sin(u / GameTuning.jellySqueezeShare * .pi / 2) }
+        return 0.5 + 0.5 * cos((u - GameTuning.jellySqueezeShare) / (1 - GameTuning.jellySqueezeShare) * .pi)
+    }
+
+    /// `drift` is the bell's velocity in world points per second; the tentacles trail behind it.
+    func animate(time: CGFloat, drift: CGVector = .zero) {
+        self.time = time
+        guard !isHidden else { return }
+        let squeeze = contraction(time)
+        if bell.action(forKey: "bounce") == nil {
+            bell.xScale = 1 - 0.09 * squeeze
+            bell.yScale = 1 + 0.11 * squeeze
+        }
+        trail += ((-drift.dx * 0.2).clamped(-radius * 0.14, radius * 0.14) - trail) * 0.06
+        let flash = stungAt.map { max(0, 1 - (time - $0) / GameTuning.jellyStingFlashSeconds) } ?? 0
+        if flash == 0 { stungAt = nil }
+        for strand in strands {
+            let path = strandPath(strand, squeeze: squeeze, shock: flash * 3)
+            strand.outer.path = path
+            strand.core?.path = path
+            strand.outer.strokeColor = flash > 0 ? strand.color.blended(toward: .white, by: flash * 0.75) : strand.color
+            strand.outer.glowWidth = flash * 4
+        }
+    }
+
+    private func strandPath(_ strand: Strand, squeeze: CGFloat, shock: CGFloat) -> CGPath {
+        let segments = 7
+        let points = (0...segments).map { k -> CGPoint in
+            let s = CGFloat(k) / CGFloat(segments)
+            let ripple = sin(time * strand.speed - s * 4.6 + strand.wave + phase) * (1 + strand.sway * s)
+            let jolt = shock * sin(time * 71 + s * 9 + strand.wave)
+            return CGPoint(x: strand.baseX * (1 - 0.16 * squeeze * (1 - 0.6 * s)) + ripple + trail * s * s + jolt,
+                           y: -2 - strand.length * s * (1 + 0.05 * squeeze))
+        }
+        let path = CGMutablePath()
+        path.move(to: points[0])
+        for k in 1..<segments {
+            path.addQuadCurve(to: CGPoint(x: (points[k].x + points[k + 1].x) / 2, y: (points[k].y + points[k + 1].y) / 2),
+                              control: points[k])
+        }
+        path.addLine(to: points[segments])
+        return path
     }
 
     func bounce() {
         bell.removeAction(forKey: "bounce")
-        bell.run(.sequence([.scaleY(to: 0.6, duration: 0.06), .scaleY(to: 1.1, duration: 0.12),
-                            .scaleY(to: 1, duration: 0.14)]), withKey: "bounce")
+        func squash(_ x: CGFloat, _ y: CGFloat, _ duration: TimeInterval) -> SKAction {
+            let group = SKAction.group([.scaleX(to: x, duration: duration), .scaleY(to: y, duration: duration)])
+            group.timingMode = .easeOut
+            return group
+        }
+        bell.run(.sequence([squash(1.16, 0.62, 0.06), squash(0.94, 1.12, 0.12), squash(1, 1, 0.16)]), withKey: "bounce")
+    }
+
+    /// The tentacles flash and jolt when they sting the player.
+    func sting() { stungAt = time }
+}
+
+/// A stung fish's electric jolt: a flickering glow over the body and zigzag sparks around it.
+final class ZapNode: SKNode {
+    private static let reference: CGFloat = 30
+    private let glow: SKShapeNode
+    private let bolts: [SKShapeNode]
+    private var sparkSeed: UInt64
+    private var lastSparks: CGFloat = -1
+
+    init(seed: UInt64) {
+        let R = Self.reference
+        sparkSeed = seed
+        glow = SKShapeNode(ellipseOf: CGSize(width: R * 3.1, height: R * 2.3))
+        glow.fillColor = SKColor(red: 1, green: 0.62, blue: 0.92, alpha: 1)
+        glow.strokeColor = .clear
+        glow.blendMode = .add
+        bolts = (0..<4).map { _ in
+            let bolt = SKShapeNode()
+            bolt.strokeColor = SKColor(red: 1, green: 0.95, blue: 1, alpha: 1)
+            bolt.lineWidth = 2.5
+            bolt.lineJoin = .miter
+            bolt.glowWidth = 2
+            bolt.blendMode = .add
+            return bolt
+        }
+        super.init()
+        addChild(glow)
+        bolts.forEach(addChild)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// `radius` is the fish's on-screen radius.
+    func update(time: CGFloat, radius: CGFloat) {
+        setScale(radius / Self.reference)
+        glow.alpha = 0.25 + 0.4 * abs(sin(time * 47))
+        guard time - lastSparks >= 0.05 else { return }
+        lastSparks = time
+        var rng = SeededGenerator(seed: sparkSeed)
+        sparkSeed = rng.next()
+        let R = Self.reference
+        for bolt in bolts {
+            let angle = CGFloat.random(in: 0..<(2 * .pi), using: &rng)
+            let path = CGMutablePath()
+            for step in 0...4 {
+                let distance = R * (1.1 + CGFloat(step) * 0.24)
+                let side = CGFloat.random(in: -0.3...0.3, using: &rng)
+                let point = CGPoint(x: cos(angle + side) * distance * 1.25, y: sin(angle + side) * distance)
+                if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+            bolt.path = path
+            bolt.alpha = CGFloat.random(in: 0.5...1, using: &rng)
+        }
+    }
+}
+
+private extension SKColor {
+    func blended(toward other: SKColor, by amount: CGFloat) -> SKColor {
+        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+        getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        other.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        return SKColor(red: r1 + (r2 - r1) * amount, green: g1 + (g2 - g1) * amount,
+                       blue: b1 + (b2 - b1) * amount, alpha: a1 + (a2 - a1) * amount)
     }
 }

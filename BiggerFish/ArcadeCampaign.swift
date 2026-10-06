@@ -4,40 +4,48 @@ import Foundation
 enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     case shallowReef = "shallow-reef"
     case jellyBloom = "jelly-bloom"
-    /// Planned-meeting levels, shown as Shallow Reef 2, to A/B test against Shallow Reef; see
-    /// docs/meeting-planner.md. Its ID stays "reef-lab" for saved progress and analytics.
-    case reefLab = "reef-lab"
 
-    /// The seeded campaign worlds, which the debug tuner edits.
+    /// The playable worlds, in map order. The map shows three more as coming soon.
     static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom]
-    /// Worlds on the map, in every build: TestFlight compares Shallow Reef with Shallow Reef 2.
-    static let mapWorlds: [ArcadeWorld] = campaign + [.reefLab]
+    static var mapWorlds: [ArcadeWorld] { campaign }
+    var hasJellies: Bool { self == .jellyBloom }
 
     var id: String { rawValue }
     var title: String {
         switch self {
         case .shallowReef: "Shallow Reef"
         case .jellyBloom: "Jelly Bloom"
-        case .reefLab: "Shallow Reef 2"
         }
     }
     var subtitle: String {
         switch self {
         case .shallowReef: "Eat. Dodge. Grow."
         case .jellyBloom: "Bounce the tops. Dodge the tentacles."
-        case .reefLab: "Eat. Dodge. Grow."
         }
     }
+    /// Both worlds play planned levels (see docs/meeting-planner.md), shipped as data.
     var levels: [Level] {
         switch self {
-        case .shallowReef: GameTuning.levels
-        case .jellyBloom: GameTuning.bloomLevels
-        case .reefLab: GameTuning.reefLabLevels
+        case .shallowReef: GameTuning.reefLabLevels
+        case .jellyBloom: GameTuning.jellyLabLevels
         }
     }
     func level(_ index: Int) -> Level { levels[index] }
-    /// Counting Reef Lab's levels doesn't load them.
-    var levelCount: Int { self == .reefLab ? GameTuning.reefLabSpecs.count : levels.count }
+    /// The original seeded campaigns the planned levels replaced, kept for the debug tuner and the
+    /// generator's tests.
+    var seededLevels: [Level] {
+        switch self {
+        case .shallowReef: GameTuning.levels
+        case .jellyBloom: GameTuning.bloomLevels
+        }
+    }
+    /// Counting a world's levels doesn't load them.
+    var levelCount: Int {
+        switch self {
+        case .shallowReef: GameTuning.reefLabSpecs.count
+        case .jellyBloom: GameTuning.jellyLabSpecs.count
+        }
+    }
     var levelTitles: [String] { (0..<levelCount).map { "Level \($0 + 1)" } }
     func levelID(_ index: Int) -> String { "\(rawValue).\(index + 1)" }
 }

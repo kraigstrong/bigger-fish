@@ -120,7 +120,7 @@ struct JellyRulesTests {
 @MainActor
 struct ArcadeSceneTests {
     private func scene(level: Int = 0) -> (GameScene, SKView) {
-        let scene = GameScene(world: .jellyBloom, levelIndex: level)
+        let scene = GameScene(world: .jellyBloom, levelIndex: level, seeded: true)
         scene.debugUseReferenceLevel()
         let view = SKView(frame: CGRect(x: 0, y: 0, width: 852, height: 393))
         view.presentScene(scene)
@@ -256,6 +256,9 @@ struct ArcadeSceneTests {
     @Test func lossOffersRetryAndLevels() {
         let (scene, view) = scene()
         #expect(scene.debugTouchTentacles(playerVictim: true))
+        // The result waits for the sting animation.
+        #expect(scene.debugResultTitles.isEmpty)
+        scene.debugAdvance(seconds: GameTuning.stingResultDelay + 0.05)
         #expect(scene.debugResultTitles == ["Retry", "Levels"])
         scene.debugTapResult(.tryAgain)
         #expect(scene.debugLevelIndex == 0)

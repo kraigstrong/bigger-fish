@@ -6,7 +6,7 @@ import Testing
 struct ShallowCampaignTests {
     @MainActor @Test func shallowCampaignAdvancesToTenAndReplaysItsFinalLevel() {
         for index in [0, 8, 9] {
-            let scene = GameScene(world: .shallowReef, levelIndex: index)
+            let scene = GameScene(world: .shallowReef, levelIndex: index, seeded: true)
             let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
             view.presentScene(scene)
             scene.debugStart()
@@ -79,7 +79,7 @@ struct ShallowCampaignTests {
     @MainActor @Test func originalReferenceUsesTheSelectedOriginalSeedAfterReordering() {
         for index in 0..<5 {
             let reference = GameTuning.shallowReferenceLevels[index]
-            let scene = GameScene(world: .shallowReef, levelIndex: index)
+            let scene = GameScene(world: .shallowReef, levelIndex: index, seeded: true)
             _ = scene.debugSimulate(candidate: "original reference", tuning: ArcadeTuning(level: reference),
                 policy: .collector, seed: 0, limit: 0)
             #expect(scene.debugConfiguredSpawnSeed == reference.spawnSeed(index: index, bloom: false))
@@ -88,9 +88,9 @@ struct ShallowCampaignTests {
 
     @MainActor @Test func tunerSeedLabelMatchesReferenceRunsAndRerolls() {
         for world in ArcadeWorld.campaign {
-            for index in world.levels.indices {
+            for index in world.seededLevels.indices {
                 for reference in [false, true] {
-                    var draft = ArcadeTuning(level: world.levels[index])
+                    var draft = ArcadeTuning(level: world.seededLevels[index])
                     if reference {
                         let originals = world == .shallowReef ? GameTuning.shallowReferenceLevels : GameTuning.bloomReferenceLevels
                         guard index < originals.count else { continue }
@@ -98,7 +98,7 @@ struct ShallowCampaignTests {
                     }
                     for offset in [0, 777] {
                         draft.seedOffset = offset
-                        let scene = GameScene(world: world, levelIndex: index)
+                        let scene = GameScene(world: world, levelIndex: index, seeded: true)
                         _ = scene.debugSimulate(candidate: "seed label", tuning: draft,
                             policy: .collector, seed: 0, limit: 0)
                         #expect(draft.displayedSpawnSeed(world: world, index: index) == scene.debugConfiguredSpawnSeed)
@@ -111,20 +111,20 @@ struct ShallowCampaignTests {
     @MainActor @Test func seededStartsHaveAllFishAndAnOptimisticGrowthPath() {
         for (index, level) in GameTuning.levels.enumerated() {
             for variation in [0, 7, 33, 987] {
-                let scene = GameScene(world: .shallowReef, levelIndex: index)
+                let scene = GameScene(world: .shallowReef, levelIndex: index, seeded: true)
                 let result = scene.debugSimulate(candidate: "shallow spawn audit", tuning: ArcadeTuning(level: level),
                     policy: .collector, seed: variation, limit: 0)
                 #expect(result.spawned == 20, "Level \(index + 1), variation \(variation)")
                 #expect(result.initialGrowthPath, "Level \(index + 1), variation \(variation)")
             }
-            let scene = GameScene(world: .shallowReef, levelIndex: index)
+            let scene = GameScene(world: .shallowReef, levelIndex: index, seeded: true)
             #expect(scene.debugEncounterSpawnSafety(), "Level \(index + 1)")
         }
     }
 
     @MainActor @Test func shallowEncountersProtectFoodThenResumeAIEating() {
         for index in [0, 4, 9] {
-            let scene = GameScene(world: .shallowReef, levelIndex: index)
+            let scene = GameScene(world: .shallowReef, levelIndex: index, seeded: true)
             let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
             view.presentScene(scene)
             scene.debugStart()

@@ -46,6 +46,26 @@ struct MeetingPlannerTests {
         #expect(danger.meeting(fishID: 1)?.danger == true)
     }
 
+    @Test func analyzerRoutesOverUnderAndOffJellies() {
+        // A bell across mid-water as you pass it at 2 s: its tentacles hang from 130 to its rim at 200.
+        let jelly = JellyPass(jellyID: 0, time: 2, rim: 200, domeRadius: 40, tentacleLength: 70, speed: 300, zoom: 1)
+        let open = EncounterAnalyzer.analyze([Self.crossing(1, at: 2.1, y: 180, radius: 9)])
+        let stung = EncounterAnalyzer.analyze([Self.crossing(1, at: 2.1, y: 180, radius: 9)], jellies: [jelly])
+        #expect(open.meeting(fishID: 1)?.minimumMeals == 0 && stung.meeting(fishID: 1)?.minimumMeals == nil)
+        // Over the dome or under the tentacles is fine.
+        let around = EncounterAnalyzer.analyze([Self.crossing(1, at: 2.1, y: 300, radius: 9),
+                                                Self.crossing(2, at: 2.6, y: 60, radius: 9)], jellies: [jelly])
+        #expect(around.meeting(fishID: 1)?.minimumMeals == 0 && around.meeting(fishID: 2)?.minimumMeals == 0)
+        // From a meal on the dome, a meal high above it half a second later takes the bounce.
+        let pocket = Self.crossing(1, at: 1.95, y: 250, radius: 10), high = Self.crossing(2, at: 2.4, y: 370, radius: 10)
+        let reach = EncounterAnalyzer.reach(from: pocket, to: high, jellies: [jelly], radius: 18)
+        #expect(!reach.swim && reach.bounce)
+        #expect(EncounterAnalyzer.analyze([pocket, high], jellies: [jelly]).meeting(fishID: 2)?.maximumMeals == 1)
+        // Another curtain right after the bounce, across everywhere it could carry you: no way through.
+        let next = JellyPass(jellyID: 1, time: 2.2, rim: 300, domeRadius: 40, tentacleLength: 70, speed: 300, zoom: 1)
+        #expect(!EncounterAnalyzer.reach(from: pocket, to: high, jellies: [jelly, next], radius: 18).bounce)
+    }
+
     @Test func reefLabPlansCleanlyAndGetsHarderLevelByLevel() {
         let specs = GameTuning.reefLabSpecs
         let plans = GameTuning.reefLabLevels.map { $0.meetingPlan! }
@@ -97,7 +117,7 @@ struct MeetingPlannerTests {
             let plan = GameTuning.reefLabLevels[index].meetingPlan!
             let spec = plan.spec
             let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
-            let scene = GameScene(world: .reefLab, levelIndex: index)
+            let scene = GameScene(world: .shallowReef, levelIndex: index)
             let actual = scene.debugEncounterCrossings(radii: plan.referenceRadii, eaten: reference)
             for predicted in plan.predicted {
                 let real = actual.first { $0.fishID == predicted.fishID }
@@ -107,24 +127,25 @@ struct MeetingPlannerTests {
             #expect(scene.debugVisibleUnmetContacts == 0)
             // A player who eats only what each gate needs, or everything, still meets every fish.
             for route in [plan.fewestMealRoute, plan.fullestRoute] {
-                let crossings = GameScene(world: .reefLab, levelIndex: index).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
+                let crossings = GameScene(world: .shallowReef, levelIndex: index).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
                 #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(spec.name)")
             }
         }
     }
 
-    @MainActor @Test func reefLabIsATenLevelThirdWorldThatUnlocksAndResetsLikeACampaign() {
-        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom, .reefLab])
-        let world = ArcadeWorld.reefLab
+    @MainActor @Test func shallowReefPlaysTenPlannedLevelsThatUnlockAndResetLikeACampaign() {
+        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom])
+        #expect(ArcadeWorld.jellyBloom.levels.allSatisfy { $0.meetingPlan != nil && $0.jellies != nil })
+        let world = ArcadeWorld.shallowReef
         #expect(world.levelCount == 10 && world.levelTitles == (1...10).map { "Level \($0)" })
         let progress = ArcadeProgress(defaults: UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!)
         #expect(progress.isOpen(world, 0) && !progress.isOpen(world, 1) && !progress.isOpen(world, 10))
         progress.clear(world, 0, seconds: 20)
-        progress.clear(.shallowReef, 0, seconds: 30)
-        #expect(progress.isOpen(world, 1) && progress.save.bestTimes["reef-lab.1"] == 20)
+        progress.clear(.jellyBloom, 0, seconds: 30)
+        #expect(progress.isOpen(world, 1) && progress.save.bestTimes["shallow-reef.1"] == 20)
         progress.reset(world)
-        #expect(!progress.isCleared(world, 0) && progress.save.bestTimes["reef-lab.1"] == nil)
-        #expect(progress.isCleared(.shallowReef, 0))
+        #expect(!progress.isCleared(world, 0) && progress.save.bestTimes["shallow-reef.1"] == nil)
+        #expect(progress.isCleared(.jellyBloom, 0))
         let scene = GameScene(world: world, levelIndex: 5)
         #expect(scene.debugEncounterCrossings(laps: 0.01).isEmpty)
         #expect(scene.debugFishCount == world.level(5).meetingPlan!.fish.count + 1)
@@ -159,6 +180,61 @@ struct MeetingPlannerTests {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         try encoder.encode(plans).write(to: file)
+    }
+
+    /// Jelly Bloom 2 ships its plans too. Replanning ten jelly levels is slow, so this checks they're
+    /// current with the specs; regenerate with the marker below after changing a spec or the planner.
+    @Test func bundledJellyLabPlansMatchTheSpecs() throws {
+        let url = try #require(Bundle(for: BundleToken.self).url(forResource: "JellyLabPlans", withExtension: "json")
+            ?? Bundle.main.url(forResource: "JellyLabPlans", withExtension: "json"))
+        let bundled = try JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: url))
+        #expect(bundled.map(\.spec) == GameTuning.jellyLabSpecs, "JellyLabPlans.json is out of date: regenerate it")
+        #expect(GameTuning.jellyLabFrozen.isSubset(of: GameTuning.jellyLabSpecs.map(\.name)))
+        for plan in bundled {
+            #expect(plan.fish.map(\.id) == Array(1...plan.fish.count))
+            #expect(plan.issues.allSatisfy { $0.contains("is off its plan") }, "\(plan.spec.name): \(plan.issues)")
+        }
+    }
+
+    /// Writes BiggerFish/JellyLabPlans.json when build/arcade-development/jelly-lab-plans.request exists.
+    @Test func manualWriteJellyLabPlans() throws {
+        let marker = Self.root.appendingPathComponent("build/arcade-development/jelly-lab-plans.request")
+        guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        let file = Self.root.appendingPathComponent("BiggerFish/JellyLabPlans.json")
+        let existing = (try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: file))) ?? []
+        // Frozen levels keep their shipped plans.
+        let plans = GameTuning.jellyLabSpecs.map { spec in
+            GameTuning.jellyLabFrozen.contains(spec.name) ? existing.first { $0.spec == spec } ?? MeetingPlanner.plan(spec)
+                : MeetingPlanner.plan(spec)
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(plans).write(to: file)
+    }
+
+    @MainActor @Test func jellyLabFishMeetThePlayerWherePlannedAroundDriftingJellies() {
+        // The intro, the first bounce-only meal, and the first fork split by a jelly.
+        for index in [0, 4, 5] {
+            let plan = GameTuning.jellyLabLevels[index].meetingPlan!
+            #expect(!(plan.jellies ?? []).isEmpty)
+            let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
+            let scene = GameScene(world: .jellyBloom, levelIndex: index)
+            let actual = scene.debugEncounterCrossings(radii: plan.referenceRadii, eaten: reference)
+            for predicted in plan.predicted {
+                let real = actual.first { $0.fishID == predicted.fishID }
+                #expect(real.map { abs($0.time - predicted.time) < 0.05 && abs($0.y - predicted.y) < 3 } == true,
+                        "\(plan.spec.name) fish \(predicted.fishID)")
+            }
+            if index == 0 {
+                // Level 1's demo fish lands on the first jelly you'll pass, while it's ahead of you on screen.
+                let demo = plan.jellies!.firstIndex { $0.role == .demo }!
+                #expect(plan.jellyPasses.first?.jellyID == demo)
+                #expect(scene.debugBounces.contains { bounce in
+                    bounce.fishID == plan.jellies![demo].fishID && bounce.jelly == demo
+                        && GameTuning.plannerDemoScreen.contains(bounce.screenX / GameTuning.playfieldSize.width)
+                })
+            }
+        }
     }
 
     @MainActor @Test func plannedLevelsSpawnEveryFishAndKeepPlannedFishOnTheirLine() {

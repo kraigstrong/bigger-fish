@@ -5,8 +5,8 @@ There's always a bigger fish.
 Arcade prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
-The world map opens **Shallow Reef**, **Jelly Bloom**, and **Shallow Reef 2**, with ten levels each.
-Shallow Reef 2 is a planned version of Shallow Reef for A/B testing (see Meeting planner below).
+The world map opens **Shallow Reef** and **Jelly Bloom**, with ten planned levels each (see Meeting
+planner below), and three locked worlds marked coming soon.
 Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
 adds safe dome bounces and lethal tentacles, with protected first encounters followed by AI food races.
 A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
@@ -165,11 +165,12 @@ These tools and overrides are absent in Release/TestFlight.
 
 ### Meeting planner
 
-The third world, **Shallow Reef 2** (internally Reef Lab, ID `reef-lab`), has ten fish-only levels whose
-meetings are planned, to A/B test against Shallow Reef slot for slot, TestFlight included. Each gate's
-slack and routes are designed, and every fish still swims freely into its meeting. In Debug builds,
-**Tuning > Players** resets a world for a new player and **Tuning > Shallow Reef 2 variations** plays
-other layouts. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
+Both worlds play planned levels: each gate's slack and routes are designed, and every fish still swims
+freely into its meeting. They won an A/B test as Shallow Reef 2 and Jelly Bloom 2 (internally Reef Lab
+and Jelly Lab) and replaced the seeded campaigns under the original `shallow-reef` and `jelly-bloom` IDs.
+Jelly Bloom's jellyfish drift, to bounce off and dodge. In Debug builds, **Tuning > Players** resets a
+world for a new player, **Tuning > Shallow Reef variations** plays other layouts, and the rest of the
+tuner still edits the retired seeded levels. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
 
 ### Automatic run diagnostics
 
