@@ -564,7 +564,7 @@ enum GameTuning {
 
     /// Playtested levels whose shipped plans are frozen: regenerating ReefLabPlans.json keeps them exactly
     /// as played, so later planner changes can't reshuffle them. Remove a name to re-plan that level.
-    /// The bonus levels (11 on) join once they've been played. Gauntlet is its plan as first played with
+    /// The bonus levels (11 on) joined once they'd been played. Gauntlet is its plan as first played with
     /// fish 9, the first giant, started 380 points closer: it crosses just after the first gate, over the
     /// swim to the next meal, instead of closing the high lane while a big fish guards the low one.
     /// Heavyweights is its plan with fish 20, a giant, started 420 points farther: it crosses while you
@@ -572,8 +572,7 @@ enum GameTuning {
     /// both lanes out. That gate (fish 22) is 38.8 points rather than 42: a player one meal short who took
     /// the low lane met it still growing from the lane's meal and lost. At 38.8 the lane's meal makes it
     /// edible from the first frame after its swallow; without that meal it still isn't.
-    static let reefLabFrozen: Set<String> = Set(reefLabSpecs.prefix(10).map(\.name))
-        .union(["Frenzy", "Gauntlet", "Heavyweights"])
+    static let reefLabFrozen: Set<String> = Set(reefLabSpecs.map(\.name))
 
     /// Jelly Bloom 2: Shallow Reef 2's ten fish curves, with drifting jellyfish brought in a mechanic at a time.
     /// Levels 1–2: bells to bounce on if you like, with lots of room (level 1 shows a fish bouncing). From 3,

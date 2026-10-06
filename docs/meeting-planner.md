@@ -109,7 +109,7 @@ choosing lanes; playtesting decides difficulty.
 ### Bonus levels 11–15
 
 Five more levels at the difficulty of 8–10, each with its own feel. They unlock in order after level 10,
-like any other level. Each is frozen once it's been played: so far Frenzy, Gauntlet, and Heavyweights.
+like any other level. All five are frozen as played.
 
 | Level | Name | Feel | Fish | Misses survived per gate | First playtest |
 |---|---|---|---:|---|---|
@@ -117,7 +117,7 @@ like any other level. Each is frozen once it's been played: so far Frenzy, Gaunt
 | 12 | Frenzy | quick meals, four walled gates; opens with a burst (three of the first four) | 34 | 1, 1, 1, 1 | 6 tries; "really fun" |
 | 13 | Gauntlet | six big fish in open water, all back on lap two a little smaller than you; unwalled | 33 | 2, 2, 2, 1 | 27 tries; "the perfect level" |
 | 14 | Heavyweights | few meals, each 85–93% of your size; one or two open each walled gate | 29 | 2, 1, 1, 1 | 53 tries across its fixes (3 on the last); "a great level" |
-| 15 | Needle | most meals a beat from a big fish with little room; walled gates | 31 | 1, 1, 1 | |
+| 15 | Needle | most meals a beat from a big fish with little room; walled gates | 31 | 1, 1, 1 | 28 tries, most deaths in the first 5 s; "really fun" |
 
 Fish only keep their plans if they don't touch where you could see it, and a player who eats more than the
 reference route zooms out and sees further. Gauntlet's giants first came back at 92–98% of your size and
