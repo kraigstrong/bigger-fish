@@ -109,14 +109,14 @@ choosing lanes; playtesting decides difficulty.
 ### Bonus levels 11–15
 
 Five more levels at the difficulty of 8–10, each with its own feel. They unlock in order after level 10,
-like any other level. Each is frozen once it's been played: so far Frenzy and Gauntlet.
+like any other level. Each is frozen once it's been played: so far Frenzy, Gauntlet, and Heavyweights.
 
 | Level | Name | Feel | Fish | Misses survived per gate | First playtest |
 |---|---|---|---:|---|---|
 | 11 | Crossroads | two forks before every gate, one of them three meals high or one low; unwalled | 31 | 1, 1, 2 | 3 tries; "pretty easy" |
 | 12 | Frenzy | quick meals, four walled gates; opens with a burst (three of the first four) | 34 | 1, 1, 1, 1 | 6 tries; "really fun" |
 | 13 | Gauntlet | six big fish in open water, all back on lap two a little smaller than you; unwalled | 33 | 2, 2, 2, 1 | 27 tries; "the perfect level" |
-| 14 | Heavyweights | few meals, each 85–93% of your size; one or two open each walled gate | 29 | 2, 1, 1, 1 | |
+| 14 | Heavyweights | few meals, each 85–93% of your size; one or two open each walled gate | 29 | 2, 1, 1, 1 | the opening "PERFECT" |
 | 15 | Needle | most meals a beat from a big fish with little room; walled gates | 31 | 1, 1, 1 | |
 
 Fish only keep their plans if they don't touch where you could see it, and a player who eats more than the
@@ -129,6 +129,11 @@ passed in a 5.5-screen one, before anyone played it.
 As first planned, Gauntlet's first giant (fish 9) also crossed over the high lane just as a big fish
 guarded the low one, too tight to get through in 20 tries; it starts 380 points closer than planned, so it
 crosses just after the first gate, above the swim to the next meal.
+
+Heavyweights' giant fish 20 crossed between its second fork and the walled gate after it, filling mid-water:
+from the high lane you'd swim through it, and from the low lane you'd have to wait under it and then climb
+faster than you can to reach the gate between its walls. It starts 420 points farther than planned, so it
+crosses a third of a second after the gate on every route, while you're swallowing it.
 
 A swarm of small fish doesn't fit the planner yet. A gate must be edible after `needed` meals and not
 after one fewer, with a few percent of margin either side, and a meal half your size grows you less than
