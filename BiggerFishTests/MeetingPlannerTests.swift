@@ -138,15 +138,17 @@ struct MeetingPlannerTests {
     /// Planned fish that touch where you could see it push apart and lose their meetings, and a player who eats
     /// more zooms out and sees further. Gauntlet's first giants knocked each other into an impassable wall.
     @MainActor @Test func bonusLevelsFishDontBumpOnTheWayToTheirMeetings() {
-        for index in 10..<GameTuning.reefLabLevels.count {
-            let plan = GameTuning.reefLabLevels[index].meetingPlan!
-            let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
-            for route in [plan.fewestMealRoute, reference, plan.fullestRoute] {
-                let scene = GameScene(world: .shallowReef, levelIndex: index)
-                let crossings = scene.debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
-                #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(plan.spec.name)")
-                // Eating everything zooms out furthest; a couple of brushes there is as good as Hard does.
-                #expect(scene.debugVisibleUnmetContacts <= (route == plan.fullestRoute ? 2 : 0), "\(plan.spec.name)")
+        for world in [ArcadeWorld.shallowReef, .jellyBloom] {
+            for index in 10..<world.levelCount {
+                let plan = world.level(index).meetingPlan!
+                let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
+                for route in [plan.fewestMealRoute, reference, plan.fullestRoute] {
+                    let scene = GameScene(world: world, levelIndex: index)
+                    let crossings = scene.debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
+                    #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(plan.spec.name)")
+                    // Eating everything zooms out furthest; a couple of brushes there is as good as Hard does.
+                    #expect(scene.debugVisibleUnmetContacts <= (route == plan.fullestRoute ? 2 : 0), "\(plan.spec.name)")
+                }
             }
         }
     }

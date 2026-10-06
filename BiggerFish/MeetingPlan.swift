@@ -704,6 +704,9 @@ enum MeetingDesigner {
                 if [meetings[slot], meetings[slot - 1]].contains(where: { $0.jelly != nil || $0.bounceFrom != nil || $0.under != nil }) {
                     return false
                 }
+                // Nor between a fork's lanes and the gate right after them: you're still swallowing a lane's meal
+                // high or low when you need mid-water for the gate, so a big fish there walls off both lanes.
+                if meetings[slot].role == .gate, meetings[slot - 1].fork != nil { return false }
                 let most = meetings[..<slot].filter { $0.role != .threat && $0.lane == 0 }.reduce(CGFloat(1)) { grow($0, [$1.size]) }
                 return most * 1.12 < size
             }
