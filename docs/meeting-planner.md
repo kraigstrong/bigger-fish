@@ -109,7 +109,7 @@ choosing lanes; playtesting decides difficulty.
 ### Bonus levels 11–15
 
 Five more levels at the difficulty of 8–10, each with its own feel. They unlock in order after level 10,
-like any other level. They aren't frozen until they've been played.
+like any other level. Each is frozen once it's been played: so far Frenzy ("really fun") and Gauntlet.
 
 | Level | Name | Feel | Fish | Misses survived per gate |
 |---|---|---|---:|---|
@@ -119,7 +119,10 @@ like any other level. They aren't frozen until they've been played.
 | 14 | Heavyweights | few meals, each 85–93% of your size; one or two open each walled gate | 29 | 2, 1, 1, 1 |
 | 15 | Needle | most meals a beat from a big fish with little room; walled gates | 31 | 1, 1, 1 |
 
-Gauntlet has two fish and Heavyweights one fish slightly off their planned heights.
+Gauntlet has two fish and Heavyweights one fish slightly off their planned heights. As first planned,
+Gauntlet's first giant (fish 9) crossed over the high lane just as a big fish guarded the low one, too tight
+to get through in 20 tries; it now starts 380 points closer and crosses just after the first gate, above the
+swim to the next meal.
 
 A swarm of small fish doesn't fit the planner yet. A gate must be edible after `needed` meals and not
 after one fewer, with a few percent of margin either side, and a meal half your size grows you less than
