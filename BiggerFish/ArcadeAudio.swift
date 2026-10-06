@@ -129,7 +129,8 @@ final class ArcadeAudio {
     }
 
     @objc private func pauseForBackground() {
-        queue.async { [self] in currentMusic.flatMap { musicPlayers[$0] }?.pause() }
+        // Both tracks, in case this lands mid-crossfade; only the current one resumes.
+        queue.async { [self] in musicPlayers.values.forEach { $0.pause() } }
     }
 
     @objc private func resumeFromBackground() {

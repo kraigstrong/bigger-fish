@@ -37,7 +37,8 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
 - **Debug-only tools go behind `#if DEBUG`.** Math Reef's Settings has crown previews and
   Multiplication progress shortcuts in Xcode builds only. Anything a kid or parent shouldn't see
   follows the same pattern.
-- **Audio:** every sound's source and license goes in `MathReef/Sounds/CREDITS.md`. Mixkit's
+- **Audio:** every sound's source and license goes in its app's credits file:
+  `MathReef/Sounds/CREDITS.md` or `BiggerFish/Sounds/CREDITS.md`. Mixkit's
   *sound effects* license covers games; Mixkit's *music* license does not, so no Mixkit music in
   the apps.
 - **Privacy:** Math Reef is a kids' app. Don't add third-party analytics, ads, or tracking SDKs.
