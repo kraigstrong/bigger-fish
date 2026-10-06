@@ -133,10 +133,11 @@ crosses just after the first gate, above the swim to the next meal.
 Heavyweights' giant fish 20 crossed between its second fork and the walled gate after it, filling mid-water:
 from the high lane you'd swim through it, and from the low lane you'd have to wait under it and then climb
 faster than you can to reach the gate between its walls. It starts 420 points farther than planned, so it
-crosses a third of a second after the gate on every route, while you're swallowing it. That gate is also a
-little smaller than planned (40.5 points, not 42): you keep growing for 0.35 s after a meal, and Kraig, one
-meal short on the low lane, met it still growing and lost by about a tenth of a point after a run that felt
-perfect.
+crosses a third of a second after the gate on every route, while you're swallowing it. That gate is also
+smaller than planned (38.8 points, not 42): you keep growing for 0.35 s after a meal, and Kraig, one meal
+short on the low lane, met it as little as a frame after swallowing the lane's meal, still growing, and lost
+after a run that felt perfect. At 38.8 that meal makes the gate edible from the first frame after its
+swallow; without it the gate still wins.
 
 A swarm of small fish doesn't fit the planner yet. A gate must be edible after `needed` meals and not
 after one fewer, with a few percent of margin either side, and a meal half your size grows you less than

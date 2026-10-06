@@ -569,8 +569,9 @@ enum GameTuning {
     /// swim to the next meal, instead of closing the high lane while a big fish guards the low one.
     /// Heavyweights is its plan with fish 20, a giant, started 420 points farther: it crosses while you
     /// swallow the second walled gate instead of between that gate and the fork before it, where it shut
-    /// both lanes out. That gate (fish 22) is 40.5 points rather than 42: a player one meal short who took
-    /// the low lane met it still growing from the lane's meal, and lost the tie by about a tenth of a point.
+    /// both lanes out. That gate (fish 22) is 38.8 points rather than 42: a player one meal short who took
+    /// the low lane met it still growing from the lane's meal and lost. At 38.8 the lane's meal makes it
+    /// edible from the first frame after its swallow; without that meal it still isn't.
     static let reefLabFrozen: Set<String> = Set(reefLabSpecs.prefix(10).map(\.name))
         .union(["Frenzy", "Gauntlet", "Heavyweights"])
 
