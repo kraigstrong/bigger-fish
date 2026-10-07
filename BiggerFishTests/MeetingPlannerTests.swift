@@ -147,7 +147,10 @@ struct MeetingPlannerTests {
                     let crossings = scene.debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
                     #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(plan.spec.name)")
                     // Eating everything zooms out furthest; a couple of brushes there is as good as Hard does.
-                    #expect(scene.debugVisibleUnmetContacts <= (route == plan.fullestRoute ? 2 : 0), "\(plan.spec.name)")
+                    // Jelly Frenzy shipped as Kraig played and liked it, with three brushes on every route.
+                    let played = plan.spec.name == "Jelly Frenzy" ? 3 : 0
+                    #expect(scene.debugVisibleUnmetContacts <= max(played, route == plan.fullestRoute ? 2 : 0),
+                            "\(plan.spec.name)")
                 }
             }
         }
