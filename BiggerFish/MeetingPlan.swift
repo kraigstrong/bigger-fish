@@ -243,6 +243,8 @@ enum MeetingPlanner {
     static let designAttempts = 12
     /// Jelly levels are harder to solve cleanly, so they try more layouts.
     static let jellyDesignAttempts = 36
+    /// A quick plan for a playtest tries only this many layouts: about a minute for a jelly level.
+    static let quickDesignAttempts = 6
     private static let lock = NSLock()
     private static var cache: [String: MeetingPlan] = [:]
     private static var inFlight: [String: DispatchGroup] = [:]
@@ -250,15 +252,16 @@ enum MeetingPlanner {
     /// Deterministic for a spec and variation; the first design that passes every check, else the best one.
     /// Cached in memory. Reef Lab's own levels ship pre-planned (`ReefLabPlans.json`); this plans the tuner's
     /// other variations and regenerates that file.
-    static func plan(_ spec: MeetingSpec, variation: Int = 0) -> MeetingPlan {
-        let key = cacheKey(spec, variation: variation)
+    /// `attempts` overrides how many layouts it tries (`quickDesignAttempts` for a playtest).
+    static func plan(_ spec: MeetingSpec, variation: Int = 0, attempts: Int? = nil) -> MeetingPlan {
+        let key = cacheKey(spec, variation: variation) + (attempts.map { "/\($0)" } ?? "")
         lock.lock()
         if let cached = cache[key] { lock.unlock(); return cached }
         // Another thread is already planning this one (the launch-time background pass): wait for it.
         if let pending = inFlight[key] {
             lock.unlock()
             pending.wait()
-            return plan(spec, variation: variation)
+            return plan(spec, variation: variation, attempts: attempts)
         }
         let done = DispatchGroup()
         done.enter()
@@ -270,7 +273,7 @@ enum MeetingPlanner {
         }
         let base = GameTuning.spawnSeed &+ 7_000 &+ stableHash(spec.name) &+ UInt64(variation) &* 1_000_003
         var best: MeetingPlan?
-        for attempt in 0..<(spec.jellies == nil ? designAttempts : jellyDesignAttempts) {
+        for attempt in 0..<(attempts ?? (spec.jellies == nil ? designAttempts : jellyDesignAttempts)) {
             let plan = makePlan(spec, variation: variation, seed: base &+ UInt64(attempt) &* 0x9E37_79B9)
             if plan.issues.isEmpty { best = plan; break }
             if best.map({ plan.issues.count < $0.issues.count || plan.issues.count == $0.issues.count && offPlanScore(plan) < offPlanScore($0) }) ?? true {

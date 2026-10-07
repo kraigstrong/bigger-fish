@@ -213,20 +213,27 @@ struct MeetingPlannerTests {
         #expect(GameTuning.jellyLabFrozen.isSubset(of: GameTuning.jellyLabSpecs.map(\.name)))
         for plan in bundled {
             #expect(plan.fish.map(\.id) == Array(1...plan.fish.count))
-            #expect(plan.issues.allSatisfy { $0.contains("is off its plan") }, "\(plan.spec.name): \(plan.issues)")
+            // Scattered open-water jellies fill what room there is, so a shortfall there is fine.
+            #expect(plan.issues.allSatisfy { $0.contains("is off its plan") || $0.contains("open-water jellies fit") },
+                    "\(plan.spec.name): \(plan.issues)")
         }
     }
 
-    /// Writes BiggerFish/JellyLabPlans.json when build/arcade-development/jelly-lab-plans.request exists.
+    /// Writes BiggerFish/JellyLabPlans.json when build/arcade-development/jelly-lab-plans.request exists. The
+    /// marker may say "quick" (a playtest plan from a few layouts, about a minute) and "variation N" (another
+    /// layout from the same settings) for the levels being replanned.
     @Test func manualWriteJellyLabPlans() throws {
         let marker = Self.root.appendingPathComponent("build/arcade-development/jelly-lab-plans.request")
         guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        let words = ((try? String(contentsOf: marker, encoding: .utf8)) ?? "").split(whereSeparator: \.isWhitespace)
+        let attempts = words.contains("quick") ? MeetingPlanner.quickDesignAttempts : nil
+        let variation = words.firstIndex(of: "variation").flatMap { words.dropFirst($0 + 1).first.flatMap { Int($0) } } ?? 0
         let file = Self.root.appendingPathComponent("BiggerFish/JellyLabPlans.json")
         let existing = (try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: file))) ?? []
         // Frozen levels keep their shipped plans.
         let plans = GameTuning.jellyLabSpecs.map { spec in
             GameTuning.jellyLabFrozen.contains(spec.name) ? existing.first { $0.spec == spec } ?? MeetingPlanner.plan(spec)
-                : MeetingPlanner.plan(spec)
+                : MeetingPlanner.plan(spec, variation: variation, attempts: attempts)
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]

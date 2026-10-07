@@ -674,16 +674,19 @@ enum GameTuning {
             foodSize: 0.73...0.87, gateMargin: 0.15, dangerGap: 26, threatClearance: 40, spacing: 0.25,
             aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true,
             jellies: JellySpec(pockets: 1, stingMeals: 3, open: 9, openClearance: 36, scattered: true)),
-        // Jelly Frenzy: Shallow Reef's Frenzy (quick meals, four walled gates, a burst opening) with meals on domes.
+        // Jelly Frenzy: Shallow Reef's Frenzy (quick meals, four walled gates, a burst opening) with meals on domes
+        // and jellies scattered through open water. Gates are tighter than the first version, beaten on try two.
+        // Ships as variation 2 of these settings (its intro was a favorite), with the three open-water jellies
+        // after the third gate removed by hand: grown huge for the cleanup, you couldn't steer around them.
         MeetingSpec(name: "Jelly Frenzy",
             segments: [.init(singles: 3, forks: [.init(long: 1, short: 1)], needed: 3),
                        .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
                        .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
             worldScreens: 6.5, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.5...0.85,
-            foodSize: 0.66...0.8, gateMargin: 0.15, dangerGap: 24, threatClearance: 38, spacing: 0.21,
+            foodSize: 0.66...0.8, gateMargin: 0.11, dangerGap: 24, threatClearance: 38, spacing: 0.21,
             aiSpeed: 64...186, aiVertical: 93, crossSeconds: 2.57, walledGates: true, timesTheEdge: true,
-            jellies: JellySpec(pockets: 2, stingMeals: 1)),
+            jellies: JellySpec(pockets: 2, stingMeals: 1, open: 7, openClearance: 36, scattered: true)),
         // Jelly Gauntlet: Shallow Reef's Gauntlet with four big fish, a little smaller, threading between bells.
         MeetingSpec(name: "Jelly Gauntlet",
             segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
@@ -735,7 +738,8 @@ enum GameTuning {
         let bundled = Bundle.main.url(forResource: file, withExtension: "json")
             .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
         return specs.enumerated().map { index, spec in
-            var level = (bundled.first { $0.spec == spec && $0.variation == 0 } ?? MeetingPlanner.plan(spec)).level
+            // Whichever variation was shipped for a spec; a level replanned as another layout ships that one.
+            var level = (bundled.first { $0.spec == spec } ?? MeetingPlanner.plan(spec)).level
             level.ecosystemSeedIndex = index
             return level
         }
