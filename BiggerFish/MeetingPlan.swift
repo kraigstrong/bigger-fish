@@ -74,9 +74,9 @@ struct MeetingSpec: Codable, Equatable {
     var timesTheEdge = false
     /// Drifting jellyfish placed around the meetings (Jelly Bloom 2). Optional so older plans decode.
     var jellies: JellySpec? = nil
-    /// Kelp Forest: kelp slows you, so the plan allows for slower rising and falling everywhere.
-    var kelp: Bool? = nil
-    var reachScale: CGFloat { kelp == true ? GameTuning.kelpPlanningReach : 1 }
+    /// Kelp Forest's kelp: it slows you, so the plan allows for slower rising and falling everywhere.
+    var kelp: KelpSpec? = nil
+    var reachScale: CGFloat { kelp == nil ? 1 : GameTuning.kelpPlanningReach }
 }
 
 /// Jellyfish for a planned level: their size, and which meetings they sit beside.
@@ -132,6 +132,14 @@ struct PlannedFish: Codable, Equatable {
     /// Kelp Forest: your forward distance when this fish appears, just off screen (0: there from the start),
     /// swimming straight at its meeting height from `spawn`. Nil: there from the start on its own free swim.
     var appearsAt: CGFloat? = nil
+}
+
+/// How much kelp a Kelp Forest level grows.
+struct KelpSpec: Codable, Equatable {
+    /// Meals in the lowest this share of the water get a bed.
+    var meals: Double
+    /// Every bed reaches at least this share of the way up the water.
+    var height: Double
 }
 
 /// A kelp bed: it grows from the floor to `top` (world y), `halfWidth` either side of `x`. Inside it you
@@ -1673,14 +1681,15 @@ extension MeetingSolver {
 enum KelpLayout {
     typealias T = GameTuning
     static func beds(around crossings: [EncounterCrossing], fish: [PlannedFish], spec: MeetingSpec) -> [PlannedKelp] {
+        guard let kelp = spec.kelp else { return [] }
         let width = T.playfieldSize.width
         var beds: [PlannedKelp] = []
         for crossing in crossings.sorted(by: { $0.distance < $1.distance }) {
             guard let meal = fish.first(where: { $0.id == crossing.fishID }), meal.role != .threat else { continue }
             let zoom = CGFloat(crossing.zoom), bounds = PlayerTimeline.waterBounds(zoom: zoom)
             let y = CGFloat(crossing.y), radius = CGFloat(crossing.radius)
-            guard (y - bounds.bottom) / (bounds.top - bounds.bottom) <= T.kelpLowMealShare else { continue }
-            let tall = bounds.bottom + (bounds.top - bounds.bottom) * T.kelpMinimumTopShare
+            guard (y - bounds.bottom) / (bounds.top - bounds.bottom) <= CGFloat(kelp.meals) else { continue }
+            let tall = bounds.bottom + (bounds.top - bounds.bottom) * CGFloat(kelp.height)
             let top = min(max(y + radius + T.kelpCover / zoom, tall), bounds.top - T.kelpOpenWater / zoom)
             let x = CGFloat(crossing.distance), half = width * T.kelpHalfWidthScreens / zoom
             if let last = beds.last, x - half <= last.x + last.halfWidth {

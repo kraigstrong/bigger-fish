@@ -733,16 +733,20 @@ enum GameTuning {
     // MARK: Kelp Forest (Debug-only test world)
 
     /// Kelp Forest's levels: fish appear just off screen right before you meet them (`MeetingPlanner.kelpPlan`),
-    /// so these plan in milliseconds at launch rather than shipping as data. The first borrows Shallow Reef
-    /// level 6's settings, so the kelp is the only new thing in it.
-    static let kelpSpecs: [MeetingSpec] = [
-        MeetingSpec(name: "Kelp Forest 1",
-            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
-                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
-                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
-            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
-            foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
-            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68, kelp: true),
+    /// so these plan in milliseconds at launch rather than shipping as data. They follow Shallow Reef's ten
+    /// levels, already tuned for difficulty, while the kelp grows from a few low beds in level 1 to tall,
+    /// wide beds from level 7.
+    static let kelpSpecs: [MeetingSpec] = reefLabSpecs.prefix(10).enumerated().map { index, reef in
+        var spec = reef
+        spec.name = "Kelp Forest \(index + 1)"
+        spec.kelp = kelpRamp[index]
+        return spec
+    }
+    static let kelpRamp: [KelpSpec] = [
+        KelpSpec(meals: 0.3, height: 0.35), KelpSpec(meals: 0.35, height: 0.4), KelpSpec(meals: 0.4, height: 0.45),
+        KelpSpec(meals: 0.45, height: 0.5), KelpSpec(meals: 0.5, height: 0.55), KelpSpec(meals: 0.5, height: 0.58),
+        KelpSpec(meals: 0.55, height: 0.62), KelpSpec(meals: 0.55, height: 0.62), KelpSpec(meals: 0.55, height: 0.65),
+        KelpSpec(meals: 0.6, height: 0.65),
     ]
     static let kelpLevels: [Level] = kelpSpecs.enumerated().map { index, spec in
         var level = MeetingPlanner.kelpPlan(spec).level
@@ -753,9 +757,6 @@ enum GameTuning {
     static let kelpAppearMargin: CGFloat = 30
     /// It swims straight until you're this many screens past its meeting, then roams like any fish.
     static let kelpApproachReleaseScreens: CGFloat = 0.15
-    /// Meals in the lowest this share of the water get a kelp bed, which reaches at least this share up.
-    static let kelpLowMealShare: CGFloat = 0.55
-    static let kelpMinimumTopShare: CGFloat = 0.62
     /// Kelp Forest plans allow for this share of your usual rising and falling speed everywhere: you spend
     /// some of any swim in kelp and some in open water.
     static let kelpPlanningReach: CGFloat = 0.8
