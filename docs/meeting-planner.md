@@ -35,7 +35,10 @@ crosses beside it. When the short lanes still reach `needed`, both lanes are rea
 lane buys margin for later; playtesting showed zero slack leaves only one obvious route. On top of that:
 threats beside chosen foods (eat near danger); open-water threats that come back on lap two near the
 size you should have reached (`lapTwoSize`), so lap two tests lap one; the share of fish swimming at
-you; how sharply meals change height; speeds; and the world's width.
+you; how sharply meals change height; speeds; and the world's width. An open-water threat never crosses
+between a fork's lanes and the gate right after them: you're still swallowing a lane's meal high or low
+when you need mid-water for the gate, so a big fish there walls off both lanes (it did on Shallow Reef's
+Heavyweights).
 
 All planned meetings happen on the first lap: a fish's first crossing can't wait for lap two, and as you
 grow the camera zooms out and the lap speeds by (about ten seconds). A wider world buys a little more
@@ -175,7 +178,25 @@ The ramp: levels 1–2 have bells to bounce on if you like; from 3, sting meals;
 then split forks; 9–10 wall gates with tentacles. Plans ship in `BiggerFish/JellyLabPlans.json`; create
 `build/arcade-development/jelly-lab-plans.request` and run `MeetingPlannerTests` to regenerate it
 (several minutes: replanning ten jelly levels is slow, so CI only checks the file matches the specs).
-Levels 1–8 are frozen as played (`GameTuning.jellyLabFrozen`); regenerating keeps them.
+Levels 1–10 are frozen as played (`GameTuning.jellyLabFrozen`); regenerating keeps them.
+
+### Bonus levels 11–15
+
+Five more at the difficulty of 8–10, unlocking in order after level 10. Three bring Shallow Reef's
+favorite bonus levels into the bells; two are jelly feels of their own. They aren't frozen until they've
+been played, and `bonusLevelsFishDontBumpOnTheWayToTheirMeetings` checks them in the real scene.
+
+| Level | Name | Feel | Fish | Bells | Misses survived per gate |
+|---|---|---|---:|---:|---|
+| 11 | Bell Field | lots of jellies: dome and sting meals, a split fork, a bounce-only meal; fewer big fish; unwalled | 25 | 8 | 2, 2, 2 |
+| 12 | Jelly Frenzy | Frenzy with meals on domes: quick meals, four walled gates, a burst opening | 34 | 3 | 1, 1, 1, 1 |
+| 13 | Jelly Gauntlet | Gauntlet with four slightly smaller big fish threading between bells; unwalled | 31 | 2 | 1, 1, 1, 0 |
+| 14 | Night Heavyweights | Heavyweights with meals on domes and tentacle-walled gates | 26 | 6 | 2, 1, 1, 1 |
+| 15 | Curtain | most meals just under hanging tentacles; tentacle-walled gates; night | 26 | 6 | 2, 2, 1 |
+
+Bell Field and Night Heavyweights each have one fish slightly off its planned height. Two tries didn't
+make it: a level of forks split by jellies everywhere left no room for its big fish and bounce meals, and
+Gauntlet's six full-size big fish steered around bells into about 130 bumps.
 
 ## Shipped as data
 

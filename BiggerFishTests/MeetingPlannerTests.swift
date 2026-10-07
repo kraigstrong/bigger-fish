@@ -138,15 +138,20 @@ struct MeetingPlannerTests {
     /// Planned fish that touch where you could see it push apart and lose their meetings, and a player who eats
     /// more zooms out and sees further. Gauntlet's first giants knocked each other into an impassable wall.
     @MainActor @Test func bonusLevelsFishDontBumpOnTheWayToTheirMeetings() {
-        for index in 10..<GameTuning.reefLabLevels.count {
-            let plan = GameTuning.reefLabLevels[index].meetingPlan!
-            let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
-            for route in [plan.fewestMealRoute, reference, plan.fullestRoute] {
-                let scene = GameScene(world: .shallowReef, levelIndex: index)
-                let crossings = scene.debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
-                #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(plan.spec.name)")
-                // Eating everything zooms out furthest; a couple of brushes there is as good as Hard does.
-                #expect(scene.debugVisibleUnmetContacts <= (route == plan.fullestRoute ? 2 : 0), "\(plan.spec.name)")
+        for world in [ArcadeWorld.shallowReef, .jellyBloom] {
+            for index in 10..<world.levelCount {
+                let plan = world.level(index).meetingPlan!
+                let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
+                for route in [plan.fewestMealRoute, reference, plan.fullestRoute] {
+                    let scene = GameScene(world: world, levelIndex: index)
+                    let crossings = scene.debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
+                    #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(plan.spec.name)")
+                    // Eating everything zooms out furthest; a couple of brushes there is as good as Hard does.
+                    // Jelly Frenzy shipped as Kraig played and liked it, with three brushes on every route.
+                    let played = plan.spec.name == "Jelly Frenzy" ? 3 : 0
+                    #expect(scene.debugVisibleUnmetContacts <= max(played, route == plan.fullestRoute ? 2 : 0),
+                            "\(plan.spec.name)")
+                }
             }
         }
     }
@@ -211,20 +216,27 @@ struct MeetingPlannerTests {
         #expect(GameTuning.jellyLabFrozen.isSubset(of: GameTuning.jellyLabSpecs.map(\.name)))
         for plan in bundled {
             #expect(plan.fish.map(\.id) == Array(1...plan.fish.count))
-            #expect(plan.issues.allSatisfy { $0.contains("is off its plan") }, "\(plan.spec.name): \(plan.issues)")
+            // Scattered open-water jellies fill what room there is, so a shortfall there is fine.
+            #expect(plan.issues.allSatisfy { $0.contains("is off its plan") || $0.contains("open-water jellies fit") },
+                    "\(plan.spec.name): \(plan.issues)")
         }
     }
 
-    /// Writes BiggerFish/JellyLabPlans.json when build/arcade-development/jelly-lab-plans.request exists.
+    /// Writes BiggerFish/JellyLabPlans.json when build/arcade-development/jelly-lab-plans.request exists. The
+    /// marker may say "quick" (a playtest plan from a few layouts, about a minute) and "variation N" (another
+    /// layout from the same settings) for the levels being replanned.
     @Test func manualWriteJellyLabPlans() throws {
         let marker = Self.root.appendingPathComponent("build/arcade-development/jelly-lab-plans.request")
         guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        let words = ((try? String(contentsOf: marker, encoding: .utf8)) ?? "").split(whereSeparator: \.isWhitespace)
+        let attempts = words.contains("quick") ? MeetingPlanner.quickDesignAttempts : nil
+        let variation = words.firstIndex(of: "variation").flatMap { words.dropFirst($0 + 1).first.flatMap { Int($0) } } ?? 0
         let file = Self.root.appendingPathComponent("BiggerFish/JellyLabPlans.json")
         let existing = (try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: file))) ?? []
         // Frozen levels keep their shipped plans.
         let plans = GameTuning.jellyLabSpecs.map { spec in
             GameTuning.jellyLabFrozen.contains(spec.name) ? existing.first { $0.spec == spec } ?? MeetingPlanner.plan(spec)
-                : MeetingPlanner.plan(spec)
+                : MeetingPlanner.plan(spec, variation: variation, attempts: attempts)
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]

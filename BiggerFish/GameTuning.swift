@@ -398,6 +398,10 @@ enum GameTuning {
     static let plannerBouncePocketSize: CGFloat = 0.76
     /// Screen points of water between a pocket meal's body and the dome under it (plus a fifth of its radius).
     static let plannerPocketGap: CGFloat = 8
+    /// Scattered open-water jellies (`JellySpec.scattered`) are tried this often along the lap, clear of any
+    /// straight swim between two meals at most this far apart in time.
+    static let plannerScatterStep: CGFloat = 0.1
+    static let plannerScatterSwimSeconds: CGFloat = 1.2
     /// Screen points kept clear between any dome and the surface, beyond its bob: room for a fish to pass over.
     static let plannerDomeHeadroom: CGFloat = 40
     /// Screen points a pocket meal keeps below the top of the water, room to bounce.
@@ -656,12 +660,74 @@ enum GameTuning {
             foodSize: 0.76...0.9, gateMargin: 0.05, dangerGap: 16, threatClearance: 28, spacing: 0.26,
             aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, walledGates: true, timesTheEdge: true,
             jellies: JellySpec(night: true, stingMeals: 1, tentacleWalls: true)),
+
+        // Bonus levels 11–15: levels 8–10's difficulty, each with a feel of its own, several from Shallow Reef's
+        // bonus levels with jellies added.
+        // Bell Field: a field of bells, about twice as thick as other levels: jellies scattered through open water
+        // as well as meals on domes and under tentacles, a fork split by a bell, a bounce-only meal, and fewer
+        // big fish. Unwalled, like level 8, with tighter gates than the first version.
+        MeetingSpec(name: "Bell Field",
+            segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1, bounceMeals: 1)],
+            worldScreens: 7.5, extraThreats: 2, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.15, dangerGap: 26, threatClearance: 40, spacing: 0.25,
+            aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true,
+            jellies: JellySpec(pockets: 1, stingMeals: 3, open: 9, openClearance: 36, scattered: true)),
+        // Jelly Frenzy: Shallow Reef's Frenzy (quick meals, four walled gates, a burst opening) with meals on domes
+        // and jellies scattered through open water. Gates are tighter than the first version, beaten on try two.
+        // Ships as variation 2 of these settings (its intro was a favorite), with the three open-water jellies
+        // after the third gate removed by hand: grown huge for the cleanup, you couldn't steer around them.
+        MeetingSpec(name: "Jelly Frenzy",
+            segments: [.init(singles: 3, forks: [.init(long: 1, short: 1)], needed: 3),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 6.5, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.66...0.8, gateMargin: 0.11, dangerGap: 24, threatClearance: 38, spacing: 0.21,
+            aiSpeed: 64...186, aiVertical: 93, crossSeconds: 2.57, walledGates: true, timesTheEdge: true,
+            jellies: JellySpec(pockets: 2, stingMeals: 1, open: 7, openClearance: 36, scattered: true)),
+        // Jelly Gauntlet: Shallow Reef's Gauntlet with four big fish, a little smaller, threading between bells.
+        MeetingSpec(name: "Jelly Gauntlet",
+            segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 6.5, extraThreats: 4, lapTwoSize: 0.82...0.9, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.18, dangerGap: 24, threatClearance: 30, spacing: 0.26,
+            aiSpeed: 66...188, aiVertical: 94, crossSeconds: 2.56, timesTheEdge: true,
+            jellies: JellySpec(pockets: 1, stingMeals: 1)),
+        // Night Heavyweights: Shallow Reef's Heavyweights (few meals, each nearly your size) with meals on domes,
+        // tentacles walling the gates, and a meal only a bounce reaches. Gates are tighter and danger crosses
+        // closer than the first version, which was beaten on the first try. Its big fish 14 starts 250 points
+        // farther ahead than planned so it doesn't run into fish 12 and 13 on screen.
+        MeetingSpec(name: "Night Heavyweights",
+            segments: [.init(singles: 1, forks: [.init(long: 1, short: 1)], needed: 1),
+                       .init(singles: 0, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1, bounceMeals: 1),
+                       .init(singles: 0, forks: [.init(long: 1, short: 1)], needed: 1, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 6.5, extraThreats: 1, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.45...0.82,
+            foodSize: 0.85...0.93, gateMargin: 0.08, dangerGap: 18, threatClearance: 34, spacing: 0.3,
+            aiSpeed: 66...190, aiVertical: 95, crossSeconds: 2.55, walledGates: true, timesTheEdge: true,
+            jellies: JellySpec(night: true, pockets: 2, stingMeals: 1, tentacleWalls: true)),
+        // Curtain: tight windows under tentacles. Most meals cross just under hanging tentacles, and tentacles
+        // wall the gates.
+        MeetingSpec(name: "Curtain",
+            segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 1)],
+            worldScreens: 5.5, extraThreats: 2, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.74...0.88, gateMargin: 0.1, dangerGap: 12, threatClearance: 30, spacing: 0.26,
+            aiSpeed: 70...200, aiVertical: 100, crossSeconds: 2.48, walledGates: true, timesTheEdge: true,
+            jellies: JellySpec(night: true, stingMeals: 4, stingGap: 20, tentacleWalls: true)),
     ]
 
     /// Playtested Jelly Bloom 2 levels whose shipped plans are kept exactly as played (see `reefLabFrozen`).
     /// Level 10 is the plan first played there, with one big fish (21) started 30 points lower and 500 ahead
     /// so it no longer hovers over the bell that splits its late fork, and fish 20 started 150 earlier so it has
-    /// passed that bell before the fork reaches it.
+    /// passed that bell before the fork reaches it. The bonus levels (11 on) were played as first planned; each
+    /// leaves this set while it's reworked and rejoins once it's played again.
     static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name))
 
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
@@ -672,7 +738,8 @@ enum GameTuning {
         let bundled = Bundle.main.url(forResource: file, withExtension: "json")
             .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
         return specs.enumerated().map { index, spec in
-            var level = (bundled.first { $0.spec == spec && $0.variation == 0 } ?? MeetingPlanner.plan(spec)).level
+            // Whichever variation was shipped for a spec; a level replanned as another layout ships that one.
+            var level = (bundled.first { $0.spec == spec } ?? MeetingPlanner.plan(spec)).level
             level.ecosystemSeedIndex = index
             return level
         }

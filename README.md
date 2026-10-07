@@ -5,9 +5,8 @@ There's always a bigger fish.
 Arcade prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
-The world map opens **Shallow Reef** (ten planned levels, then five bonus levels at its hardest
-difficulty) and **Jelly Bloom** (ten planned levels; see Meeting planner below), and three locked worlds
-marked coming soon.
+The world map opens **Shallow Reef** and **Jelly Bloom**, each with ten planned levels and then five bonus
+levels at its hardest difficulty (see Meeting planner below), and three locked worlds marked coming soon.
 Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
 adds safe dome bounces and lethal tentacles, with protected first encounters followed by AI food races.
 A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
