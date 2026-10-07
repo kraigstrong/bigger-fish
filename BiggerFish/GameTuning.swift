@@ -398,6 +398,10 @@ enum GameTuning {
     static let plannerBouncePocketSize: CGFloat = 0.76
     /// Screen points of water between a pocket meal's body and the dome under it (plus a fifth of its radius).
     static let plannerPocketGap: CGFloat = 8
+    /// Scattered open-water jellies (`JellySpec.scattered`) are tried this often along the lap, clear of any
+    /// straight swim between two meals at most this far apart in time.
+    static let plannerScatterStep: CGFloat = 0.1
+    static let plannerScatterSwimSeconds: CGFloat = 1.2
     /// Screen points kept clear between any dome and the surface, beyond its bob: room for a fish to pass over.
     static let plannerDomeHeadroom: CGFloat = 40
     /// Screen points a pocket meal keeps below the top of the water, room to bounce.
@@ -659,16 +663,17 @@ enum GameTuning {
 
         // Bonus levels 11–15: levels 8–10's difficulty, each with a feel of its own, several from Shallow Reef's
         // bonus levels with jellies added.
-        // Bell Field: lots of jellies, with meals on domes and under tentacles, a fork split by a bell, a bounce-only
-        // meal, and fewer big fish. Unwalled, like level 8.
+        // Bell Field: a field of bells, about twice as thick as other levels: jellies scattered through open water
+        // as well as meals on domes and under tentacles, a fork split by a bell, a bounce-only meal, and fewer
+        // big fish. Unwalled, like level 8, with tighter gates than the first version.
         MeetingSpec(name: "Bell Field",
             segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 1),
                        .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1, bounceMeals: 1)],
-            worldScreens: 6.5, extraThreats: 2, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
-            foodSize: 0.73...0.87, gateMargin: 0.2, dangerGap: 26, threatClearance: 40, spacing: 0.25,
+            worldScreens: 7.5, extraThreats: 2, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.15, dangerGap: 26, threatClearance: 40, spacing: 0.25,
             aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true,
-            jellies: JellySpec(pockets: 2, stingMeals: 3, open: 1)),
+            jellies: JellySpec(pockets: 1, stingMeals: 3, open: 9, openClearance: 36, scattered: true)),
         // Jelly Frenzy: Shallow Reef's Frenzy (quick meals, four walled gates, a burst opening) with meals on domes.
         MeetingSpec(name: "Jelly Frenzy",
             segments: [.init(singles: 3, forks: [.init(long: 1, short: 1)], needed: 3),
@@ -720,7 +725,7 @@ enum GameTuning {
     /// so it no longer hovers over the bell that splits its late fork, and fish 20 started 150 earlier so it has
     /// passed that bell before the fork reaches it. The bonus levels (11 on) were played as first planned; each
     /// leaves this set while it's reworked and rejoins once it's played again.
-    static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name)).subtracting(["Night Heavyweights"])
+    static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name)).subtracting(["Bell Field"])
 
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")

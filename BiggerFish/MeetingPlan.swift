@@ -94,6 +94,9 @@ struct JellySpec: Codable, Equatable {
     /// Jellies in open water, this many screen points clear of a straight swim between the meals around them.
     var open = 0
     var openClearance: Double = 60
+    /// Open-water jellies that don't fit between two quiet meals go anywhere along the lap clear of every
+    /// swim between nearby meals, so a level can be thick with bells. Optional so older plans decode.
+    var scattered: Bool? = nil
 }
 
 /// A planned fish: where and when you meet it, and the spawn that gets it there on its own free swim.
@@ -1110,6 +1113,41 @@ extension MeetingDesigner {
             placed.append(DesignedJelly(role: .open, time: time, position: CGPoint(x: x, y: rim),
                                         phase: centeredPhase(at: time, rng: &rng), fishID: nil))
             open += 1
+        }
+        if jellySpec.scattered == true && open < jellySpec.open && meals.count > 1 {
+            // Every way you might be swimming at `time`: any two meals close enough in time that you could
+            // go straight from one to the other, skipping the meals between.
+            let mealYs = meals.map { worldY(meetings[$0], timeline: timeline) }
+            var time = times[meals[0]] + T.simulationStep
+            while time < times[meals[meals.count - 1]] && open < jellySpec.open {
+                defer { time += T.plannerScatterStep }
+                let step = min(timeline.lastStep, Int((time / T.simulationStep).rounded()))
+                let x = world.wrap(timeline.distance[step])
+                guard placed.allSatisfy({ abs(world.delta(from: $0.position.x, to: x)) >= spacing }) else { continue }
+                var swims: [CGFloat] = []
+                for (i, a) in meals.enumerated() where times[a] <= time {
+                    for (j, b) in meals.enumerated().dropFirst(i + 1)
+                    where times[b] >= time && times[b] - times[a] <= T.plannerScatterSwimSeconds {
+                        let share = (time - times[a]) / max(times[b] - times[a], T.simulationStep)
+                        swims.append(mealYs[i] + (mealYs[j] - mealYs[i]) * share)
+                    }
+                }
+                guard !swims.isEmpty else { continue }
+                let zoom = timeline.zoom[step]
+                let water = PlayerTimeline.waterBounds(zoom: zoom)
+                let body = timeline.radius[step] * T.plannerJellyPlayerAllowance * T.hazardHitboxScale
+                let clearance = CGFloat(jellySpec.openClearance) / zoom + body
+                // A bell above a swim keeps its tentacles clear of it; one below keeps its dome clear.
+                let rims = ([water.bottom] + swims.sorted()).map { $0 + clearance + L }.filter { rim in
+                    swims.allSatisfy { rim - L - clearance >= $0 || rim + R * 0.65 + clearance <= $0 }
+                        && rim - L >= water.bottom - 10 / zoom && rim >= water.bottom + 10 / zoom
+                        && rim + R * 0.65 <= water.top - domeHeadroom(zoom: zoom)
+                }
+                guard let rim = rims.randomElement(using: &rng) else { continue }
+                placed.append(DesignedJelly(role: .open, time: time, position: CGPoint(x: x, y: rim),
+                                            phase: centeredPhase(at: time, rng: &rng), fishID: nil))
+                open += 1
+            }
         }
         if open < jellySpec.open { issues.append("only \(open) of \(jellySpec.open) open-water jellies fit") }
         let jellies = placed.map { jelly in
