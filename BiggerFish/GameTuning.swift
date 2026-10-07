@@ -757,8 +757,8 @@ enum GameTuning {
     static let kelpLowMealShare: CGFloat = 0.55
     static let kelpMinimumTopShare: CGFloat = 0.62
     /// Kelp Forest plans allow for this share of your usual rising and falling speed everywhere: you spend
-    /// some of any swim in kelp (0.45 of it) and some in open water.
-    static let kelpPlanningReach: CGFloat = 0.7
+    /// some of any swim in kelp and some in open water.
+    static let kelpPlanningReach: CGFloat = 0.8
     /// Screen points of kelp above a hidden meal, and of open water always left above a bed.
     static let kelpCover: CGFloat = 22
     static let kelpOpenWater: CGFloat = 100
@@ -766,7 +766,7 @@ enum GameTuning {
     /// Kelp grows from this far below the bottom of the screen, so it's rooted in the seabed.
     static let kelpRootY: CGFloat = -14
     /// Inside kelp you rise and fall at this share of your usual speed.
-    static let kelpDrag: CGFloat = 0.45
+    static let kelpDrag: CGFloat = 0.65
     /// Other fish inside kelp fade to this, behind the fronds.
     static let kelpSilhouetteAlpha: CGFloat = 0.5
 
