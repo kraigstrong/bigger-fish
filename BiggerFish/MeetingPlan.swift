@@ -1614,14 +1614,14 @@ private extension PlannedFish {
             meetingDistance: meetingDistance, headOn: headOn,
             startHeading: startHeading, spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer,
             retargetTimer: retargetTimer, variant: variant, styleSeed: styleSeed, referenceMeal: referenceMeal,
-            bounceFrom: bounceFrom)
+            bounceFrom: bounceFrom, appearsAt: appearsAt)
     }
     func styled(_ seed: UInt64) -> PlannedFish {
         PlannedFish(id: id, role: role, segment: segment, fork: fork, lane: lane, radius: radius,
             meetingDistance: meetingDistance, headOn: headOn,
             startHeading: startHeading, spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer,
             retargetTimer: retargetTimer, variant: variant, styleSeed: seed, referenceMeal: referenceMeal,
-            bounceFrom: bounceFrom)
+            bounceFrom: bounceFrom, appearsAt: appearsAt)
     }
 }
 
