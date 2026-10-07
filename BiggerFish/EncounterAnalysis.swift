@@ -85,9 +85,11 @@ enum EncounterAnalyzer {
     static func analyze(_ crossings: [EncounterCrossing], jellies: [JellyPass] = [],
                         efficiency: CGFloat = GameTuning.freeEncounterAbsorption * GameTuning.mealGrowthScale,
                         startRadius: CGFloat = GameTuning.baseRadius,
-                        startY: CGFloat = (GameTuning.waterBottomMargin + GameTuning.playfieldSize.height - GameTuning.waterTopMargin) / 2) -> EncounterAnalysis {
-        let graph = RouteGraph(crossings.sorted { $0.time < $1.time }, jellies: jellies.sorted { $0.time < $1.time },
+                        startY: CGFloat = (GameTuning.waterBottomMargin + GameTuning.playfieldSize.height - GameTuning.waterTopMargin) / 2,
+                        reachScale: CGFloat = 1) -> EncounterAnalysis {
+        var graph = RouteGraph(crossings.sorted { $0.time < $1.time }, jellies: jellies.sorted { $0.time < $1.time },
                                efficiency: efficiency, startRadius: startRadius, startY: startY)
+        graph.reachScale = reachScale
         return graph.analysis()
     }
 
@@ -254,6 +256,8 @@ private struct RouteGraph {
     let efficiency: CGFloat
     let startRadius: CGFloat
     let startY: CGFloat
+    /// Share of your usual rising and falling the routes allow for (Kelp Forest's kelp slows you).
+    var reachScale: CGFloat = 1
     /// Other crossings at nearly the same moment, which can block a meal.
     private let simultaneous: [[Int]]
     private var count: Int { meetings.count }
@@ -293,7 +297,7 @@ private struct RouteGraph {
         let tolerance = (player + prey) * EncounterAnalyzer.catchTolerance
         if jellies.isEmpty {
             let needed = max(0, abs(CGFloat(target.y) - fromY) - tolerance)
-            guard EncounterAnalyzer.verticalReach(seconds: elapsed) / CGFloat(target.zoom) >= needed else { return false }
+            guard EncounterAnalyzer.verticalReach(seconds: elapsed) * reachScale / CGFloat(target.zoom) >= needed else { return false }
         } else {
             let to = (time: target.time, y: CGFloat(target.y), zoom: CGFloat(target.zoom))
             guard JellyRoutes.swim(from: (fromTime, fromY), to: to, tolerance: tolerance, radius: player, jellies: jellies)

@@ -742,7 +742,7 @@ enum GameTuning {
                        .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
             worldScreens: 5, extraThreats: 3, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
             foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
-            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68),
+            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68, kelp: true),
     ]
     static let kelpLevels: [Level] = kelpSpecs.enumerated().map { index, spec in
         var level = MeetingPlanner.kelpPlan(spec).level
@@ -753,12 +753,18 @@ enum GameTuning {
     static let kelpAppearMargin: CGFloat = 30
     /// It swims straight until you're this many screens past its meeting, then roams like any fish.
     static let kelpApproachReleaseScreens: CGFloat = 0.15
-    /// Meals in the lowest this share of the water get a kelp bed.
-    static let kelpLowMealShare: CGFloat = 0.42
+    /// Meals in the lowest this share of the water get a kelp bed, which reaches at least this share up.
+    static let kelpLowMealShare: CGFloat = 0.55
+    static let kelpMinimumTopShare: CGFloat = 0.62
+    /// Kelp Forest plans allow for this share of your usual rising and falling speed everywhere: you spend
+    /// some of any swim in kelp (0.45 of it) and some in open water.
+    static let kelpPlanningReach: CGFloat = 0.7
     /// Screen points of kelp above a hidden meal, and of open water always left above a bed.
     static let kelpCover: CGFloat = 22
-    static let kelpOpenWater: CGFloat = 120
+    static let kelpOpenWater: CGFloat = 100
     static let kelpHalfWidthScreens: CGFloat = 0.2
+    /// Kelp grows from this far below the bottom of the screen, so it's rooted in the seabed.
+    static let kelpRootY: CGFloat = -14
     /// Inside kelp you rise and fall at this share of your usual speed.
     static let kelpDrag: CGFloat = 0.45
     /// Other fish inside kelp fade to this, behind the fronds.

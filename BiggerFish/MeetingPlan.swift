@@ -74,6 +74,9 @@ struct MeetingSpec: Codable, Equatable {
     var timesTheEdge = false
     /// Drifting jellyfish placed around the meetings (Jelly Bloom 2). Optional so older plans decode.
     var jellies: JellySpec? = nil
+    /// Kelp Forest: kelp slows you, so the plan allows for slower rising and falling everywhere.
+    var kelp: Bool? = nil
+    var reachScale: CGFloat { kelp == true ? GameTuning.kelpPlanningReach : 1 }
 }
 
 /// Jellyfish for a planned level: their size, and which meetings they sit beside.
@@ -305,7 +308,7 @@ enum MeetingPlanner {
         let seed = GameTuning.spawnSeed &+ 7_000 &+ stableHash(spec.name) &+ UInt64(variation) &* 1_000_003
         let design = MeetingDesigner.design(spec, seed: seed)
         let solved = MeetingSolver.justInTime(design.meetings, spec: spec, seed: seed, timeline: design.timeline)
-        let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: [])
+        let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: [], reachScale: spec.reachScale)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
             predicted: solved.crossings, analysis: analysis, issues: [])
         return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
@@ -947,6 +950,7 @@ enum MeetingDesigner {
                     height = CGFloat.random(in: T.plannerMidWater, using: &rng)
                 } else {
                     let reach = EncounterAnalyzer.verticalReach(seconds: Double(times[i] - times[meals[position - 1]]))
+                        * spec.reachScale
                     let farthest = min(T.plannerHeightLimits.upperBound - T.plannerHeightLimits.lowerBound, (reach + T.plannerMealHeightTolerance) / screenWater)
                     let swing = farthest * CGFloat(Double.random(in: spec.heightSwing, using: &rng))
                     var sign: CGFloat = Bool.random(using: &rng) ? 1 : -1
@@ -1676,7 +1680,8 @@ enum KelpLayout {
             let zoom = CGFloat(crossing.zoom), bounds = PlayerTimeline.waterBounds(zoom: zoom)
             let y = CGFloat(crossing.y), radius = CGFloat(crossing.radius)
             guard (y - bounds.bottom) / (bounds.top - bounds.bottom) <= T.kelpLowMealShare else { continue }
-            let top = min(y + radius + T.kelpCover / zoom, bounds.top - T.kelpOpenWater / zoom)
+            let tall = bounds.bottom + (bounds.top - bounds.bottom) * T.kelpMinimumTopShare
+            let top = min(max(y + radius + T.kelpCover / zoom, tall), bounds.top - T.kelpOpenWater / zoom)
             let x = CGFloat(crossing.distance), half = width * T.kelpHalfWidthScreens / zoom
             if let last = beds.last, x - half <= last.x + last.halfWidth {
                 // Overlapping beds grow into one.
