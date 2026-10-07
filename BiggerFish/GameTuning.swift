@@ -725,7 +725,7 @@ enum GameTuning {
     /// so it no longer hovers over the bell that splits its late fork, and fish 20 started 150 earlier so it has
     /// passed that bell before the fork reaches it. The bonus levels (11 on) were played as first planned; each
     /// leaves this set while it's reworked and rejoins once it's played again.
-    static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name)).subtracting(["Bell Field"])
+    static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name))
 
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")
