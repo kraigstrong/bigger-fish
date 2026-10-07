@@ -126,6 +126,17 @@ struct PlannedFish: Codable, Equatable {
     let referenceMeal: Bool
     /// A meal high above a pocket meal (this fish id) that only the pocket's bounce reaches in time.
     var bounceFrom: Int? = nil
+    /// Kelp Forest: your forward distance when this fish appears, just off screen (0: there from the start),
+    /// swimming straight at its meeting height from `spawn`. Nil: there from the start on its own free swim.
+    var appearsAt: CGFloat? = nil
+}
+
+/// A kelp bed: it grows from the floor to `top` (world y), `halfWidth` either side of `x`. Inside it you
+/// rise and fall slowly, and other fish show only as silhouettes.
+struct PlannedKelp: Codable, Equatable {
+    let x: CGFloat
+    let halfWidth: CGFloat
+    let top: CGFloat
 }
 
 /// A jellyfish the planner placed: the home it drifts around, and the meeting it was placed for.
@@ -178,6 +189,8 @@ struct MeetingPlan: Codable {
     let issues: [String]
     /// Jelly Bloom 2's jellies, in the order GameScene spawns them. Optional so older plans decode.
     var jellies: [PlannedJelly]? = nil
+    /// Kelp Forest's kelp beds.
+    var kelp: [PlannedKelp]? = nil
 
     var level: Level {
         let radii = fish.map { $0.radius / GameTuning.baseRadius }
@@ -284,6 +297,20 @@ enum MeetingPlanner {
         cache[key] = best!
         lock.unlock()
         return best!
+    }
+
+    /// Kelp Forest: every fish appears just off screen shortly before you meet it and swims straight to the
+    /// meeting, so its spawn is worked out directly rather than searched for. One layout, in milliseconds.
+    static func kelpPlan(_ spec: MeetingSpec, variation: Int = 0) -> MeetingPlan {
+        let seed = GameTuning.spawnSeed &+ 7_000 &+ stableHash(spec.name) &+ UInt64(variation) &* 1_000_003
+        let design = MeetingDesigner.design(spec, seed: seed)
+        let solved = MeetingSolver.justInTime(design.meetings, spec: spec, seed: seed, timeline: design.timeline)
+        let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: [])
+        let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
+            predicted: solved.crossings, analysis: analysis, issues: [])
+        return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
+            analysis: analysis, issues: design.issues + check(unchecked),
+            kelp: KelpLayout.beds(around: solved.crossings, fish: solved.fish, spec: spec))
     }
 
     /// How far off plan a plan's fish are, in total ("fish 4 is off its plan (score 21)" counts 21).
@@ -1591,5 +1618,75 @@ private extension PlannedFish {
             startHeading: startHeading, spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer,
             retargetTimer: retargetTimer, variant: variant, styleSeed: seed, referenceMeal: referenceMeal,
             bounceFrom: bounceFrom)
+    }
+}
+
+extension MeetingSolver {
+    /// Kelp Forest: each fish appears as late as it can while still just beyond the edge of the screen it comes
+    /// from, swimming straight at its meeting height, so it meets the reference route exactly as designed. It
+    /// only exists for those last seconds, so nothing it passes on the way can knock it off schedule.
+    static func justInTime(_ meetings: [DesignedMeeting], spec: MeetingSpec, seed: UInt64, timeline: PlayerTimeline)
+        -> (fish: [PlannedFish], crossings: [EncounterCrossing]) {
+        let width = T.playfieldSize.width, dt = T.simulationStep
+        let world = WrappedWorld(width: width * CGFloat(spec.worldScreens))
+        var fish: [PlannedFish] = []
+        var crossings: [EncounterCrossing] = []
+        for (index, meeting) in meetings.enumerated() {
+            let id = index + 1
+            var draw = SeededGenerator(seed: seed &+ UInt64(id) &* 0x9E37_79B9_7F4A_7C15)
+            let meetStep = timeline.step(reaching: meeting.distance)
+            let zoom = timeline.zoom[meetStep]
+            let radius = meeting.size * T.baseRadius
+            let bounds = PlayerTimeline.waterBounds(zoom: zoom)
+            let y = bounds.bottom + radius + (bounds.top - bounds.bottom - 2 * radius) * meeting.height
+            let heading: CGFloat = meeting.headOn ? -1 : 1
+            /// How far ahead of you (negative: behind) the fish is at `step`.
+            func lead(_ step: Int) -> CGFloat {
+                meeting.distance - heading * meeting.speed * CGFloat(meetStep - step) * dt - timeline.distance[step]
+            }
+            func offScreen(_ step: Int) -> Bool {
+                let z = timeline.zoom[step], margin = radius + T.kelpAppearMargin / z
+                return lead(step) > width * (1 - T.playerScreenX) / z + margin || lead(step) < -(width * T.playerScreenX / z + margin)
+            }
+            var step = meetStep
+            while step > 0 && !offScreen(step) { step -= 1 }
+            fish.append(PlannedFish(id: id, role: meeting.role, segment: meeting.segment, fork: meeting.fork,
+                lane: meeting.lane, radius: radius, meetingDistance: meeting.distance, headOn: meeting.headOn,
+                startHeading: heading, spawn: CGPoint(x: world.wrap(timeline.distance[step] + lead(step)), y: y),
+                cruiseSpeed: meeting.speed, phase: CGFloat.random(in: 0..<(2 * .pi), using: &draw),
+                turnTimer: CGFloat.random(in: T.aiTurnIntervalRange, using: &draw),
+                retargetTimer: CGFloat.random(in: T.aiRetargetRange, using: &draw), variant: 0, styleSeed: 0,
+                referenceMeal: meeting.onReferenceRoute, appearsAt: timeline.distance[step]))
+            crossings.append(EncounterCrossing(fishID: id, time: Double(CGFloat(meetStep) * dt), distance: Double(meeting.distance),
+                y: Double(y), radius: Double(radius), headOn: meeting.headOn, zoom: Double(zoom)))
+        }
+        return (styled(fish, seed: seed), crossings)
+    }
+}
+
+/// Where Kelp Forest's kelp grows: a bed over each low meal, its top just above the meal so it's hidden in
+/// the fronds and you dive in for it, with open water above for the quick way past.
+enum KelpLayout {
+    typealias T = GameTuning
+    static func beds(around crossings: [EncounterCrossing], fish: [PlannedFish], spec: MeetingSpec) -> [PlannedKelp] {
+        let width = T.playfieldSize.width
+        var beds: [PlannedKelp] = []
+        for crossing in crossings.sorted(by: { $0.distance < $1.distance }) {
+            guard let meal = fish.first(where: { $0.id == crossing.fishID }), meal.role != .threat else { continue }
+            let zoom = CGFloat(crossing.zoom), bounds = PlayerTimeline.waterBounds(zoom: zoom)
+            let y = CGFloat(crossing.y), radius = CGFloat(crossing.radius)
+            guard (y - bounds.bottom) / (bounds.top - bounds.bottom) <= T.kelpLowMealShare else { continue }
+            let top = min(y + radius + T.kelpCover / zoom, bounds.top - T.kelpOpenWater / zoom)
+            let x = CGFloat(crossing.distance), half = width * T.kelpHalfWidthScreens / zoom
+            if let last = beds.last, x - half <= last.x + last.halfWidth {
+                // Overlapping beds grow into one.
+                let left = last.x - last.halfWidth, right = x + half
+                beds[beds.count - 1] = PlannedKelp(x: (left + right) / 2, halfWidth: (right - left) / 2, top: max(last.top, top))
+            } else {
+                beds.append(PlannedKelp(x: x, halfWidth: half, top: top))
+            }
+        }
+        let worldWidth = width * CGFloat(spec.worldScreens)
+        return beds.map { PlannedKelp(x: WrappedWorld(width: worldWidth).wrap($0.x), halfWidth: $0.halfWidth, top: $0.top) }
     }
 }

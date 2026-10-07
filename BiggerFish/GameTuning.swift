@@ -730,6 +730,40 @@ enum GameTuning {
     /// leaves this set while it's reworked and rejoins once it's played again.
     static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name))
 
+    // MARK: Kelp Forest (Debug-only test world)
+
+    /// Kelp Forest's levels: fish appear just off screen right before you meet them (`MeetingPlanner.kelpPlan`),
+    /// so these plan in milliseconds at launch rather than shipping as data. The first borrows Shallow Reef
+    /// level 6's settings, so the kelp is the only new thing in it.
+    static let kelpSpecs: [MeetingSpec] = [
+        MeetingSpec(name: "Kelp Forest 1",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
+            foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
+            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68),
+    ]
+    static let kelpLevels: [Level] = kelpSpecs.enumerated().map { index, spec in
+        var level = MeetingPlanner.kelpPlan(spec).level
+        level.ecosystemSeedIndex = index
+        return level
+    }
+    /// Screen points beyond the edge of the screen where a Kelp Forest fish appears.
+    static let kelpAppearMargin: CGFloat = 30
+    /// It swims straight until you're this many screens past its meeting, then roams like any fish.
+    static let kelpApproachReleaseScreens: CGFloat = 0.15
+    /// Meals in the lowest this share of the water get a kelp bed.
+    static let kelpLowMealShare: CGFloat = 0.42
+    /// Screen points of kelp above a hidden meal, and of open water always left above a bed.
+    static let kelpCover: CGFloat = 22
+    static let kelpOpenWater: CGFloat = 120
+    static let kelpHalfWidthScreens: CGFloat = 0.2
+    /// Inside kelp you rise and fall at this share of your usual speed.
+    static let kelpDrag: CGFloat = 0.45
+    /// Other fish inside kelp fade to this, behind the fronds.
+    static let kelpSilhouetteAlpha: CGFloat = 0.5
+
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")
 

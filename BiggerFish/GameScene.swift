@@ -53,7 +53,7 @@ final class GameScene: SKScene {
     private var foodRefillCooldown: CGFloat = 0
     private let mealIndicator = SKLabelNode(fontNamed: "AvenirNext-DemiBold")
     private var hasWon: Bool {
-        GameRules.isWin(fish)
+        GameRules.isWin(fish) && waitingFish.isEmpty
     }
     let arcadeWorld: ArcadeWorld
     private var levelIndex: Int {
@@ -298,6 +298,11 @@ final class GameScene: SKScene {
     private var slowMoFactor: CGFloat = 1
     private var endedAt: CGFloat = 0
     private var stungFish: [StungFish] = []
+    /// Kelp Forest fish that appear just off screen once you reach `appearsAt`, soonest first.
+    private var waitingFish: [PlannedFish] = []
+    /// A Kelp Forest fish swims straight at its meeting height until you're this far along, then roams.
+    private var approachEnds: [Int: CGFloat] = [:]
+    private var kelpBeds: [(bed: PlannedKelp, node: KelpNode)] = []
     /// After a sting, the result waits until the death animation has played.
     private var pendingLossResultAt: CGFloat?
     private var lastCameraX: CGFloat = 0
@@ -445,6 +450,7 @@ final class GameScene: SKScene {
         world = WrappedWorld(width: size.width * level.worldScreens)
         rng = SeededGenerator(seed: ecosystemSeed)
         spawnJellies()
+        spawnKelp()
         spawnEcosystem()
         lastCameraX = player.position.x
         capturePresentation()
@@ -547,23 +553,38 @@ final class GameScene: SKScene {
 
     /// Each fish starts where its own free swim brings it across your path at its planned meeting.
     private func spawnPlanned(_ plan: MeetingPlan) {
-        for planned in plan.fish {
-            let f = Fish(id: planned.id, isPlayer: false, position: planned.spawn, radius: planned.radius)
-            nextFishID = max(nextFishID, planned.id + 1)
-            f.heading = planned.startHeading
-            f.cruiseSpeed = planned.cruiseSpeed
-            f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
-            f.facing = f.heading
-            f.targetY = planned.spawn.y
-            f.retargetTimer = planned.retargetTimer
-            f.turnTimer = planned.turnTimer
-            f.phase = planned.phase
-            movementVariants[f.id] = planned.variant
-            var styleGenerator = SeededGenerator(seed: planned.styleSeed)
-            add(f, style: FishStyle.random(using: &styleGenerator))
-            // Protected until you've passed its meeting, so the food race starts where you missed it.
-            encounterLeases[f.id] = EncounterLease(home: planned.spawn,
-                releaseDistance: planned.meetingDistance + size.width * T.freeEncounterReleaseScreens, index: planned.segment)
+        approachEnds.removeAll()
+        waitingFish = plan.fish.filter { ($0.appearsAt ?? 0) > 0 }.sorted { $0.appearsAt! < $1.appearsAt! }
+        for planned in plan.fish where (planned.appearsAt ?? 0) <= 0 { spawnPlannedFish(planned) }
+    }
+
+    /// Kelp Forest fish waiting off screen appear once you've come far enough.
+    private func releaseWaitingFish() {
+        while let next = waitingFish.first, let at = next.appearsAt, forwardDistance >= at {
+            waitingFish.removeFirst()
+            spawnPlannedFish(next)
+        }
+    }
+
+    private func spawnPlannedFish(_ planned: PlannedFish) {
+        let f = Fish(id: planned.id, isPlayer: false, position: planned.spawn, radius: planned.radius)
+        nextFishID = max(nextFishID, planned.id + 1)
+        f.heading = planned.startHeading
+        f.cruiseSpeed = planned.cruiseSpeed
+        f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
+        f.facing = f.heading
+        f.targetY = planned.spawn.y
+        f.retargetTimer = planned.retargetTimer
+        f.turnTimer = planned.turnTimer
+        f.phase = planned.phase
+        movementVariants[f.id] = planned.variant
+        var styleGenerator = SeededGenerator(seed: planned.styleSeed)
+        add(f, style: FishStyle.random(using: &styleGenerator))
+        // Protected until you've passed its meeting, so the food race starts where you missed it.
+        encounterLeases[f.id] = EncounterLease(home: planned.spawn,
+            releaseDistance: planned.meetingDistance + size.width * T.freeEncounterReleaseScreens, index: planned.segment)
+        if planned.appearsAt != nil {
+            approachEnds[f.id] = planned.meetingDistance + size.width * T.kelpApproachReleaseScreens
         }
     }
 
@@ -1021,6 +1042,7 @@ final class GameScene: SKScene {
         for f in fish where f.isAlive {
             if f.isPlayer { movePlayer(f, dt) } else { moveAI(f, dt) }
         }
+        releaseWaitingFish()
         #if DEBUG
         for (id, lease) in encounterLeases where !lease.isProtected(distance: forwardDistance) {
             let key = level.freeEncounterMovement ? id : lease.index
@@ -1055,6 +1077,12 @@ final class GameScene: SKScene {
             motion.maxRiseSpeed = bounceSpeed
             motion.fallAcceleration *= 0.35
         }
+        if inKelp(p.position) {
+            motion.riseAcceleration *= T.kelpDrag
+            motion.fallAcceleration *= T.kelpDrag
+            motion.maxRiseSpeed *= T.kelpDrag
+            motion.maxFallSpeed *= T.kelpDrag
+        }
         let (y, vy) = PlayerMotion.step(
             y: p.position.y, vy: p.velocity.dy, holding: isHolding, dt: dt,
             minY: waterBottom + p.radius * 0.95, maxY: waterTop - p.radius * 0.95,
@@ -1087,6 +1115,16 @@ final class GameScene: SKScene {
     }
 
     private func moveAI(_ f: Fish, _ dt: CGFloat) {
+        if let end = approachEnds[f.id] {
+            if forwardDistance < end {
+                f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
+                f.position = CGPoint(x: world.wrap(f.position.x + f.velocity.dx * dt), y: f.position.y)
+                f.facing = f.heading
+                return
+            }
+            approachEnds[f.id] = nil
+            f.targetY = f.position.y
+        }
         if !level.freeEncounterMovement, let lease = encounterLeases[f.id], lease.isProtected(distance: forwardDistance) {
             moveProtectedAI(f, lease: lease, dt: dt)
             return
@@ -1190,6 +1228,38 @@ final class GameScene: SKScene {
         // Slow swimming remains broadside; only an actual turn briefly narrows the fish.
         let direction: CGFloat = abs(vx) > 2 ? (vx >= 0 ? 1 : -1) : f.heading
         f.facing += (direction - f.facing) * min(1, dt * T.encounterFacingRate)
+    }
+
+    // MARK: - Kelp Forest
+
+    private func spawnKelp() {
+        for bed in kelpBeds { bed.node.removeFromParent() }
+        kelpBeds = (level.meetingPlan?.kelp ?? []).enumerated().map { index, bed in
+            let node = KelpNode(width: bed.halfWidth * 2, height: bed.top - screenWaterBottom, seed: UInt64(index))
+            // In front of every other fish, so those inside show through the fronds; behind you.
+            node.zPosition = 29
+            fishLayer.addChild(node)
+            return (bed, node)
+        }
+    }
+
+    private func inKelp(_ position: CGPoint) -> Bool {
+        kelpBeds.contains { abs(world.delta(from: $0.bed.x, to: position.x)) <= $0.bed.halfWidth && position.y < $0.bed.top }
+    }
+
+    /// Beds grow from the floor wherever the camera has it, up to their top.
+    private func renderKelp(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
+        for (bed, node) in kelpBeds {
+            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: bed.x) * zoom
+            let half = bed.halfWidth * zoom
+            node.isHidden = x + half < -20 || x - half > size.width + 20
+            if node.isHidden { continue }
+            let top = waterCenter + (bed.top - waterCenter) * zoom
+            node.position = CGPoint(x: x, y: screenWaterBottom)
+            node.xScale = zoom
+            node.yScale = max(0.05, (top - screenWaterBottom) / max(1, bed.top - screenWaterBottom))
+            node.sway(time: time)
+        }
     }
 
     // MARK: - Jelly Bloom (arcade-only; no shared engine changes)
@@ -1450,7 +1520,11 @@ final class GameScene: SKScene {
                 let reach = (a.radius + b.radius) * T.collisionScale
                 guard dx * dx + dy * dy < reach * reach else { continue }
                 if protectedPair {
-                    if level.meetingPlan == nil || plannedPairSeparates(a, b) { separateProtectedFish(a, b, dx: dx, dy: dy) }
+                    // Kelp Forest fish swimming in to their meetings pass each other rather than be pushed off course.
+                    let approaching = approachEnds[a.id] != nil || approachEnds[b.id] != nil
+                    if level.meetingPlan == nil || plannedPairSeparates(a, b) && !approaching {
+                        separateProtectedFish(a, b, dx: dx, dy: dy)
+                    }
                     continue
                 }
 
@@ -1718,6 +1792,7 @@ final class GameScene: SKScene {
         let cameraX = presentationPose(player, fraction: fraction).position.x
         let anchorX = size.width * T.playerScreenX
         renderJellies(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
+        renderKelp(cameraX: cameraX, zoom: zoom, time: time)
         for f in fish {
             guard let node = nodes[f.id], !stungFish.contains(where: { $0.id == f.id }) else { continue }
             let pose = presentationPose(f, fraction: fraction)
@@ -1726,6 +1801,7 @@ final class GameScene: SKScene {
             node.isHidden = screenX < -margin || screenX > size.width + margin
             if node.isHidden { continue }
             node.position = CGPoint(x: screenX, y: waterCenter + (pose.position.y - waterCenter) * zoom)
+            if !kelpBeds.isEmpty { node.alpha = !f.isPlayer && inKelp(pose.position) ? T.kelpSilhouetteAlpha : 1 }
 
             var stretch: CGFloat = 1
             if pose.pulse > 0 {

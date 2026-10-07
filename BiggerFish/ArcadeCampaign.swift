@@ -4,10 +4,18 @@ import Foundation
 enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     case shallowReef = "shallow-reef"
     case jellyBloom = "jelly-bloom"
+    /// A test world in Xcode builds only, while its kelp and late-appearing fish are tried out.
+    case kelpForest = "kelp-forest"
 
-    /// The playable worlds, in map order. The map shows three more as coming soon.
+    /// The playable worlds, in map order. The map shows the rest as coming soon.
     static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom]
-    static var mapWorlds: [ArcadeWorld] { campaign }
+    static var mapWorlds: [ArcadeWorld] {
+        #if DEBUG
+        campaign + [.kelpForest]
+        #else
+        campaign
+        #endif
+    }
     var hasJellies: Bool { self == .jellyBloom }
 
     var id: String { rawValue }
@@ -15,12 +23,14 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .shallowReef: "Shallow Reef"
         case .jellyBloom: "Jelly Bloom"
+        case .kelpForest: "Kelp Forest"
         }
     }
     var subtitle: String {
         switch self {
         case .shallowReef: "Eat. Dodge. Grow."
         case .jellyBloom: "Bounce the tops. Dodge the tentacles."
+        case .kelpForest: "Dive into the kelp. Mind what's hiding."
         }
     }
     /// Both worlds play planned levels (see docs/meeting-planner.md), shipped as data.
@@ -28,6 +38,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .shallowReef: GameTuning.reefLabLevels
         case .jellyBloom: GameTuning.jellyLabLevels
+        case .kelpForest: GameTuning.kelpLevels
         }
     }
     func level(_ index: Int) -> Level { levels[index] }
@@ -37,6 +48,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .shallowReef: GameTuning.levels
         case .jellyBloom: GameTuning.bloomLevels
+        case .kelpForest: GameTuning.kelpLevels
         }
     }
     /// Counting a world's levels doesn't load them.
@@ -44,6 +56,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .shallowReef: GameTuning.reefLabSpecs.count
         case .jellyBloom: GameTuning.jellyLabSpecs.count
+        case .kelpForest: GameTuning.kelpSpecs.count
         }
     }
     var levelTitles: [String] { (0..<levelCount).map { "Level \($0 + 1)" } }
