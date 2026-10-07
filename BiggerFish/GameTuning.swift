@@ -689,15 +689,17 @@ enum GameTuning {
             foodSize: 0.73...0.87, gateMargin: 0.18, dangerGap: 24, threatClearance: 30, spacing: 0.26,
             aiSpeed: 66...188, aiVertical: 94, crossSeconds: 2.56, timesTheEdge: true,
             jellies: JellySpec(pockets: 1, stingMeals: 1)),
-        // Night Heavyweights: Shallow Reef's Heavyweights (few meals, each nearly your size) with meals on domes
-        // and tentacles walling the gates.
+        // Night Heavyweights: Shallow Reef's Heavyweights (few meals, each nearly your size) with meals on domes,
+        // tentacles walling the gates, and a meal only a bounce reaches. Gates are tighter and danger crosses
+        // closer than the first version, which was beaten on the first try. Its big fish 14 starts 250 points
+        // farther ahead than planned so it doesn't run into fish 12 and 13 on screen.
         MeetingSpec(name: "Night Heavyweights",
             segments: [.init(singles: 1, forks: [.init(long: 1, short: 1)], needed: 1),
-                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 0, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1, bounceMeals: 1),
                        .init(singles: 0, forks: [.init(long: 1, short: 1)], needed: 1, dangerFoods: 1),
                        .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
-            worldScreens: 6.5, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.45...0.82,
-            foodSize: 0.85...0.93, gateMargin: 0.1, dangerGap: 22, threatClearance: 34, spacing: 0.3,
+            worldScreens: 6.5, extraThreats: 1, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.45...0.82,
+            foodSize: 0.85...0.93, gateMargin: 0.08, dangerGap: 18, threatClearance: 34, spacing: 0.3,
             aiSpeed: 66...190, aiVertical: 95, crossSeconds: 2.55, walledGates: true, timesTheEdge: true,
             jellies: JellySpec(night: true, pockets: 2, stingMeals: 1, tentacleWalls: true)),
         // Curtain: tight windows under tentacles. Most meals cross just under hanging tentacles, and tentacles
@@ -716,8 +718,9 @@ enum GameTuning {
     /// Playtested Jelly Bloom 2 levels whose shipped plans are kept exactly as played (see `reefLabFrozen`).
     /// Level 10 is the plan first played there, with one big fish (21) started 30 points lower and 500 ahead
     /// so it no longer hovers over the bell that splits its late fork, and fish 20 started 150 earlier so it has
-    /// passed that bell before the fork reaches it. The bonus levels (11 on) join once they've been played.
-    static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.prefix(10).map(\.name))
+    /// passed that bell before the fork reaches it. The bonus levels (11 on) were played as first planned; each
+    /// leaves this set while it's reworked and rejoins once it's played again.
+    static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name)).subtracting(["Night Heavyweights"])
 
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")
