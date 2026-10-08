@@ -156,9 +156,12 @@ struct MeetingPlannerTests {
         }
     }
 
-    /// Kelp Forest's fish appear just off screen and swim straight in, so every one meets the reference route
-    /// exactly as planned, kelp or not.
+    /// Kelp Forest's fish appear just off screen and follow their approach in, so every one meets the reference
+    /// route exactly as planned, kelp or not.
     @MainActor @Test func kelpForestFishMeetYouExactlyWherePlanned() {
+        // Fish come in every way, not all along a straight line.
+        let styles = Set(ArcadeWorld.kelpForest.levels.flatMap { $0.meetingPlan!.fish.compactMap(\.approach?.style) })
+        #expect(styles == [.glide, .weave, .turn])
         for index in [0, ArcadeWorld.kelpForest.levelCount - 1] {
             let plan = ArcadeWorld.kelpForest.level(index).meetingPlan!
             #expect(plan.fish.allSatisfy { $0.appearsAt != nil } && !(plan.kelp ?? []).isEmpty)

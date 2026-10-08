@@ -309,7 +309,7 @@ final class GameScene: SKScene {
     /// Kelp Forest fish that appear just off screen once you reach `appearsAt`, soonest first.
     private var waitingFish: [PlannedFish] = []
     /// A Kelp Forest fish swims straight at its meeting height until you're this far along, then roams.
-    private var approachEnds: [Int: (until: CGFloat, y: CGFloat)] = [:]
+    private var approachEnds: [Int: (until: CGFloat, y: CGFloat, start: CGFloat, path: Approach?, heading: CGFloat)] = [:]
     private var kelpBeds: [(bed: PlannedKelp, back: KelpNode, front: KelpNode)] = []
     /// Fish drawn as silhouettes while in kelp, and the colors each of their shapes had before.
     private var silhouetted: Set<Int> = []
@@ -595,7 +595,8 @@ final class GameScene: SKScene {
         encounterLeases[f.id] = EncounterLease(home: planned.spawn,
             releaseDistance: planned.meetingDistance + size.width * T.freeEncounterReleaseScreens, index: planned.segment)
         if planned.appearsAt != nil {
-            approachEnds[f.id] = (planned.meetingDistance + size.width * T.kelpApproachReleaseScreens, planned.spawn.y)
+            approachEnds[f.id] = (planned.meetingDistance + size.width * T.kelpApproachReleaseScreens, planned.spawn.y,
+                                  simClock, planned.approach, planned.headOn ? -1 : 1)
         }
     }
 
@@ -1137,9 +1138,19 @@ final class GameScene: SKScene {
         if let approach = approachEnds[f.id] {
             // Held to its line, so nothing it passes on the way can push it off its meeting.
             if forwardDistance < approach.until {
-                f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
-                f.position = CGPoint(x: world.wrap(f.position.x + f.velocity.dx * dt), y: approach.y)
-                f.facing = f.heading
+                guard let path = approach.path else {
+                    f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
+                    f.position = CGPoint(x: world.wrap(f.position.x + f.velocity.dx * dt), y: approach.y)
+                    f.facing = f.heading
+                    return
+                }
+                let offset = path.offset(at: simClock - approach.start, heading: approach.heading, speed: f.cruiseSpeed)
+                let next = CGPoint(x: world.wrap(path.meeting.x + offset.dx), y: path.meeting.y + offset.dy)
+                f.velocity = CGVector(dx: world.delta(from: f.position.x, to: next.x) / dt, dy: (next.y - f.position.y) / dt)
+                f.position = next
+                // A turning fish shows its tail, then swings round to face you.
+                f.heading = f.velocity.dx >= 0 ? 1 : -1
+                f.facing += (f.heading - f.facing) * min(1, dt * T.freeEncounterFacingRate)
                 return
             }
             approachEnds[f.id] = nil

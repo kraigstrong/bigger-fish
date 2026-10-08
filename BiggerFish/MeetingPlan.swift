@@ -133,6 +133,51 @@ struct PlannedFish: Codable, Equatable {
     /// Kelp Forest: your forward distance when this fish appears, just off screen (0: there from the start),
     /// swimming straight at its meeting height from `spawn`. Nil: there from the start on its own free swim.
     var appearsAt: CGFloat? = nil
+    /// Kelp Forest: the path from `spawn` to the meeting, when it isn't a straight line.
+    var approach: Approach? = nil
+}
+
+/// How a Kelp Forest fish gets from where it appears to its meeting: gliding in from another height, weaving
+/// and settling, or swimming away before turning toward you. Every path ends exactly at the meeting, then
+/// carries straight on.
+struct Approach: Codable, Equatable {
+    enum Style: String, Codable { case straight, glide, weave, turn }
+    var style: Style
+    /// Where you meet it (world point) and the seconds from appearing to then.
+    var meeting: CGPoint
+    var seconds: CGFloat
+    /// Glide: how far above (+) or below its meeting height it appears. Weave: how far it strays either way.
+    var height: CGFloat = 0
+    /// Weave: how many sways it makes, settling as it reaches you.
+    var waves: CGFloat = 0
+    var phase: CGFloat = 0
+    /// Turn: it swims away from you at this speed, then turns toward you this many seconds before the meeting.
+    var awaySpeed: CGFloat = 0
+    var turnBefore: CGFloat = 0
+
+    /// Its offset from the meeting point `time` seconds after appearing, for a fish meeting you at `speed`
+    /// going `heading` (-1: toward you).
+    func offset(at time: CGFloat, heading: CGFloat, speed: CGFloat) -> CGVector {
+        CGVector(dx: Self.dx(beforeMeeting: seconds - time, style: style, heading: heading, speed: speed,
+                             awaySpeed: awaySpeed, turnBefore: turnBefore),
+                 dy: dy(progress: min(1, max(0, time / max(seconds, 0.001)))))
+    }
+
+    /// Horizontal offset `remaining` seconds before the meeting (negative: after it). It depends only on
+    /// the time left, so the planner can find where a fish must appear before knowing its whole path.
+    static func dx(beforeMeeting remaining: CGFloat, style: Style, heading: CGFloat, speed: CGFloat,
+                   awaySpeed: CGFloat, turnBefore: CGFloat) -> CGFloat {
+        guard style == .turn, remaining > turnBefore else { return -heading * speed * remaining }
+        return -heading * speed * turnBefore + heading * awaySpeed * (remaining - turnBefore)
+    }
+
+    private func dy(progress u: CGFloat) -> CGFloat {
+        switch style {
+        case .straight, .turn: 0
+        case .glide: height * (1 - u * u * (3 - 2 * u))
+        case .weave: height * sin(2 * .pi * waves * u + phase) * (1 - u) * (1 - u)
+        }
+    }
 }
 
 /// A Kelp Forest level's kelp: columns from the floor to the surface, which you can't swim over, this many
@@ -1623,14 +1668,14 @@ private extension PlannedFish {
             meetingDistance: meetingDistance, headOn: headOn,
             startHeading: startHeading, spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer,
             retargetTimer: retargetTimer, variant: variant, styleSeed: styleSeed, referenceMeal: referenceMeal,
-            bounceFrom: bounceFrom, appearsAt: appearsAt)
+            bounceFrom: bounceFrom, appearsAt: appearsAt, approach: approach)
     }
     func styled(_ seed: UInt64) -> PlannedFish {
         PlannedFish(id: id, role: role, segment: segment, fork: fork, lane: lane, radius: radius,
             meetingDistance: meetingDistance, headOn: headOn,
             startHeading: startHeading, spawn: spawn, cruiseSpeed: cruiseSpeed, phase: phase, turnTimer: turnTimer,
             retargetTimer: retargetTimer, variant: variant, styleSeed: seed, referenceMeal: referenceMeal,
-            bounceFrom: bounceFrom, appearsAt: appearsAt)
+            bounceFrom: bounceFrom, appearsAt: appearsAt, approach: approach)
     }
 }
 
@@ -1653,9 +1698,13 @@ extension MeetingSolver {
             let bounds = PlayerTimeline.waterBounds(zoom: zoom)
             let y = bounds.bottom + radius + (bounds.top - bounds.bottom - 2 * radius) * meeting.height
             let heading: CGFloat = meeting.headOn ? -1 : 1
+            var approach = pickApproach(meeting, meetingPoint: CGPoint(x: world.wrap(meeting.distance), y: y),
+                                        zoom: zoom, spec: spec, rng: &draw)
             /// How far ahead of you (negative: behind) the fish is at `step`.
             func lead(_ step: Int) -> CGFloat {
-                meeting.distance - heading * meeting.speed * CGFloat(meetStep - step) * dt - timeline.distance[step]
+                meeting.distance - timeline.distance[step] + Approach.dx(beforeMeeting: CGFloat(meetStep - step) * dt,
+                    style: approach.style, heading: heading, speed: meeting.speed,
+                    awaySpeed: approach.awaySpeed, turnBefore: approach.turnBefore)
             }
             func offScreen(_ step: Int) -> Bool {
                 let z = timeline.zoom[step], margin = radius + T.kelpAppearMargin / z
@@ -1663,17 +1712,59 @@ extension MeetingSolver {
             }
             var step = meetStep
             while step > 0 && !offScreen(step) { step -= 1 }
+            approach.seconds = CGFloat(meetStep - step) * dt
+            // Keep a glide or weave in the water it appears in.
+            let start = PlayerTimeline.waterBounds(zoom: timeline.zoom[step])
+            let room = min(start.top - radius - y, y - start.bottom - radius)
+            if approach.style == .glide, !(start.bottom + radius...start.top - radius).contains(y + approach.height) {
+                approach.height = -approach.height
+                if !(start.bottom + radius...start.top - radius).contains(y + approach.height) { approach.style = .straight }
+            }
+            if approach.style == .weave { approach.height = min(approach.height, max(0, room)) }
+            let opening = approach.offset(at: 0, heading: heading, speed: meeting.speed)
             fish.append(PlannedFish(id: id, role: meeting.role, segment: meeting.segment, fork: meeting.fork,
                 lane: meeting.lane, radius: radius, meetingDistance: meeting.distance, headOn: meeting.headOn,
-                startHeading: heading, spawn: CGPoint(x: world.wrap(timeline.distance[step] + lead(step)), y: y),
+                startHeading: approach.style == .turn && approach.seconds > approach.turnBefore ? -heading : heading,
+                spawn: CGPoint(x: world.wrap(approach.meeting.x + opening.dx), y: y + opening.dy),
                 cruiseSpeed: meeting.speed, phase: CGFloat.random(in: 0..<(2 * .pi), using: &draw),
                 turnTimer: CGFloat.random(in: T.aiTurnIntervalRange, using: &draw),
                 retargetTimer: CGFloat.random(in: T.aiRetargetRange, using: &draw), variant: 0, styleSeed: 0,
-                referenceMeal: meeting.onReferenceRoute, appearsAt: timeline.distance[step]))
+                referenceMeal: meeting.onReferenceRoute, appearsAt: timeline.distance[step],
+                approach: approach.style == .straight ? nil : approach))
             crossings.append(EncounterCrossing(fishID: id, time: Double(CGFloat(meetStep) * dt), distance: Double(meeting.distance),
                 y: Double(y), radius: Double(radius), headOn: meeting.headOn, zoom: Double(zoom)))
         }
         return (styled(fish, seed: seed), crossings)
+    }
+
+    /// A Kelp Forest fish's way in, so no two arrive alike: meals glide, weave, or turn toward you; big fish
+    /// do the same more gently, so they don't sweep across lanes before their meeting; gate walls only turn.
+    private static func pickApproach(_ meeting: DesignedMeeting, meetingPoint: CGPoint, zoom: CGFloat, spec: MeetingSpec,
+                                     rng: inout SeededGenerator) -> Approach {
+        let big = meeting.role == .threat
+        var styles: [(Approach.Style, Double)] = meeting.wall != nil ? [(.straight, 0.6), (.turn, 0.4)]
+            : big ? [(.straight, 0.25), (.weave, 0.3), (.glide, 0.25), (.turn, 0.2)]
+            : [(.straight, 0.15), (.weave, 0.3), (.glide, 0.35), (.turn, 0.2)]
+        if !meeting.headOn { styles.removeAll { $0.0 == .turn } }
+        var pick = Double.random(in: 0..<styles.reduce(0) { $0 + $1.1 }, using: &rng)
+        let style = styles.first { pick -= $0.1; return pick < 0 }?.0 ?? .straight
+        let gentle: CGFloat = big ? T.kelpBigFishApproachShare : 1
+        var approach = Approach(style: style, meeting: meetingPoint, seconds: 0)
+        switch style {
+        case .straight: break
+        case .glide:
+            approach.height = CGFloat.random(in: T.kelpGlideHeight, using: &rng) * gentle / zoom
+                * (Bool.random(using: &rng) ? 1 : -1)
+        case .weave:
+            approach.height = CGFloat.random(in: T.kelpWeaveHeight, using: &rng) * gentle / zoom
+            approach.waves = CGFloat.random(in: T.kelpWeaves, using: &rng)
+            approach.phase = CGFloat.random(in: 0..<(2 * .pi), using: &rng)
+        case .turn:
+            let yourSpeed = T.playfieldSize.width / CGFloat(spec.crossSeconds) / zoom
+            approach.awaySpeed = yourSpeed * CGFloat.random(in: T.kelpTurnAwaySpeed, using: &rng)
+            approach.turnBefore = CGFloat.random(in: T.kelpTurnBefore, using: &rng)
+        }
+        return approach
     }
 }
 
