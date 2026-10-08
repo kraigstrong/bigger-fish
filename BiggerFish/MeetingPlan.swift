@@ -361,7 +361,11 @@ enum MeetingPlanner {
     static func kelpPlan(_ spec: MeetingSpec, variation: Int = 0) -> MeetingPlan {
         let seed = GameTuning.spawnSeed &+ 7_000 &+ stableHash(spec.name) &+ UInt64(variation) &* 1_000_003
         let design = MeetingDesigner.design(spec, seed: seed)
-        let solved = MeetingSolver.justInTime(design.meetings, spec: spec, seed: seed, timeline: design.timeline)
+        var meetings = design.meetings
+        for id in GameTuning.kelpSwimsAtYou[spec.name] ?? [] where meetings.indices.contains(id - 1) {
+            meetings[id - 1].headOn = true
+        }
+        let solved = MeetingSolver.justInTime(meetings, spec: spec, seed: seed, timeline: design.timeline)
         let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: [], reachScale: spec.reachScale)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
             predicted: solved.crossings, analysis: analysis, issues: [])
@@ -1698,8 +1702,11 @@ extension MeetingSolver {
             let bounds = PlayerTimeline.waterBounds(zoom: zoom)
             let y = bounds.bottom + radius + (bounds.top - bounds.bottom - 2 * radius) * meeting.height
             let heading: CGFloat = meeting.headOn ? -1 : 1
-            var approach = pickApproach(meeting, meetingPoint: CGPoint(x: world.wrap(meeting.distance), y: y),
-                                        zoom: zoom, spec: spec, rng: &draw)
+            let meetingPoint = CGPoint(x: world.wrap(meeting.distance), y: y)
+            // A fish turned to swim at you so it stops walling you in comes straight, to pass in a moment.
+            var approach = (T.kelpSwimsAtYou[spec.name] ?? []).contains(id)
+                ? Approach(style: .straight, meeting: meetingPoint, seconds: 0)
+                : pickApproach(meeting, meetingPoint: meetingPoint, zoom: zoom, spec: spec, rng: &draw)
             /// How far ahead of you (negative: behind) the fish is at `step`.
             func lead(_ step: Int) -> CGFloat {
                 meeting.distance - timeline.distance[step] + Approach.dx(beforeMeeting: CGFloat(meetStep - step) * dt,

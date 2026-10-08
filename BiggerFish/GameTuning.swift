@@ -769,6 +769,10 @@ enum GameTuning {
         level.ecosystemSeedIndex = index
         return level
     }
+    /// Big fish that swim at you instead of the way you're going, in levels where two you'd overtake slowly
+    /// walled you in. Same meetings: a fish swimming at you just passes in a moment. Kelp Forest 8: fish 13
+    /// hung over the low lane while you caught up with fish 16 along the floor.
+    static let kelpSwimsAtYou: [String: Set<Int>] = ["Kelp Forest 8": [13, 16]]
     /// Screen points beyond the edge of the screen where a Kelp Forest fish appears.
     static let kelpAppearMargin: CGFloat = 30
     /// It follows its approach until you're this many screens past its meeting, then roams like any fish.
