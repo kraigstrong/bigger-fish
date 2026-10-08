@@ -5,6 +5,8 @@ struct ArcadeSave: Codable {
     var clearedLevels: Set<String> = []
     var bestTimes: [String: Double] = [:]
     var hasSeenJellyLesson = false
+    /// Worlds whose "conquered" unlock screen has been shown. Optional, so saves from before it still load.
+    var seenUnlocks: Set<String>? = nil
 }
 
 final class ArcadeProgress: ObservableObject {
@@ -66,6 +68,21 @@ final class ArcadeProgress: ObservableObject {
         let prefix = world.rawValue + "."
         save.clearedLevels = save.clearedLevels.filter { !$0.hasPrefix(prefix) }
         save.bestTimes = save.bestTimes.filter { !$0.key.hasPrefix(prefix) }
+        persist()
+    }
+
+    /// A world whose tenth level is beaten but whose unlock screen was never shown: players who beat it before
+    /// that screen existed see it once. With several, the furthest along, since it announces the newest things.
+    var unseenUnlock: ArcadeWorld? {
+        ArcadeWorld.campaign.last { world in
+            isCleared(world, ArcadeWorld.mainLevelCount - 1) && !(save.seenUnlocks ?? []).contains(world.rawValue)
+        }
+    }
+
+    /// Marks this world's unlock screen, and every earlier world's, as shown.
+    func sawUnlock(_ world: ArcadeWorld) {
+        guard let index = ArcadeWorld.campaign.firstIndex(of: world) else { return }
+        save.seenUnlocks = (save.seenUnlocks ?? []).union(ArcadeWorld.campaign.prefix(index + 1).map(\.rawValue))
         persist()
     }
 

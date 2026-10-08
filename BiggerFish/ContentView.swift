@@ -46,6 +46,9 @@ struct ContentView: View {
                 ArcadeWorldMap(progress: progress, onSelect: { selectedWorld = $0; returnedFrom = nil })
             }
         }
+        .onChange(of: celebrating) { _, world in
+            if let world { progress.sawUnlock(world) }
+        }
         .overlay {
             if scene == nil, let world = celebrating {
                 WorldConqueredView(world: world,
@@ -122,6 +125,11 @@ struct ContentView: View {
         let remaining = GameTuning.launchMinimumSeconds - Date().timeIntervalSince(started)
         if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
         withAnimation(.easeOut(duration: 0.35)) { loaded = true }
+        // Players who beat a tenth level before its unlock screen existed see it once, on the world map.
+        if let world = progress.unseenUnlock {
+            try? await Task.sleep(for: .seconds(0.5))
+            withAnimation { celebrating = world }
+        }
     }
 
     #if DEBUG

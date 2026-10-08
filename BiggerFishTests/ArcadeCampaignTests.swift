@@ -42,6 +42,24 @@ struct ArcadeCampaignTests {
         #expect(ArcadeWorld.campaign.allSatisfy { $0.deepEndCount == $0.levelCount - ArcadeWorld.mainLevelCount })
     }
 
+    @Test func playersWhoBeatATenthLevelEarlierSeeItsUnlockScreenOnce() throws {
+        // A save from before unlock screens were remembered: both worlds' tenth levels beaten.
+        let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+        let old = #"{"clearedLevels":["shallow-reef.10","jelly-bloom.1","jelly-bloom.10"],"bestTimes":{},"hasSeenJellyLesson":true}"#
+        defaults.set(Data(old.utf8), forKey: ArcadeProgress.key)
+        let progress = ArcadeProgress(defaults: defaults)
+        #expect(progress.isCleared(.jellyBloom, 9) && progress.save.hasSeenJellyLesson)
+        // The furthest one announces the newest things; once shown, neither it nor earlier ones come back.
+        #expect(progress.unseenUnlock == .jellyBloom)
+        progress.sawUnlock(.jellyBloom)
+        #expect(ArcadeProgress(defaults: defaults).unseenUnlock == nil)
+
+        let (fresh, _) = fresh()
+        #expect(fresh.unseenUnlock == nil)
+        fresh.clear(.shallowReef, 9, seconds: 30)
+        #expect(fresh.unseenUnlock == .shallowReef)
+    }
+
     @Test func clearUnlocksOnlyTheNextLevelAndPersists() {
         let (progress, defaults) = fresh()
         progress.clear(.jellyBloom, 0, seconds: 42)
