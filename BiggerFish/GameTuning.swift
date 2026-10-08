@@ -735,24 +735,26 @@ enum GameTuning {
 
     /// Kelp Forest's levels: fish appear just off screen right before you meet them (`MeetingPlanner.kelpPlan`),
     /// so these plan in milliseconds at launch rather than shipping as data. They follow Shallow Reef's ten
-    /// levels, already tuned for difficulty, while the kelp grows from a few low beds in level 1 to tall,
-    /// wide beds from level 7.
-    /// The column trials (easy, medium, hard) come first so they're open to play; each keeps the name, and so
-    /// the layout, it was planned under.
-    static let kelpSpecs: [MeetingSpec] = [0, 4, 9, 1, 2, 3, 5, 6, 7, 8].map { index in
+    /// levels, already tuned for difficulty, with kelp columns closing in as they go.
+    static let kelpSpecs: [MeetingSpec] = (0..<10).map { index in
         var spec = reefLabSpecs[index]
         spec.name = "Kelp Forest \(index + 1)"
         spec.kelp = kelpRamp[index]
         return spec
     }
-    /// Levels 1, 5, and 10 try columns that reach the surface, so kelp can't be swum over: spaced wide apart
-    /// when easy, close together when hard. The rest grow beds over their low meals.
-    static let kelpRamp: [KelpSpec] = [
-        KelpSpec(columns: 0.35, gap: 1.1), KelpSpec(meals: 0.35, height: 0.4), KelpSpec(meals: 0.4, height: 0.45),
-        KelpSpec(meals: 0.45, height: 0.5), KelpSpec(columns: 0.55, gap: 0.6), KelpSpec(meals: 0.5, height: 0.58),
-        KelpSpec(meals: 0.55, height: 0.62), KelpSpec(meals: 0.55, height: 0.62), KelpSpec(meals: 0.55, height: 0.65),
-        KelpSpec(columns: 0.75, gap: 0.35),
-    ]
+    /// Levels 1, 5, and 10 were played and liked (first wins on tries 1, 4, and 17); the levels between step
+    /// evenly from one to the next.
+    static let kelpRamp: [KelpSpec] = {
+        let anchors = [(level: 0, kelp: KelpSpec(columns: 0.35, gap: 1.1)), (level: 4, kelp: KelpSpec(columns: 0.55, gap: 0.6)),
+                       (level: 9, kelp: KelpSpec(columns: 0.75, gap: 0.35))]
+        return (0..<10).map { index in
+            if let anchor = anchors.first(where: { $0.level == index }) { return anchor.kelp }
+            let (a, b) = index < anchors[1].level ? (anchors[0], anchors[1]) : (anchors[1], anchors[2])
+            let t = Double(index - a.level) / Double(b.level - a.level)
+            return KelpSpec(columns: a.kelp.columns + (b.kelp.columns - a.kelp.columns) * t,
+                            gap: a.kelp.gap + (b.kelp.gap - a.kelp.gap) * t)
+        }
+    }()
     static let kelpLevels: [Level] = kelpSpecs.enumerated().map { index, spec in
         var level = MeetingPlanner.kelpPlan(spec).level
         level.ecosystemSeedIndex = index
@@ -762,13 +764,6 @@ enum GameTuning {
     static let kelpAppearMargin: CGFloat = 30
     /// It swims straight until you're this many screens past its meeting, then roams like any fish.
     static let kelpApproachReleaseScreens: CGFloat = 0.15
-    /// Kelp Forest plans allow for this share of your usual rising and falling speed everywhere: you spend
-    /// some of any swim in kelp and some in open water.
-    static let kelpPlanningReach: CGFloat = 0.8
-    /// Screen points of kelp above a hidden meal, and of open water always left above a bed.
-    static let kelpCover: CGFloat = 22
-    static let kelpOpenWater: CGFloat = 100
-    static let kelpHalfWidthScreens: CGFloat = 0.2
     /// Columns start this many screens into the lap, so you start in open water, and stop as far before its end.
     static let kelpFirstColumnScreens: CGFloat = 0.8
     /// Kelp grows from this far below the bottom of the screen, so it's rooted in the seabed.

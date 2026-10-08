@@ -302,7 +302,7 @@ final class GameScene: SKScene {
     private var waitingFish: [PlannedFish] = []
     /// A Kelp Forest fish swims straight at its meeting height until you're this far along, then roams.
     private var approachEnds: [Int: (until: CGFloat, y: CGFloat)] = [:]
-    private var kelpBeds: [(bed: PlannedKelp, back: KelpNode, front: KelpNode, height: CGFloat)] = []
+    private var kelpBeds: [(bed: PlannedKelp, back: KelpNode, front: KelpNode)] = []
     /// Fish drawn as silhouettes while in kelp, and the colors each of their shapes had before.
     private var silhouetted: Set<Int> = []
     private var silhouetteColors: [ObjectIdentifier: (fill: SKColor, stroke: SKColor)] = [:]
@@ -1241,8 +1241,8 @@ final class GameScene: SKScene {
         silhouetteColors.removeAll()
         for bed in kelpBeds { bed.back.removeFromParent(); bed.front.removeFromParent() }
         kelpBeds = (level.meetingPlan?.kelp ?? []).enumerated().map { index, bed in
-            // A column is drawn to just above the top of the screen; a bed to its top at full size.
-            let height = (bed.reachesSurface ? size.height + T.kelpCanopy : bed.top) - T.kelpRootY
+            // Drawn from below the bottom of the screen to just above its top.
+            let height = size.height + T.kelpCanopy - T.kelpRootY
             let back = KelpNode(width: bed.halfWidth * 2, height: height, seed: UInt64(index), front: false)
             let front = KelpNode(width: bed.halfWidth * 2, height: height, seed: UInt64(index) &+ 101, front: true)
             // Back fronds behind every fish; front fronds in front of the others, so those inside show
@@ -1251,7 +1251,7 @@ final class GameScene: SKScene {
             front.zPosition = 29
             fishLayer.addChild(back)
             fishLayer.addChild(front)
-            return (bed, back, front, height)
+            return (bed, back, front)
         }
     }
 
@@ -1274,23 +1274,21 @@ final class GameScene: SKScene {
     }
 
     private func inKelp(_ position: CGPoint) -> Bool {
-        kelpBeds.contains { abs(world.delta(from: $0.bed.x, to: position.x)) <= $0.bed.halfWidth && position.y < $0.bed.top }
+        kelpBeds.contains { abs(world.delta(from: $0.bed.x, to: position.x)) <= $0.bed.halfWidth }
     }
 
-    /// Beds grow from below the bottom of the screen up to their top, wherever the camera has it.
+    /// Columns stay screen-tall at any zoom and narrow as the camera zooms out.
     private func renderKelp(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
-        for (bed, back, front, height) in kelpBeds {
+        for (bed, back, front) in kelpBeds {
             let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: bed.x) * zoom
             let half = bed.halfWidth * zoom + 40
             let hidden = x + half < 0 || x - half > size.width
             back.isHidden = hidden
             front.isHidden = hidden
             if hidden { continue }
-            let top = bed.reachesSurface ? size.height + T.kelpCanopy : waterCenter + (bed.top - waterCenter) * zoom
             for node in [back, front] {
                 node.position = CGPoint(x: x, y: T.kelpRootY)
                 node.xScale = zoom
-                node.yScale = max(0.05, (top - T.kelpRootY) / max(1, height))
                 node.sway(time: time)
             }
         }

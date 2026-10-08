@@ -76,12 +76,8 @@ struct MeetingSpec: Codable, Equatable {
     var jellies: JellySpec? = nil
     /// Kelp Forest's kelp: it slows you, so the plan allows for slower rising and falling everywhere.
     var kelp: KelpSpec? = nil
-    var reachScale: CGFloat {
-        guard let kelp else { return 1 }
-        // Columns: you're in kelp for about their share of any swim.
-        guard kelp.columns != nil else { return GameTuning.kelpPlanningReach }
-        return 1 - CGFloat(kelp.coverage) * (1 - GameTuning.kelpDrag)
-    }
+    /// You're in kelp for about its share of any swim.
+    var reachScale: CGFloat { kelp.map { 1 - CGFloat($0.coverage) * (1 - GameTuning.kelpDrag) } ?? 1 }
 }
 
 /// Jellyfish for a planned level: their size, and which meetings they sit beside.
@@ -139,29 +135,20 @@ struct PlannedFish: Codable, Equatable {
     var appearsAt: CGFloat? = nil
 }
 
-/// How much kelp a Kelp Forest level grows: either columns from the floor to the surface, spaced along the
-/// lap, or beds over the low meals.
+/// A Kelp Forest level's kelp: columns from the floor to the surface, which you can't swim over, this many
+/// screens wide and this many screens of open water apart.
 struct KelpSpec: Codable, Equatable {
-    /// Meals in the lowest this share of the water get a bed...
-    var meals: Double = 0
-    /// ...reaching at least this share of the way up the water.
-    var height: Double = 0
-    /// Columns this many screens wide, this many screens of open water apart. You can't swim over them.
-    var columns: Double? = nil
-    var gap: Double? = nil
-    /// Share of the lap that's columns.
-    var coverage: Double { columns.map { $0 / ($0 + (gap ?? 0)) } ?? 0 }
+    var columns: Double
+    var gap: Double
+    /// Share of the lap that's kelp.
+    var coverage: Double { columns / (columns + gap) }
 }
 
-/// A kelp bed: it grows from the floor to `top` (world y), `halfWidth` either side of `x`. Inside it you
-/// rise and fall slowly, and other fish show only as silhouettes.
+/// A kelp column from the floor to the surface, `halfWidth` either side of `x`. Inside it you rise and fall
+/// slowly, and other fish show only as silhouettes.
 struct PlannedKelp: Codable, Equatable {
     let x: CGFloat
     let halfWidth: CGFloat
-    let top: CGFloat
-    /// The `top` of a column that reaches the surface however far the camera zooms out.
-    static let surface: CGFloat = 100_000
-    var reachesSurface: Bool { top >= Self.surface }
 }
 
 /// A jellyfish the planner placed: the home it drifts around, and the meeting it was placed for.
@@ -214,7 +201,7 @@ struct MeetingPlan: Codable {
     let issues: [String]
     /// Jelly Bloom 2's jellies, in the order GameScene spawns them. Optional so older plans decode.
     var jellies: [PlannedJelly]? = nil
-    /// Kelp Forest's kelp beds.
+    /// Kelp Forest's kelp columns.
     var kelp: [PlannedKelp]? = nil
 
     var level: Level {
@@ -335,7 +322,7 @@ enum MeetingPlanner {
             predicted: solved.crossings, analysis: analysis, issues: [])
         return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
             analysis: analysis, issues: design.issues + check(unchecked),
-            kelp: KelpLayout.beds(around: solved.crossings, fish: solved.fish, spec: spec, seed: seed))
+            kelp: KelpLayout.columns(spec, seed: seed))
     }
 
     /// How far off plan a plan's fish are, in total ("fish 4 is off its plan (score 21)" counts 21).
@@ -1690,45 +1677,22 @@ extension MeetingSolver {
     }
 }
 
-/// Where Kelp Forest's kelp grows: a bed over each low meal, its top just above the meal so it's hidden in
-/// the fronds and you dive in for it, with open water above for the quick way past.
+/// Where Kelp Forest's kelp grows: columns along the lap after open water at the start, each a little wider or
+/// narrower, and a little closer or further from the last, than the level's spacing.
 enum KelpLayout {
     typealias T = GameTuning
-    static func beds(around crossings: [EncounterCrossing], fish: [PlannedFish], spec: MeetingSpec,
-                     seed: UInt64) -> [PlannedKelp] {
+    static func columns(_ spec: MeetingSpec, seed: UInt64) -> [PlannedKelp] {
         guard let kelp = spec.kelp else { return [] }
-        let width = T.playfieldSize.width
-        var beds: [PlannedKelp] = []
-        if let column = kelp.columns, let gap = kelp.gap {
-            // Columns along the lap, each a little wider or narrower than the last, after open water at the start.
-            var rng = SeededGenerator(seed: seed &+ 0x6B656C70)
-            let worldWidth = width * CGFloat(spec.worldScreens)
-            var left = width * T.kelpFirstColumnScreens
-            while left < worldWidth - width * T.kelpFirstColumnScreens {
-                let right = min(left + width * CGFloat(column) * CGFloat.random(in: 0.85...1.15, using: &rng),
-                                worldWidth - width * T.kelpFirstColumnScreens / 2)
-                beds.append(PlannedKelp(x: (left + right) / 2, halfWidth: (right - left) / 2, top: PlannedKelp.surface))
-                left = right + width * CGFloat(gap) * CGFloat.random(in: 0.8...1.2, using: &rng)
-            }
-            return beds
+        let width = T.playfieldSize.width, worldWidth = width * CGFloat(spec.worldScreens)
+        var rng = SeededGenerator(seed: seed &+ 0x6B656C70)
+        var columns: [PlannedKelp] = []
+        var left = width * T.kelpFirstColumnScreens
+        while left < worldWidth - width * T.kelpFirstColumnScreens {
+            let right = min(left + width * CGFloat(kelp.columns) * CGFloat.random(in: 0.85...1.15, using: &rng),
+                            worldWidth - width * T.kelpFirstColumnScreens / 2)
+            columns.append(PlannedKelp(x: (left + right) / 2, halfWidth: (right - left) / 2))
+            left = right + width * CGFloat(kelp.gap) * CGFloat.random(in: 0.8...1.2, using: &rng)
         }
-        for crossing in crossings.sorted(by: { $0.distance < $1.distance }) {
-            guard let meal = fish.first(where: { $0.id == crossing.fishID }), meal.role != .threat else { continue }
-            let zoom = CGFloat(crossing.zoom), bounds = PlayerTimeline.waterBounds(zoom: zoom)
-            let y = CGFloat(crossing.y), radius = CGFloat(crossing.radius)
-            guard (y - bounds.bottom) / (bounds.top - bounds.bottom) <= CGFloat(kelp.meals) else { continue }
-            let tall = bounds.bottom + (bounds.top - bounds.bottom) * CGFloat(kelp.height)
-            let top = min(max(y + radius + T.kelpCover / zoom, tall), bounds.top - T.kelpOpenWater / zoom)
-            let x = CGFloat(crossing.distance), half = width * T.kelpHalfWidthScreens / zoom
-            if let last = beds.last, x - half <= last.x + last.halfWidth {
-                // Overlapping beds grow into one.
-                let left = last.x - last.halfWidth, right = x + half
-                beds[beds.count - 1] = PlannedKelp(x: (left + right) / 2, halfWidth: (right - left) / 2, top: max(last.top, top))
-            } else {
-                beds.append(PlannedKelp(x: x, halfWidth: half, top: top))
-            }
-        }
-        let worldWidth = width * CGFloat(spec.worldScreens)
-        return beds.map { PlannedKelp(x: WrappedWorld(width: worldWidth).wrap($0.x), halfWidth: $0.halfWidth, top: $0.top) }
+        return columns
     }
 }
