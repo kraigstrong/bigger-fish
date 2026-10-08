@@ -736,8 +736,10 @@ enum GameTuning {
     /// so these plan in milliseconds at launch rather than shipping as data. They follow Shallow Reef's ten
     /// levels, already tuned for difficulty, while the kelp grows from a few low beds in level 1 to tall,
     /// wide beds from level 7.
-    static let kelpSpecs: [MeetingSpec] = reefLabSpecs.prefix(10).enumerated().map { index, reef in
-        var spec = reef
+    /// The column trials (easy, medium, hard) come first so they're open to play; each keeps the name, and so
+    /// the layout, it was planned under.
+    static let kelpSpecs: [MeetingSpec] = [0, 4, 9, 1, 2, 3, 5, 6, 7, 8].map { index in
+        var spec = reefLabSpecs[index]
         spec.name = "Kelp Forest \(index + 1)"
         spec.kelp = kelpRamp[index]
         return spec
