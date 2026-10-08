@@ -13,7 +13,7 @@ import UIKit
     private static let assets = root.appendingPathComponent("BiggerFish/Assets.xcassets")
 
     @Test func shippedIconographyExists() {
-        for name in ["WorldShallowReef", "WorldJellyBloom", "LaunchArt"] { #expect(UIImage(named: name) != nil, "\(name) is missing") }
+        for name in ["WorldShallowReef", "WorldJellyBloom", "WorldKelpForest", "LaunchArt"] { #expect(UIImage(named: name) != nil, "\(name) is missing") }
         #expect(UIColor(named: "LaunchBackground") != nil)
         let icon = Self.assets.appendingPathComponent("AppIcon.appiconset/AppIcon-1024.png")
         let image = CGImageSourceCreateWithURL(icon as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
@@ -28,6 +28,7 @@ import UIKit
         try write(appIcon(), to: "AppIcon.appiconset/AppIcon-1024.png", opaque: true)
         try write(worldIcon(shallowReef()), to: "WorldShallowReef.imageset/WorldShallowReef.png", opaque: false)
         try write(worldIcon(jellyBloom()), to: "WorldJellyBloom.imageset/WorldJellyBloom.png", opaque: false)
+        try write(worldIcon(kelpForest()), to: "WorldKelpForest.imageset/WorldKelpForest.png", opaque: false)
         try write(launchChase(), to: "LaunchArt.imageset/LaunchArt.png", opaque: false)
     }
 
@@ -121,6 +122,67 @@ import UIKit
         bloom.addChild(jelly)
         bloom.addChild(fish(.player, player: true, radius: 34, at: CGPoint(x: 40, y: 140), tilt: 0.3))
         return bloom
+    }
+
+    /// The player's fish swimming between golden kelp stalks, with a smaller fish's shadow lurking behind them.
+    private func kelpForest() -> SKNode {
+        let forest = SKNode()
+        let shadow = fish(FishStyle(body: .gray, accent: .gray, pattern: .plain, tail: .fork, eyeScale: 1, hasDorsalFin: true),
+                          player: false, radius: 24, at: CGPoint(x: 92, y: -62), facing: -1)
+        silhouette(shadow)
+        shadow.zPosition = -2
+        forest.addChild(shadow)
+        forest.addChild(kelpStalk(at: -95, height: 290, lean: 14))
+        forest.addChild(kelpStalk(at: 100, height: 270, lean: -18))
+        forest.addChild(kelpStalk(at: 20, height: 150, lean: 8, z: -1))
+        forest.addChild(fish(.player, player: true, radius: 40, at: CGPoint(x: 5, y: 40), tilt: 0.12))
+        return forest
+    }
+
+    /// A giant-kelp stalk: a thick wavy stem with blades on alternate sides, each with a float, olive at the
+    /// root and gold at the top.
+    private func kelpStalk(at x: CGFloat, height: CGFloat, lean: CGFloat, z: CGFloat = 0) -> SKNode {
+        let node = SKNode()
+        node.zPosition = z
+        func point(_ t: CGFloat) -> CGPoint { CGPoint(x: x + lean * t * t + sin(t * 6) * 6, y: -150 + height * t) }
+        let stem = CGMutablePath()
+        stem.move(to: point(0))
+        for i in 1...30 { stem.addLine(to: point(CGFloat(i) / 30)) }
+        let stemNode = SKShapeNode(path: stem)
+        stemNode.strokeColor = SKColor(red: 0.36, green: 0.42, blue: 0.13, alpha: 1)
+        stemNode.lineWidth = 9
+        stemNode.lineCap = .round
+        node.addChild(stemNode)
+        var t: CGFloat = 0.18, side: CGFloat = 1
+        while t < 0.98 {
+            let base = point(t)
+            let blade = SKShapeNode(ellipseOf: CGSize(width: 22, height: 62 * (1 - 0.35 * t)))
+            blade.fillColor = SKColor(red: 0.42 + 0.32 * t, green: 0.55 + 0.13 * t, blue: 0.16 + 0.08 * t, alpha: 1)
+            blade.strokeColor = SKColor(red: 0.3, green: 0.38, blue: 0.1, alpha: 0.8)
+            blade.lineWidth = 2
+            blade.zRotation = -side * 0.75
+            blade.position = CGPoint(x: base.x + side * 20, y: base.y + 18)
+            node.addChild(blade)
+            let float = SKShapeNode(circleOfRadius: 5.5)
+            float.fillColor = SKColor(red: 0.62, green: 0.6, blue: 0.2, alpha: 1)
+            float.strokeColor = .clear
+            float.position = base
+            node.addChild(float)
+            side = -side
+            t += 0.16
+        }
+        return node
+    }
+
+    /// A fish in the kelp, as the game shows one: a single dark shape.
+    private func silhouette(_ node: SKNode) {
+        for child in node.children {
+            if let shape = child as? SKShapeNode {
+                if shape.fillColor.cgColor.alpha > 0 { shape.fillColor = GameTuning.kelpSilhouette }
+                if shape.strokeColor.cgColor.alpha > 0 { shape.strokeColor = GameTuning.kelpSilhouette }
+            }
+            silhouette(child)
+        }
     }
 
     private func worldIcon(_ art: SKNode) -> (SKView, SKNode, CGSize) {

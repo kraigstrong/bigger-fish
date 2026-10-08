@@ -1272,10 +1272,11 @@ final class GameScene: SKScene {
             let height = size.height + T.kelpCanopy - T.kelpRootY
             let back = KelpNode(width: bed.halfWidth * 2, height: height, seed: UInt64(index), front: false)
             let front = KelpNode(width: bed.halfWidth * 2, height: height, seed: UInt64(index) &+ 101, front: true)
-            // Back fronds behind every fish; front fronds in front of the others, so those inside show
-            // through as silhouettes, but behind you.
-            back.zPosition = 0.5
-            front.zPosition = 29
+            // Back fronds behind every part of every fish; front fronds in front of all of the other fish
+            // (up to 1 + 0.5 per id, plus their parts up to +4), so those inside show as silhouettes, but behind
+            // all of you (30, tail at -2).
+            back.zPosition = -3
+            front.zPosition = 26
             fishLayer.addChild(back)
             fishLayer.addChild(front)
             return (bed, back, front)

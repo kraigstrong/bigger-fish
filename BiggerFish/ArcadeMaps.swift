@@ -22,7 +22,7 @@ struct ArcadeWorldMap: View {
             let size = geometry.size
             let centers = OceanMapLayout.worldCenters(count: 5, size: size)
             let worlds = ArcadeWorld.mapWorlds
-            let comingSoon = [("Kelp Forest", Color.blue), ("The Deep", .orange), ("Riptide Reef", .pink)]
+            let comingSoon = [("Kelp Forest", Color.blue), ("Midnight Zone", .orange), ("Riptide Reef", .pink)]
                 .filter { soon in !worlds.contains { $0.title == soon.0 } }
             // The first open world with main levels left, else the last open one.
             let focus = ArcadeWorld.campaign.firstIndex { world in
@@ -326,10 +326,21 @@ struct OceanBackdrop: View {
 }
 
 /// Drawn from the game's own fish and jellyfish art (IconographyTests renders it).
+extension ArcadeWorld {
+    /// The world's picture on the world map and unlock screen.
+    var illustration: String {
+        switch self {
+        case .shallowReef: "WorldShallowReef"
+        case .jellyBloom: "WorldJellyBloom"
+        case .kelpForest: "WorldKelpForest"
+        }
+    }
+}
+
 struct WorldIllustration: View {
     let world: ArcadeWorld
     var body: some View {
-        Image(world.hasJellies ? "WorldJellyBloom" : "WorldShallowReef")
+        Image(world.illustration)
             .resizable()
             .scaledToFit()
             .accessibilityHidden(true)
