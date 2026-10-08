@@ -777,7 +777,7 @@ enum GameTuning {
     static let kelpCanopy: CGFloat = 30
     /// Inside kelp you rise and fall at this share of your usual speed.
     static let kelpDrag: CGFloat = 0.65
-    /// How you see other fish inside kelp: as dark silhouettes, or in color, partly behind solid leaves.
+    /// How you see other fish inside kelp: as dark silhouettes, or in their own colors behind the fronds.
     enum KelpFishLook { case silhouette, leaves }
     static let kelpFishLook: KelpFishLook = .leaves
     /// Silhouettes are drawn in this one dark color, behind the fronds.
