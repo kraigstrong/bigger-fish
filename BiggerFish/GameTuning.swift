@@ -742,11 +742,13 @@ enum GameTuning {
         spec.kelp = kelpRamp[index]
         return spec
     }
+    /// Levels 1, 5, and 10 try columns that reach the surface, so kelp can't be swum over: spaced wide apart
+    /// when easy, close together when hard. The rest grow beds over their low meals.
     static let kelpRamp: [KelpSpec] = [
-        KelpSpec(meals: 0.3, height: 0.35), KelpSpec(meals: 0.35, height: 0.4), KelpSpec(meals: 0.4, height: 0.45),
-        KelpSpec(meals: 0.45, height: 0.5), KelpSpec(meals: 0.5, height: 0.55), KelpSpec(meals: 0.5, height: 0.58),
+        KelpSpec(columns: 0.35, gap: 1.1), KelpSpec(meals: 0.35, height: 0.4), KelpSpec(meals: 0.4, height: 0.45),
+        KelpSpec(meals: 0.45, height: 0.5), KelpSpec(columns: 0.55, gap: 0.6), KelpSpec(meals: 0.5, height: 0.58),
         KelpSpec(meals: 0.55, height: 0.62), KelpSpec(meals: 0.55, height: 0.62), KelpSpec(meals: 0.55, height: 0.65),
-        KelpSpec(meals: 0.6, height: 0.65),
+        KelpSpec(columns: 0.75, gap: 0.35),
     ]
     static let kelpLevels: [Level] = kelpSpecs.enumerated().map { index, spec in
         var level = MeetingPlanner.kelpPlan(spec).level
@@ -764,8 +766,12 @@ enum GameTuning {
     static let kelpCover: CGFloat = 22
     static let kelpOpenWater: CGFloat = 100
     static let kelpHalfWidthScreens: CGFloat = 0.2
+    /// Columns start this many screens into the lap, so you start in open water, and stop as far before its end.
+    static let kelpFirstColumnScreens: CGFloat = 0.8
     /// Kelp grows from this far below the bottom of the screen, so it's rooted in the seabed.
     static let kelpRootY: CGFloat = -14
+    /// Columns reach this far above the top of the screen.
+    static let kelpCanopy: CGFloat = 30
     /// Inside kelp you rise and fall at this share of your usual speed.
     static let kelpDrag: CGFloat = 0.65
     /// Other fish inside kelp fade to this, behind the fronds.
