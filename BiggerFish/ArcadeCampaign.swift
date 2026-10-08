@@ -35,6 +35,9 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         }
     }
     func level(_ index: Int) -> Level { levels[index] }
+    /// Shallow Reef and Jelly Bloom replaced original seeded campaigns, kept for the debug tuner; Kelp Forest
+    /// was planned from the start.
+    var hasSeededOriginal: Bool { self != .kelpForest }
     /// The original seeded campaigns the planned levels replaced, kept for the debug tuner and the
     /// generator's tests.
     var seededLevels: [Level] {

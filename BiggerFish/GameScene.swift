@@ -2784,6 +2784,7 @@ final class GameScene: SKScene {
 
     func debugClearLevel() {
         for f in fish where !f.isPlayer { f.state = .removed }
+        waitingFish.removeAll()
         simulate(1.0 / 30)
     }
 
