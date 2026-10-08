@@ -22,6 +22,26 @@ struct ArcadeCampaignTests {
         }
     }
 
+    @Test func worldsOpenInOrderAndPlayersKeepWorldsTheyStarted() {
+        let (progress, _) = fresh()
+        #expect(progress.isWorldOpen(.shallowReef) && !progress.isWorldOpen(.jellyBloom))
+        for index in 0..<9 { progress.clear(.shallowReef, index, seconds: 20) }
+        #expect(!progress.isWorldOpen(.jellyBloom))
+        progress.clear(.shallowReef, 9, seconds: 20)
+        #expect(progress.isWorldOpen(.jellyBloom))
+        // The Deep End opens with the tenth level and counts apart from the main run.
+        #expect(progress.isOpen(.shallowReef, ArcadeWorld.mainLevelCount) && !progress.isOpen(.shallowReef, 11))
+        progress.clear(.shallowReef, 10, seconds: 40)
+        #expect(progress.clearedCounts(in: .shallowReef) == (main: 10, deepEnd: 1))
+
+        // Someone who played Jelly Bloom before worlds were locked keeps it open.
+        let (earlier, _) = fresh()
+        earlier.clear(.jellyBloom, 0, seconds: 30)
+        #expect(earlier.isWorldOpen(.jellyBloom))
+        #expect(ArcadeWorld.jellyBloom.previousWorld == .shallowReef && ArcadeWorld.shallowReef.nextWorld == .jellyBloom)
+        #expect(ArcadeWorld.campaign.allSatisfy { $0.deepEndCount == $0.levelCount - ArcadeWorld.mainLevelCount })
+    }
+
     @Test func clearUnlocksOnlyTheNextLevelAndPersists() {
         let (progress, defaults) = fresh()
         progress.clear(.jellyBloom, 0, seconds: 42)
