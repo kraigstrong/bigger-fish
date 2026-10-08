@@ -736,7 +736,9 @@ enum GameTuning {
     /// Kelp Forest's levels: fish appear just off screen right before you meet them (`MeetingPlanner.kelpPlan`),
     /// so these plan in milliseconds at launch rather than shipping as data. They follow Shallow Reef's ten
     /// levels, already tuned for difficulty, with kelp columns closing in as they go.
-    static let kelpSpecs: [MeetingSpec] = (0..<10).map { index in
+    /// Levels 11-15 are its Deep End, following the other worlds' (Crossroads, Frenzy, Gauntlet, Heavyweights,
+    /// Needle) with kelp denser than level 10's.
+    static let kelpSpecs: [MeetingSpec] = (0..<15).map { index in
         var spec = reefLabSpecs[index]
         spec.name = "Kelp Forest \(index + 1)"
         spec.kelp = kelpRamp[index]
@@ -747,16 +749,23 @@ enum GameTuning {
     static let kelpRamp: [KelpSpec] = {
         let anchors = [(level: 0, kelp: KelpSpec(columns: 0.35, gap: 1.1)), (level: 4, kelp: KelpSpec(columns: 0.55, gap: 0.6)),
                        (level: 9, kelp: KelpSpec(columns: 0.75, gap: 0.35))]
-        return (0..<10).map { index in
+        let main = (0..<10).map { index in
             if let anchor = anchors.first(where: { $0.level == index }) { return anchor.kelp }
             let (a, b) = index < anchors[1].level ? (anchors[0], anchors[1]) : (anchors[1], anchors[2])
             let t = Double(index - a.level) / Double(b.level - a.level)
             return KelpSpec(columns: a.kelp.columns + (b.kelp.columns - a.kelp.columns) * t,
                             gap: a.kelp.gap + (b.kelp.gap - a.kelp.gap) * t)
         }
+        // The Deep End: about 65% to 77% kelp.
+        return main + [KelpSpec(columns: 0.7, gap: 0.38), KelpSpec(columns: 0.75, gap: 0.32), KelpSpec(columns: 0.8, gap: 0.3),
+                       KelpSpec(columns: 0.75, gap: 0.3), KelpSpec(columns: 0.85, gap: 0.25)]
     }()
     static let kelpLevels: [Level] = kelpSpecs.enumerated().map { index, spec in
-        var level = MeetingPlanner.kelpPlan(spec).level
+        // Levels 1-10 keep the layouts that were played. The Deep End takes the first layout the planner has no
+        // complaints about (a gate with only one way in plays as a single fixed path).
+        let plan = !ArcadeWorld.isDeepEnd(index) ? MeetingPlanner.kelpPlan(spec)
+            : (0..<8).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty } ?? MeetingPlanner.kelpPlan(spec)
+        var level = plan.level
         level.ecosystemSeedIndex = index
         return level
     }
