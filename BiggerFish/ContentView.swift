@@ -55,7 +55,7 @@ struct ContentView: View {
         .sheet(isPresented: $showsTuning) {
             // Planned levels ignore the tuner's seeded settings; its Players and variations sections still apply.
             let current = scene?.arcadeWorld ?? selectedWorld ?? .jellyBloom
-            let campaign = ArcadeWorld.campaign.contains(current)
+            let campaign = ArcadeWorld.campaign.contains(current) && current.hasSeededOriginal
             // Bonus levels have no seeded original to tune; the tuner opens on the last one.
             let seededIndex = min(scene?.debugLevelIndex ?? 1, current.seededLevels.count - 1)
             ArcadeTuningPanel(store: tuningStore, world: campaign ? current : .shallowReef,

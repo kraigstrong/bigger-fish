@@ -18,6 +18,19 @@ enum ArcadeArt {
         return SKTexture(image: image)
     }
 
+    /// Kelp Forest's water: sunlit green-teal fading to a deep green.
+    static func kelpWater() -> SKTexture {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 256))
+        let image = renderer.image { context in
+            let colors = [UIColor(red: 0.2, green: 0.5, blue: 0.43, alpha: 1).cgColor,
+                          UIColor(red: 0.03, green: 0.13, blue: 0.12, alpha: 1).cgColor]
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray,
+                                      locations: [0, 1])!
+            context.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: 256), options: [])
+        }
+        return SKTexture(image: image)
+    }
+
     static func urchin(radius: CGFloat) -> SKNode {
         let node = SKNode()
         let spikes = CGMutablePath()
