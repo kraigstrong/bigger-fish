@@ -98,7 +98,7 @@ struct DeepEndZone: View {
                         .foregroundStyle(DeepEndColors.gold)
                     Group {
                         if open {
-                            Text("Need more challenge? Go into the deep.")
+                            Text("Need more challenge?\nGo into the deep.")
                             Text("\(cleared)/\(count) cleared").opacity(0.7)
                         } else {
                             Label("Beat level \(ArcadeWorld.mainLevelCount) to dive in.", systemImage: "lock.fill")
@@ -164,7 +164,7 @@ struct WorldConqueredView: View {
                         }
                     }
                     if world.deepEndCount > 0 {
-                        UnlockCard(title: "The Deep End is open", line: "Need more challenge? Go into the deep.",
+                        UnlockCard(title: "The Deep End is open", line: "Need more challenge?\nGo into the deep.",
                                    button: "Dive in", color: DeepEndColors.gold, action: onDeepEnd) {
                             DeepEndBadge(size: 88)
                         }
