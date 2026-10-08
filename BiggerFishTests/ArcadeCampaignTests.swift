@@ -42,6 +42,31 @@ struct ArcadeCampaignTests {
         #expect(ArcadeWorld.campaign.allSatisfy { $0.deepEndCount == $0.levelCount - ArcadeWorld.mainLevelCount })
     }
 
+    /// Progress must survive every update. These are the shapes a stored save can take.
+    @Test func savesFromEveryVersionAndEvenBrokenOnesKeepProgress() throws {
+        func load(_ json: String) -> (ArcadeProgress, UserDefaults) {
+            let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+            defaults.set(Data(json.utf8), forKey: ArcadeProgress.key)
+            return (ArcadeProgress(defaults: defaults), defaults)
+        }
+        // Exactly what 0.1 wrote.
+        let (first, _) = load(#"{"clearedLevels":["shallow-reef.1","shallow-reef.2"],"bestTimes":{"shallow-reef.1":21.5},"hasSeenJellyLesson":false}"#)
+        #expect(first.isCleared(.shallowReef, 1) && first.save.bestTimes["shallow-reef.1"] == 21.5)
+        // Missing fields, and fields from a later version, are fine.
+        let (sparse, _) = load(#"{"clearedLevels":["jelly-bloom.3"]}"#)
+        #expect(sparse.isCleared(.jellyBloom, 2) && sparse.save.bestTimes.isEmpty)
+        let (later, _) = load(#"{"clearedLevels":["kelp-forest.1"],"bestTimes":{},"hasSeenJellyLesson":true,"somethingNew":[1,2]}"#)
+        #expect(later.isCleared(.kelpForest, 0))
+        // A field of the wrong type loses only that field.
+        let (odd, _) = load(#"{"clearedLevels":["shallow-reef.5"],"bestTimes":"oops"}"#)
+        #expect(odd.isCleared(.shallowReef, 4) && odd.save.bestTimes.isEmpty)
+        // A save that can't be read at all is kept, and clearing a level afterwards doesn't destroy it.
+        let (broken, defaults) = load("not a save")
+        #expect(broken.save.clearedLevels.isEmpty)
+        broken.clear(.shallowReef, 0, seconds: 20)
+        #expect(defaults.data(forKey: ArcadeProgress.unreadableKey) == Data("not a save".utf8))
+    }
+
     @Test func playersWhoBeatATenthLevelEarlierSeeItsUnlockScreenOnce() throws {
         // A save from before unlock screens were remembered: both worlds' tenth levels beaten.
         let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
