@@ -42,6 +42,18 @@ struct ArcadeCampaignTests {
         #expect(ArcadeWorld.campaign.allSatisfy { $0.deepEndCount == $0.levelCount - ArcadeWorld.mainLevelCount })
     }
 
+    /// A playtester noticed Jelly Bloom's level 1 and level 2 cards said different things: each world says
+    /// the same thing everywhere, and Jelly Bloom calls its jellyfish's parts tops and tentacles.
+    @Test func eachWorldDescribesItselfOneWay() {
+        for world in ArcadeWorld.campaign {
+            #expect(world.levelCard.count == 3 && world.levelCard.last == "Be the last fish swimming.")
+        }
+        let jelly = ([ArcadeWorld.jellyBloom.subtitle] + ArcadeWorld.jellyBloom.levelCard).joined(separator: " ").lowercased()
+        #expect(jelly.contains("tops") && jelly.contains("tentacles"))
+        for other in ["bell", "dome", "bottom", "sting"] { #expect(!jelly.contains(other), "Jelly Bloom says \(other)") }
+        #expect(ArcadeWorld.kelpForest.levelCard.joined().lowercased().contains("kelp"))
+    }
+
     @Test func clearUnlocksOnlyTheNextLevelAndPersists() {
         let (progress, defaults) = fresh()
         progress.clear(.jellyBloom, 0, seconds: 42)
