@@ -762,8 +762,18 @@ enum GameTuning {
     }
     /// Screen points beyond the edge of the screen where a Kelp Forest fish appears.
     static let kelpAppearMargin: CGFloat = 30
-    /// It swims straight until you're this many screens past its meeting, then roams like any fish.
+    /// It follows its approach until you're this many screens past its meeting, then roams like any fish.
     static let kelpApproachReleaseScreens: CGFloat = 0.15
+    /// Approaches (screen points): how far a meal glides into its meeting height from above or below, and
+    /// how far it weaves either way, settling as it reaches you. Big fish move this share as much.
+    static let kelpGlideHeight: ClosedRange<CGFloat> = 60...140
+    static let kelpWeaveHeight: ClosedRange<CGFloat> = 24...44
+    static let kelpWeaves: ClosedRange<CGFloat> = 0.7...1.5
+    static let kelpBigFishApproachShare: CGFloat = 0.45
+    /// A turning fish swims away from you at this share of your speed, then turns toward you this many
+    /// seconds before the meeting.
+    static let kelpTurnAwaySpeed: ClosedRange<CGFloat> = 0.45...0.7
+    static let kelpTurnBefore: ClosedRange<CGFloat> = 0.55...0.9
     /// Columns start this many screens into the lap, so you start in open water, and stop as far before its end.
     static let kelpFirstColumnScreens: CGFloat = 0.8
     /// Kelp grows from this far below the bottom of the screen, so it's rooted in the seabed.
