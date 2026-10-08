@@ -1835,7 +1835,7 @@ final class GameScene: SKScene {
             node.isHidden = screenX < -margin || screenX > size.width + margin
             if node.isHidden { continue }
             node.position = CGPoint(x: screenX, y: waterCenter + (pose.position.y - waterCenter) * zoom)
-            if !kelpBeds.isEmpty && !f.isPlayer && T.kelpFishLook == .silhouette {
+            if !kelpBeds.isEmpty && !f.isPlayer {
                 let hidden = inKelp(pose.position)
                 if hidden != silhouetted.contains(f.id) {
                     if hidden { silhouetted.insert(f.id) } else { silhouetted.remove(f.id) }
