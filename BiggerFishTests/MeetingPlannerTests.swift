@@ -156,8 +156,25 @@ struct MeetingPlannerTests {
         }
     }
 
+    /// Kelp Forest's fish appear just off screen and swim straight in, so every one meets the reference route
+    /// exactly as planned, kelp or not.
+    @MainActor @Test func kelpForestFishMeetYouExactlyWherePlanned() {
+        for index in [0, ArcadeWorld.kelpForest.levelCount - 1] {
+            let plan = ArcadeWorld.kelpForest.level(index).meetingPlan!
+            #expect(plan.fish.allSatisfy { $0.appearsAt != nil } && !(plan.kelp ?? []).isEmpty)
+            let route = Set(plan.fish.filter(\.referenceMeal).map(\.id))
+            let crossings = GameScene(world: .kelpForest, levelIndex: index)
+                .debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
+            for predicted in plan.predicted {
+                let real = crossings.first { $0.fishID == predicted.fishID }
+                #expect(real.map { abs($0.time - predicted.time) < 0.02 && abs($0.y - predicted.y) < 1 } == true,
+                        "\(plan.spec.name) fish \(predicted.fishID)")
+            }
+        }
+    }
+
     @MainActor @Test func shallowReefPlaysFifteenPlannedLevelsThatUnlockAndResetLikeACampaign() {
-        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom])
+        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom, .kelpForest])
         #expect(ArcadeWorld.jellyBloom.levels.allSatisfy { $0.meetingPlan != nil && $0.jellies != nil })
         let world = ArcadeWorld.shallowReef
         #expect(world.levelCount == 15 && world.levelTitles == (1...15).map { "Level \($0)" })

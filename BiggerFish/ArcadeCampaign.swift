@@ -4,18 +4,11 @@ import Foundation
 enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     case shallowReef = "shallow-reef"
     case jellyBloom = "jelly-bloom"
-    /// A test world in Xcode builds only, while its kelp and late-appearing fish are tried out.
     case kelpForest = "kelp-forest"
 
     /// The playable worlds, in map order. The map shows the rest as coming soon.
-    static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom]
-    static var mapWorlds: [ArcadeWorld] {
-        #if DEBUG
-        campaign + [.kelpForest]
-        #else
-        campaign
-        #endif
-    }
+    static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom, .kelpForest]
+    static var mapWorlds: [ArcadeWorld] { campaign }
     var hasJellies: Bool { self == .jellyBloom }
 
     var id: String { rawValue }

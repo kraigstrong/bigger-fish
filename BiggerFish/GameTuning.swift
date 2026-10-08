@@ -731,7 +731,7 @@ enum GameTuning {
     /// leaves this set while it's reworked and rejoins once it's played again.
     static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name))
 
-    // MARK: Kelp Forest (Debug-only test world)
+    // MARK: Kelp Forest
 
     /// Kelp Forest's levels: fish appear just off screen right before you meet them (`MeetingPlanner.kelpPlan`),
     /// so these plan in milliseconds at launch rather than shipping as data. They follow Shallow Reef's ten
