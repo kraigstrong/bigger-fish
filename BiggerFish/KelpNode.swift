@@ -13,8 +13,9 @@ final class KelpNode: SKNode {
     init(width: CGFloat, height: CGFloat, seed: UInt64, front: Bool) {
         super.init()
         var rng = SeededGenerator(seed: 0x6B656C70 &+ seed)
-        let pictures = front ? KelpArt.front : KelpArt.back
-        let count = max(front ? 2 : 4, Int(width / (front ? 50 : 26)))
+        let leafy = front && GameTuning.kelpFishLook == .leaves
+        let pictures = front ? (leafy ? KelpArt.leafyFront : KelpArt.front) : KelpArt.back
+        let count = max(front ? 2 : 4, Int(width / (leafy ? 30 : front ? 50 : 26)))
         for index in 0..<count {
             let x = -width / 2 + width * (CGFloat(index) + CGFloat.random(in: 0.15...0.85, using: &rng)) / CGFloat(count)
             let texture = pictures[Int.random(in: 0..<pictures.count, using: &rng)]
@@ -41,16 +42,18 @@ final class KelpNode: SKNode {
 /// Kelp plant pictures, drawn once.
 private enum KelpArt {
     static let height: CGFloat = 340
-    static let width: CGFloat = 110
+    static let width: CGFloat = 150
     static let back: [SKTexture] = (0..<5).map { plant(seed: UInt64($0), dim: 0.62, alpha: 0.95) }
     static let front: [SKTexture] = (0..<4).map { plant(seed: 100 + UInt64($0), dim: 1, alpha: 0.5) }
+    /// Solid, broad-bladed plants that partly hide the fish behind them.
+    static let leafyFront: [SKTexture] = (0..<4).map { plant(seed: 200 + UInt64($0), dim: 0.9, alpha: 1, blades: 1.45) }
 
     /// Base, middle, and top colors of the blades, from dark at the roots to sunlit at the top.
     private static let shades: [(red: CGFloat, green: CGFloat, blue: CGFloat)] = [
         (0.27, 0.33, 0.1), (0.45, 0.5, 0.15), (0.66, 0.63, 0.22),
     ]
 
-    private static func plant(seed: UInt64, dim: CGFloat, alpha: CGFloat) -> SKTexture {
+    private static func plant(seed: UInt64, dim: CGFloat, alpha: CGFloat, blades: CGFloat = 1) -> SKTexture {
         var rng = SeededGenerator(seed: 0x6B656C71 &+ seed)
         let lean = CGFloat.random(in: -16...16, using: &rng)
         let format = UIGraphicsImageRendererFormat()
@@ -74,8 +77,8 @@ private enum KelpArt {
             var t: CGFloat = 0.06, side: CGFloat = Bool.random(using: &rng) ? 1 : -1
             while t < 0.97 {
                 let base = stalkPoint(t)
-                let length = CGFloat.random(in: 26...40, using: &rng) * (1 - 0.3 * t)
-                let breadth = CGFloat.random(in: 7...10, using: &rng)
+                let length = CGFloat.random(in: 26...40, using: &rng) * (1 - 0.3 * t) * blades
+                let breadth = CGFloat.random(in: 7...10, using: &rng) * blades
                 let angle = side * CGFloat.random(in: 0.5...0.95, using: &rng)
                 let shade = shades[min(2, Int(t * 3))]
                 let blade = CGMutablePath()
@@ -88,7 +91,7 @@ private enum KelpArt {
                 cg.setLineWidth(0.8)
                 cg.drawPath(using: .fillStroke)
                 side = -side
-                t += CGFloat.random(in: 18...26, using: &rng) / height
+                t += CGFloat.random(in: 18...26, using: &rng) / height / blades.squareRoot()
             }
         }
         return SKTexture(image: image)
