@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import FishKit
+import SpriteKit
 
 /// Every feel-related constant lives here so it can be tweaked quickly between device runs.
 enum GameTuning {
@@ -776,8 +777,8 @@ enum GameTuning {
     static let kelpCanopy: CGFloat = 30
     /// Inside kelp you rise and fall at this share of your usual speed.
     static let kelpDrag: CGFloat = 0.65
-    /// Other fish inside kelp fade to this, behind the fronds.
-    static let kelpSilhouetteAlpha: CGFloat = 0.5
+    /// Other fish inside kelp are drawn in this one dark color, behind the fronds.
+    static let kelpSilhouette = SKColor(red: 0.03, green: 0.09, blue: 0.07, alpha: 0.95)
 
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")

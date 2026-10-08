@@ -303,6 +303,9 @@ final class GameScene: SKScene {
     /// A Kelp Forest fish swims straight at its meeting height until you're this far along, then roams.
     private var approachEnds: [Int: (until: CGFloat, y: CGFloat)] = [:]
     private var kelpBeds: [(bed: PlannedKelp, back: KelpNode, front: KelpNode, height: CGFloat)] = []
+    /// Fish drawn as silhouettes while in kelp, and the colors each of their shapes had before.
+    private var silhouetted: Set<Int> = []
+    private var silhouetteColors: [ObjectIdentifier: (fill: SKColor, stroke: SKColor)] = [:]
     /// After a sting, the result waits until the death animation has played.
     private var pendingLossResultAt: CGFloat?
     private var lastCameraX: CGFloat = 0
@@ -1234,6 +1237,8 @@ final class GameScene: SKScene {
     // MARK: - Kelp Forest
 
     private func spawnKelp() {
+        silhouetted.removeAll()
+        silhouetteColors.removeAll()
         for bed in kelpBeds { bed.back.removeFromParent(); bed.front.removeFromParent() }
         kelpBeds = (level.meetingPlan?.kelp ?? []).enumerated().map { index, bed in
             // A column is drawn to just above the top of the screen; a bed to its top at full size.
@@ -1247,6 +1252,24 @@ final class GameScene: SKScene {
             fishLayer.addChild(back)
             fishLayer.addChild(front)
             return (bed, back, front, height)
+        }
+    }
+
+    /// In kelp, a fish is one solid dark shape, eye and all, so you judge it by its outline alone.
+    private func setSilhouette(_ node: SKNode, _ on: Bool) {
+        for child in node.children {
+            if let shape = child as? SKShapeNode {
+                let key = ObjectIdentifier(shape)
+                if on {
+                    silhouetteColors[key] = (shape.fillColor, shape.strokeColor)
+                    if shape.fillColor.cgColor.alpha > 0 { shape.fillColor = T.kelpSilhouette }
+                    if shape.strokeColor.cgColor.alpha > 0 { shape.strokeColor = T.kelpSilhouette }
+                } else if let original = silhouetteColors.removeValue(forKey: key) {
+                    shape.fillColor = original.fill
+                    shape.strokeColor = original.stroke
+                }
+            }
+            setSilhouette(child, on)
         }
     }
 
@@ -1812,7 +1835,13 @@ final class GameScene: SKScene {
             node.isHidden = screenX < -margin || screenX > size.width + margin
             if node.isHidden { continue }
             node.position = CGPoint(x: screenX, y: waterCenter + (pose.position.y - waterCenter) * zoom)
-            if !kelpBeds.isEmpty { node.alpha = !f.isPlayer && inKelp(pose.position) ? T.kelpSilhouetteAlpha : 1 }
+            if !kelpBeds.isEmpty && !f.isPlayer {
+                let hidden = inKelp(pose.position)
+                if hidden != silhouetted.contains(f.id) {
+                    if hidden { silhouetted.insert(f.id) } else { silhouetted.remove(f.id) }
+                    setSilhouette(node, hidden)
+                }
+            }
 
             var stretch: CGFloat = 1
             if pose.pulse > 0 {
