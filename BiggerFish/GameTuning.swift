@@ -779,8 +779,8 @@ enum GameTuning {
     static let kelpWeaveHeight: ClosedRange<CGFloat> = 24...44
     static let kelpWeaves: ClosedRange<CGFloat> = 0.7...1.5
     static let kelpBigFishApproachShare: CGFloat = 0.45
-    /// A turning fish swims away from you at this share of your speed, then turns toward you this many
-    /// seconds before the meeting.
+    /// A turning fish swims away from you at this share of your starting speed, then turns toward you this
+    /// many seconds before the meeting.
     static let kelpTurnAwaySpeed: ClosedRange<CGFloat> = 0.45...0.7
     static let kelpTurnBefore: ClosedRange<CGFloat> = 0.55...0.9
     /// Columns start this many screens into the lap, so you start in open water, and stop as far before its end.

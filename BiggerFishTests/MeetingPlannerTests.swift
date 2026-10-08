@@ -162,6 +162,18 @@ struct MeetingPlannerTests {
         // Fish come in every way, not all along a straight line.
         let styles = Set(ArcadeWorld.kelpForest.levels.flatMap { $0.meetingPlan!.fish.compactMap(\.approach?.style) })
         #expect(styles == [.glide, .weave, .turn])
+        // Every fish appears inside the water you can see then, and none is swimming away when the level starts
+        // (one that turned late outran you along the surface of level 7).
+        for level in ArcadeWorld.kelpForest.levels {
+            let plan = level.meetingPlan!
+            for fish in plan.fish {
+                #expect(!(fish.appearsAt == 0 && fish.approach?.style == .turn), "\(plan.spec.name) fish \(fish.id)")
+                if fish.appearsAt == 0 {
+                    let water = PlayerTimeline.waterBounds(zoom: 1)
+                    #expect((water.bottom...water.top).contains(fish.spawn.y), "\(plan.spec.name) fish \(fish.id) starts at y \(fish.spawn.y)")
+                }
+            }
+        }
         for index in [0, ArcadeWorld.kelpForest.levelCount - 1] {
             let plan = ArcadeWorld.kelpForest.level(index).meetingPlan!
             #expect(plan.fish.allSatisfy { $0.appearsAt != nil } && !(plan.kelp ?? []).isEmpty)

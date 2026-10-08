@@ -1712,6 +1712,13 @@ extension MeetingSolver {
             }
             var step = meetStep
             while step > 0 && !offScreen(step) { step -= 1 }
+            // A fish that has to be there from the start just swims in: shown swimming away first, it would
+            // be in view the whole time.
+            if step == 0 && approach.style == .turn {
+                approach.style = .straight
+                step = meetStep
+                while step > 0 && !offScreen(step) { step -= 1 }
+            }
             approach.seconds = CGFloat(meetStep - step) * dt
             // Keep a glide or weave in the water it appears in.
             let start = PlayerTimeline.waterBounds(zoom: timeline.zoom[step])
@@ -1760,7 +1767,9 @@ extension MeetingSolver {
             approach.waves = CGFloat.random(in: T.kelpWeaves, using: &rng)
             approach.phase = CGFloat.random(in: 0..<(2 * .pi), using: &rng)
         case .turn:
-            let yourSpeed = T.playfieldSize.width / CGFloat(spec.crossSeconds) / zoom
+            // Your speed at the start, the slowest you go: grown and zoomed out you're faster, so a fish
+            // swimming away at a share of this never outruns you.
+            let yourSpeed = T.playfieldSize.width / CGFloat(spec.crossSeconds)
             approach.awaySpeed = yourSpeed * CGFloat.random(in: T.kelpTurnAwaySpeed, using: &rng)
             approach.turnBefore = CGFloat.random(in: T.kelpTurnBefore, using: &rng)
         }
