@@ -51,7 +51,7 @@ Debug builds record full runs locally only.
 - Earned pearls, cosmetic-only shop (hats, trails, skins), achievement unlocks, and settings.
 - Full Dive non-consumable unlock and Restore Purchases; no paid gate in this development build.
 - A dedicated, skippable World 1 tutorial and fuller sound/music treatment.
-- Future worlds: Kelp Forest (ambush), The Deep (limited information), Riptide Reef (currents after
+- Future worlds (Kelp Forest has shipped): Midnight Zone (limited information: darkness, with a light on your fish lighting a narrow cone ahead), Riptide Reef (currents after
   controls are validated), Frozen Trench (space management).
 - Fishpedia, daily seeded runs, expanded cosmetics, and a later decision about Game Center.
 - Whether player growth (camera zoom) should keep widening every NPC's swimming area.
