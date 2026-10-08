@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import FishKit
+import SpriteKit
 
 /// Every feel-related constant lives here so it can be tweaked quickly between device runs.
 enum GameTuning {
@@ -729,6 +730,50 @@ enum GameTuning {
     /// passed that bell before the fork reaches it. The bonus levels (11 on) were played as first planned; each
     /// leaves this set while it's reworked and rejoins once it's played again.
     static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name))
+
+    // MARK: Kelp Forest
+
+    /// Kelp Forest's levels: fish appear just off screen right before you meet them (`MeetingPlanner.kelpPlan`),
+    /// so these plan in milliseconds at launch rather than shipping as data. They follow Shallow Reef's ten
+    /// levels, already tuned for difficulty, with kelp columns closing in as they go.
+    static let kelpSpecs: [MeetingSpec] = (0..<10).map { index in
+        var spec = reefLabSpecs[index]
+        spec.name = "Kelp Forest \(index + 1)"
+        spec.kelp = kelpRamp[index]
+        return spec
+    }
+    /// Levels 1, 5, and 10 were played and liked (first wins on tries 1, 4, and 17); the levels between step
+    /// evenly from one to the next.
+    static let kelpRamp: [KelpSpec] = {
+        let anchors = [(level: 0, kelp: KelpSpec(columns: 0.35, gap: 1.1)), (level: 4, kelp: KelpSpec(columns: 0.55, gap: 0.6)),
+                       (level: 9, kelp: KelpSpec(columns: 0.75, gap: 0.35))]
+        return (0..<10).map { index in
+            if let anchor = anchors.first(where: { $0.level == index }) { return anchor.kelp }
+            let (a, b) = index < anchors[1].level ? (anchors[0], anchors[1]) : (anchors[1], anchors[2])
+            let t = Double(index - a.level) / Double(b.level - a.level)
+            return KelpSpec(columns: a.kelp.columns + (b.kelp.columns - a.kelp.columns) * t,
+                            gap: a.kelp.gap + (b.kelp.gap - a.kelp.gap) * t)
+        }
+    }()
+    static let kelpLevels: [Level] = kelpSpecs.enumerated().map { index, spec in
+        var level = MeetingPlanner.kelpPlan(spec).level
+        level.ecosystemSeedIndex = index
+        return level
+    }
+    /// Screen points beyond the edge of the screen where a Kelp Forest fish appears.
+    static let kelpAppearMargin: CGFloat = 30
+    /// It swims straight until you're this many screens past its meeting, then roams like any fish.
+    static let kelpApproachReleaseScreens: CGFloat = 0.15
+    /// Columns start this many screens into the lap, so you start in open water, and stop as far before its end.
+    static let kelpFirstColumnScreens: CGFloat = 0.8
+    /// Kelp grows from this far below the bottom of the screen, so it's rooted in the seabed.
+    static let kelpRootY: CGFloat = -14
+    /// Columns reach this far above the top of the screen.
+    static let kelpCanopy: CGFloat = 30
+    /// Inside kelp you rise and fall at this share of your usual speed.
+    static let kelpDrag: CGFloat = 0.65
+    /// Other fish inside kelp are silhouettes in this one dark color, behind the fronds.
+    static let kelpSilhouette = SKColor(red: 0.03, green: 0.09, blue: 0.07, alpha: 0.95)
 
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")

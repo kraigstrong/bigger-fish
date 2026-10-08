@@ -8,6 +8,7 @@ extension ArcadeWorld {
         switch self {
         case .shallowReef: UIColor(red: 0.18, green: 0.78, blue: 0.72, alpha: 1)
         case .jellyBloom: UIColor(red: 0.75, green: 0.52, blue: 1, alpha: 1)
+        case .kelpForest: UIColor(red: 0.45, green: 0.78, blue: 0.32, alpha: 1)
         }
     }
 }
@@ -21,6 +22,8 @@ struct ArcadeWorldMap: View {
             let size = geometry.size
             let centers = OceanMapLayout.worldCenters(count: 5, size: size)
             let worlds = ArcadeWorld.mapWorlds
+            let comingSoon = [("Kelp Forest", Color.blue), ("The Deep", .orange), ("Riptide Reef", .pink)]
+                .filter { soon in !worlds.contains { $0.title == soon.0 } }
             // The first open world with main levels left, else the last open one.
             let focus = ArcadeWorld.campaign.firstIndex { world in
                 progress.isWorldOpen(world) && progress.clearedCounts(in: world).main < min(world.levelCount, ArcadeWorld.mainLevelCount)
@@ -45,9 +48,8 @@ struct ArcadeWorldMap: View {
                         .accessibilityLabel(open ? "\(world.title), \(detail)" : "\(world.title), locked. \(detail)")
                         .position(x: centers[index].x, y: size.height - centers[index].y)
                     } else {
-                        let title = ["Kelp Forest", "The Deep", "Riptide Reef"][index - worlds.count]
-                        WorldMapStop(title: title, detail: "Coming soon", world: nil,
-                                     color: [.blue, .orange, .pink][index - worlds.count], placeholder: true)
+                        let (title, color) = comingSoon[index - worlds.count]
+                        WorldMapStop(title: title, detail: "Coming soon", world: nil, color: color, placeholder: true)
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel("\(title), coming soon")
                             .position(x: centers[index].x, y: size.height - centers[index].y)
