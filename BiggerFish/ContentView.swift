@@ -13,6 +13,9 @@ struct ContentView: View {
     @State private var scene: GameScene?
     /// The level last played in `selectedWorld`, so its map opens there; nil on first entry.
     @State private var returnedFrom: Int?
+    /// A world whose tenth level was just beaten for the first time; its unlock screen shows back on the map.
+    @State private var conquered: ArcadeWorld?
+    @State private var celebrating: ArcadeWorld?
     /// The loading screen shows until both worlds' levels are decoded.
     @State private var loaded = false
     #if DEBUG
@@ -43,6 +46,15 @@ struct ContentView: View {
                 ArcadeWorldMap(progress: progress, onSelect: { selectedWorld = $0; returnedFrom = nil })
             }
         }
+        .overlay {
+            if scene == nil, let world = celebrating {
+                WorldConqueredView(world: world,
+                    onNextWorld: { next in celebrating = nil; selectedWorld = next; returnedFrom = nil },
+                    onDeepEnd: { celebrating = nil; play(world, index: ArcadeWorld.mainLevelCount) },
+                    onLater: { celebrating = nil })
+                    .transition(.opacity)
+            }
+        }
         #if DEBUG
         .overlay(alignment: .bottomTrailing) {
             Button("Tuning", systemImage: "slider.horizontal.3") {
@@ -63,6 +75,11 @@ struct ContentView: View {
                               onResetProgress: { progress.reset($0) }) { world, index in
                 selectedWorld = world
                 play(world, index: index, practice: true, seeded: true)
+            }
+            .previewingConquered { world in
+                scene = nil
+                selectedWorld = world
+                withAnimation { celebrating = world }
             }
         }
         #endif
@@ -141,6 +158,7 @@ struct ContentView: View {
             #if DEBUG
             guard let game, !game.debugPracticeRun, !game.debugHasTuningOverride else { return }
             #endif
+            if index == ArcadeWorld.mainLevelCount - 1 && !progress.isCleared(world, index) { conquered = world }
             progress.clear(world, index, seconds: seconds)
         }
         game.onJellyLesson = { [weak game] in
@@ -153,6 +171,10 @@ struct ContentView: View {
             game?.exitMetrics()
             returnedFrom = game?.currentLevelIndex
             scene = nil
+            if let world = conquered {
+                conquered = nil
+                withAnimation { celebrating = world }
+            }
         }
         scene = game
     }

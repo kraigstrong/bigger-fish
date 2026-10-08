@@ -21,24 +21,28 @@ struct ArcadeWorldMap: View {
             let size = geometry.size
             let centers = OceanMapLayout.worldCenters(count: 5, size: size)
             let worlds = ArcadeWorld.mapWorlds
+            // The first open world with main levels left, else the last open one.
             let focus = ArcadeWorld.campaign.firstIndex { world in
-                (0..<world.levelCount).contains { !progress.isCleared(world, $0) }
-            } ?? 0
+                progress.isWorldOpen(world) && progress.clearedCounts(in: world).main < min(world.levelCount, ArcadeWorld.mainLevelCount)
+            } ?? (ArcadeWorld.campaign.lastIndex { progress.isWorldOpen($0) } ?? 0)
             ZStack(alignment: .topLeading) {
                 MapArtLayer(size: size, points: centers,
                             fishHome: CGPoint(x: centers[focus].x + 66, y: centers[focus].y + 14))
                 ForEach(0..<5, id: \.self) { index in
                     if worlds.indices.contains(index) {
                         let world = worlds[index]
-                        let cleared = (0..<world.levelCount).filter { progress.isCleared(world, $0) }.count
+                        let open = progress.isWorldOpen(world)
+                        let cleared = progress.clearedCounts(in: world)
+                        let main = min(world.levelCount, ArcadeWorld.mainLevelCount)
+                        let detail = !open ? "Beat \(world.previousWorld?.title ?? "") to unlock"
+                            : cleared.main < main ? "\(cleared.main)/\(main) cleared"
+                            : world.deepEndCount > 0 ? "✓ Complete · Deep End \(cleared.deepEnd)/\(world.deepEndCount)" : "✓ World complete"
                         Button { onSelect(world) } label: {
-                            WorldMapStop(title: world.title,
-                                         detail: cleared == world.levelCount ? "✓ World complete" : "\(cleared)/\(world.levelCount) cleared",
-                                         world: world,
-                                         color: world.color, placeholder: false)
+                            WorldMapStop(title: world.title, detail: detail, world: world,
+                                         color: world.color, placeholder: false, locked: !open)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(world.title), \(cleared) of \(world.levelCount) levels cleared")
+                        .buttonStyle(.plain).disabled(!open)
+                        .accessibilityLabel(open ? "\(world.title), \(detail)" : "\(world.title), locked. \(detail)")
                         .position(x: centers[index].x, y: size.height - centers[index].y)
                     } else {
                         let title = ["Kelp Forest", "The Deep", "Riptide Reef"][index - worlds.count]
@@ -114,6 +118,13 @@ struct ArcadeLevelMap: View {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         ZStack(alignment: .topLeading) {
+                            if world.deepEndCount > 0 {
+                                let dropX = OceanMapLayout.levelStartX + OceanMapLayout.levelSpacing * (CGFloat(ArcadeWorld.mainLevelCount) - 0.55)
+                                DeepEndZone(open: progress.isOpen(world, ArcadeWorld.mainLevelCount),
+                                            cleared: progress.clearedCounts(in: world).deepEnd, count: world.deepEndCount)
+                                    .frame(width: width - dropX, height: size.height)
+                                    .offset(x: dropX)
+                            }
                             MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
                                         fishHome: centers.indices.contains(focus) ? CGPoint(x: centers[focus].x, y: centers[focus].y + 58) : nil,
                                         pulsingStops: centers.indices.contains(focus) ? [centers[focus]] : [])
@@ -123,7 +134,8 @@ struct ArcadeLevelMap: View {
                                 Button { onPlay(index) } label: {
                                     MapLevelStop(number: index + 1, title: world.levelTitles[index], color: world.color,
                                                  open: open, cleared: cleared,
-                                                 best: progress.save.bestTimes[world.levelID(index)])
+                                                 best: progress.save.bestTimes[world.levelID(index)],
+                                                 deep: ArcadeWorld.isDeepEnd(index))
                                 }
                                 .buttonStyle(.plain).disabled(!open)
                                 .accessibilityLabel("\(world.levelTitles[index]), \(open ? (cleared ? "cleared, replay" : "play") : "locked")")
@@ -148,7 +160,7 @@ struct ArcadeLevelMap: View {
                             .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
                     }.buttonStyle(.plain).accessibilityLabel("Back to worlds")
                     Text(world.title).font(.custom("AvenirNext-Heavy", size: 26))
-                    Text("\((0..<world.levelCount).filter { progress.isCleared(world, $0) }.count)/\(world.levelCount) cleared")
+                    Text("\(progress.clearedCounts(in: world).main)/\(min(world.levelCount, ArcadeWorld.mainLevelCount)) cleared")
                         .font(.custom("AvenirNext-DemiBold", size: 14))
                     Spacer(minLength: 0)
                 }
@@ -169,6 +181,7 @@ private struct WorldMapStop: View {
     let world: ArcadeWorld?
     let color: Color
     let placeholder: Bool
+    var locked = false
 
     var body: some View {
         ZStack {
@@ -178,15 +191,21 @@ private struct WorldMapStop: View {
                 .shadow(color: color.opacity(0.3), radius: 18)
             if let world {
                 WorldIllustration(world: world).frame(width: 58, height: 58)
+                    .saturation(locked ? 0 : 1).opacity(locked ? 0.45 : 1)
+                if locked {
+                    Image(systemName: "lock.fill").font(.system(size: 20, weight: .bold))
+                        .padding(7).background(.black.opacity(0.55), in: Circle()).offset(x: 26, y: 26)
+                }
             } else {
                 Image(systemName: "lock.fill").font(.system(size: 24, weight: .bold))
             }
             VStack(spacing: 4) {
                 Text(title).font(.custom("AvenirNext-Heavy", size: 16))
-                Text(detail).font(.custom("AvenirNext-DemiBold", size: 13))
+                Text(detail).font(.custom("AvenirNext-DemiBold", size: 13)).multilineTextAlignment(.center)
+                    .fixedSize()
             }.offset(y: 70)
         }
-        .opacity(placeholder ? 0.65 : 1)
+        .opacity(placeholder ? 0.65 : locked ? 0.85 : 1)
         .frame(width: 140, height: 180).contentShape(Rectangle())
     }
 }
@@ -198,14 +217,21 @@ private struct MapLevelStop: View {
     let open: Bool
     let cleared: Bool
     let best: Double?
+    /// A Deep End level: deep navy with a gold rim.
+    var deep = false
+
+    private static let gold = Color(red: 1, green: 0.8, blue: 0.32)
 
     var body: some View {
         ZStack {
-            Circle().fill(open ? color : .white.opacity(0.09))
-                .overlay(Circle().stroke(.white.opacity(open ? 0.9 : 0.25), lineWidth: 2.5))
+            Circle().fill(deep ? Color(red: 0.05, green: 0.1, blue: 0.26).opacity(open ? 1 : 0.6) : open ? color : .white.opacity(0.09))
+                .overlay(Circle().stroke(deep ? Self.gold.opacity(open ? 1 : 0.4) : .white.opacity(open ? 0.9 : 0.25),
+                                         lineWidth: deep ? 3.5 : 2.5))
+                .shadow(color: deep && open ? Self.gold.opacity(0.5) : .clear, radius: 10)
                 .frame(width: 56, height: 56)
             Text("\(number)").font(.custom("AvenirNext-Heavy", size: 21))
-                .foregroundStyle(open ? Color(red: 0.04, green: 0.12, blue: 0.24) : .white.opacity(0.45))
+                .foregroundStyle(deep ? Self.gold.opacity(open ? 1 : 0.45)
+                                 : open ? Color(red: 0.04, green: 0.12, blue: 0.24) : .white.opacity(0.45))
             if cleared {
                 Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).offset(y: -43)
             }
@@ -298,7 +324,7 @@ struct OceanBackdrop: View {
 }
 
 /// Drawn from the game's own fish and jellyfish art (IconographyTests renders it).
-private struct WorldIllustration: View {
+struct WorldIllustration: View {
     let world: ArcadeWorld
     var body: some View {
         Image(world.hasJellies ? "WorldJellyBloom" : "WorldShallowReef")

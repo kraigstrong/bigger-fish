@@ -245,6 +245,8 @@ struct ArcadeTuningPanel: View {
     let onPlanner: (MeetingSpec, Int) -> Void
     let onResetProgress: (ArcadeWorld) -> Void
     let onPlay: (ArcadeWorld, Int) -> Void
+    /// Shows a world's "conquered" unlock screen without touching progress.
+    var onPreviewConquered: (ArcadeWorld) -> Void = { _ in }
 
     init(store: ArcadeTuningStore, world: ArcadeWorld, index: Int, onPlanner: @escaping (MeetingSpec, Int) -> Void,
          onResetProgress: @escaping (ArcadeWorld) -> Void, onPlay: @escaping (ArcadeWorld, Int) -> Void) {
@@ -270,6 +272,10 @@ struct ArcadeTuningPanel: View {
                                             isPresented: $confirmsReset, titleVisibility: .visible) {
                             Button("Reset \(resetWorld.title)", role: .destructive) { onResetProgress(resetWorld) }
                         }
+                    Button("Preview \(resetWorld.title)'s unlock screen") {
+                        dismiss()
+                        onPreviewConquered(resetWorld)
+                    }
                 }
                 Section("\(ArcadeWorld.shallowReef.title) variations") {
                     Text("Other layouts of the same \(ArcadeWorld.shallowReef.title) settings: every fish swims freely but is timed to cross your path at a planned height. Practice runs only.")
@@ -475,6 +481,14 @@ struct ArcadeTuningPanel: View {
             Text("\(title): \(value.wrappedValue, specifier: "%.2f")")
             Slider(value: value, in: range, step: step).accessibilityLabel(title)
         }
+    }
+}
+
+extension ArcadeTuningPanel {
+    func previewingConquered(_ action: @escaping (ArcadeWorld) -> Void) -> Self {
+        var panel = self
+        panel.onPreviewConquered = action
+        return panel
     }
 }
 #endif

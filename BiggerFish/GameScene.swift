@@ -126,6 +126,14 @@ final class GameScene: SKScene {
         return level.ecosystemSeedOffset
         #endif
     }
+    /// Beating a world's tenth level finishes its main run: the result leads back to the map, where the next
+    /// world and the Deep End open, rather than straight on to the Deep End.
+    private var isWorldFinale: Bool {
+        #if DEBUG
+        if plannerLevel != nil { return false }
+        #endif
+        return !seeded && levelIndex == ArcadeWorld.mainLevelCount - 1
+    }
     private var isFinalLevel: Bool {
         #if DEBUG
         if plannerLevel != nil { return true }
@@ -752,10 +760,18 @@ final class GameScene: SKScene {
         messageNode.removeAllActions()
         messageNode.removeAllChildren()
         messageNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
-        let detail = passed
-            ? (isFinalLevel ? "\(plannerName ?? arcadeWorld.title) complete!" : "\(levelTitle) complete!")
-            : lossReason
-        let panel = ArcadeResultPanel(size: size, passed: passed, hasNext: !isFinalLevel, detail: detail)
+        let detail: String
+        if !passed {
+            detail = lossReason
+        } else if isWorldFinale {
+            detail = "\(arcadeWorld.title) conquered!"
+        } else if isFinalLevel {
+            detail = plannerName.map { "\($0) complete!" }
+                ?? (ArcadeWorld.isDeepEnd(levelIndex) ? "The Deep End conquered!" : "\(arcadeWorld.title) complete!")
+        } else {
+            detail = "\(levelTitle) complete!"
+        }
+        let panel = ArcadeResultPanel(size: size, passed: passed, hasNext: !isFinalLevel && !isWorldFinale, detail: detail)
         panel.onSelect = { [weak self] action in self?.selectResult(action) }
         messageNode.addChild(panel)
         resultPanel = panel
@@ -792,7 +808,7 @@ final class GameScene: SKScene {
     private func selectResult(_ action: ArcadeResultAction) {
         switch action {
         case .nextLevel:
-            guard phase == .won, !isFinalLevel else { return }
+            guard phase == .won, !isFinalLevel, !isWorldFinale else { return }
             levelIndex += 1
             layoutStatic()
             resetGame(startPlaying: false)
