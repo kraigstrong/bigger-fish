@@ -358,8 +358,9 @@ enum MeetingPlanner {
 
     /// Kelp Forest: every fish appears just off screen shortly before you meet it and swims straight to the
     /// meeting, so its spawn is worked out directly rather than searched for. One layout, in milliseconds.
-    static func kelpPlan(_ spec: MeetingSpec, variation: Int = 0) -> MeetingPlan {
-        let seed = GameTuning.spawnSeed &+ 7_000 &+ stableHash(spec.name) &+ UInt64(variation) &* 1_000_003
+    /// `seedName` plans the layout another name would get, for a level renamed after it was played.
+    static func kelpPlan(_ spec: MeetingSpec, variation: Int = 0, seedName: String? = nil) -> MeetingPlan {
+        let seed = GameTuning.spawnSeed &+ 7_000 &+ stableHash(seedName ?? spec.name) &+ UInt64(variation) &* 1_000_003
         let design = MeetingDesigner.design(spec, seed: seed)
         var meetings = design.meetings
         for id in GameTuning.kelpSwimsAtYou[spec.name] ?? [] where meetings.indices.contains(id - 1) {
