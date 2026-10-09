@@ -156,6 +156,63 @@ struct MeetingPlannerTests {
         }
     }
 
+    /// Midnight Zone plans like Kelp Forest without kelp: clean layouts following Shallow Reef's levels, Deep End
+    /// included, whose fish appear just off screen. Levels 1, 5, and 9 keep the trials Kraig played (planned as
+    /// levels 1, 2, and 3).
+    @MainActor @Test func midnightZonePlansCleanJustInTimeLevels() {
+        let plans = ArcadeWorld.midnightZone.levels.map { $0.meetingPlan! }
+        #expect(plans.map(\.spec.name) == (1...15).map { "Midnight Zone \($0)" })
+        #expect(ArcadeWorld.midnightZone.deepEndCount == 5)
+        #expect(zip(plans, [0, 1, 2, 3, 4, 6, 7, 8, 9, 9, 10, 11, 12, 13, 14]).allSatisfy { plan, source in
+            var spec = plan.spec
+            spec.name = GameTuning.reefLabSpecs[source].name
+            return spec == GameTuning.reefLabSpecs[source]
+        })
+        #expect(plans.allSatisfy { $0.issues.isEmpty && !$0.hasGiantWall && ($0.kelp ?? []).isEmpty && $0.spec.reachScale == 1 })
+        #expect(plans.allSatisfy { $0.fish.contains { ($0.appearsAt ?? 0) > 0 } })
+        #expect(plans[8].fish != plans[9].fish)
+        // The dark sits under all of your fish (its tail at 38) and over every other fish's highest part: 10 for
+        // the fish layer, 1 + half its ID, and 3 for its eye. Fish IDs run past each level's fish count by one, for you.
+        #expect(plans.allSatisfy { 10 + 1 + CGFloat($0.fish.count + 1) / 2 + 3 < GameScene.headlampDepth }
+            && GameScene.headlampDepth < 10 + 30 - 2)
+        for (level, trial, source) in [(0, "Midnight Zone 1", 0), (4, "Midnight Zone 2", 4), (8, "Midnight Zone 3", 9)] {
+            var spec = GameTuning.reefLabSpecs[source]
+            spec.name = trial
+            let played = (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }!
+            #expect(plans[level].fish == played.fish && plans[level].seed == played.seed, "\(trial)")
+        }
+        #expect(!ArcadeWorld.campaign.contains(.midnightZone) && ArcadeWorld.mapWorlds.last == .midnightZone)
+    }
+
+    @Test func bundledMidnightPlansMatchTheSpecs() throws {
+        let url = try #require(Bundle(for: BundleToken.self).url(forResource: "MidnightPlans", withExtension: "json")
+            ?? Bundle.main.url(forResource: "MidnightPlans", withExtension: "json"))
+        let bundled = try JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: url))
+        #expect(bundled.map(\.spec) == GameTuning.midnightSpecs, "MidnightPlans.json is out of date: regenerate it")
+        #expect(GameTuning.midnightFrozen.isSubset(of: GameTuning.midnightSpecs.map(\.name)))
+        // What ships is the saved data, not a fresh plan.
+        for (index, level) in ArcadeWorld.midnightZone.levels.enumerated() where GameTuning.midnightFrozen.contains(level.meetingPlan!.spec.name) {
+            #expect(level.meetingPlan!.fish == bundled[index].fish, "\(bundled[index].spec.name)")
+        }
+    }
+
+    /// Writes BiggerFish/MidnightPlans.json when build/arcade-development/midnight-plans.request exists. Frozen
+    /// levels keep their saved plans; the rest are planned in code (`GameTuning.midnightPlan`).
+    @Test func manualWriteMidnightPlans() throws {
+        let marker = Self.root.appendingPathComponent("build/arcade-development/midnight-plans.request")
+        guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        let file = Self.root.appendingPathComponent("BiggerFish/MidnightPlans.json")
+        let existing = (try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: file))) ?? []
+        let plans = GameTuning.midnightSpecs.indices.map { index in
+            let spec = GameTuning.midnightSpecs[index]
+            return GameTuning.midnightFrozen.contains(spec.name) ? existing.first { $0.spec == spec } ?? GameTuning.midnightPlan(index)
+                : GameTuning.midnightPlan(index)
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(plans).write(to: file)
+    }
+
     /// Kelp Forest's fish appear just off screen and follow their approach in, so every one meets the reference
     /// route exactly as planned, kelp or not.
     @MainActor @Test func kelpForestFishMeetYouExactlyWherePlanned() {
@@ -192,7 +249,7 @@ struct MeetingPlannerTests {
     }
 
     @MainActor @Test func shallowReefPlaysFifteenPlannedLevelsThatUnlockAndResetLikeACampaign() {
-        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom, .kelpForest])
+        #expect(Array(ArcadeWorld.mapWorlds.prefix(3)) == [.shallowReef, .jellyBloom, .kelpForest])
         #expect(ArcadeWorld.jellyBloom.levels.allSatisfy { $0.meetingPlan != nil && $0.jellies != nil })
         let world = ArcadeWorld.shallowReef
         #expect(world.levelCount == 15 && world.levelTitles == (1...15).map { "Level \($0)" })

@@ -827,6 +827,60 @@ enum GameTuning {
     /// Other fish inside kelp darken to this one color, behind the fronds. Each part keeps its own transparency.
     static let kelpSilhouette = SKColor(red: 0.03, green: 0.09, blue: 0.07, alpha: 1)
 
+    // MARK: Midnight Zone (prototype, Xcode builds only)
+
+    /// Midnight Zone's ten levels, planned like Kelp Forest's (fish appear just off screen right before you meet
+    /// them) with no kelp, following Shallow Reef's levels. Levels 1, 5, and 9 were the trials Kraig played and
+    /// liked (Shallow Reef 1, 5, and 10). Between them the levels step through Shallow Reef's in order, skipping
+    /// Medium (6), which is close to 5; level 10 is Shallow Reef's hardest again, with a layout of its own.
+    /// Levels 11-15 are its Deep End, following the other worlds' (Crossroads, Frenzy, Gauntlet, Heavyweights,
+    /// Needle).
+    static let midnightSpecs: [MeetingSpec] = [0, 1, 2, 3, 4, 6, 7, 8, 9, 9, 10, 11, 12, 13, 14].enumerated().map { index, source in
+        var spec = reefLabSpecs[source]
+        spec.name = "Midnight Zone \(index + 1)"
+        return spec
+    }
+    /// The trials were planned as Midnight Zone 1, 2, and 3; levels 5 and 9 keep those layouts.
+    static let midnightSeedNames: [String: String] = ["Midnight Zone 5": "Midnight Zone 2", "Midnight Zone 9": "Midnight Zone 3"]
+    /// Midnight Zone's levels as the game plays them: from `MidnightPlans.json` for the frozen ones, otherwise
+    /// planned in code (`midnightPlan`).
+    static let midnightLevels: [Level] = {
+        let bundled = Bundle.main.url(forResource: "MidnightPlans", withExtension: "json")
+            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
+        return midnightSpecs.enumerated().map { index, spec in
+            let frozen = midnightFrozen.contains(spec.name) ? bundled.first { $0.spec == spec } : nil
+            var level = (frozen ?? midnightPlan(index)).level
+            level.ecosystemSeedIndex = index
+            return level
+        }
+    }()
+    /// Played and approved, so shipped exactly as saved in `MidnightPlans.json`: a planner change can't alter them.
+    static let midnightFrozen: Set<String> = ["Midnight Zone 1", "Midnight Zone 5", "Midnight Zone 9"]
+    /// A Midnight Zone level planned in code: the first layout with no planner issues and no wall of giants.
+    static func midnightPlan(_ index: Int) -> MeetingPlan {
+        let spec = midnightSpecs[index], seedName = midnightSeedNames[spec.name]
+        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
+            .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
+    }
+    /// The dark multiplies everything outside your headlamp by this color: dim, not pitch black. Kraig's plays:
+    /// a bit darker than 0.12, 0.15, 0.26, then with the lures, even darker than 0.07, 0.09, 0.17.
+    static let midnightDark = SKColor(red: 0.035, green: 0.045, blue: 0.09, alpha: 1)
+    /// Every other fish carries an anglerfish lure: one small light, the same for every fish, glowing over the dark,
+    /// so you see where each fish is but not how big it is until your beam lands on it. False for plain dark.
+    static let anglerLures = true
+    static let lureColor = SKColor(red: 0.62, green: 1, blue: 0.86, alpha: 1)
+    /// The lure's bright core and its soft halo (radii in screen points, the same for every fish).
+    static let lureCore: CGFloat = 3
+    static let lureHalo: CGFloat = 12
+    /// The headlamp's beam: half its width (radians), and how far it reaches as a share of the screen's width.
+    static let headlampHalfAngle: CGFloat = 0.3
+    static let headlampReach: CGFloat = 0.8
+    /// The beam tilts with you, up to this far (radians) at full rising or falling speed, so diving or climbing
+    /// fast leaves the far right of the screen dark.
+    static let headlampMaxTilt: CGFloat = 0.6
+    /// A soft glow around your head, as a share of the beam's reach, so a fish right beside you is never invisible.
+    static let headlampGlow: CGFloat = 0.14
+
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")
 
