@@ -91,7 +91,8 @@ import UIKit
         return (view, scene, scene.size)
     }
 
-    /// A striped reef fish and the player's little orange fish over coral.
+    /// A striped reef fish and the player's little orange fish over coral, swimming apart: the orange fish heads
+    /// up and away to the right, the way it swims in the game.
     private func shallowReef() -> SKNode {
         let reef = SKNode()
         let corals = [SKColor(red: 1, green: 0.45, blue: 0.55, alpha: 1), SKColor(red: 1, green: 0.66, blue: 0.3, alpha: 1),
@@ -108,8 +109,8 @@ import UIKit
             coral.lineCap = .round
             reef.addChild(coral)
         }
-        reef.addChild(fish(Self.teal, player: false, radius: 78, at: CGPoint(x: 10, y: 40), tilt: 0.08))
-        reef.addChild(fish(.player, player: true, radius: 38, at: CGPoint(x: -95, y: 105), facing: -1))
+        reef.addChild(fish(Self.teal, player: false, radius: 70, at: CGPoint(x: -38, y: 22), tilt: 0.1, facing: -1))
+        reef.addChild(fish(.player, player: true, radius: 34, at: CGPoint(x: 100, y: 118), tilt: 0.32))
         return reef
     }
 
