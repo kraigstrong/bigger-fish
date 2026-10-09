@@ -278,6 +278,37 @@ struct MeetingPlannerTests {
         try encoder.encode(plans).write(to: file)
     }
 
+    /// Kelp Forest ships its played levels as data, so a planner change can't alter them. A test that fails here
+    /// means the specs changed without regenerating: use the marker below.
+    @Test func bundledKelpPlansMatchTheSpecs() throws {
+        let url = try #require(Bundle(for: BundleToken.self).url(forResource: "KelpPlans", withExtension: "json")
+            ?? Bundle.main.url(forResource: "KelpPlans", withExtension: "json"))
+        let bundled = try JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: url))
+        #expect(bundled.map(\.spec) == GameTuning.kelpSpecs, "KelpPlans.json is out of date: regenerate it")
+        #expect(GameTuning.kelpFrozen.isSubset(of: GameTuning.kelpSpecs.map(\.name)))
+        // What ships is the saved data, not a fresh plan.
+        for (index, level) in ArcadeWorld.kelpForest.levels.enumerated() where GameTuning.kelpFrozen.contains(level.meetingPlan!.spec.name) {
+            #expect(level.meetingPlan!.fish == bundled[index].fish, "\(bundled[index].spec.name)")
+        }
+    }
+
+    /// Writes BiggerFish/KelpPlans.json when build/arcade-development/kelp-plans.request exists. Frozen levels keep
+    /// their saved plans; the rest are planned in code (`GameTuning.kelpPlan`).
+    @Test func manualWriteKelpPlans() throws {
+        let marker = Self.root.appendingPathComponent("build/arcade-development/kelp-plans.request")
+        guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        let file = Self.root.appendingPathComponent("BiggerFish/KelpPlans.json")
+        let existing = (try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: file))) ?? []
+        let plans = GameTuning.kelpSpecs.indices.map { index in
+            let spec = GameTuning.kelpSpecs[index]
+            return GameTuning.kelpFrozen.contains(spec.name) ? existing.first { $0.spec == spec } ?? GameTuning.kelpPlan(index)
+                : GameTuning.kelpPlan(index)
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(plans).write(to: file)
+    }
+
     @MainActor @Test func jellyLabFishMeetThePlayerWherePlannedAroundDriftingJellies() {
         // The intro, the first bounce-only meal, and the first fork split by a jelly.
         for index in [0, 4, 5] {
