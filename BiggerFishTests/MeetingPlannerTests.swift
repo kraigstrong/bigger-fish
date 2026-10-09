@@ -156,12 +156,14 @@ struct MeetingPlannerTests {
         }
     }
 
-    /// Midnight Zone plans like Kelp Forest without kelp: ten clean layouts following Shallow Reef's levels, whose
-    /// fish appear just off screen. Levels 1, 5, and 9 keep the trials Kraig played (planned as levels 1, 2, and 3).
-    @MainActor @Test func midnightZonePlansTenCleanJustInTimeLevels() {
+    /// Midnight Zone plans like Kelp Forest without kelp: clean layouts following Shallow Reef's levels, Deep End
+    /// included, whose fish appear just off screen. Levels 1, 5, and 9 keep the trials Kraig played (planned as
+    /// levels 1, 2, and 3).
+    @MainActor @Test func midnightZonePlansCleanJustInTimeLevels() {
         let plans = ArcadeWorld.midnightZone.levels.map { $0.meetingPlan! }
-        #expect(plans.map(\.spec.name) == (1...10).map { "Midnight Zone \($0)" })
-        #expect(zip(plans, [0, 1, 2, 3, 4, 6, 7, 8, 9, 9]).allSatisfy { plan, source in
+        #expect(plans.map(\.spec.name) == (1...15).map { "Midnight Zone \($0)" })
+        #expect(ArcadeWorld.midnightZone.deepEndCount == 5)
+        #expect(zip(plans, [0, 1, 2, 3, 4, 6, 7, 8, 9, 9, 10, 11, 12, 13, 14]).allSatisfy { plan, source in
             var spec = plan.spec
             spec.name = GameTuning.reefLabSpecs[source].name
             return spec == GameTuning.reefLabSpecs[source]

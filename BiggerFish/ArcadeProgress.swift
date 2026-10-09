@@ -58,6 +58,10 @@ final class ArcadeProgress: ObservableObject {
 
     func isOpen(_ world: ArcadeWorld, _ index: Int) -> Bool {
         guard (0..<world.levelCount).contains(index) else { return false }
+        #if DEBUG
+        // A world still being prototyped (on the map, not yet in the campaign) has every level open for playtesting.
+        if !ArcadeWorld.campaign.contains(world) { return true }
+        #endif
         return index == 0 || isCleared(world, index) || isCleared(world, index - 1)
     }
 

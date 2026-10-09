@@ -833,7 +833,9 @@ enum GameTuning {
     /// them) with no kelp, following Shallow Reef's levels. Levels 1, 5, and 9 were the trials Kraig played and
     /// liked (Shallow Reef 1, 5, and 10). Between them the levels step through Shallow Reef's in order, skipping
     /// Medium (6), which is close to 5; level 10 is Shallow Reef's hardest again, with a layout of its own.
-    static let midnightSpecs: [MeetingSpec] = [0, 1, 2, 3, 4, 6, 7, 8, 9, 9].enumerated().map { index, source in
+    /// Levels 11-15 are its Deep End, following the other worlds' (Crossroads, Frenzy, Gauntlet, Heavyweights,
+    /// Needle).
+    static let midnightSpecs: [MeetingSpec] = [0, 1, 2, 3, 4, 6, 7, 8, 9, 9, 10, 11, 12, 13, 14].enumerated().map { index, source in
         var spec = reefLabSpecs[source]
         spec.name = "Midnight Zone \(index + 1)"
         return spec
