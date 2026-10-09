@@ -1,10 +1,25 @@
 import Combine
 import Foundation
 
+/// A player's progress. It must always load: every field falls back to its default when a save doesn't have
+/// it (a save from before the field existed), and fields a save has that this version doesn't know are
+/// ignored (a save from a later version). Never rename these keys or the level IDs stored in them.
 struct ArcadeSave: Codable {
     var clearedLevels: Set<String> = []
     var bestTimes: [String: Double] = [:]
     var hasSeenJellyLesson = false
+    /// Worlds whose "conquered" unlock screen has been shown.
+    var seenUnlocks: Set<String>? = nil
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        clearedLevels = (try? values.decodeIfPresent(Set<String>.self, forKey: .clearedLevels)) ?? []
+        bestTimes = (try? values.decodeIfPresent([String: Double].self, forKey: .bestTimes)) ?? [:]
+        hasSeenJellyLesson = (try? values.decodeIfPresent(Bool.self, forKey: .hasSeenJellyLesson)) ?? false
+        seenUnlocks = try? values.decodeIfPresent(Set<String>.self, forKey: .seenUnlocks)
+    }
 }
 
 final class ArcadeProgress: ObservableObject {
@@ -12,10 +27,29 @@ final class ArcadeProgress: ObservableObject {
     private let defaults: UserDefaults
     static let key = "biggerFish.campaign.v1"
 
+    /// Where a save that couldn't be read at all is kept, so the next save can't destroy it.
+    static let unreadableKey = key + ".unreadable"
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        save = defaults.data(forKey: Self.key)
-            .flatMap { try? JSONDecoder().decode(ArcadeSave.self, from: $0) } ?? ArcadeSave()
+        guard let data = defaults.data(forKey: Self.key) else { save = ArcadeSave(); return }
+        if let loaded = try? JSONDecoder().decode(ArcadeSave.self, from: data) {
+            save = loaded
+        } else {
+            // Not even a JSON object: keep the original, then start from whatever can be salvaged.
+            defaults.set(data, forKey: Self.unreadableKey)
+            save = Self.salvage(data)
+        }
+    }
+
+    /// Cleared levels and best times from a save the decoder rejected, read as loosely as possible.
+    private static func salvage(_ data: Data) -> ArcadeSave {
+        var save = ArcadeSave()
+        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return save }
+        save.clearedLevels = Set((object["clearedLevels"] as? [Any] ?? []).compactMap { $0 as? String })
+        save.bestTimes = (object["bestTimes"] as? [String: Any] ?? [:]).compactMapValues { ($0 as? NSNumber)?.doubleValue }
+        save.hasSeenJellyLesson = object["hasSeenJellyLesson"] as? Bool ?? false
+        return save
     }
 
     func isCleared(_ world: ArcadeWorld, _ index: Int) -> Bool {
@@ -66,6 +100,21 @@ final class ArcadeProgress: ObservableObject {
         let prefix = world.rawValue + "."
         save.clearedLevels = save.clearedLevels.filter { !$0.hasPrefix(prefix) }
         save.bestTimes = save.bestTimes.filter { !$0.key.hasPrefix(prefix) }
+        persist()
+    }
+
+    /// A world whose tenth level is beaten but whose unlock screen was never shown: players who beat it before
+    /// that screen existed see it once. With several, the furthest along, since it announces the newest things.
+    var unseenUnlock: ArcadeWorld? {
+        ArcadeWorld.campaign.last { world in
+            isCleared(world, ArcadeWorld.mainLevelCount - 1) && !(save.seenUnlocks ?? []).contains(world.rawValue)
+        }
+    }
+
+    /// Marks this world's unlock screen, and every earlier world's, as shown.
+    func sawUnlock(_ world: ArcadeWorld) {
+        guard let index = ArcadeWorld.campaign.firstIndex(of: world) else { return }
+        save.seenUnlocks = (save.seenUnlocks ?? []).union(ArcadeWorld.campaign.prefix(index + 1).map(\.rawValue))
         persist()
     }
 

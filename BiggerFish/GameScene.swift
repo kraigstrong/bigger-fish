@@ -757,11 +757,7 @@ final class GameScene: SKScene {
         case .ready:
             resultPanel = nil
             messageNode.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
-            let lines = arcadeWorld.hasJellies
-                ? (showsJellyLesson ? ["Bounce the tops.", "Never touch the bottoms.", "Be the last fish swimming."]
-                                   : ["Be the last fish swimming.", "Bounce domes. Dodge tentacles."])
-                : ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish."]
-            showMessage(levelTitle, lines: lines)
+            showMessage(levelTitle, lines: arcadeWorld.levelCard)
         case .playing, .paused:
             hideMessage()
         case .won:
