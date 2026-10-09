@@ -365,6 +365,9 @@ enum MeetingPlanner {
         for id in GameTuning.kelpSwimsAtYou[spec.name] ?? [] where meetings.indices.contains(id - 1) {
             meetings[id - 1].headOn = true
         }
+        for (id, radius) in GameTuning.kelpFishRadius[spec.name] ?? [:] where meetings.indices.contains(id - 1) {
+            meetings[id - 1].size = radius / GameTuning.baseRadius
+        }
         let solved = MeetingSolver.justInTime(meetings, spec: spec, seed: seed, timeline: design.timeline)
         let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: [], reachScale: spec.reachScale)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
