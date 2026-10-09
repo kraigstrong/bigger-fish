@@ -312,8 +312,8 @@ final class GameScene: SKScene {
     private var approachEnds: [Int: (until: CGFloat, y: CGFloat, start: CGFloat, path: Approach?, heading: CGFloat)] = [:]
     private var kelpBeds: [(bed: PlannedKelp, back: KelpNode, front: KelpNode)] = []
     /// Fish drawn as silhouettes while in kelp, and the colors each of their shapes had before.
-    private var silhouetted: Set<Int> = []
-    private var silhouetteColors: [ObjectIdentifier: (fill: SKColor, stroke: SKColor)] = [:]
+    /// How far each fish has faded into its silhouette (0: its own colors, 1: one dark shape).
+    private var silhouetteShade: [Int: CGFloat] = [:]
     /// After a sting, the result waits until the death animation has played.
     private var pendingLossResultAt: CGFloat?
     private var lastCameraX: CGFloat = 0
@@ -1260,8 +1260,7 @@ final class GameScene: SKScene {
     // MARK: - Kelp Forest
 
     private func spawnKelp() {
-        silhouetted.removeAll()
-        silhouetteColors.removeAll()
+        silhouetteShade.removeAll()
         for bed in kelpBeds { bed.back.removeFromParent(); bed.front.removeFromParent() }
         kelpBeds = (level.meetingPlan?.kelp ?? []).enumerated().map { index, bed in
             // Drawn from below the bottom of the screen to just above its top.
@@ -1279,22 +1278,47 @@ final class GameScene: SKScene {
         }
     }
 
-    /// In kelp, a fish is one solid dark shape, eye and all, so you judge it by its outline alone.
-    private func setSilhouette(_ node: SKNode, _ on: Bool) {
+    /// In kelp, a fish is one solid dark shape, eye and all, so you judge it by its outline alone. It fades in as
+    /// the fish crosses the kelp's edge: `shade` 0 is its own colors, 1 the silhouette.
+    /// Each shape keeps its own colors in its `userData` while shaded, so they go wherever the shape goes.
+    private func setSilhouette(_ node: SKNode, _ shade: CGFloat) {
         for child in node.children {
             if let shape = child as? SKShapeNode {
-                let key = ObjectIdentifier(shape)
-                if on {
-                    silhouetteColors[key] = (shape.fillColor, shape.strokeColor)
-                    if shape.fillColor.cgColor.alpha > 0 { shape.fillColor = T.kelpSilhouette }
-                    if shape.strokeColor.cgColor.alpha > 0 { shape.strokeColor = T.kelpSilhouette }
-                } else if let original = silhouetteColors.removeValue(forKey: key) {
-                    shape.fillColor = original.fill
-                    shape.strokeColor = original.stroke
+                let saved = shape.userData?[Self.ownColorsKey] as? [SKColor]
+                let original = saved ?? [shape.fillColor, shape.strokeColor]
+                if shade > 0 {
+                    if saved == nil {
+                        let data = shape.userData ?? NSMutableDictionary()
+                        data[Self.ownColorsKey] = original
+                        shape.userData = data
+                    }
+                } else {
+                    shape.userData?.removeObject(forKey: Self.ownColorsKey)
                 }
+                shape.fillColor = Self.shaded(original[0], shade)
+                shape.strokeColor = Self.shaded(original[1], shade)
             }
-            setSilhouette(child, on)
+            setSilhouette(child, shade)
         }
+    }
+    private static let ownColorsKey = "kelpOwnColors"
+
+    /// `color` darkened `shade` of the way to the silhouette color, keeping its own transparency, so the whole fish
+    /// darkens together and ends as one dark shape.
+    private static func shaded(_ color: SKColor, _ shade: CGFloat) -> SKColor {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        var toRed: CGFloat = 0, toGreen: CGFloat = 0, toBlue: CGFloat = 0, toAlpha: CGFloat = 0
+        guard shade > 0, color.getRed(&red, green: &green, blue: &blue, alpha: &alpha), alpha > 0,
+              T.kelpSilhouette.getRed(&toRed, green: &toGreen, blue: &toBlue, alpha: &toAlpha) else { return color }
+        return SKColor(red: red + (toRed - red) * shade, green: green + (toGreen - green) * shade,
+                       blue: blue + (toBlue - blue) * shade, alpha: alpha)
+    }
+
+    /// How far into the kelp a fish is: 0 a body's width outside every column, 1/2 centered on an edge, 1 a body's
+    /// width inside.
+    private func kelpShade(_ position: CGPoint, radius: CGFloat) -> CGFloat {
+        let depth = kelpBeds.map { $0.bed.halfWidth - abs(world.delta(from: $0.bed.x, to: position.x)) }.max() ?? -.infinity
+        return ((depth + radius) / (2 * max(radius, 1))).clamped(0, 1)
     }
 
     private func inKelp(_ position: CGPoint) -> Bool {
@@ -1858,10 +1882,11 @@ final class GameScene: SKScene {
             if node.isHidden { continue }
             node.position = CGPoint(x: screenX, y: waterCenter + (pose.position.y - waterCenter) * zoom)
             if !kelpBeds.isEmpty && !f.isPlayer {
-                let hidden = inKelp(pose.position)
-                if hidden != silhouetted.contains(f.id) {
-                    if hidden { silhouetted.insert(f.id) } else { silhouetted.remove(f.id) }
-                    setSilhouette(node, hidden)
+                // In steps of a twentieth, so a fish is only recolored while it's crossing an edge.
+                let shade = (kelpShade(pose.position, radius: pose.radius) * 20).rounded() / 20
+                if shade != silhouetteShade[f.id] ?? 0 {
+                    silhouetteShade[f.id] = shade > 0 ? shade : nil
+                    setSilhouette(node, shade)
                 }
             }
 
