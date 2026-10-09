@@ -735,6 +735,7 @@ final class GameScene: SKScene {
         fishByID[f.id] = f
         let node = FishNode(style: style, isPlayer: f.isPlayer, tailPhase: CGFloat(f.id) * 1.7)
         node.zPosition = f.isPlayer ? 30 : 1 + CGFloat(f.id) * 0.5
+        if headlamp != nil && T.anglerLures && !f.isPlayer { node.addChild(Self.anglerLure(phase: CGFloat(f.id))) }
         nodes[f.id] = node
         fishLayer.addChild(node)
     }
@@ -1338,6 +1339,49 @@ final class GameScene: SKScene {
         addChild(node)
         headlamp = node
     }
+
+    /// An anglerfish lure at the fish's reference size, facing right: a stalk from its forehead, under the dark so
+    /// it only shows in your beam, and at its tip a light over the dark, held to one size whatever the fish's.
+    private static let anglerLureName = "anglerLure", anglerLightName = "anglerLight"
+    private static func anglerLure(phase: CGFloat) -> SKNode {
+        let r = FishNode.referenceRadius, tip = CGPoint(x: 1.4 * r, y: 1.25 * r)
+        let rig = SKNode()
+        rig.name = anglerLureName
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0.75 * r, y: 0.72 * r))
+        path.addQuadCurve(to: tip, control: CGPoint(x: 1.0 * r, y: 1.6 * r))
+        let stalk = SKShapeNode(path: path)
+        stalk.strokeColor = SKColor(white: 0.8, alpha: 0.9)
+        stalk.lineWidth = 2
+        stalk.lineCap = .round
+        stalk.zPosition = 2
+        rig.addChild(stalk)
+        let light = SKNode()
+        light.name = anglerLightName
+        light.position = tip
+        // Over the dark (39.5) and every fish: the fish layer's 10 plus this fish's at least 1.
+        light.zPosition = 30
+        let halo = SKSpriteNode(texture: lureTexture, color: T.lureColor, size: CGSize(width: T.lureHalo * 2, height: T.lureHalo * 2))
+        halo.colorBlendFactor = 1
+        halo.blendMode = .add
+        halo.alpha = 0.55
+        let core = SKSpriteNode(texture: lureTexture, color: .white, size: CGSize(width: T.lureCore * 2, height: T.lureCore * 2))
+        light.addChild(halo)
+        light.addChild(core)
+        light.run(.sequence([.wait(forDuration: Double(phase.truncatingRemainder(dividingBy: 7)) * 0.13), .repeatForever(.sequence([
+            .fadeAlpha(to: 0.7, duration: 0.8), .fadeAlpha(to: 1, duration: 0.8),
+        ]))]))
+        rig.addChild(light)
+        return rig
+    }
+    private static let lureTexture: SKTexture = {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 32)).image { context in
+            let colors = [SKColor.white.cgColor, SKColor.white.withAlphaComponent(0).cgColor] as CFArray
+            context.cgContext.drawRadialGradient(CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!,
+                startCenter: CGPoint(x: 16, y: 16), startRadius: 0, endCenter: CGPoint(x: 16, y: 16), endRadius: 16, options: [])
+        }
+        return SKTexture(image: image)
+    }()
 
     /// How far the beam reaches across the headlamp texture, as a share of its half-width; the rest is dark margin.
     private static let headlampTextureReach: CGFloat = 0.55
@@ -1972,6 +2016,18 @@ final class GameScene: SKScene {
                 stretchX: stretchX, stretchY: stretchY, mouthOpen: mouth,
                 time: time, tailRate: f.isPlayer ? 14 : 9
             )
+            if let lure = node.childNode(withName: Self.anglerLureName) {
+                // Turned and scaled like the fish's own rig, so the stalk grows from its forehead.
+                let flip = (pose.facing < 0 ? -1 : 1) * max(abs(pose.facing), 0.05)
+                let scale = pose.radius * zoom / FishNode.referenceRadius
+                lure.xScale = scale * stretchX * flip
+                lure.yScale = scale * stretchY
+                lure.zRotation = tilt
+                if let light = lure.childNode(withName: Self.anglerLightName) {
+                    light.xScale = 1 / lure.xScale
+                    light.yScale = 1 / lure.yScale
+                }
+            }
             if f.isPlayer, let headlamp {
                 // Strapped to your head, pointing where you're swimming: rising or falling fast swings it off the
                 // far right of the screen.
