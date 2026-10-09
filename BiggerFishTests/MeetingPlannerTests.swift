@@ -171,6 +171,10 @@ struct MeetingPlannerTests {
         #expect(plans.allSatisfy { $0.issues.isEmpty && !$0.hasGiantWall && ($0.kelp ?? []).isEmpty && $0.spec.reachScale == 1 })
         #expect(plans.allSatisfy { $0.fish.contains { ($0.appearsAt ?? 0) > 0 } })
         #expect(plans[8].fish != plans[9].fish)
+        // The dark sits under all of your fish (its tail at 38) and over every other fish's highest part: 10 for
+        // the fish layer, 1 + half its ID, and 3 for its eye. Fish IDs run past each level's fish count by one, for you.
+        #expect(plans.allSatisfy { 10 + 1 + CGFloat($0.fish.count + 1) / 2 + 3 < GameScene.headlampDepth }
+            && GameScene.headlampDepth < 10 + 30 - 2)
         for (level, trial, source) in [(0, "Midnight Zone 1", 0), (4, "Midnight Zone 2", 4), (8, "Midnight Zone 3", 9)] {
             var spec = GameTuning.reefLabSpecs[source]
             spec.name = trial

@@ -1334,8 +1334,9 @@ final class GameScene: SKScene {
         // Big enough that the dark covers the screen at any angle, with the beam reaching as far as tuned.
         let side = 2 * size.width * T.headlampReach / Self.headlampTextureReach
         node.size = CGSize(width: side, height: side)
-        // Over every other fish (the fish layer's 10 plus at most about 29), under your own (10 + 30).
-        node.zPosition = 39.5
+        // Under all of your own fish (the fish layer's 10, plus 30, less 2 for its tail: 38) and over every other
+        // fish's highest part (10, plus 1 + half its ID, plus 3 for its eye: 31.5 with Midnight Zone's most fish).
+        node.zPosition = Self.headlampDepth
         addChild(node)
         headlamp = node
     }
@@ -1359,7 +1360,7 @@ final class GameScene: SKScene {
         let light = SKNode()
         light.name = anglerLightName
         light.position = tip
-        // Over the dark (39.5) and every fish: the fish layer's 10 plus this fish's at least 1.
+        // Over the dark and every fish: the fish layer's 10, plus this fish's at least 1, plus 30.
         light.zPosition = 30
         let halo = SKSpriteNode(texture: lureTexture, color: T.lureColor, size: CGSize(width: T.lureHalo * 2, height: T.lureHalo * 2))
         halo.colorBlendFactor = 1
@@ -1383,6 +1384,8 @@ final class GameScene: SKScene {
         return SKTexture(image: image)
     }()
 
+    /// Where the dark sits among the fish (see `layoutHeadlamp`).
+    static let headlampDepth: CGFloat = 36
     /// How far the beam reaches across the headlamp texture, as a share of its half-width; the rest is dark margin.
     private static let headlampTextureReach: CGFloat = 0.55
     /// The dark everywhere, a soft-edged beam pointing right from the center fading with distance, and a glow
