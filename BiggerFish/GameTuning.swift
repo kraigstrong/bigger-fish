@@ -133,6 +133,8 @@ enum GameTuning {
 
     static let winSlowFactor: CGFloat = 0.3
     static let winSlowDuration: CGFloat = 1.2
+    /// Seconds a world-conquering win plays (its sound and glow) before going straight to the conquered screen.
+    static let conqueredExitDelay: CGFloat = 1.6
     /// Seconds after a win/loss before a tap restarts (avoids accidental restarts from a held finger).
     static let restartDelay: CGFloat = 0.8
 

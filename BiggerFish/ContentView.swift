@@ -165,9 +165,13 @@ struct ContentView: View {
         game.metricsHasCleared = { index in progress.isCleared(world, index) }
         game.onClear = { [weak game] index, seconds in
             #if DEBUG
-            guard let game, !game.debugPracticeRun, !game.debugHasTuningOverride else { return }
+            guard let scene = game, !scene.debugPracticeRun, !scene.debugHasTuningOverride else { return }
             #endif
-            if index == ArcadeWorld.mainLevelCount - 1 && !progress.isCleared(world, index) { conquered = world }
+            if index == ArcadeWorld.mainLevelCount - 1 && !progress.isCleared(world, index) {
+                // Straight to the conquered screen, with no result card first.
+                conquered = world
+                game?.leavesForConqueredScreen = true
+            }
             progress.clear(world, index, seconds: seconds)
         }
         game.onJellyLesson = { [weak game] in

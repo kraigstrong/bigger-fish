@@ -181,6 +181,9 @@ final class GameScene: SKScene {
 
     var onClear: ((Int, Double) -> Void)?
     var onExit: (() -> Void)?
+    /// Set from `onClear` when this win conquers the world for the first time: instead of its result card, the
+    /// level leaves for the world's conquered screen once the win has played.
+    var leavesForConqueredScreen = false
     var onJellyLesson: (() -> Void)?
     private var showsJellyLesson: Bool
     private var lossReason = "There was a bigger fish."
@@ -319,6 +322,8 @@ final class GameScene: SKScene {
     private var silhouetteShade: [Int: CGFloat] = [:]
     /// After a sting, the result waits until the death animation has played.
     private var pendingLossResultAt: CGFloat?
+    /// When a world-conquering win leaves for the conquered screen (see `leavesForConqueredScreen`).
+    private var pendingConqueredExitAt: CGFloat?
     private var lastCameraX: CGFloat = 0
     private var hasLayers = false
     private var isBuilt = false
@@ -425,6 +430,7 @@ final class GameScene: SKScene {
         for stung in stungFish { stung.node.removeFromParent(); stung.zap.removeFromParent() }
         stungFish.removeAll()
         pendingLossResultAt = nil
+        pendingConqueredExitAt = nil
         fish.removeAll()
         fishByID.removeAll()
         swallows.removeAll()
@@ -765,7 +771,11 @@ final class GameScene: SKScene {
         case .playing, .paused:
             hideMessage()
         case .won:
-            showResult(passed: true)
+            if leavesForConqueredScreen {
+                pendingConqueredExitAt = realClock + T.conqueredExitDelay
+            } else {
+                showResult(passed: true)
+            }
         case .lost:
             if pendingLossResultAt == nil { showResult(passed: false) }
         }
@@ -1032,6 +1042,10 @@ final class GameScene: SKScene {
             if let at = pendingLossResultAt, realClock >= at {
                 pendingLossResultAt = nil
                 if phase == .lost { playSound(.lose); showResult(passed: false) }
+            }
+            if let at = pendingConqueredExitAt, realClock >= at {
+                pendingConqueredExitAt = nil
+                if phase == .won { selectResult(.world) }
             }
             guard phase != .ready && phase != .paused else { continue }
             if slowMoRemaining > 0 {
