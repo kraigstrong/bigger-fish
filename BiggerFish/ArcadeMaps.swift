@@ -122,10 +122,13 @@ struct ArcadeLevelMap: View {
                         ZStack(alignment: .topLeading) {
                             if world.deepEndCount > 0 {
                                 let dropX = OceanMapLayout.levelStartX + OceanMapLayout.levelSpacing * (CGFloat(ArcadeWorld.mainLevelCount) - 0.55)
+                                // Out past the safe area at the bottom and right, and past the end, so the deep water
+                                // fills the screen even when the map bounces at its end.
+                                let insets = geometry.safeAreaInsets
                                 DeepEndZone(open: progress.isOpen(world, ArcadeWorld.mainLevelCount),
                                             cleared: progress.clearedCounts(in: world).deepEnd, count: world.deepEndCount)
-                                    .frame(width: width - dropX, height: size.height)
-                                    .offset(x: dropX)
+                                    .frame(width: width - dropX + insets.trailing + 400, height: size.height + insets.top + insets.bottom)
+                                    .offset(x: dropX, y: -insets.top)
                             }
                             MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
                                         fishHome: centers.indices.contains(focus) ? CGPoint(x: centers[focus].x, y: centers[focus].y + 58) : nil,
@@ -152,6 +155,7 @@ struct ArcadeLevelMap: View {
                             }.allowsHitTesting(false)
                         }.frame(width: width, height: size.height)
                     }
+                    .scrollClipDisabled()
                     .onAppear { proxy.scrollTo("level-\(focus)", anchor: .center) }
                 }
                 HStack(spacing: 14) {
