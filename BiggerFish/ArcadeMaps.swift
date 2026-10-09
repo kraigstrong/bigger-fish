@@ -29,8 +29,9 @@ struct ArcadeWorldMap: View {
                 progress.isWorldOpen(world) && progress.clearedCounts(in: world).main < min(world.levelCount, ArcadeWorld.mainLevelCount)
             } ?? (ArcadeWorld.campaign.lastIndex { progress.isWorldOpen($0) } ?? 0)
             ZStack(alignment: .topLeading) {
+                // Your fish swims just above the world you're on, clear of its Deep End ring.
                 MapArtLayer(size: size, points: centers,
-                            fishHome: CGPoint(x: centers[focus].x + 66, y: centers[focus].y + 14))
+                            fishHome: CGPoint(x: centers[focus].x, y: centers[focus].y + 72))
                 ForEach(0..<5, id: \.self) { index in
                     if worlds.indices.contains(index) {
                         let world = worlds[index]
