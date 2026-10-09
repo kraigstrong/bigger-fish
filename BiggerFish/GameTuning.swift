@@ -854,11 +854,17 @@ enum GameTuning {
             return level
         }
     }()
+    /// Levels re-rolled to another layout of the same settings. Midnight Zone 8's first walled gate needed six
+    /// meals with none to spare, the only way there a climb-dive-climb-dive through mid-water meals between big
+    /// fish; Kraig, playing the high lanes, arrived one gate short every time.
+    static let midnightRerolls: [String: Int] = ["Midnight Zone 8": 1]
     /// Played and approved, so shipped exactly as saved in `MidnightPlans.json`: a planner change can't alter them.
     static let midnightFrozen: Set<String> = ["Midnight Zone 1", "Midnight Zone 5", "Midnight Zone 9"]
-    /// A Midnight Zone level planned in code: the first layout with no planner issues and no wall of giants.
+    /// A Midnight Zone level planned in code: its re-roll if it has one, otherwise the first layout with no planner
+    /// issues and no wall of giants.
     static func midnightPlan(_ index: Int) -> MeetingPlan {
         let spec = midnightSpecs[index], seedName = midnightSeedNames[spec.name]
+        if let variation = midnightRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation, seedName: seedName) }
         return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
             .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
     }
