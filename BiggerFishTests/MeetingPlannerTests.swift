@@ -114,12 +114,13 @@ struct MeetingPlannerTests {
     }
 
     @MainActor @Test func plannedFishMeetThePlayerWherePlannedOnAnyRoute() {
-        // The shipped Easy, Medium, and Hard, in the real Reef Lab world.
+        // The shipped Easy, Medium, and Hard, in the slots Shallow Reef plays them.
         for index in [1, 5, 9] {
             let plan = GameTuning.reefLabLevels[index].meetingPlan!
             let spec = plan.spec
             let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
-            let scene = GameScene(world: .shallowReef, levelIndex: index)
+            let slot = GameTuning.shallowReefOrder.firstIndex(of: index)!
+            let scene = GameScene(world: .shallowReef, levelIndex: slot)
             let actual = scene.debugEncounterCrossings(radii: plan.referenceRadii, eaten: reference)
             for predicted in plan.predicted {
                 let real = actual.first { $0.fishID == predicted.fishID }
@@ -129,7 +130,7 @@ struct MeetingPlannerTests {
             #expect(scene.debugVisibleUnmetContacts == 0)
             // A player who eats only what each gate needs, or everything, still meets every fish.
             for route in [plan.fewestMealRoute, plan.fullestRoute] {
-                let crossings = GameScene(world: .shallowReef, levelIndex: index).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
+                let crossings = GameScene(world: .shallowReef, levelIndex: slot).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
                 #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(spec.name)")
             }
         }
@@ -262,10 +263,26 @@ struct MeetingPlannerTests {
         progress.reset(world)
         #expect(!progress.isCleared(world, 0) && progress.save.bestTimes["shallow-reef.1"] == nil)
         #expect(progress.isCleared(.jellyBloom, 0))
-        let scene = GameScene(world: world, levelIndex: 5)
+        // Medium plays fourth (see `shallowReefOrder`).
+        let scene = GameScene(world: world, levelIndex: 3)
         #expect(scene.debugEncounterCrossings(laps: 0.01).isEmpty)
-        #expect(scene.debugFishCount == world.level(5).meetingPlan!.fish.count + 1)
+        #expect(scene.debugFishCount == world.level(3).meetingPlan!.fish.count + 1)
         #expect(scene.debugMeetingPlan?.spec.name == "Medium")
+    }
+
+    /// Shallow Reef plays Reef Lab's levels in the order testers' numbers called for: 5 and 6 before 3 and 4, Hard
+    /// eighth, and level 8 as the finale. The Deep End and every level's ID stay put, and each layout keeps its own
+    /// setup number, so saves and the stats still line up.
+    @Test func shallowReefPlaysItsLevelsInTheReorderedSlots() {
+        let order = GameTuning.shallowReefOrder
+        #expect(order.sorted() == Array(GameTuning.reefLabSpecs.indices) && order.suffix(5) == [10, 11, 12, 13, 14])
+        let names = ArcadeWorld.shallowReef.levels.map { $0.meetingPlan!.spec.name }
+        #expect(names.prefix(10) == ["Reef Lab 1", "Easy", "Reef Lab 5", "Medium", "Reef Lab 3", "Reef Lab 4",
+                                     "Reef Lab 7", "Hard", "Reef Lab 9", "Reef Lab 8"])
+        #expect(ArcadeWorld.shallowReef.levels.map(\.ecosystemSeedIndex) == order)
+        #expect(ArcadeWorld.shallowReef.levelID(7) == "shallow-reef.8")
+        // Kelp Forest and Midnight Zone still borrow Reef Lab's settings by their own index.
+        #expect(GameTuning.kelpSpecs[7].segments == GameTuning.reefLabSpecs[7].segments)
     }
 
     /// The shipped plans must be what the planner makes today; regenerate them with the marker below.

@@ -117,7 +117,7 @@ struct ContentView: View {
         guard !loaded else { return }
         let started = Date()
         await Task.detached(priority: .userInitiated) {
-            _ = GameTuning.reefLabLevels.count + GameTuning.jellyLabLevels.count + GameTuning.kelpLevels.count
+            _ = GameTuning.shallowReefLevels.count + GameTuning.jellyLabLevels.count + GameTuning.kelpLevels.count
             #if DEBUG
             _ = GameTuning.midnightLevels.count
             #endif
