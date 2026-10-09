@@ -42,7 +42,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     /// Both worlds play planned levels (see docs/meeting-planner.md), shipped as data.
     var levels: [Level] {
         switch self {
-        case .shallowReef: GameTuning.reefLabLevels
+        case .shallowReef: GameTuning.shallowReefLevels
         case .jellyBloom: GameTuning.jellyLabLevels
         case .kelpForest: GameTuning.kelpLevels
         case .midnightZone: GameTuning.midnightLevels

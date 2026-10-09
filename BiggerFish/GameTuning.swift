@@ -901,6 +901,14 @@ enum GameTuning {
     /// the planner; a test fails while the file is out of date. A spec that's newer than the file is planned
     /// on first use instead.
     static let reefLabLevels: [Level] = plannedLevels(reefLabSpecs, file: "ReefLabPlans")
+    /// Shallow Reef's levels in play order: which Reef Lab level plays in each slot. Testers' 0.1 numbers (win
+    /// rate, median tries to a first clear) had levels 3 and 4 harder than 5 and 6, and level 8 a wall (1%, 21+
+    /// tries) harder than Hard at 10, so Kraig reordered them (2026-10-09): 5 and 6 play third and fourth, 3 and
+    /// 4 fifth and sixth, Hard eighth, and level 8 is the finale. Saves key levels by slot, so every clear
+    /// stays; each layout keeps its own setup number in the stats (`ecosystemSeedIndex`). Kelp Forest and
+    /// Midnight Zone follow `reefLabSpecs` by index and don't change.
+    static let shallowReefOrder = [0, 1, 4, 5, 2, 3, 6, 9, 8, 7, 10, 11, 12, 13, 14]
+    static let shallowReefLevels: [Level] = shallowReefOrder.map { reefLabLevels[$0] }
 
     /// Preserve the original campaign, including the favorite fourth level, for debug comparison.
     static let shallowReferenceLevels: [Level] = [
