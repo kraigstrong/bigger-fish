@@ -844,9 +844,9 @@ enum GameTuning {
         level.ecosystemSeedIndex = index
         return level
     }
-    /// The dark multiplies everything outside your headlamp by this color: dim, not pitch black. Kraig's first
-    /// play: a bit darker than 0.12, 0.15, 0.26.
-    static let midnightDark = SKColor(red: 0.07, green: 0.09, blue: 0.17, alpha: 1)
+    /// The dark multiplies everything outside your headlamp by this color: dim, not pitch black. Kraig's plays:
+    /// a bit darker than 0.12, 0.15, 0.26, then with the lures, even darker than 0.07, 0.09, 0.17.
+    static let midnightDark = SKColor(red: 0.035, green: 0.045, blue: 0.09, alpha: 1)
     /// Every other fish carries an anglerfish lure: one small light, the same for every fish, glowing over the dark,
     /// so you see where each fish is but not how big it is until your beam lands on it. False for plain dark.
     static let anglerLures = true
