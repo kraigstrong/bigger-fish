@@ -777,8 +777,10 @@ enum GameTuning {
     static let giantWallGap: CGFloat = 80
     /// Levels re-rolled to another layout of the same settings. Kelp Forest 9's first had two giants just under
     /// the biggest you can grow in the opening; whichever ate first was out of reach for good.
-    /// Kelp Forest 15 is pinned to the layout whose opening Kraig likes, which its size fix below is for.
-    static let kelpRerolls: [String: Int] = ["Kelp Forest 9": 3, "Kelp Forest 15": 0]
+    /// The Deep End is pinned to the layouts Kraig played (the first each with no planner complaints and no wall of
+    /// giants), so launch doesn't search for them; 15 is also the layout whose opening he likes.
+    static let kelpRerolls: [String: Int] = ["Kelp Forest 9": 3, "Kelp Forest 11": 0, "Kelp Forest 12": 1,
+                                             "Kelp Forest 13": 3, "Kelp Forest 14": 0, "Kelp Forest 15": 0]
     /// Fish made a different size by hand. Kelp Forest 15's gate 21 needed six meals with no slack; Kraig found
     /// a way through with five (1, 3, 7, 11, 14: radius 31.8) and wants that to eat it. Four stay too few (28.2).
     static let kelpFishRadius: [String: [Int: CGFloat]] = ["Kelp Forest 15": [21: 31]]
