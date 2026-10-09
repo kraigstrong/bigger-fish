@@ -762,13 +762,18 @@ enum GameTuning {
     }()
     static let kelpLevels: [Level] = kelpSpecs.enumerated().map { index, spec in
         // Levels 1-10 keep the layouts that were played. The Deep End takes the first layout the planner has no
-        // complaints about (a gate with only one way in plays as a single fixed path).
+        // complaints about (a gate with only one way in plays as a single fixed path) and no wall of giants.
         let plan = !ArcadeWorld.isDeepEnd(index) ? MeetingPlanner.kelpPlan(spec, variation: kelpRerolls[spec.name] ?? 0)
-            : (0..<8).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty } ?? MeetingPlanner.kelpPlan(spec)
+            : (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
+                ?? MeetingPlanner.kelpPlan(spec)
         var level = plan.level
         level.ecosystemSeedIndex = index
         return level
     }
+    /// A wall of giants: threats this big alongside you at the same time, leaving no gap this tall (screen
+    /// points: room for you at the size you'd be) anywhere in the water.
+    static let giantRadius: CGFloat = 60
+    static let giantWallGap: CGFloat = 80
     /// Levels re-rolled to another layout of the same settings. Kelp Forest 9's first had two giants just under
     /// the biggest you can grow in the opening; whichever ate first was out of reach for good.
     static let kelpRerolls: [String: Int] = ["Kelp Forest 9": 3]

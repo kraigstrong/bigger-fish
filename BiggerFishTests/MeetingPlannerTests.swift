@@ -162,6 +162,9 @@ struct MeetingPlannerTests {
         // Fish come in every way, not all along a straight line.
         let styles = Set(ArcadeWorld.kelpForest.levels.flatMap { $0.meetingPlan!.fish.compactMap(\.approach?.style) })
         #expect(styles == [.glide, .weave, .turn])
+        // No two giants beside you at once wall off the water (Kelp Forest 13's first layout did).
+        #expect(ArcadeWorld.kelpForest.levels.allSatisfy { !$0.meetingPlan!.hasGiantWall })
+        #expect(MeetingPlanner.kelpPlan(GameTuning.kelpSpecs[12], variation: 0).hasGiantWall)
         // Every fish appears inside the water you can see then, and none is swimming away when the level starts
         // (one that turned late outran you along the surface of level 7).
         for level in ArcadeWorld.kelpForest.levels {
