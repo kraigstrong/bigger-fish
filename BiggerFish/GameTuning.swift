@@ -736,7 +736,9 @@ enum GameTuning {
     /// Kelp Forest's levels: fish appear just off screen right before you meet them (`MeetingPlanner.kelpPlan`),
     /// so these plan in milliseconds at launch rather than shipping as data. They follow Shallow Reef's ten
     /// levels, already tuned for difficulty, with kelp columns closing in as they go.
-    static let kelpSpecs: [MeetingSpec] = (0..<10).map { index in
+    /// Levels 11-15 are its Deep End, following the other worlds' (Crossroads, Frenzy, Gauntlet, Heavyweights,
+    /// Needle) with kelp denser than level 10's.
+    static let kelpSpecs: [MeetingSpec] = (0..<15).map { index in
         var spec = reefLabSpecs[index]
         spec.name = "Kelp Forest \(index + 1)"
         spec.kelp = kelpRamp[index]
@@ -747,19 +749,43 @@ enum GameTuning {
     static let kelpRamp: [KelpSpec] = {
         let anchors = [(level: 0, kelp: KelpSpec(columns: 0.35, gap: 1.1)), (level: 4, kelp: KelpSpec(columns: 0.55, gap: 0.6)),
                        (level: 9, kelp: KelpSpec(columns: 0.75, gap: 0.35))]
-        return (0..<10).map { index in
+        let main = (0..<10).map { index in
             if let anchor = anchors.first(where: { $0.level == index }) { return anchor.kelp }
             let (a, b) = index < anchors[1].level ? (anchors[0], anchors[1]) : (anchors[1], anchors[2])
             let t = Double(index - a.level) / Double(b.level - a.level)
             return KelpSpec(columns: a.kelp.columns + (b.kelp.columns - a.kelp.columns) * t,
                             gap: a.kelp.gap + (b.kelp.gap - a.kelp.gap) * t)
         }
+        // The Deep End: about 65% to 77% kelp.
+        return main + [KelpSpec(columns: 0.7, gap: 0.38), KelpSpec(columns: 0.75, gap: 0.32), KelpSpec(columns: 0.8, gap: 0.3),
+                       KelpSpec(columns: 0.75, gap: 0.3), KelpSpec(columns: 0.85, gap: 0.25)]
     }()
     static let kelpLevels: [Level] = kelpSpecs.enumerated().map { index, spec in
-        var level = MeetingPlanner.kelpPlan(spec).level
+        // Levels 1-10 keep the layouts that were played. The Deep End takes the first layout the planner has no
+        // complaints about (a gate with only one way in plays as a single fixed path) and no wall of giants.
+        let plan = kelpRerolls[spec.name].map { MeetingPlanner.kelpPlan(spec, variation: $0) }
+            ?? (!ArcadeWorld.isDeepEnd(index) ? MeetingPlanner.kelpPlan(spec)
+                : (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
+                    ?? MeetingPlanner.kelpPlan(spec))
+        var level = plan.level
         level.ecosystemSeedIndex = index
         return level
     }
+    /// A wall of giants: threats this big alongside you at the same time, leaving no gap this tall (screen
+    /// points: room for you at the size you'd be) anywhere in the water.
+    static let giantRadius: CGFloat = 60
+    static let giantWallGap: CGFloat = 80
+    /// Levels re-rolled to another layout of the same settings. Kelp Forest 9's first had two giants just under
+    /// the biggest you can grow in the opening; whichever ate first was out of reach for good.
+    /// Kelp Forest 15 is pinned to the layout whose opening Kraig likes, which its size fix below is for.
+    static let kelpRerolls: [String: Int] = ["Kelp Forest 9": 3, "Kelp Forest 15": 0]
+    /// Fish made a different size by hand. Kelp Forest 15's gate 21 needed six meals with no slack; Kraig found
+    /// a way through with five (1, 3, 7, 11, 14: radius 31.8) and wants that to eat it. Four stay too few (28.2).
+    static let kelpFishRadius: [String: [Int: CGFloat]] = ["Kelp Forest 15": [21: 31]]
+    /// Big fish that swim at you instead of the way you're going, in levels where two you'd overtake slowly
+    /// walled you in. Same meetings: a fish swimming at you just passes in a moment. Kelp Forest 8: fish 13
+    /// hung over the low lane while you caught up with fish 16 along the floor.
+    static let kelpSwimsAtYou: [String: Set<Int>] = ["Kelp Forest 8": [13, 16]]
     /// Screen points beyond the edge of the screen where a Kelp Forest fish appears.
     static let kelpAppearMargin: CGFloat = 30
     /// It follows its approach until you're this many screens past its meeting, then roams like any fish.
@@ -770,8 +796,8 @@ enum GameTuning {
     static let kelpWeaveHeight: ClosedRange<CGFloat> = 24...44
     static let kelpWeaves: ClosedRange<CGFloat> = 0.7...1.5
     static let kelpBigFishApproachShare: CGFloat = 0.45
-    /// A turning fish swims away from you at this share of your speed, then turns toward you this many
-    /// seconds before the meeting.
+    /// A turning fish swims away from you at this share of your starting speed, then turns toward you this
+    /// many seconds before the meeting.
     static let kelpTurnAwaySpeed: ClosedRange<CGFloat> = 0.45...0.7
     static let kelpTurnBefore: ClosedRange<CGFloat> = 0.55...0.9
     /// Columns start this many screens into the lap, so you start in open water, and stop as far before its end.

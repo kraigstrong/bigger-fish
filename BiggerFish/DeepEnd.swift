@@ -88,9 +88,9 @@ struct DeepEndZone: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             DropOff()
-                .fill(LinearGradient(colors: [DeepEndColors.night.opacity(0.88), DeepEndColors.abyss.opacity(0.96)],
-                                     startPoint: .top, endPoint: .bottom))
-            DropOff().stroke(DeepEndColors.surface.opacity(0.55), lineWidth: 3)
+                .fill(LinearGradient(colors: [DeepEndColors.night, DeepEndColors.abyss], startPoint: .top, endPoint: .bottom))
+            // Only the reef edge is outlined: the zone runs off the screen everywhere else.
+            DropOff(edgeOnly: true).stroke(DeepEndColors.surface.opacity(0.55), lineWidth: 3)
             HStack(spacing: 10) {
                 DeepEndBadge(size: 46)
                 VStack(alignment: .leading, spacing: 2) {
@@ -115,6 +115,9 @@ struct DeepEndZone: View {
 
     /// Water past a jagged reef edge on the left.
     private struct DropOff: Shape {
+        /// Just the jagged reef edge, for its outline, rather than the whole closed water.
+        var edgeOnly = false
+
         func path(in rect: CGRect) -> Path {
             var path = Path()
             path.move(to: CGPoint(x: rect.minX + 18, y: rect.minY))
@@ -124,6 +127,7 @@ struct DeepEndZone: View {
                 let x = rect.minX + (index.isMultiple(of: 2) ? 6 : 26) + CGFloat(index % 3) * 4
                 path.addLine(to: CGPoint(x: x, y: y))
             }
+            if edgeOnly { return path }
             path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
             path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
             path.closeSubpath()
@@ -143,7 +147,9 @@ struct WorldConqueredView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.62).ignoresSafeArea()
+            // Solid deep water, so nothing on the map behind shows through the words.
+            LinearGradient(colors: [DeepEndColors.night, DeepEndColors.abyss], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
                 .onTapGesture(perform: onLater)
             VStack(spacing: 14) {
                 VStack(spacing: 2) {
@@ -211,7 +217,7 @@ struct WorldConqueredView: View {
             }
             .padding(14)
             .frame(width: 230, height: 250)
-            .background(RoundedRectangle(cornerRadius: 22).fill(.black.opacity(0.35)))
+            .background(RoundedRectangle(cornerRadius: 22).fill(DeepEndColors.night))
             .overlay(RoundedRectangle(cornerRadius: 22).stroke(color.opacity(0.55), lineWidth: 1.5))
         }
     }

@@ -17,8 +17,8 @@ struct ArcadeCampaignTests {
             #expect(!progress.isOpen(world, 1))
             #expect(!progress.isOpen(world, -1))
             #expect(!progress.isOpen(world, world.levels.count))
-            // Shallow Reef and Jelly Bloom have five bonus levels after ten; Kelp Forest has ten so far.
-            #expect(world.levels.count == (world == .kelpForest ? 10 : 15))
+            // Ten levels, then five in the Deep End.
+            #expect(world.levels.count == 15)
         }
     }
 
@@ -143,9 +143,9 @@ struct ArcadeCampaignTests {
 
     @Test func levelIDsAreUniqueAndOriginalWorldHasNoHazards() {
         let ids = ArcadeWorld.campaign.flatMap { world in world.levels.indices.map { world.levelID($0) } }
-        #expect(Set(ids).count == 40)
+        #expect(Set(ids).count == 45)
         #expect(ids.first == "shallow-reef.1")
-        #expect(ids.contains("shallow-reef.15") && ids.contains("jelly-bloom.15") && ids.last == "kelp-forest.10")
+        #expect(ids.contains("shallow-reef.15") && ids.contains("jelly-bloom.15") && ids.last == "kelp-forest.15")
         #expect(GameTuning.levels.allSatisfy { $0.jellies == nil })
         #expect(GameTuning.bloomLevels.allSatisfy { $0.jellies != nil })
         #expect(GameTuning.bloomLevels.allSatisfy { $0.aiCanEat })

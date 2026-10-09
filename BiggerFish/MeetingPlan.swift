@@ -361,7 +361,14 @@ enum MeetingPlanner {
     static func kelpPlan(_ spec: MeetingSpec, variation: Int = 0) -> MeetingPlan {
         let seed = GameTuning.spawnSeed &+ 7_000 &+ stableHash(spec.name) &+ UInt64(variation) &* 1_000_003
         let design = MeetingDesigner.design(spec, seed: seed)
-        let solved = MeetingSolver.justInTime(design.meetings, spec: spec, seed: seed, timeline: design.timeline)
+        var meetings = design.meetings
+        for id in GameTuning.kelpSwimsAtYou[spec.name] ?? [] where meetings.indices.contains(id - 1) {
+            meetings[id - 1].headOn = true
+        }
+        for (id, radius) in GameTuning.kelpFishRadius[spec.name] ?? [:] where meetings.indices.contains(id - 1) {
+            meetings[id - 1].size = radius / GameTuning.baseRadius
+        }
+        let solved = MeetingSolver.justInTime(meetings, spec: spec, seed: seed, timeline: design.timeline)
         let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: [], reachScale: spec.reachScale)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
             predicted: solved.crossings, analysis: analysis, issues: [])
@@ -1698,8 +1705,11 @@ extension MeetingSolver {
             let bounds = PlayerTimeline.waterBounds(zoom: zoom)
             let y = bounds.bottom + radius + (bounds.top - bounds.bottom - 2 * radius) * meeting.height
             let heading: CGFloat = meeting.headOn ? -1 : 1
-            var approach = pickApproach(meeting, meetingPoint: CGPoint(x: world.wrap(meeting.distance), y: y),
-                                        zoom: zoom, spec: spec, rng: &draw)
+            let meetingPoint = CGPoint(x: world.wrap(meeting.distance), y: y)
+            // A fish turned to swim at you so it stops walling you in comes straight, to pass in a moment.
+            var approach = (T.kelpSwimsAtYou[spec.name] ?? []).contains(id)
+                ? Approach(style: .straight, meeting: meetingPoint, seconds: 0)
+                : pickApproach(meeting, meetingPoint: meetingPoint, zoom: zoom, spec: spec, rng: &draw)
             /// How far ahead of you (negative: behind) the fish is at `step`.
             func lead(_ step: Int) -> CGFloat {
                 meeting.distance - timeline.distance[step] + Approach.dx(beforeMeeting: CGFloat(meetStep - step) * dt,
@@ -1712,6 +1722,13 @@ extension MeetingSolver {
             }
             var step = meetStep
             while step > 0 && !offScreen(step) { step -= 1 }
+            // A fish that has to be there from the start just swims in: shown swimming away first, it would
+            // be in view the whole time.
+            if step == 0 && approach.style == .turn {
+                approach.style = .straight
+                step = meetStep
+                while step > 0 && !offScreen(step) { step -= 1 }
+            }
             approach.seconds = CGFloat(meetStep - step) * dt
             // Keep a glide or weave in the water it appears in.
             let start = PlayerTimeline.waterBounds(zoom: timeline.zoom[step])
@@ -1760,11 +1777,42 @@ extension MeetingSolver {
             approach.waves = CGFloat.random(in: T.kelpWeaves, using: &rng)
             approach.phase = CGFloat.random(in: 0..<(2 * .pi), using: &rng)
         case .turn:
-            let yourSpeed = T.playfieldSize.width / CGFloat(spec.crossSeconds) / zoom
+            // Your speed at the start, the slowest you go: grown and zoomed out you're faster, so a fish
+            // swimming away at a share of this never outruns you.
+            let yourSpeed = T.playfieldSize.width / CGFloat(spec.crossSeconds)
             approach.awaySpeed = yourSpeed * CGFloat.random(in: T.kelpTurnAwaySpeed, using: &rng)
             approach.turnBefore = CGFloat.random(in: T.kelpTurnBefore, using: &rng)
         }
         return approach
+    }
+}
+
+extension MeetingPlan {
+    /// Whether big fish alongside you at the same time leave no gap you could fit through: the planner treats
+    /// each meeting as an instant, but a giant is beside you for as long as its body takes to pass, which for one
+    /// swimming your way and slowly overtaken is a long while. One high and one low together can wall off the water.
+    var hasGiantWall: Bool {
+        let byID = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0) })
+        let giants: [(crossing: EncounterCrossing, from: Double, to: Double)] = predicted.compactMap { crossing in
+            guard let giant = byID[crossing.fishID], giant.role == .threat, giant.radius >= GameTuning.giantRadius else { return nil }
+            let yourSpeed = GameTuning.playfieldSize.width / CGFloat(spec.crossSeconds) / CGFloat(crossing.zoom)
+            let closing = max(1, giant.headOn ? yourSpeed + giant.cruiseSpeed : yourSpeed - giant.cruiseSpeed)
+            let alongside = Double((giant.radius + GameTuning.giantWallGap / 2 / CGFloat(crossing.zoom)) / closing)
+            return (crossing, crossing.time - alongside, crossing.time + alongside)
+        }
+        return giants.contains { giant in
+            let together = giants.filter { $0.from < giant.to && giant.from < $0.to }
+            guard together.count > 1 else { return false }
+            let zoom = CGFloat(together.map(\.crossing.zoom).min() ?? 1)
+            let water = PlayerTimeline.waterBounds(zoom: zoom)
+            var top = water.bottom, widest: CGFloat = 0
+            for body in together.map({ (CGFloat($0.crossing.y - $0.crossing.radius), CGFloat($0.crossing.y + $0.crossing.radius)) })
+                .sorted(by: { $0.0 < $1.0 }) {
+                widest = max(widest, body.0 - top)
+                top = max(top, body.1)
+            }
+            return max(widest, water.top - top) < GameTuning.giantWallGap / zoom
+        }
     }
 }
 
