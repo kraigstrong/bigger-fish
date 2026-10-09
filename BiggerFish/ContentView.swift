@@ -46,9 +46,6 @@ struct ContentView: View {
                 ArcadeWorldMap(progress: progress, onSelect: { selectedWorld = $0; returnedFrom = nil })
             }
         }
-        .onChange(of: celebrating) { _, world in
-            if let world { progress.sawUnlock(world) }
-        }
         .overlay {
             if scene == nil, let world = celebrating {
                 WorldConqueredView(world: world,
@@ -128,6 +125,7 @@ struct ContentView: View {
         // Players who beat a tenth level before its unlock screen existed see it once, on the world map.
         if let world = progress.unseenUnlock {
             try? await Task.sleep(for: .seconds(0.5))
+            progress.sawUnlock(world)
             withAnimation { celebrating = world }
         }
     }
@@ -181,6 +179,8 @@ struct ContentView: View {
             scene = nil
             if let world = conquered {
                 conquered = nil
+                // Only a real unlock is remembered; the tuner's preview leaves progress alone.
+                progress.sawUnlock(world)
                 withAnimation { celebrating = world }
             }
         }
