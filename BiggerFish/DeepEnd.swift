@@ -143,7 +143,9 @@ struct WorldConqueredView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.62).ignoresSafeArea()
+            // Solid deep water, so nothing on the map behind shows through the words.
+            LinearGradient(colors: [DeepEndColors.night, DeepEndColors.abyss], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
                 .onTapGesture(perform: onLater)
             VStack(spacing: 14) {
                 VStack(spacing: 2) {
@@ -211,7 +213,7 @@ struct WorldConqueredView: View {
             }
             .padding(14)
             .frame(width: 230, height: 250)
-            .background(RoundedRectangle(cornerRadius: 22).fill(.black.opacity(0.35)))
+            .background(RoundedRectangle(cornerRadius: 22).fill(DeepEndColors.night))
             .overlay(RoundedRectangle(cornerRadius: 22).stroke(color.opacity(0.55), lineWidth: 1.5))
         }
     }
