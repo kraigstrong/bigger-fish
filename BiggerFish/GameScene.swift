@@ -1303,14 +1303,15 @@ final class GameScene: SKScene {
     }
     private static let ownColorsKey = "kelpOwnColors"
 
-    /// `color` blended `shade` of the way to the silhouette color; clear stays clear.
+    /// `color` darkened `shade` of the way to the silhouette color, keeping its own transparency, so the whole fish
+    /// darkens together and ends as one dark shape.
     private static func shaded(_ color: SKColor, _ shade: CGFloat) -> SKColor {
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         var toRed: CGFloat = 0, toGreen: CGFloat = 0, toBlue: CGFloat = 0, toAlpha: CGFloat = 0
         guard shade > 0, color.getRed(&red, green: &green, blue: &blue, alpha: &alpha), alpha > 0,
               T.kelpSilhouette.getRed(&toRed, green: &toGreen, blue: &toBlue, alpha: &toAlpha) else { return color }
         return SKColor(red: red + (toRed - red) * shade, green: green + (toGreen - green) * shade,
-                       blue: blue + (toBlue - blue) * shade, alpha: alpha + (toAlpha - alpha) * shade)
+                       blue: blue + (toBlue - blue) * shade, alpha: alpha)
     }
 
     /// How far into the kelp a fish is: 0 a body's width outside every column, 1/2 centered on an edge, 1 a body's
