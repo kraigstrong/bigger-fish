@@ -152,7 +152,7 @@ struct WorldConqueredView: View {
                 }
                 HStack(alignment: .top, spacing: 18) {
                     if let next = world.nextWorld {
-                        UnlockCard(title: "\(next.title) is open!", line: next.unlockLine, button: "Swim there",
+                        UnlockCard(title: "\(next.title) is open!", line: next.subtitle, button: "Swim there",
                                    color: next.color, action: { onNextWorld(next) }) {
                             WorldIllustration(world: next).frame(width: 86, height: 86)
                         }

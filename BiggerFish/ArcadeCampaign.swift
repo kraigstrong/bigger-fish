@@ -19,6 +19,8 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .kelpForest: "Kelp Forest"
         }
     }
+    /// The world's one line, on the world map and its unlock screen. Each world names things one way
+    /// everywhere: Jelly Bloom's jellyfish have tops and tentacles.
     var subtitle: String {
         switch self {
         case .shallowReef: "Eat. Dodge. Grow."
@@ -66,12 +68,12 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     var nextWorld: ArcadeWorld? {
         Self.campaign.firstIndex(of: self).flatMap { Self.campaign.indices.contains($0 + 1) ? Self.campaign[$0 + 1] : nil }
     }
-    /// What the unlock screen says about this world when it opens.
-    var unlockLine: String {
+    /// The card before each of the world's levels: the same on every level.
+    var levelCard: [String] {
         switch self {
-        case .shallowReef: "Eat. Dodge. Grow."
-        case .jellyBloom: "Bounce on the bells. Steer clear of the stingers."
-        case .kelpForest: "Slip into the kelp. Mind the shadows."
+        case .shallowReef: ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish.", "Be the last fish swimming."]
+        case .jellyBloom: ["Bounce the tops.", "Dodge the tentacles.", "Be the last fish swimming."]
+        case .kelpForest: ["Kelp slows you down.", "Fish in the kelp hide their colors.", "Be the last fish swimming."]
         }
     }
     func levelID(_ index: Int) -> String { "\(rawValue).\(index + 1)" }
