@@ -122,17 +122,24 @@ struct ArcadeLevelMap: View {
                         ZStack(alignment: .topLeading) {
                             if world.deepEndCount > 0 {
                                 let dropX = OceanMapLayout.levelStartX + OceanMapLayout.levelSpacing * (CGFloat(ArcadeWorld.mainLevelCount) - 0.55)
-                                // Out past the safe area at the bottom and right, and past the end, so the deep water
-                                // fills the screen even when the map bounces at its end.
+                                // Drawn out past the safe area at the bottom and right, and past the end, so the deep
+                                // water fills the screen even when the map bounces at its end. As an overlay it takes
+                                // no room, so the map's layers keep their size and the fish stays on its stop.
                                 let insets = geometry.safeAreaInsets
-                                DeepEndZone(open: progress.isOpen(world, ArcadeWorld.mainLevelCount),
-                                            cleared: progress.clearedCounts(in: world).deepEnd, count: world.deepEndCount)
-                                    .frame(width: width - dropX + insets.trailing + 400, height: size.height + insets.top + insets.bottom)
-                                    .offset(x: dropX, y: -insets.top)
+                                Color.clear.frame(width: width - dropX, height: size.height)
+                                    .overlay(alignment: .topLeading) {
+                                        DeepEndZone(open: progress.isOpen(world, ArcadeWorld.mainLevelCount),
+                                                    cleared: progress.clearedCounts(in: world).deepEnd, count: world.deepEndCount)
+                                            .frame(width: width - dropX + insets.trailing + 400,
+                                                   height: size.height + insets.top + insets.bottom)
+                                            .offset(y: -insets.top)
+                                    }
+                                    .offset(x: dropX)
                             }
                             MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
                                         fishHome: centers.indices.contains(focus) ? CGPoint(x: centers[focus].x, y: centers[focus].y + 58) : nil,
                                         pulsingStops: centers.indices.contains(focus) ? [centers[focus]] : [])
+                                .frame(width: width, height: size.height)
                             ForEach(0..<world.levelCount, id: \.self) { index in
                                 let open = progress.isOpen(world, index)
                                 let cleared = progress.isCleared(world, index)
