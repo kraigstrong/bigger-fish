@@ -827,6 +827,34 @@ enum GameTuning {
     /// Other fish inside kelp darken to this one color, behind the fronds. Each part keeps its own transparency.
     static let kelpSilhouette = SKColor(red: 0.03, green: 0.09, blue: 0.07, alpha: 1)
 
+    // MARK: Midnight Zone (prototype, Xcode builds only)
+
+    /// Midnight Zone's trial levels, planned like Kelp Forest's (fish appear just off screen right before you meet
+    /// them) but with no kelp: easy, medium, and hard from Shallow Reef's levels 1, 5, and 10.
+    static let midnightSpecs: [MeetingSpec] = [0, 4, 9].enumerated().map { index, source in
+        var spec = reefLabSpecs[source]
+        spec.name = "Midnight Zone \(index + 1)"
+        return spec
+    }
+    /// Each level is the first layout with no planner issues and no wall of giants.
+    static let midnightLevels: [Level] = midnightSpecs.enumerated().map { index, spec in
+        let plan = (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
+            ?? MeetingPlanner.kelpPlan(spec)
+        var level = plan.level
+        level.ecosystemSeedIndex = index
+        return level
+    }
+    /// The dark multiplies everything outside your headlamp by this color: dim, not pitch black.
+    static let midnightDark = SKColor(red: 0.12, green: 0.15, blue: 0.26, alpha: 1)
+    /// The headlamp's beam: half its width (radians), and how far it reaches as a share of the screen's width.
+    static let headlampHalfAngle: CGFloat = 0.3
+    static let headlampReach: CGFloat = 0.8
+    /// The beam tilts with you, up to this far (radians) at full rising or falling speed, so diving or climbing
+    /// fast leaves the far right of the screen dark.
+    static let headlampMaxTilt: CGFloat = 0.6
+    /// A soft glow around your head, as a share of the beam's reach, so a fish right beside you is never invisible.
+    static let headlampGlow: CGFloat = 0.14
+
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")
 

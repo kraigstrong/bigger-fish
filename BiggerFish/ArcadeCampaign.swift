@@ -5,10 +5,19 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     case shallowReef = "shallow-reef"
     case jellyBloom = "jelly-bloom"
     case kelpForest = "kelp-forest"
+    case midnightZone = "midnight-zone"
 
     /// The playable worlds, in map order. The map shows the rest as coming soon.
     static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom, .kelpForest]
-    static var mapWorlds: [ArcadeWorld] { campaign }
+    /// Xcode builds also show worlds still being prototyped, after the campaign and open from the start: Midnight
+    /// Zone isn't in the campaign, so nothing unlocks it and beating Kelp Forest doesn't point to it.
+    static var mapWorlds: [ArcadeWorld] {
+        #if DEBUG
+        campaign + [.midnightZone]
+        #else
+        campaign
+        #endif
+    }
     var hasJellies: Bool { self == .jellyBloom }
 
     var id: String { rawValue }
@@ -17,6 +26,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .shallowReef: "Shallow Reef"
         case .jellyBloom: "Jelly Bloom"
         case .kelpForest: "Kelp Forest"
+        case .midnightZone: "Midnight Zone"
         }
     }
     /// The world's one line, on the world map and its unlock screen. Each world names things one way
@@ -26,6 +36,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .shallowReef: "Eat. Dodge. Grow."
         case .jellyBloom: "Bounce the tops. Dodge the tentacles."
         case .kelpForest: "Dive into the kelp. Mind what's hiding."
+        case .midnightZone: "Light the way. Mind the dark."
         }
     }
     /// Both worlds play planned levels (see docs/meeting-planner.md), shipped as data.
@@ -34,12 +45,13 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .shallowReef: GameTuning.reefLabLevels
         case .jellyBloom: GameTuning.jellyLabLevels
         case .kelpForest: GameTuning.kelpLevels
+        case .midnightZone: GameTuning.midnightLevels
         }
     }
     func level(_ index: Int) -> Level { levels[index] }
-    /// Shallow Reef and Jelly Bloom replaced original seeded campaigns, kept for the debug tuner; Kelp Forest
-    /// was planned from the start.
-    var hasSeededOriginal: Bool { self != .kelpForest }
+    /// Shallow Reef and Jelly Bloom replaced original seeded campaigns, kept for the debug tuner; later worlds
+    /// were planned from the start.
+    var hasSeededOriginal: Bool { self == .shallowReef || self == .jellyBloom }
     /// The original seeded campaigns the planned levels replaced, kept for the debug tuner and the
     /// generator's tests.
     var seededLevels: [Level] {
@@ -47,6 +59,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .shallowReef: GameTuning.levels
         case .jellyBloom: GameTuning.bloomLevels
         case .kelpForest: GameTuning.kelpLevels
+        case .midnightZone: GameTuning.midnightLevels
         }
     }
     /// Counting a world's levels doesn't load them.
@@ -55,6 +68,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .shallowReef: GameTuning.reefLabSpecs.count
         case .jellyBloom: GameTuning.jellyLabSpecs.count
         case .kelpForest: GameTuning.kelpSpecs.count
+        case .midnightZone: GameTuning.midnightSpecs.count
         }
     }
     var levelTitles: [String] { (0..<levelCount).map { "Level \($0 + 1)" } }
@@ -74,6 +88,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .shallowReef: ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish.", "Be the last fish swimming."]
         case .jellyBloom: ["Bounce the tops.", "Dodge the tentacles.", "Be the last fish swimming."]
         case .kelpForest: ["Kelp slows you down.", "Fish in the kelp hide their colors.", "Be the last fish swimming."]
+        case .midnightZone: ["Your light shows the way.", "Fish lurk in the dark.", "Be the last fish swimming."]
         }
     }
     func levelID(_ index: Int) -> String { "\(rawValue).\(index + 1)" }

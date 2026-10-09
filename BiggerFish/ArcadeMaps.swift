@@ -9,6 +9,7 @@ extension ArcadeWorld {
         case .shallowReef: UIColor(red: 0.18, green: 0.78, blue: 0.72, alpha: 1)
         case .jellyBloom: UIColor(red: 0.75, green: 0.52, blue: 1, alpha: 1)
         case .kelpForest: UIColor(red: 0.45, green: 0.78, blue: 0.32, alpha: 1)
+        case .midnightZone: UIColor(red: 1, green: 0.66, blue: 0.3, alpha: 1)
         }
     }
 }
@@ -352,6 +353,7 @@ extension ArcadeWorld {
         case .shallowReef: "WorldShallowReef"
         case .jellyBloom: "WorldJellyBloom"
         case .kelpForest: "WorldKelpForest"
+        case .midnightZone: "WorldMidnightZone"
         }
     }
 }
@@ -359,9 +361,15 @@ extension ArcadeWorld {
 struct WorldIllustration: View {
     let world: ArcadeWorld
     var body: some View {
-        Image(world.illustration)
-            .resizable()
-            .scaledToFit()
-            .accessibilityHidden(true)
+        Group {
+            if world == .midnightZone {
+                // A stand-in while Midnight Zone is a prototype, until it has a picture of its own.
+                Image(systemName: "flashlight.on.fill").resizable().scaledToFit().padding(10)
+                    .rotationEffect(.degrees(-90)).foregroundStyle(world.color)
+            } else {
+                Image(world.illustration).resizable().scaledToFit()
+            }
+        }
+        .accessibilityHidden(true)
     }
 }

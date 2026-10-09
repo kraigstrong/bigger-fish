@@ -156,6 +156,21 @@ struct MeetingPlannerTests {
         }
     }
 
+    /// Midnight Zone's trials plan like Kelp Forest without kelp: an easy, medium, and hard level from Shallow Reef's
+    /// 1, 5, and 10, each a clean layout whose fish appear just off screen.
+    @MainActor @Test func midnightZoneTrialsAreCleanJustInTimeLevels() {
+        let plans = ArcadeWorld.midnightZone.levels.map { $0.meetingPlan! }
+        #expect(plans.map(\.spec.name) == ["Midnight Zone 1", "Midnight Zone 2", "Midnight Zone 3"])
+        #expect(zip(plans, [0, 4, 9]).allSatisfy { plan, source in
+            var spec = plan.spec
+            spec.name = GameTuning.reefLabSpecs[source].name
+            return spec == GameTuning.reefLabSpecs[source]
+        })
+        #expect(plans.allSatisfy { $0.issues.isEmpty && !$0.hasGiantWall && ($0.kelp ?? []).isEmpty && $0.spec.reachScale == 1 })
+        #expect(plans.allSatisfy { $0.fish.contains { ($0.appearsAt ?? 0) > 0 } })
+        #expect(!ArcadeWorld.campaign.contains(.midnightZone) && ArcadeWorld.mapWorlds.last == .midnightZone)
+    }
+
     /// Kelp Forest's fish appear just off screen and follow their approach in, so every one meets the reference
     /// route exactly as planned, kelp or not.
     @MainActor @Test func kelpForestFishMeetYouExactlyWherePlanned() {
@@ -192,7 +207,7 @@ struct MeetingPlannerTests {
     }
 
     @MainActor @Test func shallowReefPlaysFifteenPlannedLevelsThatUnlockAndResetLikeACampaign() {
-        #expect(ArcadeWorld.mapWorlds == [.shallowReef, .jellyBloom, .kelpForest])
+        #expect(Array(ArcadeWorld.mapWorlds.prefix(3)) == [.shallowReef, .jellyBloom, .kelpForest])
         #expect(ArcadeWorld.jellyBloom.levels.allSatisfy { $0.meetingPlan != nil && $0.jellies != nil })
         let world = ArcadeWorld.shallowReef
         #expect(world.levelCount == 15 && world.levelTitles == (1...15).map { "Level \($0)" })

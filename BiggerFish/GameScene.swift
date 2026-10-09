@@ -311,6 +311,9 @@ final class GameScene: SKScene {
     /// A Kelp Forest fish swims straight at its meeting height until you're this far along, then roams.
     private var approachEnds: [Int: (until: CGFloat, y: CGFloat, start: CGFloat, path: Approach?, heading: CGFloat)] = [:]
     private var kelpBeds: [(bed: PlannedKelp, back: KelpNode, front: KelpNode)] = []
+    /// Midnight Zone's dark with your headlamp's beam in it: one sprite that multiplies the scene, centered on your
+    /// head and turned with you.
+    private var headlamp: SKSpriteNode?
     /// Fish drawn as silhouettes while in kelp, and the colors each of their shapes had before.
     /// How far each fish has faded into its silhouette (0: its own colors, 1: one dark shape).
     private var silhouetteShade: [Int: CGFloat] = [:]
@@ -1321,6 +1324,63 @@ final class GameScene: SKScene {
         return ((depth + radius) / (2 * max(radius, 1))).clamped(0, 1)
     }
 
+    private func layoutHeadlamp() {
+        headlamp?.removeFromParent()
+        headlamp = nil
+        guard arcadeWorld == .midnightZone else { return }
+        let node = SKSpriteNode(texture: Self.headlampTexture)
+        node.blendMode = .multiply
+        // Big enough that the dark covers the screen at any angle, with the beam reaching as far as tuned.
+        let side = 2 * size.width * T.headlampReach / Self.headlampTextureReach
+        node.size = CGSize(width: side, height: side)
+        // Over every other fish (the fish layer's 10 plus at most about 29), under your own (10 + 30).
+        node.zPosition = 39.5
+        addChild(node)
+        headlamp = node
+    }
+
+    /// How far the beam reaches across the headlamp texture, as a share of its half-width; the rest is dark margin.
+    private static let headlampTextureReach: CGFloat = 0.55
+    /// The dark everywhere, a soft-edged beam pointing right from the center fading with distance, and a glow
+    /// around the center. Opaque, for multiplying.
+    private static let headlampTexture: SKTexture = {
+        let side: CGFloat = 1024, center = CGPoint(x: side / 2, y: side / 2), reach = side / 2 * headlampTextureReach
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { context in
+            let cg = context.cgContext
+            T.midnightDark.setFill()
+            cg.fill(CGRect(x: 0, y: 0, width: side, height: side))
+            let light = SKColor(red: 1, green: 0.96, blue: 0.86, alpha: 1)
+            func fading(_ alpha: CGFloat, holdUntil: CGFloat) -> CGGradient {
+                CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                           colors: [light.withAlphaComponent(alpha).cgColor, light.withAlphaComponent(alpha).cgColor,
+                                    light.withAlphaComponent(0).cgColor] as CFArray,
+                           locations: [0, holdUntil, 1])!
+            }
+            // Layered wedges, the widest drawn as faintly as the narrowest, so the beam is brightest down its middle
+            // and soft at its edges.
+            let layers = 10
+            for layer in 0..<layers {
+                let half = T.headlampHalfAngle * (0.55 + 0.8 * CGFloat(layer) / CGFloat(layers - 1))
+                let wedge = CGMutablePath()
+                wedge.move(to: center)
+                wedge.addArc(center: center, radius: reach * 1.05, startAngle: -half, endAngle: half, clockwise: false)
+                wedge.closeSubpath()
+                cg.saveGState()
+                cg.addPath(wedge)
+                cg.clip()
+                cg.drawRadialGradient(fading(0.17, holdUntil: 0.6), startCenter: center, startRadius: 0,
+                                      endCenter: center, endRadius: reach, options: [])
+                cg.restoreGState()
+            }
+            cg.drawRadialGradient(fading(0.8, holdUntil: 0.35), startCenter: center, startRadius: 0,
+                                  endCenter: center, endRadius: reach * T.headlampGlow, options: [])
+        }
+        return SKTexture(image: image)
+    }()
+
     private func inKelp(_ position: CGPoint) -> Bool {
         kelpBeds.contains { abs(world.delta(from: $0.bed.x, to: position.x)) <= $0.bed.halfWidth }
     }
@@ -1912,6 +1972,14 @@ final class GameScene: SKScene {
                 stretchX: stretchX, stretchY: stretchY, mouthOpen: mouth,
                 time: time, tailRate: f.isPlayer ? 14 : 9
             )
+            if f.isPlayer, let headlamp {
+                // Strapped to your head, pointing where you're swimming: rising or falling fast swings it off the
+                // far right of the screen.
+                let r = pose.radius * zoom
+                headlamp.position = CGPoint(x: node.position.x + r * (0.75 * cos(tilt) - 0.3 * sin(tilt)),
+                                            y: node.position.y + r * (0.75 * sin(tilt) + 0.3 * cos(tilt)))
+                headlamp.zRotation = (pose.velocity.dy * zoom / T.motion.maxRiseSpeed).clamped(-1, 1) * T.headlampMaxTilt
+            }
         }
         renderStungFish(cameraX: cameraX, zoom: zoom, time: time)
         if let glow = winGlow, let playerNode = nodes[player.id] {
@@ -1970,6 +2038,7 @@ final class GameScene: SKScene {
     private func layoutStatic() {
         backgroundLayer.removeAllChildren()
         specks.removeAll()
+        layoutHeadlamp()
 
         let gradient = SKSpriteNode(texture: arcadeWorld.hasJellies
                                     ? ArcadeArt.bloomWater(night: level.jellies?.night == true)
