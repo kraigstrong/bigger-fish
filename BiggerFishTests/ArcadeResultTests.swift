@@ -17,6 +17,26 @@ struct ArcadeResultTests {
         }
     }
 
+    /// A world's first level-10 win skips its result card and leaves for the conquered screen; any other win
+    /// shows the card.
+    @Test func conqueringWinGoesStraightToTheConqueredScreen() {
+        for conquers in [true, false] {
+            let scene = GameScene(world: .kelpForest, levelIndex: ArcadeWorld.mainLevelCount - 1)
+            let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+            view.presentScene(scene)
+            var exited = false
+            scene.onClear = { _, _ in scene.leavesForConqueredScreen = conquers }
+            scene.onExit = { exited = true }
+            scene.debugStart(); scene.debugClearLevel()
+            #expect(scene.debugResultTitles.isEmpty == conquers)
+            scene.debugAdvance(seconds: GameTuning.conqueredExitDelay - 0.2)
+            #expect(!exited)
+            scene.debugAdvance(seconds: 0.4)
+            #expect(exited == conquers)
+            withExtendedLifetime(view) {}
+        }
+    }
+
     @Test func readyPromptFitsTheCardAndHasNoMapAction() throws {
         for world in ArcadeWorld.campaign {
             let scene = GameScene(world: world, showsJellyLesson: true)
