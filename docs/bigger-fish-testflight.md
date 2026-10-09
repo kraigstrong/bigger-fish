@@ -6,7 +6,7 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
 ## What the build already has
 
 - Bundle ID `com.kraigstrong.biggerfish`, team `MKACSCQ588`, automatic signing.
-- Version 0.1, build 1. iPhone only, landscape.
+- Version 0.2 (0.1 was the first build). iPhone only, landscape.
 - App icon (no alpha), loading screen, and launch color.
 - `ITSAppUsesNonExemptEncryption = NO`: the only encryption is the system's HTTPS, so App Store
   Connect won't ask the export-compliance question on each upload.
@@ -48,19 +48,36 @@ On a physical iPhone, with a fresh install and again as an update over the last 
 - Background the app mid-level: the game pauses and the music stops, then resumes on return.
 - A phone call or alarm during a level doesn't break the game or its sound.
 
+New in 0.2, worlds unlock in order:
+
+- **Fresh install:** only Shallow Reef is open. Jelly Bloom and Kelp Forest show a lock and "Beat ...
+  to unlock". Beating Shallow Reef's level 10 shows the "Shallow Reef conquered!" screen once, with
+  Jelly Bloom and The Deep End; Swim there, Dive in, and Maybe later each go where they say.
+- **Update over 0.1** (with Shallow Reef's level 10 beaten): every world played before stays open.
+  On first launch the unlock screen for the furthest beaten world shows once, then never again.
+- Each world's level map shows The Deep End past level 10, locked until level 10 is beaten.
+- Kelp Forest: kelp slows you, fish inside it are silhouettes, and your whole fish stays in front of
+  the kelp.
+
 ## Test Information (paste into App Store Connect)
 
 **Beta App Description**
 
 > Bigger Fish is an arcade game about working your way up the food chain. Hold to rise, release to
 > fall. Eat fish smaller than you, avoid the bigger ones, and grow until you're the last fish
-> swimming. This beta has two worlds of ten levels each: Shallow Reef, and Jelly Bloom, where
-> jellyfish domes bounce you and their tentacles sting.
+> swimming. This beta has three worlds of ten levels each: Shallow Reef; Jelly Bloom, where
+> jellyfish domes bounce you and their tentacles sting; and Kelp Forest, where kelp slows you down
+> and hides what's inside it. Beat a world's tenth level to open the next, and The Deep End: five
+> extra-hard levels for when you can't get enough.
 
 **What to Test**
 
-> Thanks for playing! Play as far as you can in both worlds. We'd love to hear:
+> Thanks for playing! New in this build: Kelp Forest, a third world, and The Deep End, five extra-hard
+> levels in each world after level 10. Worlds now open one at a time, so beat a world's tenth level to
+> open the next. We'd love to hear:
 > - Which levels felt too hard or too easy, and where you got stuck.
+> - How Kelp Forest's kelp feels: does slowing down in it, and not seeing what's inside, feel fair?
+> - Whether The Deep End is a fun challenge or just frustrating.
 > - Anything about how to play that was confusing.
 > - Bugs, crashes, or sound problems.
 >
@@ -80,4 +97,5 @@ On a physical iPhone, with a fresh install and again as an update over the last 
 
 | Build | Date | Source commit | Notes |
 |---|---|---|---|
-| 0.1 (1) | | | First external build. |
+| 0.1 (1) | | `9385ced` (`bigger-fish-v0.1-beta.1`) | First external build. |
+| 0.2 | | | Kelp Forest, The Deep End, worlds unlock in order, unlock screens. |

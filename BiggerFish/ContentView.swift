@@ -122,6 +122,12 @@ struct ContentView: View {
         let remaining = GameTuning.launchMinimumSeconds - Date().timeIntervalSince(started)
         if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
         withAnimation(.easeOut(duration: 0.35)) { loaded = true }
+        // Players who beat a tenth level before its unlock screen existed see it once, on the world map.
+        if let world = progress.unseenUnlock {
+            try? await Task.sleep(for: .seconds(0.5))
+            progress.sawUnlock(world)
+            withAnimation { celebrating = world }
+        }
     }
 
     #if DEBUG
@@ -173,6 +179,8 @@ struct ContentView: View {
             scene = nil
             if let world = conquered {
                 conquered = nil
+                // Only a real unlock is remembered; the tuner's preview leaves progress alone.
+                progress.sawUnlock(world)
                 withAnimation { celebrating = world }
             }
         }
