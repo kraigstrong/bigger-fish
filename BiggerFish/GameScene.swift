@@ -312,10 +312,8 @@ final class GameScene: SKScene {
     private var approachEnds: [Int: (until: CGFloat, y: CGFloat, start: CGFloat, path: Approach?, heading: CGFloat)] = [:]
     private var kelpBeds: [(bed: PlannedKelp, back: KelpNode, front: KelpNode)] = []
     /// Fish drawn as silhouettes while in kelp, and the colors each of their shapes had before.
-    /// How far each fish has faded into its silhouette (0: its own colors, 1: one dark shape), and the colors
-    /// each of its shapes had before.
+    /// How far each fish has faded into its silhouette (0: its own colors, 1: one dark shape).
     private var silhouetteShade: [Int: CGFloat] = [:]
-    private var silhouetteColors: [ObjectIdentifier: (fill: SKColor, stroke: SKColor)] = [:]
     /// After a sting, the result waits until the death animation has played.
     private var pendingLossResultAt: CGFloat?
     private var lastCameraX: CGFloat = 0
@@ -1263,7 +1261,6 @@ final class GameScene: SKScene {
 
     private func spawnKelp() {
         silhouetteShade.removeAll()
-        silhouetteColors.removeAll()
         for bed in kelpBeds { bed.back.removeFromParent(); bed.front.removeFromParent() }
         kelpBeds = (level.meetingPlan?.kelp ?? []).enumerated().map { index, bed in
             // Drawn from below the bottom of the screen to just above its top.
@@ -1283,18 +1280,28 @@ final class GameScene: SKScene {
 
     /// In kelp, a fish is one solid dark shape, eye and all, so you judge it by its outline alone. It fades in as
     /// the fish crosses the kelp's edge: `shade` 0 is its own colors, 1 the silhouette.
+    /// Each shape keeps its own colors in its `userData` while shaded, so they go wherever the shape goes.
     private func setSilhouette(_ node: SKNode, _ shade: CGFloat) {
         for child in node.children {
             if let shape = child as? SKShapeNode {
-                let key = ObjectIdentifier(shape)
-                let original = silhouetteColors[key] ?? (shape.fillColor, shape.strokeColor)
-                silhouetteColors[key] = shade > 0 ? original : nil
-                shape.fillColor = Self.shaded(original.fill, shade)
-                shape.strokeColor = Self.shaded(original.stroke, shade)
+                let saved = shape.userData?[Self.ownColorsKey] as? [SKColor]
+                let original = saved ?? [shape.fillColor, shape.strokeColor]
+                if shade > 0 {
+                    if saved == nil {
+                        let data = shape.userData ?? NSMutableDictionary()
+                        data[Self.ownColorsKey] = original
+                        shape.userData = data
+                    }
+                } else {
+                    shape.userData?.removeObject(forKey: Self.ownColorsKey)
+                }
+                shape.fillColor = Self.shaded(original[0], shade)
+                shape.strokeColor = Self.shaded(original[1], shade)
             }
             setSilhouette(child, shade)
         }
     }
+    private static let ownColorsKey = "kelpOwnColors"
 
     /// `color` blended `shade` of the way to the silhouette color; clear stays clear.
     private static func shaded(_ color: SKColor, _ shade: CGFloat) -> SKColor {
