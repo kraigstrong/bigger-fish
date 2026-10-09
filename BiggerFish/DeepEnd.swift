@@ -79,6 +79,34 @@ struct DeepEndBadge: View {
     }
 }
 
+/// Around a finished world on the world map: a faint gold ring split into one arc per Deep End level, each lit
+/// when its level is beaten, joining into one solid gold ring when they all are.
+struct DeepEndRing: View {
+    let cleared: Int
+    let count: Int
+    var lineWidth: CGFloat = 4
+
+    var body: some View {
+        ZStack {
+            if count > 0 && cleared >= count {
+                Circle().stroke(DeepEndColors.gold, lineWidth: lineWidth + 1)
+                    .shadow(color: DeepEndColors.gold.opacity(0.7), radius: 8)
+            } else {
+                ForEach(0..<max(count, 0), id: \.self) { index in
+                    let gap = 0.012
+                    Circle()
+                        .trim(from: Double(index) / Double(count) + gap, to: Double(index + 1) / Double(count) - gap)
+                        .stroke(DeepEndColors.gold.opacity(index < cleared ? 1 : 0.22),
+                                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                }
+                .rotationEffect(.degrees(-90))
+            }
+        }
+        .padding(lineWidth / 2)
+        .accessibilityHidden(true)
+    }
+}
+
 /// The level map past a world's tenth level: a reef drop-off into darker water, with its name and how to get in.
 struct DeepEndZone: View {
     let open: Bool

@@ -37,15 +37,18 @@ struct ArcadeWorldMap: View {
                         let open = progress.isWorldOpen(world)
                         let cleared = progress.clearedCounts(in: world)
                         let main = min(world.levelCount, ArcadeWorld.mainLevelCount)
+                        let complete = open && cleared.main >= main
                         let detail = !open ? "Beat \(world.previousWorld?.title ?? "") to unlock"
-                            : cleared.main < main ? "\(cleared.main)/\(main) cleared"
-                            : world.deepEndCount > 0 ? "✓ Complete · Deep End \(cleared.deepEnd)/\(world.deepEndCount)" : "✓ World complete"
+                            : !complete ? "\(cleared.main)/\(main) cleared" : "✓ World complete"
+                        // A finished world's Deep End shows as a gold ring around it, one arc per level beaten.
+                        let deepEnd = complete && world.deepEndCount > 0 ? (cleared: cleared.deepEnd, count: world.deepEndCount) : nil
+                        let deepEndLabel = deepEnd.map { ", Deep End \($0.cleared) of \($0.count) cleared" } ?? ""
                         Button { onSelect(world) } label: {
                             WorldMapStop(title: world.title, detail: detail, world: world,
-                                         color: world.color, placeholder: false, locked: !open)
+                                         color: world.color, placeholder: false, locked: !open, deepEnd: deepEnd)
                         }
                         .buttonStyle(.plain).disabled(!open)
-                        .accessibilityLabel(open ? "\(world.title), \(detail)" : "\(world.title), locked. \(detail)")
+                        .accessibilityLabel(open ? "\(world.title), \(detail)\(deepEndLabel)" : "\(world.title), locked. \(detail)")
                         .position(x: centers[index].x, y: size.height - centers[index].y)
                     } else {
                         let (title, color) = comingSoon[index - worlds.count]
@@ -195,9 +198,13 @@ private struct WorldMapStop: View {
     let color: Color
     let placeholder: Bool
     var locked = false
+    var deepEnd: (cleared: Int, count: Int)? = nil
 
     var body: some View {
         ZStack {
+            if let deepEnd {
+                DeepEndRing(cleared: deepEnd.cleared, count: deepEnd.count).frame(width: 96, height: 96)
+            }
             Circle().fill(color.opacity(0.16))
                 .overlay(Circle().stroke(color.opacity(placeholder ? 0.4 : 0.65), lineWidth: 2))
                 .frame(width: 80, height: 80)
