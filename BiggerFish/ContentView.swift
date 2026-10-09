@@ -111,13 +111,13 @@ struct ContentView: View {
         return scene == nil ? .menu : .game
     }
 
-    /// Decodes both worlds' levels off the main thread, keeping the loading screen up
-    /// at least briefly so it doesn't flash.
+    /// Readies every world's levels off the main thread (Kelp Forest's are planned, not decoded), keeping the
+    /// loading screen up at least briefly so it doesn't flash.
     private func warmUp() async {
         guard !loaded else { return }
         let started = Date()
         await Task.detached(priority: .userInitiated) {
-            _ = GameTuning.reefLabLevels.count + GameTuning.jellyLabLevels.count
+            _ = GameTuning.reefLabLevels.count + GameTuning.jellyLabLevels.count + GameTuning.kelpLevels.count
         }.value
         let remaining = GameTuning.launchMinimumSeconds - Date().timeIntervalSince(started)
         if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }

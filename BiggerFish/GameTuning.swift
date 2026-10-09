@@ -760,16 +760,30 @@ enum GameTuning {
         return main + [KelpSpec(columns: 0.7, gap: 0.38), KelpSpec(columns: 0.75, gap: 0.32), KelpSpec(columns: 0.8, gap: 0.3),
                        KelpSpec(columns: 0.75, gap: 0.3), KelpSpec(columns: 0.85, gap: 0.25)]
     }()
-    static let kelpLevels: [Level] = kelpSpecs.enumerated().map { index, spec in
-        // Levels 1-10 keep the layouts that were played. The Deep End takes the first layout the planner has no
-        // complaints about (a gate with only one way in plays as a single fixed path) and no wall of giants.
-        let plan = kelpRerolls[spec.name].map { MeetingPlanner.kelpPlan(spec, variation: $0) }
-            ?? (!ArcadeWorld.isDeepEnd(index) ? MeetingPlanner.kelpPlan(spec)
-                : (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
-                    ?? MeetingPlanner.kelpPlan(spec))
-        var level = plan.level
-        level.ecosystemSeedIndex = index
-        return level
+    /// Kelp Forest's levels as the game plays them: from `KelpPlans.json` for the frozen ones, otherwise planned
+    /// in code at launch. See "Level design: iterate in code, freeze before publishing" in AGENTS.md.
+    static let kelpLevels: [Level] = {
+        let bundled = Bundle.main.url(forResource: "KelpPlans", withExtension: "json")
+            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
+        return kelpSpecs.enumerated().map { index, spec in
+            let frozen = kelpFrozen.contains(spec.name) ? bundled.first { $0.spec == spec } : nil
+            var level = (frozen ?? kelpPlan(index)).level
+            level.ecosystemSeedIndex = index
+            return level
+        }
+    }()
+    /// Played and approved, so shipped exactly as saved in `KelpPlans.json`: a planner change can't alter them.
+    /// Take a level out of this set (with Kraig's OK) to tune it in code again, then regenerate the file.
+    static let kelpFrozen: Set<String> = Set(kelpSpecs.map(\.name))
+
+    /// A Kelp Forest level planned in code: its re-roll if it has one, otherwise the first layout (the Deep End
+    /// searching for one with no planner complaints and no wall of giants), with its hand tweaks applied.
+    static func kelpPlan(_ index: Int) -> MeetingPlan {
+        let spec = kelpSpecs[index]
+        if let variation = kelpRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation) }
+        guard ArcadeWorld.isDeepEnd(index) else { return MeetingPlanner.kelpPlan(spec) }
+        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
+            ?? MeetingPlanner.kelpPlan(spec)
     }
     /// A wall of giants: threats this big alongside you at the same time, leaving no gap this tall (screen
     /// points: room for you at the size you'd be) anywhere in the water.
@@ -777,8 +791,10 @@ enum GameTuning {
     static let giantWallGap: CGFloat = 80
     /// Levels re-rolled to another layout of the same settings. Kelp Forest 9's first had two giants just under
     /// the biggest you can grow in the opening; whichever ate first was out of reach for good.
-    /// Kelp Forest 15 is pinned to the layout whose opening Kraig likes, which its size fix below is for.
-    static let kelpRerolls: [String: Int] = ["Kelp Forest 9": 3, "Kelp Forest 15": 0]
+    /// The Deep End is pinned to the layouts Kraig played (the first each with no planner complaints and no wall of
+    /// giants), so launch doesn't search for them; 15 is also the layout whose opening he likes.
+    static let kelpRerolls: [String: Int] = ["Kelp Forest 9": 3, "Kelp Forest 11": 0, "Kelp Forest 12": 1,
+                                             "Kelp Forest 13": 3, "Kelp Forest 14": 0, "Kelp Forest 15": 0]
     /// Fish made a different size by hand. Kelp Forest 15's gate 21 needed six meals with no slack; Kraig found
     /// a way through with five (1, 3, 7, 11, 14: radius 31.8) and wants that to eat it. Four stay too few (28.2).
     static let kelpFishRadius: [String: [Int: CGFloat]] = ["Kelp Forest 15": [21: 31]]

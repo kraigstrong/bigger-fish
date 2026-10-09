@@ -36,6 +36,17 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   numbering of a released world's levels are the keys for saved progress: don't rename, reorder, or
   renumber them. A new field in `ArcadeSave` must load when a save doesn't have it (decode it with a
   default), and `ArcadeCampaignTests` loads a real 0.1 save to prove old saves still work.
+- **Bigger Fish level design: iterate in code, freeze before publishing.** While a world's levels are being
+  playtested, plan them in code at launch (Kelp Forest: `MeetingPlanner.kelpPlan`, milliseconds per level),
+  so a fix is a one-line change Kraig can rebuild and play: a re-roll to another variation
+  (`GameTuning.kelpRerolls`), a fish made a different size (`kelpFishRadius`), or turned to swim at you
+  (`kelpSwimsAtYou`). Once a level is played and approved, freeze it: add it to the world's frozen set
+  (`kelpFrozen`, `reefLabFrozen`, `jellyLabFrozen`), regenerate the world's plans file with its marker (for Kelp
+  Forest, `touch build/arcade-development/kelp-plans.request`, then run
+  `MeetingPlannerTests/manualWriteKelpPlans()`), and commit the JSON. **Freeze every level before
+  publishing (TestFlight or the App Store):** the shipped game loads saved plans and never plans on the device,
+  and a planner change can't alter a level players have. To change a frozen level, take it out of the frozen
+  set with Kraig's OK, tune it in code, and freeze it again.
 - **Tuning constants stay in one place per app:** `ReefTuning` at the top of
   `MathReef/PracticeScene.swift` and `BiggerFish/GameTuning.swift`.
 - **Debug-only tools go behind `#if DEBUG`.** Math Reef's Settings has crown previews and
