@@ -67,10 +67,18 @@ pass each other.
 
 ## Reef Lab's ten levels
 
-`GameTuning.reefLabSpecs` is a planned Shallow Reef, slot for slot with the campaign. Levels 2, 6, and 10
-are the playtested Easy, Medium, and Hard (their names seed their layouts); the levels between step every
-setting from one to the next, with speeds following Shallow Reef's authoring curve. Level 1 introduces gates
-with a couple of big fish to avoid; level 8 is Hard's shape without walls; walls arrive at level 9.
+`GameTuning.reefLabSpecs` is a planned Shallow Reef. Its levels 2, 6, and 10 are the playtested Easy, Medium,
+and Hard (their names seed their layouts); the levels between step every setting from one to the next, with
+speeds following Shallow Reef's authoring curve. Level 1 introduces gates with a couple of big fish to avoid;
+level 8 is Hard's shape without walls; walls arrive at level 9.
+
+**Reef Lab levels vs. Shallow Reef levels.** "Reef Lab level N" below means `reefLabSpecs[N - 1]`, the order
+the settings step in (Kelp Forest and Midnight Zone borrow them by this index). Shallow Reef plays them in
+`GameTuning.shallowReefOrder`, reordered from testers' 0.1 numbers (2026-10-09): Reef Lab 5 and 6 (Medium)
+play as Shallow Reef 3 and 4, Reef Lab 3 and 4 as 5 and 6, Hard (Reef Lab 10) as 8, and Reef Lab 8 as the
+finale, Shallow Reef 10. Levels 1, 2, 7, 9, and the bonus levels play in their own slots. Saves, the beta
+report's level numbers, `-arcadePlaytest`, `-arcadePlanner`, and the tuner's buttons all use Shallow Reef's
+numbers.
 
 Every level places all the big fish its settings ask for: one that can't be sized where it was asked for
 (an open-water slot, or a meal late in the lap), or whose slot another threat already took, moves to the
@@ -82,17 +90,18 @@ as first played; remove a name to re-plan that level. As played, Easy, Medium, a
 fish than their settings ask for, level 8 has two big fish crossing together, and level 9 has one fish
 slightly off its planned height.
 
-| Level | Fish | Forks | Misses survived per gate | First playtest (an experienced player) |
-|---|---:|---:|---|---|
-| 1 | 12 | 2 | 3+, 2 | first try |
-| 2 (Easy) | 17 | 3 | 3+, 2, 2 | first try |
-| 3 | 19 | 3 | 1–2 | 5 tries: a spike above 4–8 |
-| 4–5 | 21–23 | 3 | 1–2 | 2 tries each |
-| 6 (Medium) | 22 | 3 | 1, 1, 1 | 2 tries |
-| 7 | 25 | 4 | 1 | 3 tries |
-| 8 | 26 | 4 | 1 | first try; "about perfect" |
-| 9 | 30 | 4 | 1 | 20 tries; "about perfect" |
-| 10 (Hard) | 29 | 4 | 0, 0, 0 on the short lanes | 17 tries; "about perfect" |
+| Reef Lab level | Plays as Shallow Reef | Fish | Forks | Misses survived per gate | First playtest (an experienced player) | Testers, 0.1 (win rate, median tries to a first clear) |
+|---|---|---:|---:|---|---|---|
+| 1 | 1 | 12 | 2 | 3+, 2 | first try | 68%, 1 |
+| 2 (Easy) | 2 | 17 | 3 | 3+, 2, 2 | first try | 37%, 2 |
+| 3 | 5 | 19 | 3 | 1–2 | 5 tries: a spike above 4–8 | 12%, 4–5 |
+| 4 | 6 | 21 | 3 | 1–2 | 2 tries | 18%, 6–10 |
+| 5 | 3 | 23 | 3 | 1–2 | 2 tries | 50%, 2 |
+| 6 (Medium) | 4 | 22 | 3 | 1, 1, 1 | 2 tries | 36%, 1 |
+| 7 | 7 | 25 | 4 | 1 | 3 tries | 7%, 6–10 |
+| 8 | 10 | 26 | 4 | 1 | first try; "about perfect" | 1%, 21+ |
+| 9 | 9 | 30 | 4 | 1 | 20 tries; "about perfect" | 3%, 21+ |
+| 10 (Hard) | 8 | 29 | 4 | 0, 0, 0 on the short lanes | 17 tries; "about perfect" | 20%, 4–5 |
 
 Hard's meals are 76–90% of your size and its gates barely edible, so every catch is a close call. Its
 gates are walled (`walledGates`): a big fish crosses a tenth of a second before and after each gate,
@@ -215,7 +224,8 @@ debug tuner and the generator's tests (`GameScene(seeded: true)`). In Debug buil
 resets a world's progress for a new player.
 
 **Tuning > Shallow Reef variations** (Debug) plays other layouts of the same settings as practice runs, or launch with
-`-arcadePlanner 10.3` (level 10, variation 3); `-arcadePlaytest shallow-reef.10` plays the level itself.
+`-arcadePlanner 10.3` (Shallow Reef level 10, variation 3); `-arcadePlaytest shallow-reef.10` plays the level
+itself. Both use Shallow Reef's level numbers, as played.
 Recordings include each fish's role, fork lane, gate meals, routes, and slack.
 
 `MeetingPlannerTests` checks the presets, and its marker-gated studies report them

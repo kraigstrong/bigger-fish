@@ -281,7 +281,8 @@ struct ArcadeTuningPanel: View {
                     Text("Other layouts of the same \(ArcadeWorld.shallowReef.title) settings: every fish swims freely but is timed to cross your path at a planned height. Practice runs only.")
                         .font(.footnote)
                     Stepper("Variation: \(plannerVariation)", value: $plannerVariation, in: 0...99)
-                    ForEach(Array(GameTuning.reefLabSpecs.enumerated()), id: \.offset) { index, spec in
+                    // In play order: Shallow Reef's level numbers, not Reef Lab's (see `shallowReefOrder`).
+                    ForEach(Array(GameTuning.shallowReefOrder.map { GameTuning.reefLabSpecs[$0] }.enumerated()), id: \.offset) { index, spec in
                         Button("Play \(ArcadeWorld.shallowReef.title) level \(index + 1)") {
                             dismiss()
                             onPlanner(spec, plannerVariation)
