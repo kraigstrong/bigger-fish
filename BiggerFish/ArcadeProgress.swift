@@ -10,6 +10,8 @@ struct ArcadeSave: Codable {
     var hasSeenJellyLesson = false
     /// Worlds whose "conquered" unlock screen has been shown.
     var seenUnlocks: Set<String>? = nil
+    /// Worlds an unlock screen has announced as open (the next world on a world's "conquered" screen).
+    var announcedWorlds: Set<String>? = nil
 
     init() {}
 
@@ -19,6 +21,7 @@ struct ArcadeSave: Codable {
         bestTimes = (try? values.decodeIfPresent([String: Double].self, forKey: .bestTimes)) ?? [:]
         hasSeenJellyLesson = (try? values.decodeIfPresent(Bool.self, forKey: .hasSeenJellyLesson)) ?? false
         seenUnlocks = try? values.decodeIfPresent(Set<String>.self, forKey: .seenUnlocks)
+        announcedWorlds = try? values.decodeIfPresent(Set<String>.self, forKey: .announcedWorlds)
     }
 }
 
@@ -107,18 +110,27 @@ final class ArcadeProgress: ObservableObject {
         persist()
     }
 
-    /// A world whose tenth level is beaten but whose unlock screen was never shown: players who beat it before
-    /// that screen existed see it once. With several, the furthest along, since it announces the newest things.
+    /// A world whose tenth level is beaten but whose unlock screen the player hasn't had, shown once at launch:
+    /// players who beat it before that screen existed, and players who beat it before the world after it joined
+    /// the campaign (`ArcadeWorld.lateArrivals`) and haven't been told or tried that world since. With several, the
+    /// furthest along, since it announces the newest things.
     var unseenUnlock: ArcadeWorld? {
         ArcadeWorld.campaign.last { world in
-            isCleared(world, ArcadeWorld.mainLevelCount - 1) && !(save.seenUnlocks ?? []).contains(world.rawValue)
+            guard isCleared(world, ArcadeWorld.mainLevelCount - 1) else { return false }
+            if !(save.seenUnlocks ?? []).contains(world.rawValue) { return true }
+            guard let next = world.nextWorld, ArcadeWorld.lateArrivals.contains(next),
+                  !(save.announcedWorlds ?? []).contains(next.rawValue) else { return false }
+            let tried = clearedCounts(in: next)
+            return tried.main + tried.deepEnd == 0
         }
     }
 
-    /// Marks this world's unlock screen, and every earlier world's, as shown.
+    /// Marks this world's unlock screen, and every earlier world's, as shown, and the worlds they announce.
     func sawUnlock(_ world: ArcadeWorld) {
         guard let index = ArcadeWorld.campaign.firstIndex(of: world) else { return }
-        save.seenUnlocks = (save.seenUnlocks ?? []).union(ArcadeWorld.campaign.prefix(index + 1).map(\.rawValue))
+        let shown = ArcadeWorld.campaign.prefix(index + 1)
+        save.seenUnlocks = (save.seenUnlocks ?? []).union(shown.map(\.rawValue))
+        save.announcedWorlds = (save.announcedWorlds ?? []).union(shown.compactMap { $0.nextWorld?.rawValue })
         persist()
     }
 

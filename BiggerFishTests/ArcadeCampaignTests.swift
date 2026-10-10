@@ -97,6 +97,51 @@ struct ArcadeCampaignTests {
         #expect(fresh.unseenUnlock == .shallowReef)
     }
 
+    /// Midnight Zone joined after 0.2, whose Kelp Forest "conquered" screen said more worlds were coming. Players
+    /// who'd beaten Kelp Forest see that screen once more, now announcing Midnight Zone; nobody else does.
+    @Test func playersWhoBeatKelpForestBeforeMidnightZoneAreToldOnce() throws {
+        func load(_ json: String) -> (ArcadeProgress, UserDefaults) {
+            let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+            defaults.set(Data(json.utf8), forKey: ArcadeProgress.key)
+            return (ArcadeProgress(defaults: defaults), defaults)
+        }
+        #expect(ArcadeWorld.kelpForest.nextWorld == .midnightZone && ArcadeWorld.lateArrivals == [.midnightZone])
+        // Exactly what 0.2 wrote after beating Kelp Forest and seeing its screen.
+        let saved02 = #"{"clearedLevels":["shallow-reef.10","jelly-bloom.10","kelp-forest.10"],"bestTimes":{"kelp-forest.10":41.2},"hasSeenJellyLesson":true,"seenUnlocks":["shallow-reef","jelly-bloom","kelp-forest"]}"#
+        let (beaten, defaults) = load(saved02)
+        #expect(beaten.save.announcedWorlds == nil && beaten.isWorldOpen(.midnightZone))
+        #expect(beaten.unseenUnlock == .kelpForest)
+        beaten.sawUnlock(.kelpForest)
+        #expect(ArcadeProgress(defaults: defaults).unseenUnlock == nil)
+        #expect(ArcadeProgress(defaults: defaults).save.announcedWorlds?.contains("midnight-zone") == true)
+        // Already played Midnight Zone: nothing to announce.
+        let (played, _) = load(#"{"clearedLevels":["kelp-forest.10","midnight-zone.1"],"seenUnlocks":["shallow-reef","jelly-bloom","kelp-forest"]}"#)
+        #expect(played.unseenUnlock == nil)
+        // Only up to Jelly Bloom's screen, which already announced Kelp Forest: nothing new either.
+        let (earlier, _) = load(#"{"clearedLevels":["shallow-reef.10","jelly-bloom.10"],"seenUnlocks":["shallow-reef","jelly-bloom"]}"#)
+        #expect(earlier.unseenUnlock == nil)
+        // Beating Kelp Forest from now on shows the screen with Midnight Zone on it once, as usual.
+        let (fresh, _) = fresh()
+        fresh.clear(.kelpForest, 9, seconds: 40)
+        #expect(fresh.unseenUnlock == .kelpForest)
+        fresh.sawUnlock(.kelpForest)
+        #expect(fresh.unseenUnlock == nil)
+    }
+
+    /// Everything that ships plays saved plans, never plans on the device (AGENTS.md: freeze before publishing).
+    @Test func everyCampaignLevelIsFrozen() {
+        let frozen: [ArcadeWorld: (specs: [MeetingSpec], frozen: Set<String>)] = [
+            .shallowReef: (GameTuning.reefLabSpecs, GameTuning.reefLabFrozen),
+            .jellyBloom: (GameTuning.jellyLabSpecs, GameTuning.jellyLabFrozen),
+            .kelpForest: (GameTuning.kelpSpecs, GameTuning.kelpFrozen),
+            .midnightZone: (GameTuning.midnightSpecs, GameTuning.midnightFrozen),
+        ]
+        #expect(Set(frozen.keys) == Set(ArcadeWorld.campaign), "a campaign world has no frozen set here")
+        for (world, levels) in frozen {
+            #expect(Set(levels.specs.map(\.name)).isSubset(of: levels.frozen), "\(world.title) has levels that aren't frozen")
+        }
+    }
+
     @Test func clearUnlocksOnlyTheNextLevelAndPersists() {
         let (progress, defaults) = fresh()
         progress.clear(.jellyBloom, 0, seconds: 42)

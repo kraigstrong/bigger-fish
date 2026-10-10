@@ -98,4 +98,5 @@ New in 0.2, worlds unlock in order:
 | Build | Date | Source commit | Notes |
 |---|---|---|---|
 | 0.1 (1) | | `9385ced` (`bigger-fish-v0.1-beta.1`) | First external build. |
-| 0.2 | | | Kelp Forest, The Deep End, worlds unlock in order, unlock screens. |
+| 0.2 (1) | 2026-10-09 | `f98f340` (`bigger-fish-v0.2-beta.1`) | Kelp Forest, The Deep End, worlds unlock in order, unlock screens. |
+| 0.3 (1) | | | Midnight Zone (world four: a headlamp in the dark, anglerfish lures); Shallow Reef reordered from 0.1 testers' numbers; beating a level 10 goes straight to the conquered screen; players who'd beaten Kelp Forest are told once that Midnight Zone is open. |
