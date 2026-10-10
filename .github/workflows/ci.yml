@@ -4,32 +4,79 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Nightly, or by hand from the Actions tab: Bigger Fish re-plans every Shallow Reef spec, where a pull
+  # request checks a sample (MeetingPlannerTests).
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Which apps to test. A pull request tests only the app it changes; FishKit, the project, CI, or any file this
+  # doesn't know tests everything, and notes, docs, art sources, and scripts aren't built, so they test nothing.
+  # A push to main tests everything, and the nightly run tests Bigger Fish.
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Pick the jobs to run
+        id: pick
+        run: |
+          math_reef=false bigger_fish=false fishkit=false
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              # A pull request is checked out merged into its base, so the merge's first parent is the base.
+              changed=$(git diff --name-only HEAD^1 HEAD)
+              while IFS= read -r file; do
+                case "$file" in
+                  "") ;;
+                  MathReef/*|MathReefTests/*|MathReef.storekit) math_reef=true ;;
+                  BiggerFish/*|BiggerFishTests/*|BiggerFish.storekit|BiggerFish-Info.plist) bigger_fish=true ;;
+                  *.md|docs/*|Art/*|scripts/*|LICENSE) ;;
+                  *) math_reef=true bigger_fish=true fishkit=true ;;
+                esac
+              done <<< "$changed"
+              ;;
+            schedule|workflow_dispatch) bigger_fish=true ;;
+            *) math_reef=true bigger_fish=true fishkit=true ;;
+          esac
+          jobs=()
+          if $math_reef; then
+            jobs+=('{"name": "Math Reef", "dir": ".", "target": "-project BiggerFish.xcodeproj -scheme MathReef"}')
+          fi
+          if $bigger_fish; then
+            jobs+=('{"name": "Bigger Fish", "dir": ".", "target": "-project BiggerFish.xcodeproj -scheme BiggerFish"}')
+          fi
+          if $fishkit; then
+            jobs+=('{"name": "FishKit", "dir": "Packages/FishKit", "target": "-scheme FishKit"}')
+          fi
+          matrix="[$(IFS=,; echo "${jobs[*]}")]"
+          echo "matrix=$matrix" | tee -a "$GITHUB_OUTPUT"
+
   test:
     name: ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.matrix != '[]'
     runs-on: macos-26
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: Math Reef
-            dir: .
-            target: -project BiggerFish.xcodeproj -scheme MathReef
-          - name: Bigger Fish
-            dir: .
-            target: -project BiggerFish.xcodeproj -scheme BiggerFish
-          - name: FishKit
-            dir: Packages/FishKit
-            target: -scheme FishKit
+        include: ${{ fromJSON(needs.changes.outputs.matrix) }}
     env:
       # Coverage slows the tests, so only a push to main measures it.
       COVERAGE: ${{ github.event_name == 'push' && 'YES' || 'NO' }}
+      # xcodebuild passes TEST_RUNNER_ variables to the tests without the prefix.
+      TEST_RUNNER_BIGGER_FISH_FULL_PLANNER_TESTS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '0' }}
     steps:
       - uses: actions/checkout@v7
 
