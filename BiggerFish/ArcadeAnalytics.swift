@@ -74,6 +74,16 @@ final class ArcadeAnalytics {
             appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1",
             build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1", channel: channel)
     }
+    /// The first-launch tutorial: started, finished, or skipped (once each per install). Off until the stats server
+    /// accepts these milestones (it rejects a whole batch with a name it doesn't know) and the Bigger Fish privacy
+    /// page discloses them; then turn on `sendsTutorialMilestones`.
+    enum TutorialMilestone: String { case started = "tutorial_started", completed = "tutorial_completed", skipped = "tutorial_skipped" }
+    static let sendsTutorialMilestones = false
+    func tutorial(_ event: TutorialMilestone) {
+        guard enabled, Self.sendsTutorialMilestones else { return }
+        milestone(event.rawValue, context: nil)
+    }
+
     func launched() {
         guard enabled else { return }
         milestone("first_launch", context: nil)
