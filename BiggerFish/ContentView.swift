@@ -27,6 +27,7 @@ struct ContentView: View {
     @State private var review = ArcadeReview()
     @State private var lastPlayWon = true
     @Environment(\.requestReview) private var requestReview
+    @Environment(\.scenePhase) private var scenePhase
     /// The unlock's screen, featuring the world the player was trying to get into.
     @State private var offer: UnlockOffer?
     /// The loading screen shows until every world's levels are ready.
@@ -161,8 +162,11 @@ struct ContentView: View {
         withAnimation { celebrating = world }
     }
 
-    /// On a map with nothing else on screen, after a win: the moment to ask for a review, if one is due.
-    private var quietOnMap: Bool { loaded && scene == nil && celebrating == nil && offer == nil && lastPlayWon }
+    /// On a map with nothing else on screen, after a win, with the app in front: the moment to ask for a review, if
+    /// one is due. (In the background or under Notification Center, a request may show nothing yet use up an ask.)
+    private var quietOnMap: Bool {
+        loaded && scenePhase == .active && scene == nil && celebrating == nil && offer == nil && lastPlayWon
+    }
 
     private func askForReviewIfDue() {
         guard quietOnMap, review.shouldRequest(channel: ArcadeAnalytics.channel) else { return }
