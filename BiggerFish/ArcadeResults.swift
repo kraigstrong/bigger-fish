@@ -15,7 +15,9 @@ enum ArcadeResultAction: Equatable {
         }
     }
 
-    static func choices(passed: Bool, hasNext: Bool) -> [Self] {
+    /// `retryOnly`: the tutorial's, where being eaten just tries again.
+    static func choices(passed: Bool, hasNext: Bool, retryOnly: Bool = false) -> [Self] {
+        if retryOnly && !passed { return [.tryAgain] }
         if passed && hasNext { return [.nextLevel, .playAgain, .levels] }
         return passed ? [.world, .playAgain] : [.tryAgain, .levels]
     }
@@ -32,10 +34,11 @@ final class ArcadeResultPanel: SKNode {
     private(set) var controls: [(action: ArcadeResultAction, frame: CGRect)] = []
     private(set) var primaryAction: ArcadeResultAction?
 
-    /// `progress`, after a win: the world's pips and crown, in place of the detail line.
-    init(size: CGSize, passed: Bool, hasNext: Bool, detail: String, progress: WorldProgressStrip? = nil) {
+    /// `progress`, after a win: the world's pips and crown, in place of the detail line. `retryOnly`: one button, Retry,
+    /// on a shorter card (the tutorial's).
+    init(size: CGSize, passed: Bool, hasNext: Bool, detail: String, progress: WorldProgressStrip? = nil, retryOnly: Bool = false) {
         super.init()
-        let choices = ArcadeResultAction.choices(passed: passed, hasNext: hasNext)
+        let choices = ArcadeResultAction.choices(passed: passed, hasNext: hasNext, retryOnly: retryOnly)
         primaryAction = choices.first
         let maxWidth = size.width - 100
         let heading = text(passed ? "Level passed!" : "Try again!", size: 32, heavy: true)
@@ -43,8 +46,11 @@ final class ArcadeResultPanel: SKNode {
         if line.frame.width > maxWidth - 60 { line.fontSize *= (maxWidth - 60) / line.frame.width }
         let detailWidth = progress?.width ?? line.frame.width
         let width = min(maxWidth, max(430, heading.frame.width + 60, detailWidth + 60))
-        // The pips and their caption take a little more room than the detail line; the buttons stay put.
-        let height: CGFloat = progress == nil ? 256 : 284
+        // The pips and their caption take a little more room than the detail line; the buttons stay put. With no row of
+        // smaller buttons, the card is shorter and everything moves down to fill it.
+        let single = choices.count == 1
+        let height: CGFloat = single ? 200 : progress == nil ? 256 : 284
+        let lift: CGFloat = single ? -26 : 0
         let backing = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
         backing.fillColor = passed ? SKColor(red: 0.10, green: 0.52, blue: 0.30, alpha: 0.92)
                                    : SKColor(white: 0, alpha: 0.65)
@@ -58,8 +64,8 @@ final class ArcadeResultPanel: SKNode {
             progress.position = CGPoint(x: 0, y: 60)
             addChild(progress)
         } else {
-            heading.position = CGPoint(x: 0, y: 83)
-            line.position = CGPoint(x: 0, y: 40)
+            heading.position = CGPoint(x: 0, y: 83 + lift)
+            line.position = CGPoint(x: 0, y: 40 + lift)
             addChild(line)
         }
         for (i, action) in choices.enumerated() {
@@ -69,7 +75,7 @@ final class ArcadeResultPanel: SKNode {
             // 58 logical points remains a 44-point target on the smallest fitted phone playfield.
             let buttonHeight: CGFloat = 58
             let rowWidth = CGFloat(secondaryCount) * buttonWidth + CGFloat(secondaryCount - 1) * 14
-            let center = primary ? CGPoint(x: 0, y: -17)
+            let center = primary ? CGPoint(x: 0, y: -17 + lift)
                 : CGPoint(x: -rowWidth / 2 + buttonWidth / 2 + CGFloat(i - 1) * (buttonWidth + 14), y: -86)
             let frame = CGRect(x: center.x - buttonWidth / 2, y: center.y - buttonHeight / 2,
                                width: buttonWidth, height: buttonHeight)

@@ -45,15 +45,14 @@ struct ArcadeTutorialTests {
         #expect(GameRules.playerEncounter(once, wall) == .secondEatsFirst, "one meal shouldn't be enough")
         #expect(GameRules.playerEncounter(twice, wall) == .firstEatsSecond, "two meals should be")
         #expect(abs(twice / wall - T.tutorialWallMargin) < 0.001)
-        // Missed one: the next makes you big enough on its own.
-        #expect(GameRules.playerEncounter(A.grow(once, eating: A.wallMeal(you: once, wall: wall, meals: 1)), wall) == .firstEatsSecond)
-        // At the tutorial's zoom, three wall fish leave no gap anywhere you can swim: as you are when it comes, and
-        // when you're big enough to eat through.
+        // At the tutorial's zoom, three wall fish leave no gap anywhere you can swim, however they bob: as you are when
+        // it comes, after one meal, and when you're big enough to eat through.
         let water = PlayerTimeline.waterBounds(zoom: T.tutorialZoom)
         let heights = A.wallHeights(bottom: water.bottom, top: water.top)
-        #expect(heights.count == 3)
-        for size in [you, twice] {
-            #expect(A.wallBlocks(you: size, wall: wall, heights: heights, bottom: water.bottom, top: water.top), "a fish of \(size)")
+        #expect(heights.count == 3 && T.tutorialWallAhead.count == 3)
+        for size in [you, once, twice] {
+            #expect(A.wallBlocks(you: size, wall: wall, heights: heights, bottom: water.bottom, top: water.top, bob: T.tutorialWallBob),
+                    "a fish of \(size)")
         }
         // Spread out, with clear water between them.
         #expect(heights[1] - heights[0] > 2 * wall * 1.6)
@@ -72,7 +71,7 @@ struct ArcadeTutorialTests {
         #expect(between > 0.55, "time to swallow the first meal before the second: \(between) s")
         // Everything that swims at you does so faster than you swim, so it never looks to swim backwards.
         let you = 1 / 3.2
-        #expect([T.tutorialMissedMealSpeed, T.tutorialMissedFishSpeed, T.tutorialWallSpeed].allSatisfy { $0 > you })
+        #expect([T.tutorialMissedMealSpeed, T.tutorialMissedFishSpeed].allSatisfy { $0 > you })
     }
 
     @Test func youCantEatTheMissedFishsMealsWhileItEatsThem() {
@@ -87,17 +86,58 @@ struct ArcadeTutorialTests {
         withExtendedLifetime(view) {}
     }
 
-    @Test func aMissedWallMealComesInFromTheRightAndTwoAreEnough() {
+    /// The wall plays like a level: two meals and the wall swim freely (nothing scripted), coming in from off screen
+    /// ahead, and the meals wander up and down rather than run on rails.
+    @Test func theWallPlaysLikeALevel() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
-        let run = scene.debugPlayTutorial(dodgesAWallMeal: true)
-        #expect(run.finished)
-        let entries = scene.debugWallMealEntries
-        // One dodged, so a third came; every one swam in from off screen on the right, never popping up mid-water.
-        #expect(entries.count == 3, "meals: \(entries)")
-        #expect(entries.allSatisfy { $0 > 0.7 }, "entries: \(entries)")
-        #expect(scene.debugWallMealsEaten == 2)
+        scene.debugStartTutorial(at: .eatEnough)
+        var beat = scene.debugWallBeat
+        #expect(beat.meals.count == 2 && beat.wall.count == 3 && beat.scripted == 0)
+        // Everything starts off screen ahead (you're 0.3 of a screen from the left edge), the meals before the wall.
+        let starts = (beat.meals + beat.wall).map { scene.debugTutorialPlace($0).ahead }
+        #expect(starts.allSatisfy { $0 > 0.75 }, "starts: \(starts)")
+        #expect(starts[1] < starts[2...].min()!)
+        // The first meal swims at you, the second away (you chase it), and the wall at you.
+        #expect(beat.meals.map(\.facing) == [-1, 1] && beat.wall.allSatisfy { $0.facing == -1 })
+        let heights = beat.meals.map { scene.debugTutorialPlace($0).share }
+        scene.debugAdvance(seconds: 2.5)
+        beat = scene.debugWallBeat
+        let wandered = zip(beat.meals.map { scene.debugTutorialPlace($0).share }, heights).map { abs($0 - $1) }
+        #expect(wandered.allSatisfy { $0 > 0.01 }, "the meals should wander: \(wandered)")
+        for (meal, swim) in zip(beat.meals, GameTuning.tutorialWallMeals) {
+            #expect(abs(scene.debugTutorialPlace(meal).share - swim.home) <= swim.wander + 0.001)
+        }
+        withExtendedLifetime(view) {}
+    }
+
+    /// Miss a meal and the wall eats you; the card offers just Retry, which starts the wall again at once.
+    @Test func missingAMealGetsYouEatenAndRetryStartsTheWallAgain() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        let run = scene.debugPlayTutorial(missesAWallMeal: true, from: .eatEnough)
+        #expect(!run.finished && run.seconds < 20, "lasted \(run.seconds) s")
+        #expect(scene.debugResultTitles == ["Retry"])
+        scene.debugTapResult(.tryAgain)
+        let beat = scene.debugWallBeat
+        #expect(scene.debugTutorialBeat == .eatEnough && beat.meals.count == 2 && beat.wall.count == 3)
+        #expect(abs(scene.debugPlayerRadius - ArcadeTutorial.radius(startingAt: .eatEnough)) < 0.001)
+        // Playing straight in: no card, no first tap.
+        #expect(scene.debugResultTitles.isEmpty)
+        // And eating both gets you through.
+        #expect(scene.debugPlayTutorial(from: .eatEnough).finished)
+        withExtendedLifetime(view) {}
+    }
+
+    /// The meals wander, but gently: a first-time player who's slow on the controls still catches both.
+    @Test func aSlowPlayerStillGetsThroughTheWall() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        let run = scene.debugPlayTutorial(from: .eatEnough, lag: 0.5)
+        #expect(run.finished && scene.debugWallBeat.meals.isEmpty, "after \(run.seconds) s")
         withExtendedLifetime(view) {}
     }
 
