@@ -38,13 +38,14 @@ struct ArcadeCampaignTests {
     /// A playtester noticed Jelly Bloom's level 1 and level 2 cards said different things: each world says
     /// the same thing everywhere, and Jelly Bloom calls its jellyfish's parts tops and tentacles.
     @Test func eachWorldDescribesItselfOneWay() {
-        for world in ArcadeWorld.campaign {
-            #expect(world.levelCard.count == 3 && world.levelCard.last == "Be the last fish swimming.")
+        for world in ArcadeWorld.campaign where world != .shallowReef {
+            #expect(world.rules.count == 2)
         }
-        let jelly = ([ArcadeWorld.jellyBloom.subtitle] + ArcadeWorld.jellyBloom.levelCard).joined(separator: " ").lowercased()
+        #expect(ArcadeWorld.shallowReef.rules.isEmpty)
+        let jelly = ([ArcadeWorld.jellyBloom.subtitle] + ArcadeWorld.jellyBloom.rules).joined(separator: " ").lowercased()
         #expect(jelly.contains("tops") && jelly.contains("tentacles"))
         for other in ["bell", "dome", "bottom", "sting"] { #expect(!jelly.contains(other), "Jelly Bloom says \(other)") }
-        #expect(ArcadeWorld.kelpForest.levelCard.joined().lowercased().contains("kelp"))
+        #expect(ArcadeWorld.kelpForest.rules.joined().lowercased().contains("kelp"))
     }
 
     /// Progress must survive every update. These are the shapes a stored save can take.
