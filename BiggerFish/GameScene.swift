@@ -1596,7 +1596,8 @@ final class GameScene: SKScene {
             // swim ahead of it (they set off in `advanceTutorial`), and it catches them as it goes by you.
             tutorialMissedLane = T.tutorialRaceLane
             tutorialMissedMeals = []
-            hideTutorialCaption()
+            // Up as soon as you're held, so you've read it by the time the fish come in.
+            tutorialCaptionPending = beat.caption
         case .catchItBack:
             tutorialCaptionPending = beat.caption
             let you = player.targetRadius
@@ -1695,7 +1696,6 @@ final class GameScene: SKScene {
                 tutorialMissedFish = spawnTutorialFish(T.tutorialMissedFish, style: ArcadeTutorial.missedStyle,
                     path: .straight(share: lane, speed: T.tutorialMissedFishSpeed), leaves: false)
             }
-            if elapsed >= sets + 0.6, tutorialCaption.alpha == 0, !tutorialCaption.hasActions() { showTutorialCaption(tutorialBeat.caption) }
             guard let missed = tutorialMissedFish else { return }
             if fishByID[missed] == nil {
                 // You ate it after all: one that already grew is off round the reef, and it's coming back.
