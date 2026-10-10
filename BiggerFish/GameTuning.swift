@@ -998,6 +998,20 @@ enum GameTuning {
     static let tutorialZoom: CGFloat = 1
     /// The size of each beat's line at the top of the screen.
     static let tutorialCaptionSize: CGFloat = 30
+    /// The first two beats: one hold has to lift you this share of the water (or to near the top), and letting go
+    /// has to drop you this share from your highest. The finger shows again if you haven't after
+    /// `tutorialHintSeconds`. It presses here (shares of the screen), open water well away from your fish.
+    static let tutorialRiseShare: CGFloat = 0.3
+    static let tutorialFallShare: CGFloat = 0.22
+    static let tutorialHintSeconds: CGFloat = 3.5
+    static let tutorialFingerSpot = CGPoint(x: 0.68, y: 0.42)
+    /// The race: the missed fish and its meals swim in this lane (share of the water), just under the line at the top
+    /// so you can read it and watch; you glide down to `tutorialHeldShare` and hold there while it eats.
+    static let tutorialRaceLane: CGFloat = 0.72
+    static let tutorialHeldShare: CGFloat = 0.28
+    static let tutorialHeldGlide: CGFloat = 220
+    /// How fast (points a second) the wall's glowing meals turn toward your height as they come, so they're easy to get.
+    static let tutorialMealHoming: CGFloat = 110
     /// After the last catch: when its closing line fades in, and when it leaves for the map (seconds, real time).
     static let tutorialFinaleDelay: CGFloat = 0.5
     static let tutorialFinaleSeconds: CGFloat = 2.8

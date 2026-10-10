@@ -2,13 +2,17 @@ import CoreGraphics
 import FishKit
 import SpriteKit
 
-/// Bigger Fish's first-launch tutorial: five short beats, the same every time, that teach the race at the heart of
-/// the game. Eat smaller fish, steer clear of bigger ones, and eat on your first pass: a fish you miss keeps eating,
+/// Bigger Fish's first-launch tutorial: seven short beats, the same every time, that teach the race at the heart of
+/// the game. Hold to rise and let go to fall, as Math Reef teaches it; eat smaller fish, steer clear of bigger ones, and eat on your first pass: a fish you miss keeps eating,
 /// swims on round the reef, and comes back bigger. Then the gates every level has: eat enough to get through. The
 /// fish swim scripted paths, but every bite is the game's own (the same collisions, swallows, and growth as a
 /// level), so you watch a missed fish's real size change.
 enum ArcadeTutorial {
     enum Beat: Int, CaseIterable {
+        /// A finger presses open water: touching anywhere lifts you (your first touch starts the tutorial).
+        case holdToRise
+        /// The finger lifts off: let go and you sink.
+        case letGoToFall
         /// One small glowing fish ahead.
         case eatSmaller
         /// A bigger fish swims at you: go around it.
@@ -23,6 +27,8 @@ enum ArcadeTutorial {
         /// The one short line shown with the beat.
         var caption: String {
             switch self {
+            case .holdToRise: "Hold anywhere to rise"
+            case .letGoToFall: "Let go to fall"
             case .eatSmaller: "Eat smaller fish"
             case .dodgeBigger: "Avoid bigger fish"
             case .missedFishEats: "Fish you miss keep eating"
@@ -35,15 +41,13 @@ enum ArcadeTutorial {
         var checkpoint: Beat { self == .catchItBack ? .missedFishEats : self }
     }
 
-    /// The card before it starts, and the line it ends on before fading to the map.
-    static let title = "Bigger Fish"
-    static let card = ["Hold anywhere to rise.", "Let go to fall."]
+    /// The line it ends on before fading to the map.
     static let finale = "Now you're ready to play!"
 
     /// Your radius at the start of a beat, eating what the beats before it fed you.
     static func radius(startingAt beat: Beat) -> CGFloat {
         let base = GameTuning.baseRadius
-        guard beat != .eatSmaller else { return base }
+        guard beat.rawValue > Beat.eatSmaller.rawValue else { return base }
         let afterFirst = grow(base, eating: GameTuning.tutorialFirstMeal)
         guard beat == .eatEnough else { return afterFirst }
         let afterLast = grow(afterFirst, eating: lastMeal(you: afterFirst, rival: missedFishGrown))

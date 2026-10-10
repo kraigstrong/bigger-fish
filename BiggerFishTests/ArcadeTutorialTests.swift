@@ -87,6 +87,20 @@ struct ArcadeTutorialTests {
         withExtendedLifetime(view) {}
     }
 
+    @Test func aMissedWallMealComesInFromTheRightAndTwoAreEnough() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        let run = scene.debugPlayTutorial(dodgesAWallMeal: true)
+        #expect(run.finished)
+        let entries = scene.debugWallMealEntries
+        // One dodged, so a third came; every one swam in from off screen on the right, never popping up mid-water.
+        #expect(entries.count == 3, "meals: \(entries)")
+        #expect(entries.allSatisfy { $0 > 0.7 }, "entries: \(entries)")
+        #expect(scene.debugWallMealsEaten == 2)
+        withExtendedLifetime(view) {}
+    }
+
     @Test func pathsAreMeasuredFromYou() {
         let path = TutorialPath.headOn(share: 0.6, crossing: 1.6)
         #expect(path.at(0) == (0.78, 0.6))
