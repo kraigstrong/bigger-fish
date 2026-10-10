@@ -76,7 +76,7 @@ New in 0.3, Midnight Zone and a reordered Shallow Reef:
 ## Turning on the unlock
 
 Bigger Fish is free to try: all ten of Shallow Reef's levels and the first two of every other world
-(`ArcadeUnlock.freeLevels`). A one-time purchase opens every world from the start and every Deep End; a
+(`GameTuning.freeLevelsPerWorld`). A one-time purchase opens every world from the start and every Deep End; a
 world's Deep End still opens when its level 10 is beaten. Xcode builds sell it against `BiggerFish.storekit`.
 Release builds don't sell it until `ArcadeUnlock.isSelling` is turned on, and until then everyone plays
 as if they'd bought it. To turn it on:

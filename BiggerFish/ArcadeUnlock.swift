@@ -20,10 +20,10 @@ enum ArcadeUnlock {
     static let isSelling = false
     #endif
 
-    /// The main levels free in each world: all of Shallow Reef's, and the first few of every other world so a player
-    /// can see what they'd be buying. The Deep End is never free.
+    /// The main levels free in each world: all of Shallow Reef's, and the first few of every other world
+    /// (`GameTuning.freeLevelsPerWorld`) so a player can see what they'd be buying. The Deep End is never free.
     static func freeLevels(in world: ArcadeWorld) -> Int {
-        world == .shallowReef ? ArcadeWorld.mainLevelCount : 2
+        world == .shallowReef ? ArcadeWorld.mainLevelCount : min(GameTuning.freeLevelsPerWorld, ArcadeWorld.mainLevelCount)
     }
 
     /// Past the free levels without the unlock: tapping it offers the unlock instead of playing. Worlds still being

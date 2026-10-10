@@ -21,9 +21,10 @@ struct ArcadeUnlockTests {
     @Test func everyOtherWorldHasATasteThenTheUnlock() {
         for world in ArcadeWorld.campaign where world != .shallowReef {
             let free = ArcadeUnlock.freeLevels(in: world)
-            #expect(free > 0 && free < ArcadeWorld.mainLevelCount)
-            #expect(ArcadeUnlock.isWorldOpen(world, unlocked: false, selling: true))
-            #expect(!ArcadeUnlock.needsUnlock(world, free - 1, unlocked: false, selling: true))
+            #expect(free == GameTuning.freeLevelsPerWorld && free < ArcadeWorld.mainLevelCount)
+            // With no free levels, the world is locked whole until the unlock.
+            #expect(ArcadeUnlock.isWorldOpen(world, unlocked: false, selling: true) == (free > 0))
+            if free > 0 { #expect(!ArcadeUnlock.needsUnlock(world, free - 1, unlocked: false, selling: true)) }
             #expect(ArcadeUnlock.needsUnlock(world, free, unlocked: false, selling: true))
             #expect(ArcadeUnlock.needsUnlock(world, ArcadeWorld.mainLevelCount, unlocked: false, selling: true))
         }
