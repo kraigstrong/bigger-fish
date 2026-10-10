@@ -240,6 +240,31 @@ struct ProgressStoreTests {
         return defaults
     }
 
+    /// A save that doesn't read whole never costs a child their progress: the original is set aside before anything
+    /// can overwrite it, and every level's record that still reads is kept, through the next finished round.
+    @Test func aSaveThatDoesntReadWholeKeepsWhatItCan() throws {
+        let addition = Curriculum.worlds.first { $0.id == "addition" }!
+        let first = addition.levels[0].id, second = addition.levels[1].id
+        // One good record and one that can't be a record (a bad field type).
+        let damaged = #"{"\#(first)":{"passed":true,"bestPercent":90,"hasPlayed":true},"\#(second)":{"passed":"yes"}}"#
+        let defaults = freshDefaults()
+        defaults.set(Data(damaged.utf8), forKey: "mathReef.progress.v2")
+        let store = ProgressStore(defaults: defaults)
+        #expect(store.record(for: addition.levels[0]).passed && store.record(for: addition.levels[0]).bestPercent == 90)
+        #expect(defaults.data(forKey: ProgressStore.unreadableKey) == Data(damaged.utf8))
+        // The next round saves alongside what was kept, and the original stays set aside.
+        store.finishRound(2, in: addition, correct: 10, attempts: 10)
+        let reloaded = ProgressStore(defaults: defaults)
+        #expect(reloaded.record(for: addition.levels[0]).passed && reloaded.record(for: addition.levels[2]).passed)
+        #expect(defaults.data(forKey: ProgressStore.unreadableKey) == Data(damaged.utf8))
+
+        // Not even JSON: nothing to keep, but the original is still set aside, not lost.
+        let garbage = freshDefaults()
+        garbage.set(Data("not json".utf8), forKey: "mathReef.progress.v2")
+        #expect(!ProgressStore(defaults: garbage).hasProgress)
+        #expect(garbage.data(forKey: ProgressStore.unreadableKey) == Data("not json".utf8))
+    }
+
     /// The Settings shortcuts in debug builds land each crown state, and don't touch other worlds.
     @Test func debugWorldSetupsReachEachCrownState() {
         let defaults = freshDefaults()
@@ -412,6 +437,42 @@ struct PracticeSessionTests {
         #expect(session.upcoming[0] != missed && session.upcoming[1] != missed)
         #expect(session.upcoming[2] == missed)
     }
+
+    /// A miss among the last questions still comes back before the round ends: the round grows to reach it, rather than
+    /// ending on the fillers in front of it.
+    @Test func aMissAtTheEndComesBackBeforeTheRoundEnds() {
+        var rng = SeededGenerator(seed: 8)
+        var session = PracticeSession(level: Curriculum.multiplication[6], using: &rng)
+        let target = session.targetCorrect
+        for _ in 0..<(target - 1) { session.record(correct: true) }
+        let missed = session.current!
+        session.record(correct: false)  // the last question, missed
+        #expect(!session.isComplete && session.targetCorrect == target + 2)
+        session.record(correct: true)
+        session.record(correct: true)
+        #expect(session.current == missed, "it comes back")
+        session.record(correct: true)
+        #expect(session.isComplete && session.result.correctAnswers == session.targetCorrect)
+
+        // Missed again when it comes back: it comes back again.
+        var again = PracticeSession(level: Curriculum.multiplication[6], using: &rng)
+        for _ in 0..<(again.targetCorrect - 1) { again.record(correct: true) }
+        let tricky = again.current!
+        again.record(correct: false)
+        again.record(correct: true); again.record(correct: true)
+        again.record(correct: false)  // `tricky`, wrong again
+        #expect(!again.isComplete && again.upcoming.contains(tricky))
+        while let next = again.current { again.record(correct: true); if again.isComplete { break }; _ = next }
+        #expect(again.isComplete && again.result.correctAnswers == again.targetCorrect)
+    }
+}
+
+/// The screen stays awake only while a child is playing: the maps, Settings, and the cards around a round sleep.
+@Test func theScreenStaysAwakeOnlyDuringPlay() {
+    let awake: [PracticeScene.Phase] = [.answering, .feedback, .tutorial]
+    let sleeps: [PracticeScene.Phase] = [.home, .world, .instructions, .summary]
+    #expect(awake.allSatisfy(PracticeScene.keepsScreenAwake))
+    #expect(!sleeps.contains(where: PracticeScene.keepsScreenAwake))
 }
 
 struct ReviewMixTests {

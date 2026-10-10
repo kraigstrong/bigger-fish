@@ -23,6 +23,19 @@ struct RoundSummaryTests {
         ))
     }
 
+    /// At the end of the free sample, passing doesn't open the next level (a grown-up does), so it doesn't say it did.
+    @Test func theLastFreeLevelSaysAGrownUpUnlocksTheNext() {
+        let free = FreeSample.freeLevels(in: addition)
+        let passed = freshStore().recordRound(free - 1, in: addition, correct: 10, attempts: 12, nextNeedsUnlock: true)
+        #expect(passed.passed && passed.outcome == "Ask a grown-up to unlock level \(free + 1).")
+        let missed = freshStore().recordRound(free - 1, in: addition, correct: 5, attempts: 12, nextNeedsUnlock: true)
+        #expect(!missed.passed && missed.outcome == "Get 80% to pass this level.")
+        // Unlocked: as any other level.
+        let unlocked = freshStore().recordRound(free - 1, in: addition, correct: 10, attempts: 12, nextNeedsUnlock: false)
+        #expect(unlocked.outcome == "Level \(free + 1) unlocked!")
+        #expect(PassRule.goal(nextOpens: true) == "Get 80% to unlock the next level.")
+    }
+
     @Test func replayingOnlyPopsTheStarsThatBeatTheBest() {
         let store = freshStore()
         store.recordRound(0, in: exponents, correct: 10, attempts: 12)

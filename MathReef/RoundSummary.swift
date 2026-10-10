@@ -20,8 +20,9 @@ struct RoundSummary: Equatable {
 }
 
 extension ProgressStore {
-    /// Saves a finished round and describes it for the results screen.
-    func recordRound(_ index: Int, in world: World, correct: Int, attempts: Int) -> RoundSummary {
+    /// Saves a finished round and describes it for the results screen. `nextNeedsUnlock`: the next level is past the free
+    /// sample and the reef isn't unlocked, so passing doesn't open it; a grown-up does.
+    func recordRound(_ index: Int, in world: World, correct: Int, attempts: Int, nextNeedsUnlock: Bool = false) -> RoundSummary {
         let hasNext = index + 1 < world.levels.count
         let alreadyUnlocked = hasNext && isUnlocked(index + 1, in: world)
         let wasSkipTest = isSkipTest(index, in: world)
@@ -35,9 +36,11 @@ extension ProgressStore {
         let outcome = if passed && wasSkipTest {
             "You skipped ahead!"
         } else if passed {
-            !hasNext ? "\(world.title) complete!" : alreadyUnlocked ? "Next level is open." : "Level \(index + 2) unlocked!"
+            !hasNext ? "\(world.title) complete!"
+                : nextNeedsUnlock ? "Ask a grown-up to unlock level \(index + 2)."
+                : alreadyUnlocked ? "Next level is open." : "Level \(index + 2) unlocked!"
         } else {
-            "Get 80% to unlock the next level."
+            PassRule.goal(nextOpens: hasNext && !nextNeedsUnlock)
         }
         return RoundSummary(
             title: passed ? "Level passed!" : stars > 0 ? "Nice try!" : "Keep practicing",

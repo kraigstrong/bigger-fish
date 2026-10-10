@@ -92,7 +92,7 @@ final class ReefAnalytics {
     /// The round being played, kept in memory and saved as pending while the app is inactive.
     private struct Round: Codable, Equatable {
         let level: String
-        let target: Int
+        var target: Int
         var correct = 0
     }
 
@@ -141,8 +141,10 @@ final class ReefAnalytics {
         reportOnce("level_started:\(level.id)")
     }
 
-    func roundProgress(correct: Int) {
+    /// `target`: the round's, if a miss near the end grew it (so `correct` never runs past it).
+    func roundProgress(correct: Int, target: Int? = nil) {
         round?.correct = correct
+        if let target { round?.target = target }
     }
 
     /// `level_passed` is for the level played; levels a checkpoint passes along the way don't count.

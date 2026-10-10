@@ -46,6 +46,21 @@ struct ReefAnalyticsTests {
         return summary
     }
 
+    /// A miss at the end grows the round; the report carries the grown target, so `correct` never runs past it.
+    @Test func aGrownRoundReportsItsFinalTarget() {
+        withDefaults { defaults in
+            let level = exponents.levels[0]
+            let store = ProgressStore(defaults: defaults)
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
+            analytics.roundStarted(level: level, target: 10)
+            analytics.roundProgress(correct: 12, target: 12)
+            let summary = store.recordRound(0, in: exponents, correct: 12, attempts: 13)
+            analytics.roundFinished(summary, level: level, in: exponents)
+            let report = rounds(analytics).last
+            #expect(report?.correct == 12 && report?.target == 12)
+        }
+    }
+
     // MARK: Milestones
 
     @Test func milestonesAreReportedOncePerInstall() {
