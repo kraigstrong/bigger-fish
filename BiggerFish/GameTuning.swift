@@ -1001,10 +1001,11 @@ enum GameTuning {
     ]
     /// How fast a meal wanders up and down (points a second): gently, so it's easy to line up with.
     static let tutorialMealWander: CGFloat = 26
-    /// The wall starts this many screens ahead of you (each fish a little apart, so it isn't a ruler-straight line)
-    /// and swims at you at `tutorialWallSwim` points a second, each fish bobbing `tutorialWallBob` points as it comes.
-    /// It comes into view while you're still after the second meal, and you reach it about two seconds after eating it.
-    static let tutorialWallAhead: [CGFloat] = [2.48, 2.42, 2.52]
+    /// The wall starts this many screens ahead of you and swims at you at a steady `tutorialWallSwim` points a second, its
+    /// three fish side by side (staggered, you could slip past one and then duck the next), each bobbing
+    /// `tutorialWallBob` points as it comes. It comes into view while you're still after the second meal, and you
+    /// reach it about two seconds after eating it.
+    static let tutorialWallAhead: CGFloat = 2.48
     static let tutorialWallSwim: CGFloat = 18
     static let tutorialWallBob: CGFloat = 4
     /// How far apart the wall's top and bottom fish are, as a share of the water (two thirds would space all three

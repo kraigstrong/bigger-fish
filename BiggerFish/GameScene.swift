@@ -1658,9 +1658,9 @@ final class GameScene: SKScene {
                 return spawnTutorialSwimmer(meal, style: FishStyle.random(using: &generator), swim: swim, glows: true)
             }
             let heights = ArcadeTutorial.wallHeights(bottom: waterBottom, top: waterTop)
-            tutorialWall = zip(heights, T.tutorialWallAhead).map { y, ahead in
+            tutorialWall = heights.map { y in
                 spawnTutorialSwimmer(tutorialWallSize, style: ArcadeTutorial.wallStyle,
-                                     swim: TutorialSwim(ahead: ahead, home: waterShare(y), wander: 0, heading: -1,
+                                     swim: TutorialSwim(ahead: T.tutorialWallAhead, home: waterShare(y), wander: 0, heading: -1,
                                                         speed: T.tutorialWallSwim, bob: T.tutorialWallBob))
             }
             lossReason = "Eat both fish to get through."
@@ -1827,15 +1827,16 @@ final class GameScene: SKScene {
     }
 
     /// A fish in the last beat swims like one in a level: on at its own pace, a little faster and slower as it goes,
-    /// wandering gently up and down near its height (a wall fish holds its place in the wall, bobbing), and turning to
-    /// face the way it swims.
+    /// wandering gently up and down near its height, and turning to face the way it swims. A wall fish holds its place
+    /// in the wall instead: a steady pace, so the three stay side by side with no way round, and only a bob.
     private func moveTutorialSwimmer(_ f: Fish, _ swim: TutorialSwim, _ dt: CGFloat) {
         var generator = aiMovementRNGs[f.id] ?? movementGenerator(for: f.id)
         defer { aiMovementRNGs[f.id] = generator }
         let water = waterTop - waterBottom, home = waterBottom + swim.home * water
         let reach = swim.bob > 0 ? swim.bob + 1 : swim.wander * water
         let low = max(waterBottom + f.radius, home - reach), high = max(low, min(waterTop - f.radius, home + reach))
-        let cruise = swim.heading * swim.speed * (1 + 0.2 * sin(simClock * 0.9 + f.phase))
+        let pulse = swim.bob > 0 ? 0 : 0.2 * sin(simClock * 0.9 + f.phase)
+        let cruise = swim.heading * swim.speed * (1 + pulse)
         let vx = f.velocity.dx + (cruise - f.velocity.dx) * min(1, dt * 1.5)
         let desiredVY: CGFloat
         if swim.bob > 0 {

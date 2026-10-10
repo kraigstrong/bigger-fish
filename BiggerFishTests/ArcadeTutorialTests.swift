@@ -50,7 +50,7 @@ struct ArcadeTutorialTests {
         // it comes, after one meal, and when you're big enough to eat through.
         let water = PlayerTimeline.waterBounds(zoom: T.tutorialZoom)
         let heights = A.wallHeights(bottom: water.bottom, top: water.top)
-        #expect(heights.count == 3 && T.tutorialWallAhead.count == 3)
+        #expect(heights.count == 3)
         for size in [you, once, twice] {
             #expect(A.wallBlocks(you: size, wall: wall, heights: heights, bottom: water.bottom, top: water.top, bob: T.tutorialWallBob),
                     "a fish of \(size)")
@@ -112,6 +112,14 @@ struct ArcadeTutorialTests {
         beat = scene.debugWallBeat
         let wandered = zip(beat.meals.map { scene.debugTutorialPlace($0).share }, heights).map { abs($0 - $1) }
         #expect(wandered.allSatisfy { $0 > 0.01 }, "the meals should wander: \(wandered)")
+        // The wall stays side by side as it comes, so there's no slipping past one fish and then ducking the next.
+        for _ in 0..<12 {
+            let lead = beat.wall.map { scene.debugTutorialPlace($0).ahead }
+            #expect(lead.max()! - lead.min()! < 0.002, "the wall's fish are \(lead) screens ahead")
+            scene.debugAdvance(seconds: 0.5)
+            beat = scene.debugWallBeat
+            if beat.wall.count < 3 { break }
+        }
         for (meal, swim) in zip(beat.meals, GameTuning.tutorialWallMeals) {
             #expect(abs(scene.debugTutorialPlace(meal).share - swim.home) <= swim.wander + 0.001)
         }
