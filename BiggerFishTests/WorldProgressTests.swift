@@ -1,6 +1,7 @@
 import Foundation
 import SpriteKit
 import Testing
+import UIKit
 @testable import BiggerFish
 
 /// A playtester didn't know beating all ten levels was the goal: every card and map shows the run and what's left.
@@ -65,6 +66,20 @@ struct WorldProgressTests {
         scene.debugAdvance(seconds: 1)
         scene.debugTapResult(.nextLevel)
         #expect(scene.debugCardTexts == ["Level 3", "Tap to start"])
+        withExtendedLifetime(view) {}
+    }
+
+    /// Restart from the pause menu replays without the card, whether it's tapped or chosen with VoiceOver.
+    @Test func voiceOverRestartAlsoSkipsTheCard() {
+        let scene = GameScene(world: .kelpForest, levelIndex: 2)
+        scene.hasCleared = { $0 < 2 }
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        scene.debugStart()
+        scene.debugPauseForTuning()
+        let restart = (scene.accessibilityElements as? [UIAccessibilityElement])?.first { $0.accessibilityLabel == "Restart" }
+        #expect(restart?.accessibilityActivate() == true)
+        #expect(scene.debugCardTexts == ["Tap to start"])
         withExtendedLifetime(view) {}
     }
 
