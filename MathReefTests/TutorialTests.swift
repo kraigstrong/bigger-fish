@@ -180,7 +180,7 @@ struct TutorialTests {
         #expect(run.flow.step == .eat)
     }
 
-    // MARK: Eat 2
+    // MARK: Eat the answer
 
     private func atEat() -> TutorialFlow {
         var run = Run(y: minY)
@@ -225,8 +225,8 @@ struct TutorialTests {
     @Test func theFirstTwoTakesAHoldAndTheNextOneDoesnt() {
         let lanes = (0..<4).map(TutorialFlow.lanes(onPass:))
         let (bottom, middle, top) = (L.laneFractions[0], L.laneFractions[1], L.laneFractions[2])
-        #expect(bottom < middle && middle < top)
-        #expect(lanes.map(\.right) == [top, bottom, top, bottom])
+        #expect(bottom < middle && middle < L.tutorialTopLane && L.tutorialTopLane < top)
+        #expect(lanes.map(\.right) == [L.tutorialTopLane, bottom, L.tutorialTopLane, bottom])
         #expect(lanes.allSatisfy { $0.wrong == middle })
 
         // A fish resting on the bottom (or held at the top) can't touch the 3 as it passes.
@@ -236,13 +236,31 @@ struct TutorialTests {
         // Holding at the top does reach the first 2; resting on the bottom reaches the second.
         #expect(maxY - (minY + (maxY - minY) * lanes[0].right) < reach - 2 * L.answerBobRange.lowerBound)
         #expect(minY + (maxY - minY) * lanes[1].right - minY < reach - 2 * L.answerBobRange.lowerBound)
+        // The 2 and the 3 never overlap, even bobbing toward each other.
+        let twoY = minY + (maxY - minY) * lanes[0].right
+        #expect(twoY - threeY > 2 * (L.answerRadius * 1.15 + L.answerBobRange.lowerBound))
+    }
+
+    /// The first 2 passes clearly under "Eat the answer" (with its fin and bob), and a fish held at the
+    /// top still catches it, on the iPhone 17 and on the shortest landscape iPhones (SE, mini).
+    @Test func theFirstTwoPassesUnderTheCaption() {
+        for height: CGFloat in [402, 375] {
+            let minY = L.waterBottomMargin + L.playerRadius * 0.95
+            let maxY = height - L.waterTopMargin - L.playerRadius * 0.95
+            let twoY = minY + (maxY - minY) * TutorialFlow.lanes(onPass: 0).right
+            let captionBottom = height - L.tutorialEatCaptionInset - L.tutorialCaptionFontSize / 2
+            let fishTop = twoY + L.answerRadius * 1.15 + L.answerBobRange.lowerBound
+            #expect(captionBottom - fishTop >= 8, "\(height)")
+            let reach = (L.playerRadius + L.answerRadius) * L.collisionScale
+            #expect(maxY - twoY < reach - L.answerBobRange.lowerBound, "\(height)")
+        }
     }
 
     // MARK: Look
 
     @Test func captionsAreAFewShortWords() {
         let captions = [TutorialFlow.Step.hold, .letGo, .eat].compactMap(TutorialFlow.caption(for:))
-        #expect(captions == ["Hold", "Let go", "Eat 2"])
+        #expect(captions == ["Hold", "Let go", "Eat the answer"])
         #expect(captions.allSatisfy { $0.split(separator: " ").count <= 3 })
         #expect(TutorialFlow.caption(for: .done) == nil)
     }

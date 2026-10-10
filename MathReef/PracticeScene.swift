@@ -89,7 +89,13 @@ enum ReefTuning {
     /// `playerScreenX`, so "anywhere" reads as anywhere.
     static let tutorialFingerSpot = CGPoint(x: 0.68, y: 0.38)
     static let tutorialCaptionFontSize: CGFloat = 44
-    /// "Eat 2": the 2 and the 3 swim in side by side at this speed (lanes: `TutorialFlow.lanes`).
+    /// "Eat the answer" sits this far below the top of the screen, clear of the answers.
+    static let tutorialEatCaptionInset: CGFloat = 26
+    /// The first 2 swims this high (a fraction of the water the fish can reach, like `laneFractions`):
+    /// below the round's top lane so it passes clearly under "Eat the answer", but still close enough
+    /// to the top that a fish held all the way up catches it.
+    static let tutorialTopLane: CGFloat = 0.85
+    /// "Eat the answer": the 2 and the 3 swim in side by side at this speed (lanes: `TutorialFlow.lanes`).
     static let tutorialAnswerSwimSpeed: CGFloat = 30
     /// The celebration after the first catch, before the reef map.
     static let tutorialCelebrationSeconds: TimeInterval = 2.2
@@ -1318,7 +1324,7 @@ final class PracticeScene: SKScene {
         }
     }
 
-    /// "Eat 2": the 2 ends the tutorial; the 3 bounces off, never a wrong-answer panel. A pass
+    /// "Eat the answer": the 2 ends the tutorial; the 3 bounces off, never a wrong-answer panel. A pass
     /// with no catch comes round again.
     private func checkTutorialCatch() {
         guard tutorial?.step == .eat, swallow == nil else { return }

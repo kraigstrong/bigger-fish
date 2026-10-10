@@ -6,7 +6,7 @@ import UIKit
 // The first-launch tutorial: three short steps that teach Math Reef's one control by doing it.
 //   1. "Hold": a finger presses on open water, away from the fish. Touching anywhere lifts the fish.
 //   2. "Let go": the finger lifts off with a pop. Letting go sinks the fish.
-//   3. "Eat 2": 1 + 1, with a 2 and a 3 swimming by. Eating the 2 ends the tutorial; the 3 just
+//   3. "Eat the answer": 1 + 1, with a 2 and a 3 swimming by. Eating the 2 ends the tutorial; the 3 just
 //      bounces off.
 // It never fails and never moves on by itself: a kid who's stuck sees the step's hint again. It plays
 // once, on a fresh install, before the reef map; players with progress from before it existed skip it.
@@ -53,7 +53,7 @@ struct TutorialFlow {
         case began(Step)
         /// Show the current step's hint again.
         case hint
-        /// "Eat 2" with the wrong answer: it bounces off and the step stays.
+        /// "Eat the answer" with the wrong answer: it bounces off and the step stays.
         case tryAgain
     }
 
@@ -66,18 +66,19 @@ struct TutorialFlow {
         switch step {
         case .hold: "Hold"
         case .letGo: "Let go"
-        case .eat: "Eat \(fact.answer)"
+        case .eat: "Eat the answer"
         case .done: nil
         }
     }
 
-    /// Where the 2 and the 3 swim on each pass, as fractions of the water the fish can reach (the
-    /// round's lanes). After "Let go" the fish rests on the bottom, so the first 2 swims at the top:
-    /// catching it takes a hold. The 3 always swims through the middle, so staying put never eats it.
-    /// The 2 alternates with the bottom, so a kid who's stuck still makes the first catch next pass.
+    /// Where the 2 and the 3 swim on each pass, as fractions of the water the fish can reach. After
+    /// "Let go" the fish rests on the bottom, so the first 2 swims near the top (`tutorialTopLane`, a
+    /// little under the round's top lane and the caption): catching it takes a hold. The 3 always swims
+    /// through the round's middle lane, so staying put never eats it. The 2 alternates with the round's
+    /// bottom lane, so a kid who's stuck still makes the first catch next pass.
     static func lanes(onPass pass: Int) -> (right: CGFloat, wrong: CGFloat) {
         let lanes = ReefTuning.laneFractions
-        return (right: pass.isMultiple(of: 2) ? lanes[2] : lanes[0], wrong: lanes[1])
+        return (right: pass.isMultiple(of: 2) ? ReefTuning.tutorialTopLane : lanes[0], wrong: lanes[1])
     }
 
     private(set) var step: Step = .hold
@@ -115,13 +116,13 @@ struct TutorialFlow {
         return nil
     }
 
-    /// "Eat 2": the fish caught an answer.
+    /// "Eat the answer": the fish caught an answer.
     mutating func ate(correct: Bool) -> Event? {
         guard step == .eat else { return nil }
         return correct ? begin(.done) : .tryAgain
     }
 
-    /// "Eat 2": both answers swam past without being caught. They come round again.
+    /// "Eat the answer": both answers swam past without being caught. They come round again.
     func missed() -> Event? {
         step == .eat ? .hint : nil
     }
@@ -166,8 +167,8 @@ final class TutorialOverlay: SKNode {
     init(size: CGSize) {
         fingerSpot = CGPoint(x: size.width * L.tutorialFingerSpot.x, y: size.height * L.tutorialFingerSpot.y)
         captionSpot = CGPoint(x: fingerSpot.x, y: fingerSpot.y + 74)
-        // Along the top, clear of the 3 in the middle lane and just above the 2 in the top lane.
-        eatCaptionSpot = CGPoint(x: size.width / 2, y: size.height - 30)
+        // Along the top, above both answers' lanes.
+        eatCaptionSpot = CGPoint(x: size.width / 2, y: size.height - L.tutorialEatCaptionInset)
         super.init()
 
         // The symbol's fingertip is near its top-left corner; anchor it there.
