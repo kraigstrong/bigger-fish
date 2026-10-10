@@ -869,7 +869,8 @@ enum GameTuning {
     /// Kraig reached the gate once in about eight tries. 0.4 s puts it level with meal 12, gone before the climb.
     static let midnightFishEarlier: [String: [Int: CGFloat]] = ["Midnight Zone 14": [13: 0.4]]
     /// Played and approved, so shipped exactly as saved in `MidnightPlans.json`: a planner change can't alter them.
-    static let midnightFrozen: Set<String> = ["Midnight Zone 1", "Midnight Zone 5", "Midnight Zone 9"]
+    /// Levels 1-13 (Kraig, 2026-10-09: "lock in the midnight levels"); 14 and 15 stay in code until played.
+    static let midnightFrozen: Set<String> = Set((1...13).map { "Midnight Zone \($0)" })
     /// A Midnight Zone level planned in code: its re-roll if it has one, otherwise the first layout with no planner
     /// issues and no wall of giants.
     static func midnightPlan(_ index: Int) -> MeetingPlan {
