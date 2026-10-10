@@ -2,7 +2,7 @@ import SwiftUI
 
 // The Deep End: each world's optional extra-hard levels after its tenth, for players who want more.
 
-private enum DeepEndColors {
+enum DeepEndColors {
     static let gold = Color(red: 1, green: 0.8, blue: 0.32)
     static let surface = Color(red: 0.13, green: 0.52, blue: 0.66)
     static let abyss = Color(red: 0.02, green: 0.05, blue: 0.14)
@@ -79,24 +79,26 @@ struct DeepEndBadge: View {
     }
 }
 
-/// Around a finished world on the world map: a faint gold ring split into one arc per Deep End level, each lit
-/// when its level is beaten, joining into one solid gold ring when they all are.
+/// Around a world on the world map: a faint ring split into one arc per level, each lit when its level is beaten,
+/// joining into one solid ring when they all are. A world's own color for its ten levels, then gold for its Deep End
+/// once those are done.
 struct DeepEndRing: View {
     let cleared: Int
     let count: Int
     var lineWidth: CGFloat = 4
+    var color: Color = DeepEndColors.gold
 
     var body: some View {
         ZStack {
             if count > 0 && cleared >= count {
-                Circle().stroke(DeepEndColors.gold, lineWidth: lineWidth + 1)
-                    .shadow(color: DeepEndColors.gold.opacity(0.7), radius: 8)
+                Circle().stroke(color, lineWidth: lineWidth + 1)
+                    .shadow(color: color.opacity(0.7), radius: 8)
             } else {
                 ForEach(0..<max(count, 0), id: \.self) { index in
                     let gap = 0.012
                     Circle()
                         .trim(from: Double(index) / Double(count) + gap, to: Double(index + 1) / Double(count) - gap)
-                        .stroke(DeepEndColors.gold.opacity(index < cleared ? 1 : 0.22),
+                        .stroke(color.opacity(index < cleared ? 1 : 0.22),
                                 style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 }
                 .rotationEffect(.degrees(-90))

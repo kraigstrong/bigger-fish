@@ -34,6 +34,8 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   - `ArcadeMaps.swift` — world selection and the level paths (one stop per level)
   - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and local campaign saves
   - `Jellyfish.swift` / `ArcadeArt.swift` — arcade-only hazard rules and procedural artwork
+  - `WorldProgress.swift` — how far through a world you are: pips and a crown on the cards before and after each
+    level, a bar on the level map, and a ring on the world map
   - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them
   - `ArcadePlaytest.swift` — debug-only isolated level launches for playtesting
 - `MathReef/` — **Math Reef** (`com.kraigstrong.mathreef`), the education app for grades 1–5. Pick a

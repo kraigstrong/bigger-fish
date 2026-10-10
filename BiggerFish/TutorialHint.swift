@@ -18,8 +18,8 @@ final class TutorialHint: SKNode {
         super.init()
         // The symbol's fingertip is near its top-left corner; anchor it there.
         let tip = CGPoint(x: 0.22, y: 0.92)
-        if let finger = Self.symbol("hand.point.up.left.fill", pointSize: 80),
-           let shade = Self.symbol("hand.point.up.left.fill", pointSize: 80, color: UIColor(white: 0, alpha: 0.35)) {
+        if let finger = SKSpriteNode.symbol("hand.point.up.left.fill", pointSize: 80),
+           let shade = SKSpriteNode.symbol("hand.point.up.left.fill", pointSize: 80, color: UIColor(white: 0, alpha: 0.35)) {
             finger.anchorPoint = tip
             shade.anchorPoint = tip
             shade.position = CGPoint(x: 3, y: -3)
@@ -42,7 +42,7 @@ final class TutorialHint: SKNode {
 
         let bob = SKNode()
         for i in 0..<2 {
-            guard let chevron = Self.symbol("chevron.up", pointSize: 22, weight: .heavy) else { continue }
+            guard let chevron = SKSpriteNode.symbol("chevron.up", pointSize: 22, weight: .heavy) else { continue }
             chevron.position = CGPoint(x: 0, y: CGFloat(i) * 12)
             chevron.alpha = i == 0 ? 0.45 : 0.9
             bob.addChild(chevron)
@@ -161,15 +161,5 @@ final class TutorialHint: SKNode {
                 .removeFromParent(),
             ]))
         }
-    }
-
-    /// An SF Symbol as a sprite, drawn in `color`.
-    private static func symbol(_ name: String, pointSize: CGFloat, weight: UIImage.SymbolWeight = .regular,
-                               color: UIColor = .white) -> SKSpriteNode? {
-        let config = UIImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
-        guard let image = UIImage(systemName: name, withConfiguration: config)?
-            .withTintColor(color, renderingMode: .alwaysOriginal) else { return nil }
-        let drawn = UIGraphicsImageRenderer(size: image.size).image { _ in image.draw(at: .zero) }
-        return SKSpriteNode(texture: SKTexture(image: drawn))
     }
 }
