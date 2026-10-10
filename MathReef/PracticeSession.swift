@@ -10,10 +10,13 @@ struct SessionResult: Equatable {
 
 /// One round of a level: every question in the level once, plus a few review questions from earlier
 /// levels, and at least `minimumRound` questions. It ends once `targetCorrect` answers are right;
-/// missed questions return after `requeueGap` others.
+/// missed questions return after `requeueGap` others, and a round never ends with one still to come back:
+/// a miss near the end grows the target to take it in.
 struct PracticeSession {
-    let targetCorrect: Int
+    private(set) var targetCorrect: Int
     let requeueGap: Int
+    /// Questions missed and not answered right since, each with how many times: each comes back before the round ends.
+    private var owed: [Fact: Int] = [:]
     /// `upcoming[0]` is the current fact.
     private(set) var upcoming: [Fact]
     private(set) var result = SessionResult()
@@ -52,9 +55,28 @@ struct PracticeSession {
         if correct {
             result.correctAnswers += 1
             streak += 1
+            if let times = owed[fact] { owed[fact] = times > 1 ? times - 1 : nil }
         } else {
             streak = 0
+            owed[fact, default: 0] += 1
             requeue(fact)
+        }
+        keepOwedInRound()
+    }
+
+    /// Grows the round, if it has to, so it reaches the last missed question still to come back (counting every
+    /// question before it as answered right). Without this, a miss among the last couple of questions sat behind
+    /// fillers the round ended on, and never came back.
+    private mutating func keepOwedInRound() {
+        var left = owed
+        guard !left.isEmpty else { return }
+        for (index, fact) in upcoming.enumerated() {
+            guard let times = left[fact] else { continue }
+            left[fact] = times > 1 ? times - 1 : nil
+            if left.isEmpty {
+                targetCorrect = max(targetCorrect, result.correctAnswers + index + 1)
+                return
+            }
         }
     }
 

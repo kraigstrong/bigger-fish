@@ -986,7 +986,7 @@ final class PracticeScene: SKScene {
         questionNumber += 1
         #endif
         session.record(correct: answer.isCorrect)
-        analytics.roundProgress(correct: session.result.correctAnswers)
+        analytics.roundProgress(correct: session.result.correctAnswers, target: session.targetCorrect)
         phase = .feedback
         updateProgress()
 

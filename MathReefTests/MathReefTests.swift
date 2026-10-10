@@ -437,6 +437,34 @@ struct PracticeSessionTests {
         #expect(session.upcoming[0] != missed && session.upcoming[1] != missed)
         #expect(session.upcoming[2] == missed)
     }
+
+    /// A miss among the last questions still comes back before the round ends: the round grows to reach it, rather than
+    /// ending on the fillers in front of it.
+    @Test func aMissAtTheEndComesBackBeforeTheRoundEnds() {
+        var rng = SeededGenerator(seed: 8)
+        var session = PracticeSession(level: Curriculum.multiplication[6], using: &rng)
+        let target = session.targetCorrect
+        for _ in 0..<(target - 1) { session.record(correct: true) }
+        let missed = session.current!
+        session.record(correct: false)  // the last question, missed
+        #expect(!session.isComplete && session.targetCorrect == target + 2)
+        session.record(correct: true)
+        session.record(correct: true)
+        #expect(session.current == missed, "it comes back")
+        session.record(correct: true)
+        #expect(session.isComplete && session.result.correctAnswers == session.targetCorrect)
+
+        // Missed again when it comes back: it comes back again.
+        var again = PracticeSession(level: Curriculum.multiplication[6], using: &rng)
+        for _ in 0..<(again.targetCorrect - 1) { again.record(correct: true) }
+        let tricky = again.current!
+        again.record(correct: false)
+        again.record(correct: true); again.record(correct: true)
+        again.record(correct: false)  // `tricky`, wrong again
+        #expect(!again.isComplete && again.upcoming.contains(tricky))
+        while let next = again.current { again.record(correct: true); if again.isComplete { break }; _ = next }
+        #expect(again.isComplete && again.result.correctAnswers == again.targetCorrect)
+    }
 }
 
 struct ReviewMixTests {
