@@ -31,6 +31,7 @@
 /* Begin PBXFileReference section */
 		BF00000000000000000000B0 /* BiggerFish.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BiggerFish.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BF00000000000000000000B1 /* BiggerFishTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BiggerFishTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BF00000000000000000000F9 /* BiggerFish.storekit */ = {isa = PBXFileReference; lastKnownFileType = text.json.storekit; path = BiggerFish.storekit; sourceTree = "<group>"; };
 		CC0000000000000000000010 /* MathReef.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MathReef.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC0000000000000000000011 /* MathReefTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MathReefTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC0000000000000000000099 /* MathReef.storekit */ = {isa = PBXFileReference; lastKnownFileType = text.json.storekit; path = MathReef.storekit; sourceTree = "<group>"; };
@@ -100,6 +101,7 @@
 				BF00000000000000000000A4 /* BiggerFishTests */,
 				CC0000000000000000000020 /* MathReef */,
 				CC0000000000000000000021 /* MathReefTests */,
+				BF00000000000000000000F9 /* BiggerFish.storekit */,
 				CC0000000000000000000099 /* MathReef.storekit */,
 				BF00000000000000000000A2 /* Products */,
 			);

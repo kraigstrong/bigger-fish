@@ -1,0 +1,67 @@
+import Foundation
+import Testing
+@testable import BiggerFish
+
+/// Free to try: Shallow Reef's ten levels and a taste of every other world. The unlock opens every world from the
+/// start, and each world's Deep End still opens with its level 10.
+struct ArcadeUnlockTests {
+    private func fresh() -> ArcadeProgress {
+        ArcadeProgress(defaults: UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!)
+    }
+
+    @Test func shallowReefsTenLevelsAreFreeButNotItsDeepEnd() {
+        for index in 0..<ArcadeWorld.mainLevelCount {
+            #expect(!ArcadeUnlock.needsUnlock(.shallowReef, index, unlocked: false, selling: true))
+        }
+        for index in ArcadeWorld.mainLevelCount..<ArcadeWorld.shallowReef.levelCount {
+            #expect(ArcadeUnlock.needsUnlock(.shallowReef, index, unlocked: false, selling: true))
+        }
+    }
+
+    @Test func everyOtherWorldHasATasteThenTheUnlock() {
+        for world in ArcadeWorld.campaign where world != .shallowReef {
+            let free = ArcadeUnlock.freeLevels(in: world)
+            #expect(free == GameTuning.freeLevelsPerWorld && free < ArcadeWorld.mainLevelCount)
+            // With no free levels, the world is locked whole until the unlock.
+            #expect(ArcadeUnlock.isWorldOpen(world, unlocked: false, selling: true) == (free > 0))
+            if free > 0 { #expect(!ArcadeUnlock.needsUnlock(world, free - 1, unlocked: false, selling: true)) }
+            #expect(ArcadeUnlock.needsUnlock(world, free, unlocked: false, selling: true))
+            #expect(ArcadeUnlock.needsUnlock(world, ArcadeWorld.mainLevelCount, unlocked: false, selling: true))
+        }
+        #expect(ArcadeUnlock.worldsItOpens == [.jellyBloom, .kelpForest, .midnightZone])
+        #expect(ArcadeUnlock.deepEndLevels == 20)
+    }
+
+    @Test func theUnlockOpensEverythingAndSoDoesNotSellingIt() {
+        for world in ArcadeWorld.campaign {
+            #expect(ArcadeUnlock.isWorldOpen(world, unlocked: true, selling: true))
+            #expect(ArcadeUnlock.isWorldOpen(world, unlocked: false, selling: false))
+            for index in 0..<world.levelCount {
+                #expect(!ArcadeUnlock.needsUnlock(world, index, unlocked: true, selling: true))
+                #expect(!ArcadeUnlock.needsUnlock(world, index, unlocked: false, selling: false))
+            }
+        }
+    }
+
+    /// Every world is open from the start, but its levels still open in order, and its Deep End with level 10.
+    @Test func everyWorldStartsAtLevelOneAndItsDeepEndWaitsForLevelTen() {
+        let progress = fresh()
+        for world in ArcadeWorld.campaign {
+            #expect(progress.isOpen(world, 0) && !progress.isOpen(world, 1))
+            #expect(!progress.isOpen(world, ArcadeWorld.mainLevelCount))
+        }
+        for index in 0..<ArcadeWorld.mainLevelCount { progress.clear(.kelpForest, index, seconds: 30) }
+        #expect(progress.isOpen(.kelpForest, ArcadeWorld.mainLevelCount))
+        #expect(!progress.isOpen(.midnightZone, 1))
+    }
+
+    /// The unlock is cached on the device so the maps draw right at launch and offline, apart from saved progress.
+    @Test func purchasesStartLockedAndKeepTheirOwnKey() async {
+        let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+        let purchases = await ArcadePurchases(defaults: defaults, syncWithAppStore: {})
+        #expect(await !purchases.isUnlocked)
+        defaults.set(true, forKey: "biggerFish.unlocked")
+        #expect(await ArcadePurchases(defaults: defaults, syncWithAppStore: {}).isUnlocked)
+        #expect(defaults.data(forKey: ArcadeProgress.key) == nil)
+    }
+}

@@ -114,6 +114,8 @@ struct DeepEndZone: View {
     let open: Bool
     let cleared: Int
     let count: Int
+    /// Without the unlock, the Deep End is part of what it opens.
+    var needsUnlock = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -127,7 +129,10 @@ struct DeepEndZone: View {
                     Text("THE DEEP END").font(.custom("AvenirNext-Heavy", size: 19)).tracking(2)
                         .foregroundStyle(DeepEndColors.gold)
                     Group {
-                        if open {
+                        if needsUnlock {
+                            Text("Need more challenge?")
+                            Label("Unlock every world to dive in.", systemImage: "lock.fill")
+                        } else if open {
                             Text("Need more challenge?\nGo into the deep.")
                             Text("\(cleared)/\(count) cleared").opacity(0.7)
                         } else {
@@ -140,7 +145,9 @@ struct DeepEndZone: View {
             .padding(.leading, 44).padding(.top, 60)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(open ? "The Deep End, \(cleared) of \(count) cleared" : "The Deep End, locked until level \(ArcadeWorld.mainLevelCount) is beaten")
+        .accessibilityLabel(needsUnlock ? "The Deep End, part of the unlock"
+                            : open ? "The Deep End, \(cleared) of \(count) cleared"
+                            : "The Deep End, locked until level \(ArcadeWorld.mainLevelCount) is beaten")
     }
 
     /// Water past a jagged reef edge on the left.
@@ -166,11 +173,11 @@ struct DeepEndZone: View {
     }
 }
 
-/// Shown when you beat a world's tenth level: the next world (or news that more are coming) and the
-/// world's Deep End, each with its picture and a way in.
+/// Shown when you beat a world's tenth level: its Deep End, with its picture and a way in. Every world is open
+/// from the start (with the unlock), so there's no next world to announce; without the unlock, beating Shallow Reef
+/// shows `UnlockView` instead.
 struct WorldConqueredView: View {
     let world: ArcadeWorld
-    let onNextWorld: (ArcadeWorld) -> Void
     let onDeepEnd: () -> Void
     let onLater: () -> Void
     @State private var shown = false
@@ -186,24 +193,10 @@ struct WorldConqueredView: View {
                     Text("\(world.title) conquered!").font(.custom("AvenirNext-Heavy", size: 28))
                     Text("You ate your way to the top.").font(.custom("AvenirNext-DemiBold", size: 14)).opacity(0.85)
                 }
-                HStack(alignment: .top, spacing: 18) {
-                    if let next = world.nextWorld {
-                        UnlockCard(title: "\(next.title) is open!", line: next.subtitle, button: "Swim there",
-                                   color: next.color, action: { onNextWorld(next) }) {
-                            WorldIllustration(world: next).frame(width: 86, height: 86)
-                        }
-                    } else {
-                        UnlockCard(title: "More worlds are on the way", line: "Keep your fins ready.", button: nil,
-                                   color: .white.opacity(0.6), action: {}) {
-                            Image(systemName: "questionmark").font(.system(size: 44, weight: .heavy)).opacity(0.7)
-                                .frame(width: 86, height: 86)
-                        }
-                    }
-                    if world.deepEndCount > 0 {
-                        UnlockCard(title: "The Deep End is open", line: "Need more challenge?\nGo into the deep.",
-                                   button: "Dive in", color: DeepEndColors.gold, action: onDeepEnd) {
-                            DeepEndBadge(size: 88)
-                        }
+                if world.deepEndCount > 0 {
+                    UnlockCard(title: "The Deep End is open", line: "Need more challenge?\nGo into the deep.",
+                               button: "Dive in", color: DeepEndColors.gold, action: onDeepEnd) {
+                        DeepEndBadge(size: 88)
                     }
                 }
                 Button("Maybe later", action: onLater)

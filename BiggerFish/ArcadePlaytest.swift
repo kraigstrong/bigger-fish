@@ -44,6 +44,13 @@ enum ArcadePlaytest {
         }
     }
 
+    /// Play with or without the unlock, ignoring StoreKit: -arcadeUnlocked YES (or NO).
+    static var unlockOverride: Bool? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let flag = args.firstIndex(of: "-arcadeUnlocked"), args.indices.contains(flag + 1) else { return nil }
+        return args[flag + 1] == "YES"
+    }
+
     static var defaults: UserDefaults {
         selection == nil ? .standard : UserDefaults(suiteName: "biggerFish.playtest")!
     }

@@ -343,6 +343,12 @@ enum GameTuning {
               mediumAISpeedMultiplier: mediumSpeedMultiplier)
     }
 
+    // MARK: Free to try (`ArcadeUnlock`)
+
+    /// Levels free without the unlock in each world after Shallow Reef (all ten of whose are free): a taste of what the
+    /// unlock opens. 0 locks those worlds whole.
+    static let freeLevelsPerWorld = 2
+
     // MARK: Levels
 
     /// Fish-only encounters use the same first-opportunity protection and growth as Jelly Bloom.

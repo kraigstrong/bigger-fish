@@ -193,6 +193,10 @@ final class GameScene: SKScene {
     /// Set from `onClear` when this win conquers the world for the first time: instead of its result card, the
     /// level leaves for the world's conquered screen once the win has played.
     var leavesForConqueredScreen = false
+    /// Whether a level is past the free ones without the unlock. Next level onto one leaves the level instead, with
+    /// `leftForUnlock` set, so the unlock's screen can show.
+    var levelNeedsUnlock: ((Int) -> Bool)?
+    private(set) var leftForUnlock = false
     var onJellyLesson: (() -> Void)?
     private var showsJellyLesson: Bool
     private var lossReason = "There was a bigger fish."
@@ -893,6 +897,14 @@ final class GameScene: SKScene {
         switch action {
         case .nextLevel:
             guard phase == .won, !isFinalLevel, !isWorldFinale else { return }
+            if levelNeedsUnlock?(levelIndex + 1) == true {
+                #if DEBUG
+                finishRunRecording("level_map")
+                #endif
+                leftForUnlock = true
+                onExit?()
+                return
+            }
             levelIndex += 1
             layoutStatic()
             resetGame(startPlaying: false)

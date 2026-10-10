@@ -1,0 +1,38 @@
+{
+  "identifier" : "B16F15E5",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : true,
+      "internalID" : "6739184311",
+      "localizations" : [
+        {
+          "description" : "Every world and every Deep End, for good.",
+          "displayName" : "Every World",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.kraigstrong.biggerfish.allworlds",
+      "referenceName" : "Unlock every world",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}
