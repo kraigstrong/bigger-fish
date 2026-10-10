@@ -38,7 +38,7 @@ struct RoundSummaryTests {
 
     @Test func replayingOnlyPopsTheStarsThatBeatTheBest() {
         let store = freshStore()
-        store.recordRound(0, in: exponents, correct: 10, attempts: 12)
+        _ = store.recordRound(0, in: exponents, correct: 10, attempts: 12)
         let perfect = store.recordRound(0, in: exponents, correct: 12, attempts: 12)
         #expect(perfect.outcome == "Next level is open.")
         #expect(perfect.stars == 3 && perfect.newStars == 1)
