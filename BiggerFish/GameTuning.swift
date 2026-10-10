@@ -872,22 +872,22 @@ enum GameTuning {
     // MARK: Riptide Reef (prototype, Xcode builds only)
 
     /// Riptide Reef's trial levels: Shallow Reef's levels 1, 5, and 10 planned like Midnight Zone's (fish appear just
-    /// off screen right before you meet them), with calm pauses held open for current scenarios (`riptideScenarios`),
+    /// off screen right before you meet them), with pauses held open for current scenarios (`riptideScenarios`),
     /// evenly through the lap. Currents are only where a scenario needs one, so there's nothing else to surf.
     static let riptideSpecs: [MeetingSpec] = [0, 4, 9].enumerated().map { index, source in
         var spec = reefLabSpecs[source]
         spec.name = "Riptide Reef \(index + 1)"
-        let scenarios = riptideScenarios[index].count
+        let scenarios = riptideScenarios[index]
         let meals = spec.segments.reduce(0) { $0 + $1.singles + $1.forks.reduce(0) { $0 + $1.long + $1.short } + 1 }
-        spec.pauses = (0..<scenarios).map { MeetingSpec.Pause(afterMeal: (($0 + 1) * meals) / (scenarios + 1) - 1,
-                                                              seconds: Double(riptideScenarioSeconds)) }
+        spec.pauses = scenarios.indices.map { MeetingSpec.Pause(afterMeal: (($0 + 1) * meals) / (scenarios.count + 1) - 1,
+            seconds: Double(scenarios[$0] == .closingGap ? riptideGapPauseSeconds : riptideScenarioSeconds)) }
         // Room on the lap for the pauses, at the zoom a lap is usually played at.
-        spec.worldScreens += Double(CGFloat(scenarios) * riptideScenarioSeconds / CGFloat(spec.crossSeconds) / 0.75)
+        spec.worldScreens += (spec.pauses ?? []).reduce(0) { $0 + $1.seconds } / spec.crossSeconds / 0.75
         return spec
     }
-    /// Each trial's scenarios, in order along the lap: easy one catch; medium a catch and a dodge; hard two of each.
-    static let riptideScenarios: [[RiptideScenario]] = [[.catchMeal], [.catchMeal, .dodgeGiant],
-                                                         [.catchMeal, .dodgeGiant, .catchMeal, .dodgeGiant]]
+    /// Each trial's scenarios, in order along the lap: easy one closing gap, medium two, hard three.
+    static let riptideScenarios: [[RiptideScenario]] = [[.closingGap], [.closingGap, .closingGap],
+                                                         [.closingGap, .closingGap, .closingGap]]
     /// Each level is the first layout with no planner issues.
     static let riptideLevels: [Level] = riptideSpecs.enumerated().map { index, spec in
         let plan = (0..<16).lazy.map { MeetingPlanner.riptidePlan(spec, scenarios: riptideScenarios[index], variation: $0) }
@@ -896,28 +896,43 @@ enum GameTuning {
         level.ecosystemSeedIndex = index
         return level
     }
-    /// A scenario's calm pause, at your usual pace: the current starts `riptideBeltLead` in, lasts
-    /// `riptideBeltSeconds`, and its meal comes `riptideAfterBelt` after it, in calm water.
+    /// A catch's calm pause, at your usual pace: the current starts `riptideBeltLead` in, lasts `riptideBeltSeconds`,
+    /// and its meal comes `riptideAfterBelt` after it, in calm water.
     static let riptideScenarioSeconds: CGFloat = 2.6
     static let riptideBeltLead: CGFloat = 0.45
     static let riptideBeltSeconds: CGFloat = 1.0
     static let riptideAfterBelt: CGFloat = 0.35
-    /// A catch's current (times your pace) and a dodge's.
+    /// A scenario's current, times your pace.
     static let riptideFastCurrent: CGFloat = 1.5
-    static let riptideSlowCurrent: CGFloat = 0.5
-    /// Where a scenario's current runs (share of the water, as on screen), its meal at the same height just past it.
+    /// Where a catch's current runs (share of the water, as on screen), its meal at the same height just past it.
     static let riptideBandHigh: ClosedRange<CGFloat> = 0.64...0.88
     static let riptideBandLow: ClosedRange<CGFloat> = 0.12...0.36
-    /// A scenario meal's size (times your expected radius) and its swimming speed (times your pace); a catch's
-    /// meal flees at `riptideFleeSpeed` times your pace, faster than you can follow without the current.
+    /// A catch's meal: its size (times your expected radius) and swimming speed (times your pace), then fleeing at
+    /// `riptideFleeSpeed` times your pace, faster than you can follow without the current.
     static let riptideMealSize: CGFloat = 0.8
     static let riptideMealSpeed: CGFloat = 0.4
     static let riptideFleeSpeed: CGFloat = 1.3
-    /// A dodge's giant: its size (times your expected radius), how fast it sinks (points a second), and how fast it
-    /// drifts toward you (times your pace).
-    static let riptideGiantSize: CGFloat = 2.2
-    static let riptideGiantSink: CGFloat = 330
-    static let riptideGiantDrift: CGFloat = 0
+    /// A closing gap, at your usual pace: its current runs `riptideGapBeltSeconds` over the meals before a pause of
+    /// `riptideGapPauseSeconds` (and any just `riptideGapBeltLeadIn` before it), ending `riptideGapBeltPast` after the
+    /// last of them; the wall is `riptideAfterBelt` after that. Riding the current gets you there a third of its
+    /// length sooner.
+    static let riptideGapBeltSeconds: CGFloat = 3.3
+    static let riptideGapBeltLeadIn: CGFloat = 0.2
+    static let riptideGapBeltPast: CGFloat = 0.25
+    static let riptideGapPauseSeconds: CGFloat = 1.8
+    /// Where its current runs (share of the water, as on screen): mid-water, with room to swim beside it either way.
+    static let riptideGapBand: ClosedRange<CGFloat> = 0.38...0.62
+    /// The wall: its fish (times your expected radius), how closely they're stacked (1: just touching), and the gap's
+    /// half height (times your radius; your middle has this less your own reach to spare).
+    static let riptideWallSize: CGFloat = 2.2
+    static let riptideWallSpacing: CGFloat = 0.85
+    static let riptideGapHalf: CGFloat = 2.4
+    /// The door fish slides down into the gap so that riding the current through its middle, up to
+    /// `riptideGapPassSeconds` late, you still have `riptideGapRoom` (times your radius) to spare above you, and it's
+    /// shut `riptideGapShutEarly` before you'd get there at your usual pace.
+    static let riptideGapPassSeconds: CGFloat = 0.25
+    static let riptideGapRoom: CGFloat = 0.5
+    static let riptideGapShutEarly: CGFloat = 0.1
     /// After meeting you, a scenario fish keeps to its path this many screens more before swimming freely.
     static let riptideRacerReleaseScreens: CGFloat = 1
     static let currentEase: CGFloat = 4

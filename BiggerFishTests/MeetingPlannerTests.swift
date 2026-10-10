@@ -198,14 +198,12 @@ struct MeetingPlannerTests {
             let currents = plan.currents ?? []
             #expect(currents.count == scenarios.count, "\(plan.spec.name)")
             let racers = plan.fish.filter { $0.racer == true }
-            #expect(racers.count == scenarios.count)
             let screen = GameTuning.playfieldSize.width
             for (number, (kind, current)) in zip(scenarios, currents).enumerated() {
-                let racer = racers.min { abs($0.meetingDistance - current.end) < abs($1.meetingDistance - current.end) }!
-                let meal = kind == .catchMeal ? racer
-                    : plan.fish.first { $0.racer != true && $0.role == .food && abs($0.meetingDistance - racer.meetingDistance) < 1 }!
+                let next = racers.filter { $0.meetingDistance >= current.end - 1 }.map(\.meetingDistance).min()!
+                let scenario = racers.filter { abs($0.meetingDistance - next) < 1 }
                 let band = (current.low + current.high) / 2
-                let scene = (current.start - screen)...(racer.meetingDistance + screen)
+                let scene = (current.start - screen)...(next + screen)
                 // Riding: in the band through the scene. Alongside: just outside the band until the current ends.
                 let outside = current.low > 0.5 ? current.low - 0.06 : current.high + 0.06
                 let riding: (CGFloat) -> CGFloat = { scene.contains($0) ? band : 0.5 }
@@ -216,12 +214,16 @@ struct MeetingPlannerTests {
                 let name = "\(plan.spec.name) scenario \(number + 1)"
                 switch kind {
                 case .catchMeal:
+                    let meal = scenario[0]
                     #expect(rode[meal.id]! <= 0, "\(name): riding the current misses the meal by \(rode[meal.id]!)")
                     #expect(swam[meal.id]! > 0, "\(name): the meal doesn't get away (\(swam[meal.id]!))")
-                case .dodgeGiant:
-                    #expect(rode[racer.id]! > 0, "\(name): the giant hits you riding the current (\(rode[racer.id]!))")
-                    #expect(rode[meal.id]! <= 0, "\(name): riding the current misses the meal by \(rode[meal.id]!)")
-                    #expect(swam[racer.id]! <= 0, "\(name): the giant misses you without the current (\(swam[racer.id]!))")
+                case .closingGap:
+                    #expect(scenario.count >= 3, "\(name): a wall of \(scenario.count)")
+                    let cleared = scenario.map { rode[$0.id] ?? .infinity }.min()!
+                    let hit = scenario.map { swam[$0.id] ?? .infinity }.min()!
+                    print("RIPTIDE \(name): wall \(scenario.count) fish, riding clears by \(Int(cleared)), beside \(Int(hit))")
+                    #expect(cleared > 0, "\(name): riding the current, the wall touches you (\(cleared))")
+                    #expect(hit <= 0, "\(name): beside the current, you still get through the gap (\(hit))")
                 }
             }
         }
