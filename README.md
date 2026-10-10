@@ -33,6 +33,8 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
   - `ArcadeMaps.swift` — world selection and the level paths (one stop per level)
+  - `SettingsView.swift` — Settings from the world map's gear: sound, music, vibration, replaying the tutorial,
+    restoring the unlock, the privacy policy and support (biggerfish.app), credits, and the version
   - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and local campaign saves
   - `ArcadeUnlock.swift` / `UnlockView.swift` / `WorldClips/` — free to try (all of Shallow Reef, two levels of
     each other world) and the one-time unlock that opens every world and Deep End; its screen loops a clip of each
