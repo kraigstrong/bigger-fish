@@ -248,6 +248,7 @@ struct ArcadeTuningPanel: View {
     /// Shows a world's "conquered" unlock screen without touching progress.
     var onPreviewConquered: (ArcadeWorld) -> Void = { _ in }
     var onReplayTutorial: () -> Void = {}
+    var onReplayTutorialWall: () -> Void = {}
     var onPreviewUnlock: () -> Void = {}
 
     init(store: ArcadeTuningStore, world: ArcadeWorld, index: Int, onPlanner: @escaping (MeetingSpec, Int) -> Void,
@@ -281,6 +282,10 @@ struct ArcadeTuningPanel: View {
                     Button("Replay the first-launch tutorial") {
                         dismiss()
                         onReplayTutorial()
+                    }
+                    Button("Play the tutorial's wall (its last beat)") {
+                        dismiss()
+                        onReplayTutorialWall()
                     }
                     Button("Preview the unlock screen") {
                         dismiss()
@@ -505,6 +510,12 @@ extension ArcadeTuningPanel {
     func replayingTutorial(_ action: @escaping () -> Void) -> Self {
         var panel = self
         panel.onReplayTutorial = action
+        return panel
+    }
+
+    func replayingTutorialWall(_ action: @escaping () -> Void) -> Self {
+        var panel = self
+        panel.onReplayTutorialWall = action
         return panel
     }
 

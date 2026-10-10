@@ -2,11 +2,11 @@ import CoreGraphics
 import FishKit
 import SpriteKit
 
-/// Bigger Fish's first-launch tutorial: seven short beats, the same every time, that teach the race at the heart of
+/// Bigger Fish's first-launch tutorial: eight short beats, the same every time, that teach the race at the heart of
 /// the game. Hold to rise and let go to fall, as Math Reef teaches it; eat smaller fish, steer clear of bigger ones, and eat on your first pass: a fish you miss keeps eating,
-/// swims on round the reef, and comes back bigger. Then the gates every level has: eat enough to get through. The
-/// fish swim scripted paths, but every bite is the game's own (the same collisions, swallows, and growth as a
-/// level), so you watch a missed fish's real size change.
+/// swims on round the reef, and comes back bigger. Then the gates every level has: eat enough to get through, played
+/// like a level, and how a level is won: be the last fish swimming. The early fish swim scripted paths, but every bite is the game's own (the same collisions, swallows,
+/// and growth as a level), so you watch a missed fish's real size change.
 enum ArcadeTutorial {
     enum Beat: Int, CaseIterable {
         /// A finger presses open water: touching anywhere lifts you (your first touch starts the tutorial).
@@ -21,8 +21,12 @@ enum ArcadeTutorial {
         case missedFishEats
         /// One more glowing meal, and the fish that outgrew you comes round again: yours.
         case catchItBack
-        /// A wall of three fish, a little bigger than you: two easy meals, then eat your way through.
+        /// Played like a level: two meals swimming freely, then a wall of three fish a little bigger than you swimming
+        /// at you. Eat both and you eat your way through; miss one and the wall eats you (one tap tries it again).
         case eatEnough
+        /// Through the wall, the other two (smaller than you now) bolt ahead and tire: catch them both, and you're the
+        /// last fish swimming. A level is won the same way.
+        case lastFish
 
         /// The one short line shown with the beat.
         var caption: String {
@@ -34,11 +38,18 @@ enum ArcadeTutorial {
             case .missedFishEats: "Fish you miss keep eating"
             case .catchItBack: "Grow, then catch it"
             case .eatEnough: "Eat enough to get through"
+            case .lastFish: "Be the last fish swimming to win"
             }
         }
 
-        /// Where a retry starts after being eaten: the race's two beats go together.
-        var checkpoint: Beat { self == .catchItBack ? .missedFishEats : self }
+        /// Where a retry starts after being eaten: the race's two beats go together, and so do the wall's.
+        var checkpoint: Beat {
+            switch self {
+            case .catchItBack: .missedFishEats
+            case .lastFish: .eatEnough
+            default: self
+            }
+        }
     }
 
     /// The line it ends on before fading to the map.
@@ -49,7 +60,7 @@ enum ArcadeTutorial {
         let base = GameTuning.baseRadius
         guard beat.rawValue > Beat.eatSmaller.rawValue else { return base }
         let afterFirst = grow(base, eating: GameTuning.tutorialFirstMeal)
-        guard beat == .eatEnough else { return afterFirst }
+        guard beat.rawValue >= Beat.eatEnough.rawValue else { return afterFirst }
         let afterLast = grow(afterFirst, eating: lastMeal(you: afterFirst, rival: missedFishGrown))
         return grow(afterLast, eating: missedFishGrown)
     }
@@ -103,9 +114,10 @@ enum ArcadeTutorial {
         return [middle - half, middle, middle + half]
     }
 
-    /// Whether a fish of `you` can't get past fish of `wall` at `heights` anywhere it can swim.
-    static func wallBlocks(you: CGFloat, wall: CGFloat, heights: [CGFloat], bottom: CGFloat, top: CGFloat) -> Bool {
-        let reach = (you + wall) * GameTuning.collisionScale
+    /// Whether a fish of `you` can't get past fish of `wall` at `heights` anywhere it can swim, with each wall fish
+    /// anywhere within `bob` points of its height.
+    static func wallBlocks(you: CGFloat, wall: CGFloat, heights: [CGFloat], bottom: CGFloat, top: CGFloat, bob: CGFloat = 0) -> Bool {
+        let reach = (you + wall) * GameTuning.collisionScale - bob
         return stride(from: bottom + you * 0.95, through: top - you * 0.95, by: 1).allSatisfy { y in
             heights.contains { abs($0 - y) < reach }
         }
@@ -125,6 +137,25 @@ enum ArcadeTutorial {
     static let wallStyle = FishStyle(body: SKColor(red: 0.16, green: 0.62, blue: 0.62, alpha: 1),
                                      accent: SKColor(red: 0.55, green: 0.88, blue: 0.84, alpha: 1),
                                      pattern: .stripes, tail: .fan, eyeScale: 1.0, hasDorsalFin: true)
+}
+
+/// How a fish in the last beat swims, like one in a level rather than along a path: on at its own pace (a little
+/// faster and slower as it goes), wandering up and down near its height, facing the way it swims.
+struct TutorialSwim {
+    /// Where it starts, in screens ahead of you.
+    var ahead: CGFloat
+    /// The height it keeps near (share of the water: 0 the bottom, 1 the top), and how far either side it wanders.
+    var home: CGFloat
+    var wander: CGFloat
+    /// -1 swims at you, 1 away from you.
+    var heading: CGFloat
+    /// Points a second.
+    var speed: CGFloat
+    /// A wall fish holds its height instead of wandering, bobbing this many points either side.
+    var bob: CGFloat = 0
+    /// Bolting: this many points a second until `dashUntil` (sim seconds), easing back to `speed` after.
+    var dashSpeed: CGFloat = 0
+    var dashUntil: CGFloat = 0
 }
 
 /// A scripted swim measured from you, so it reads the same at any speed: screens ahead of you (negative: behind)

@@ -117,6 +117,7 @@ struct ContentView: View {
                 celebrate(world)
             }
             .replayingTutorial { playTutorial() }
+            .replayingTutorialWall { playTutorial(from: .eatEnough) }
             .previewingUnlock {
                 scene = nil
                 withAnimation { offer = UnlockOffer(featured: nil) }
@@ -210,8 +211,12 @@ struct ContentView: View {
     #endif
 
     /// The first-launch tutorial (`ArcadeTutorial`): seen once however it ends, then on to Shallow Reef's levels.
-    private func playTutorial() {
+    /// `beat` (Xcode builds, from the tuner): start partway, to playtest one beat.
+    private func playTutorial(from beat: ArcadeTutorial.Beat = .holdToRise) {
         let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        #if DEBUG
+        game.debugSetTutorialStart(beat)
+        #endif
         game.analytics = analytics
         // Seen once it's finished, skipped or left; closing the app partway through plays it again next time.
         game.onTutorialFinished = { progress.sawTutorial() }
