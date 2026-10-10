@@ -32,7 +32,7 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   `MathReef/` or `BiggerFish/` without editing `project.pbxproj`.
 - **Never rename Math Reef level IDs.** They're the keys for saved progress. Generated fact decks use
   fixed seeds so they never change between launches.
-- **Never lose Bigger Fish progress.** World IDs (`shallow-reef`, `jelly-bloom`, `kelp-forest`) and level
+- **Never lose Bigger Fish progress.** World IDs (`shallow-reef`, `jelly-bloom`, `kelp-forest`, `midnight-zone`) and level
   numbers (`shallow-reef.8`) are the keys for saved progress: never rename them or renumber a released
   world's levels. Which layout plays in a numbered slot can change with Kraig's OK, since a cleared level
   stays cleared by its number (Shallow Reef's play order is `GameTuning.shallowReefOrder`). A new field in `ArcadeSave` must load when a save doesn't have it (decode it with a

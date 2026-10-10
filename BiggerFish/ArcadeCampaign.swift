@@ -7,13 +7,15 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     case kelpForest = "kelp-forest"
     case midnightZone = "midnight-zone"
 
-    /// The playable worlds, in map order. The map shows the rest as coming soon.
-    static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom, .kelpForest]
-    /// Xcode builds also show worlds still being prototyped, after the campaign and open from the start: Midnight
-    /// Zone isn't in the campaign, so nothing unlocks it and beating Kelp Forest doesn't point to it.
+    /// The playable worlds, in map order. The map shows the rest as coming soon. Once a world ships, its ID and
+    /// level numbers are permanent (they key saved progress).
+    static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom, .kelpForest, .midnightZone]
+    /// Worlds still being prototyped: on the map in Xcode builds only, after the campaign and open from the start,
+    /// so nothing unlocks them and the campaign's last world doesn't point to them. Midnight Zone started here.
+    static let prototypes: [ArcadeWorld] = []
     static var mapWorlds: [ArcadeWorld] {
         #if DEBUG
-        campaign + [.midnightZone]
+        campaign + prototypes
         #else
         campaign
         #endif

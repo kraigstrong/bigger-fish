@@ -143,9 +143,10 @@ struct ArcadeCampaignTests {
 
     @Test func levelIDsAreUniqueAndOriginalWorldHasNoHazards() {
         let ids = ArcadeWorld.campaign.flatMap { world in world.levels.indices.map { world.levelID($0) } }
-        #expect(Set(ids).count == 45)
+        #expect(Set(ids).count == 60)
         #expect(ids.first == "shallow-reef.1")
-        #expect(ids.contains("shallow-reef.15") && ids.contains("jelly-bloom.15") && ids.last == "kelp-forest.15")
+        #expect(ids.contains("shallow-reef.15") && ids.contains("jelly-bloom.15") && ids.contains("kelp-forest.15")
+            && ids.last == "midnight-zone.15")
         #expect(GameTuning.levels.allSatisfy { $0.jellies == nil })
         #expect(GameTuning.bloomLevels.allSatisfy { $0.jellies != nil })
         #expect(GameTuning.bloomLevels.allSatisfy { $0.aiCanEat })
