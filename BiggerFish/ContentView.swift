@@ -270,7 +270,7 @@ struct ContentView: View {
             scene = nil
             if game?.leftForUnlock == true {
                 // Next level was past the free ones: the map waits on it, under what the unlock opens.
-                returnedFrom = returnedFrom.map { $0 + 1 }
+                returnedFrom = game.map { $0.currentLevelIndex + 1 }
                 withAnimation { offer = UnlockOffer(featured: world) }
             }
             if let world = conquered {
