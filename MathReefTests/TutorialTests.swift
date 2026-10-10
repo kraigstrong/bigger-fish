@@ -256,6 +256,34 @@ struct TutorialTests {
         }
     }
 
+    // MARK: Ending
+
+    /// After the catch: the "Yes!" moment, the closing line, then a fade to the map, never a cut.
+    /// Skip only fades.
+    @Test func theEndingCelebratesThenSaysReadyThenFades() {
+        let ending = TutorialEnding.beats(skipped: false)
+        #expect(ending.map(\.beat) == [.celebrate, .closingLine, .fadeOut, .fadeIn])
+        #expect(TutorialEnding.beats(skipped: true).map(\.beat) == [.fadeOut, .fadeIn])
+        #expect(ending.allSatisfy { $0.seconds > 0 })
+    }
+
+    /// Calm but not long: about 1.4 s of "Yes!", 1.5 s of the closing line, and a 0.6–0.8 s fade.
+    @Test func theEndingTimingsAreCalm() throws {
+        let ending = TutorialEnding.beats(skipped: false)
+        let seconds = Dictionary(uniqueKeysWithValues: ending.map { ($0.beat, $0.seconds) })
+        #expect((1.2...1.6).contains(try #require(seconds[.celebrate])))
+        #expect((1.2...1.8).contains(try #require(seconds[.closingLine])))
+        #expect((0.6...0.8).contains(try #require(seconds[.fadeOut]) + (try #require(seconds[.fadeIn]))))
+        #expect(ending.map(\.seconds).reduce(0, +) < 4)
+        let skip = TutorialEnding.beats(skipped: true).map(\.seconds).reduce(0, +)
+        #expect((0.6...0.8).contains(skip))
+    }
+
+    @Test func theClosingLineIsAFewShortWords() {
+        #expect(TutorialEnding.closingLine == "Ready to play!")
+        #expect(TutorialEnding.closingLine.split(separator: " ").count <= 3)
+    }
+
     // MARK: Look
 
     @Test func captionsAreAFewShortWords() {
