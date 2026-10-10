@@ -13,7 +13,7 @@ import UIKit
     private static let assets = root.appendingPathComponent("BiggerFish/Assets.xcassets")
 
     @Test func shippedIconographyExists() {
-        for name in ["WorldShallowReef", "WorldJellyBloom", "WorldKelpForest", "LaunchArt"] { #expect(UIImage(named: name) != nil, "\(name) is missing") }
+        for name in ["WorldShallowReef", "WorldJellyBloom", "WorldKelpForest", "WorldMidnightZone", "LaunchArt"] { #expect(UIImage(named: name) != nil, "\(name) is missing") }
         #expect(UIColor(named: "LaunchBackground") != nil)
         let icon = Self.assets.appendingPathComponent("AppIcon.appiconset/AppIcon-1024.png")
         let image = CGImageSourceCreateWithURL(icon as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
@@ -29,6 +29,7 @@ import UIKit
         try write(worldIcon(shallowReef()), to: "WorldShallowReef.imageset/WorldShallowReef.png", opaque: false)
         try write(worldIcon(jellyBloom()), to: "WorldJellyBloom.imageset/WorldJellyBloom.png", opaque: false)
         try write(worldIcon(kelpForest()), to: "WorldKelpForest.imageset/WorldKelpForest.png", opaque: false)
+        try write(worldIcon(midnightZone()), to: "WorldMidnightZone.imageset/WorldMidnightZone.png", opaque: false)
         try write(launchChase(), to: "LaunchArt.imageset/LaunchArt.png", opaque: false)
     }
 
@@ -138,6 +139,59 @@ import UIKit
         forest.addChild(kelpStalk(at: 20, height: 150, lean: 8, z: -1))
         forest.addChild(fish(.player, player: true, radius: 40, at: CGPoint(x: 5, y: 40), tilt: 0.12))
         return forest
+    }
+
+    /// The player's fish in a pool of dark water, carrying an anglerfish lure like the game's: a thin stalk from its
+    /// forehead to a small cyan-green light glowing in front of its face.
+    private func midnightZone() -> SKNode {
+        let zone = SKNode()
+        let side = Self.tile, radius: CGFloat = 46
+        let dark = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
+            let colors = [SKColor(red: 0.02, green: 0.04, blue: 0.12, alpha: 0.95).cgColor,
+                          SKColor(red: 0.03, green: 0.06, blue: 0.16, alpha: 0.85).cgColor,
+                          SKColor(red: 0.03, green: 0.06, blue: 0.16, alpha: 0).cgColor] as CFArray
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.72, 1])!
+            let center = CGPoint(x: side / 2, y: side / 2)
+            context.cgContext.drawRadialGradient(gradient, startCenter: center, startRadius: 0, endCenter: center,
+                                                 endRadius: side * 0.48, options: [])
+        }
+        let water = SKSpriteNode(texture: SKTexture(image: dark))
+        water.zPosition = -5
+        zone.addChild(water)
+        let body = CGPoint(x: -22, y: -22)
+        zone.addChild(fish(.player, player: true, radius: radius, at: body, tilt: 0.08))
+        // The lure, at the game's proportions (`GameScene.anglerLure`): from the forehead up and ahead of the face.
+        let scale = radius / FishNode.referenceRadius, r = FishNode.referenceRadius
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: body.x + x * r * scale, y: body.y + y * r * scale) }
+        let tip = point(1.4, 1.25)
+        let stalkPath = CGMutablePath()
+        stalkPath.move(to: point(0.75, 0.72))
+        stalkPath.addQuadCurve(to: tip, control: point(1.0, 1.6))
+        let stalk = SKShapeNode(path: stalkPath)
+        stalk.strokeColor = SKColor(red: 1, green: 0.84, blue: 0.4, alpha: 1)
+        stalk.lineWidth = 3.5
+        stalk.lineCap = .round
+        stalk.zPosition = 11
+        zone.addChild(stalk)
+        let glow = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { context in
+            let colors = [GameTuning.lureColor.cgColor, GameTuning.lureColor.withAlphaComponent(0.35).cgColor,
+                          GameTuning.lureColor.withAlphaComponent(0).cgColor] as CFArray
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.35, 1])!
+            context.cgContext.drawRadialGradient(gradient, startCenter: CGPoint(x: 32, y: 32), startRadius: 0,
+                                                 endCenter: CGPoint(x: 32, y: 32), endRadius: 32, options: [])
+        }
+        let halo = SKSpriteNode(texture: SKTexture(image: glow), size: CGSize(width: 78, height: 78))
+        halo.position = tip
+        halo.zPosition = 12
+        zone.addChild(halo)
+        let core = SKShapeNode(circleOfRadius: 7)
+        core.fillColor = .white
+        core.strokeColor = GameTuning.lureColor
+        core.lineWidth = 2
+        core.position = tip
+        core.zPosition = 13
+        zone.addChild(core)
+        return zone
     }
 
     /// A giant-kelp stalk: a thick wavy stem with blades on alternate sides, each with a float, olive at the

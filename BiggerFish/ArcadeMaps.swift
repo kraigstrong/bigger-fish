@@ -361,15 +361,9 @@ extension ArcadeWorld {
 struct WorldIllustration: View {
     let world: ArcadeWorld
     var body: some View {
-        Group {
-            if world == .midnightZone {
-                // A stand-in while Midnight Zone is a prototype, until it has a picture of its own.
-                Image(systemName: "flashlight.on.fill").resizable().scaledToFit().padding(10)
-                    .rotationEffect(.degrees(-90)).foregroundStyle(world.color)
-            } else {
-                Image(world.illustration).resizable().scaledToFit()
-            }
-        }
-        .accessibilityHidden(true)
+        Image(world.illustration)
+            .resizable()
+            .scaledToFit()
+            .accessibilityHidden(true)
     }
 }
