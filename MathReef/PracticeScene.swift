@@ -873,6 +873,11 @@ final class PracticeScene: SKScene {
         fishLayer.addChild(playerNode)
     }
 
+    /// The level after this one is past the free sample and the reef isn't unlocked: passing doesn't open it.
+    private var nextNeedsUnlock: Bool {
+        levelIndex + 1 < world.levels.count && FreeSample.needsUnlock(levelIndex + 1, in: world, isUnlocked: purchases.isUnlocked)
+    }
+
     private func showInstructions() {
         removeMaps()
         resetSession()
@@ -882,7 +887,7 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = false
         let lines: [PanelLine] = level.intro.map { line in
             line.hasPrefix("= ") ? (String(line.dropFirst(2)), 26, true) : (line, 19, false)
-        } + [("Get 80% to unlock the next level.", 18, false)]
+        } + [(PassRule.goal(nextOpens: levelIndex + 1 < world.levels.count && !nextNeedsUnlock), 18, false)]
             + (store.isSkipTest(levelIndex, in: world) ? [("Passing this skips the levels before it.", 18, false)] : [])
         showPanel(
             title: "Level \(levelIndex + 1): \(level.title)",
@@ -1030,7 +1035,8 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = true
 
         let result = session.result
-        let summary = store.recordRound(levelIndex, in: world, correct: result.correctAnswers, attempts: result.totalAttempts)
+        let summary = store.recordRound(levelIndex, in: world, correct: result.correctAnswers, attempts: result.totalAttempts,
+                                        nextNeedsUnlock: nextNeedsUnlock)
         analytics.roundFinished(summary, level: level, in: world)
         if !Self.isCapturing {
             review.finishedRound(

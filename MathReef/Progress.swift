@@ -25,6 +25,12 @@ enum PassRule {
     static func passes(correct: Int, attempts: Int) -> Bool {
         stars(correct: correct, attempts: attempts) >= starsToPass
     }
+
+    /// What a level asks for, before it and after a miss. "Unlock the next level" only when passing opens one: not on a
+    /// world's last level, nor on the last free one before the unlock.
+    static func goal(nextOpens: Bool) -> String {
+        nextOpens ? "Get 80% to unlock the next level." : "Get 80% to pass this level."
+    }
 }
 
 struct LevelRecord: Codable, Equatable {
