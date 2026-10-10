@@ -130,6 +130,20 @@ struct ReefAnalyticsTests {
         }
     }
 
+    /// The tutorial's milestones would fit the milestone shape, but stay unsent until brightbench.app
+    /// accepts them (it rejects a whole batch over a milestone it doesn't know) and the privacy
+    /// policy lists them.
+    @Test func tutorialMilestonesAreNotSentYet() {
+        withDefaults { defaults in
+            #expect(!ReefAnalytics.reportsTutorial)
+            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
+            analytics.tutorialFinished(skipped: false)
+            analytics.tutorialFinished(skipped: true)
+            #expect(analytics.queue.isEmpty)
+            #expect(defaults.dictionaryRepresentation().keys.allSatisfy { !$0.hasPrefix("mathReef.analytics.") })
+        }
+    }
+
     // MARK: Round outcomes
 
     @Test func finishedRoundsCarryStars() {

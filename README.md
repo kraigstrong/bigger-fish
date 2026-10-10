@@ -44,6 +44,10 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     and Xcode builds don't consume requests; Xcode has a gated review-sheet preview.
   - `ReefUnlock.swift` — the free sample (first 3 levels per world, 1 in Exponents) and the one-time StoreKit unlock; `MathReef.storekit` at the repo root backs it when running from Xcode
   - `PracticeScene.swift` — screen flow and gameplay; tuning is `ReefTuning` at the top
+  - `Tutorial.swift` — the first-launch tutorial (Hold, Let go, Eat 2 with 1 + 1), played with the
+    real movement before the reef map on a fresh install. It never fails or times out; a stuck kid
+    sees the hint again. Saved as done once finished or skipped, and skipped for players who already
+    have progress. Xcode builds can replay it from Settings.
   - `ReefAnalytics.swift` — anonymous first-party counts (milestones and round outcomes), queued on the device and sent in batches to brightbench.app (off during test runs)
   - `StoreCapture.swift` — debug-only staged scenes and an autopilot for App Store screenshots and the preview video
 - `Packages/FishKit/` — shared fish engine used by both apps:
