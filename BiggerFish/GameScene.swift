@@ -1571,8 +1571,7 @@ final class GameScene: SKScene {
 
     /// The wall: three fish across the water, closing in on you and waiting just ahead until you can get through.
     private func spawnTutorialWall() {
-        // Laid out for you as you are: you only grow from here, which only closes it tighter.
-        let heights = ArcadeTutorial.wallHeights(you: player.radius, wall: tutorialWallSize, bottom: waterBottom, top: waterTop)
+        let heights = ArcadeTutorial.wallHeights(bottom: waterBottom, top: waterTop)
         let from: CGFloat = 1.0, waits = T.tutorialWallWaits
         tutorialWall = heights.map { y in
             spawnTutorialFish(tutorialWallSize, style: ArcadeTutorial.wallStyle,

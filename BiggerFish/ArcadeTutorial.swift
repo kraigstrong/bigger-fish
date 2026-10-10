@@ -91,13 +91,12 @@ enum ArcadeTutorial {
         return max(8, ((goal * goal - you * you) / (CGFloat(max(1, meals)) * efficiency)).squareRoot())
     }
 
-    /// Where the wall's three fish swim (world heights, bottom to top) for water from `bottom` to `top`: the outer
-    /// two reach the floor and the surface for a fish of `you`, the middle one sits between, and none leave room to
-    /// slip past.
-    static func wallHeights(you: CGFloat, wall: CGFloat, bottom: CGFloat, top: CGFloat) -> [CGFloat] {
-        let reach = (you + wall) * GameTuning.collisionScale
-        let lowest = bottom + you * 0.95 + reach * 0.85, highest = top - you * 0.95 - reach * 0.85
-        return [lowest, (lowest + highest) / 2, highest]
+    /// Where the wall's three fish swim (world heights, bottom to top) for water from `bottom` to `top`: one in the
+    /// middle, the other two `GameTuning.tutorialWallSpread` of the water apart (two thirds spaces all three
+    /// evenly), still too close for you to slip between.
+    static func wallHeights(bottom: CGFloat, top: CGFloat) -> [CGFloat] {
+        let middle = (bottom + top) / 2, half = (top - bottom) * GameTuning.tutorialWallSpread / 2
+        return [middle - half, middle, middle + half]
     }
 
     /// Whether a fish of `you` can't get past fish of `wall` at `heights` anywhere it can swim.

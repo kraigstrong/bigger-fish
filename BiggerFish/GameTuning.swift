@@ -990,6 +990,9 @@ enum GameTuning {
     static let tutorialWallArrives: CGFloat = 1.3
     static let tutorialWallSpeed: CGFloat = 0.34
     static let tutorialWallWaits: CGFloat = 0.4
+    /// How far apart the wall's top and bottom fish are, as a share of the water: two thirds spaces all three evenly.
+    /// Much wider and you could slip between them.
+    static let tutorialWallSpread: CGFloat = 2.0 / 3
     /// The camera stays at its starting zoom through the tutorial (rather than easing out as you grow), so three fish
     /// can wall off the water and everything reads large.
     static let tutorialZoom: CGFloat = 1

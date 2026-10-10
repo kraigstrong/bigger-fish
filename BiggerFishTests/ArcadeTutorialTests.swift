@@ -47,11 +47,16 @@ struct ArcadeTutorialTests {
         #expect(abs(twice / wall - T.tutorialWallMargin) < 0.001)
         // Missed one: the next makes you big enough on its own.
         #expect(GameRules.playerEncounter(A.grow(once, eating: A.wallMeal(you: once, wall: wall, meals: 1)), wall) == .firstEatsSecond)
-        // At the tutorial's zoom, three wall fish leave no gap anywhere you can swim.
+        // At the tutorial's zoom, three wall fish leave no gap anywhere you can swim: as you are when it comes, and
+        // when you're big enough to eat through.
         let water = PlayerTimeline.waterBounds(zoom: T.tutorialZoom)
-        let heights = A.wallHeights(you: you, wall: wall, bottom: water.bottom, top: water.top)
+        let heights = A.wallHeights(bottom: water.bottom, top: water.top)
         #expect(heights.count == 3)
-        #expect(A.wallBlocks(you: you, wall: wall, heights: heights, bottom: water.bottom, top: water.top))
+        for size in [you, twice] {
+            #expect(A.wallBlocks(you: size, wall: wall, heights: heights, bottom: water.bottom, top: water.top), "a fish of \(size)")
+        }
+        // Spread out, with clear water between them.
+        #expect(heights[1] - heights[0] > 2 * wall * 1.6)
     }
 
     @Test func theMissedFishCatchesItsMealsAsItPassesYou() {
