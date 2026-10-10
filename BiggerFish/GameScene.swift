@@ -38,7 +38,7 @@ private struct Speck {
 }
 
 final class GameScene: SKScene {
-    private enum Phase { case ready, playing, paused, won, lost }
+    enum Phase { case ready, playing, paused, won, lost }
     private typealias T = GameTuning
 
     private var phase: Phase = .ready
@@ -410,7 +410,11 @@ final class GameScene: SKScene {
         if !isBuilt { build() }
     }
 
+    static func keepsScreenAwake(_ phase: Phase) -> Bool { phase == .playing }
+
     override func willMove(from view: SKView) {
+        // Leaving a level (even mid-play, as Skip leaves the tutorial): back to the maps, which sleep.
+        UIApplication.shared.isIdleTimerDisabled = false
         #if DEBUG
         finishRunRecording("scene_closed")
         #endif
@@ -772,6 +776,9 @@ final class GameScene: SKScene {
     // MARK: - Phases
 
     private func setPhase(_ newPhase: Phase) {
+        // Awake only while you're playing: the card before a level, the pause menu, the result, and the maps let the
+        // phone sleep as it normally would.
+        UIApplication.shared.isIdleTimerDisabled = Self.keepsScreenAwake(newPhase)
         if newPhase != .won && newPhase != .lost { accessibilityElements = nil }
         if newPhase == .ready || newPhase == .paused || phase == .ready || phase == .paused {
             frameAccumulator = 0

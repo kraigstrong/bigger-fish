@@ -129,7 +129,6 @@ struct ContentView: View {
         .task { await warmUp() }
         .onChange(of: music, initial: true) { _, music in ArcadeAudio.shared.playMusic(music) }
         .onAppear {
-            UIApplication.shared.isIdleTimerDisabled = true
             purchases.start()
             if !metricsLaunched { analytics.launched(); analytics.flush(); metricsLaunched = true }
             #if DEBUG
