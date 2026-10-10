@@ -28,6 +28,26 @@ struct ArcadeSettingsTests {
         }
     }
 
+    /// The screen stays awake only while you're playing: the card before a level, pausing, the result, and the maps
+    /// sleep as the phone normally would.
+    @MainActor @Test func theScreenStaysAwakeOnlyWhilePlaying() {
+        #expect(GameScene.keepsScreenAwake(.playing))
+        #expect(![GameScene.Phase.ready, .paused, .won, .lost].contains(where: GameScene.keepsScreenAwake))
+        let scene = GameScene(world: .shallowReef, levelIndex: 0)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        scene.debugStart()
+        #expect(UIApplication.shared.isIdleTimerDisabled)
+        scene.debugPauseForTuning()
+        #expect(!UIApplication.shared.isIdleTimerDisabled)
+        view.presentScene(nil)
+        #expect(!UIApplication.shared.isIdleTimerDisabled)
+        // A scene that's never shown (a simulation) leaves the setting alone.
+        let headless = GameScene(world: .shallowReef, levelIndex: 0)
+        headless.debugStart()
+        #expect(!UIApplication.shared.isIdleTimerDisabled)
+    }
+
     @MainActor @Test func voiceOverReachesThePauseMenuAndItsSoundSwitches() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
