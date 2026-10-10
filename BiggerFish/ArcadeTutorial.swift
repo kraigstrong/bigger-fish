@@ -2,28 +2,38 @@ import CoreGraphics
 import FishKit
 import SpriteKit
 
-/// Bigger Fish's first-launch tutorial: four short beats, the same every time, that teach the race at the heart of
-/// the game. Eat smaller fish, steer clear of bigger ones, and eat on your first pass: a fish you miss keeps
-/// eating behind you and grows. The fish swim scripted paths, but every bite is the game's own (the same collisions,
-/// swallows, and growth as a level), so you watch a missed fish's real size change.
+/// Bigger Fish's first-launch tutorial: seven short beats, the same every time, that teach the race at the heart of
+/// the game. Hold to rise and let go to fall, as Math Reef teaches it; eat smaller fish, steer clear of bigger ones, and eat on your first pass: a fish you miss keeps eating,
+/// swims on round the reef, and comes back bigger. Then the gates every level has: eat enough to get through. The
+/// fish swim scripted paths, but every bite is the game's own (the same collisions, swallows, and growth as a
+/// level), so you watch a missed fish's real size change.
 enum ArcadeTutorial {
     enum Beat: Int, CaseIterable {
+        /// A finger presses open water: touching anywhere lifts you (your first touch starts the tutorial).
+        case holdToRise
+        /// The finger lifts off: let go and you sink.
+        case letGoToFall
         /// One small glowing fish ahead.
         case eatSmaller
         /// A bigger fish swims at you: go around it.
         case dodgeBigger
-        /// A fish you pass eats two little ones behind you and outgrows you.
+        /// A fish you pass eats two little ones as it goes by, and swims on.
         case missedFishEats
-        /// One more glowing meal, and the fish that outgrew you is yours.
+        /// One more glowing meal, and the fish that outgrew you comes round again: yours.
         case catchItBack
+        /// A wall of three fish, a little bigger than you: two easy meals, then eat your way through.
+        case eatEnough
 
         /// The one short line shown with the beat.
         var caption: String {
             switch self {
+            case .holdToRise: "Hold anywhere to rise"
+            case .letGoToFall: "Let go to fall"
             case .eatSmaller: "Eat smaller fish"
             case .dodgeBigger: "Avoid bigger fish"
             case .missedFishEats: "Fish you miss keep eating"
             case .catchItBack: "Grow, then catch it"
+            case .eatEnough: "Eat enough to get through"
             }
         }
 
@@ -31,23 +41,23 @@ enum ArcadeTutorial {
         var checkpoint: Beat { self == .catchItBack ? .missedFishEats : self }
     }
 
-    /// The card before it starts, and the line it ends on before fading to the map.
-    static let title = "Bigger Fish"
-    static let card = ["Hold anywhere to rise.", "Let go to fall."]
+    /// The line it ends on before fading to the map.
     static let finale = "Now you're ready to play!"
 
     /// Your radius at the start of a beat, eating what the beats before it fed you.
     static func radius(startingAt beat: Beat) -> CGFloat {
         let base = GameTuning.baseRadius
-        return beat == .eatSmaller ? base
-            : GameRules.grownRadius(predator: base, prey: GameTuning.tutorialFirstMeal, efficiency: efficiency)
+        guard beat.rawValue > Beat.eatSmaller.rawValue else { return base }
+        let afterFirst = grow(base, eating: GameTuning.tutorialFirstMeal)
+        guard beat == .eatEnough else { return afterFirst }
+        let afterLast = grow(afterFirst, eating: lastMeal(you: afterFirst, rival: missedFishGrown))
+        return grow(afterLast, eating: missedFishGrown)
     }
 
     /// The missed fish after eating its two meals.
     static var missedFishGrown: CGFloat {
         let meal = GameTuning.tutorialMissedFishMeal
-        let once = GameRules.grownRadius(predator: GameTuning.tutorialMissedFish, prey: meal, efficiency: efficiency)
-        return GameRules.grownRadius(predator: once, prey: meal, efficiency: efficiency)
+        return grow(grow(GameTuning.tutorialMissedFish, eating: meal), eating: meal)
     }
 
     /// A last meal that takes a fish of `you` to `GameTuning.tutorialCatchMargin` times `rival`, within sensible
@@ -58,12 +68,63 @@ enum ArcadeTutorial {
         return min(you * 0.85, max(8, needed > 0 ? needed.squareRoot() : 8))
     }
 
+    // MARK: The race
+
+    /// When each of the missed fish's two meals sets off, in seconds before the missed fish does: they swim ahead of
+    /// it, slower, so it catches each where `tutorialMissedCatches` puts it. A bite starts as soon as the two touch,
+    /// so each meal is that far further on when it's caught (the fish is bigger by the second).
+    static var missedMealLeads: [CGFloat] {
+        let meal = GameTuning.tutorialMissedFishMeal, eaters = [GameTuning.tutorialMissedFish, grow(GameTuning.tutorialMissedFish, eating: meal)]
+        let screen = GameTuning.playfieldSize.width / GameTuning.tutorialZoom
+        return zip(GameTuning.tutorialMissedCatches, eaters).map { at, eater in
+            let touch = (eater + meal) * GameTuning.collisionScale / screen
+            return (TutorialPath.enters - (at - touch)) / GameTuning.tutorialMissedMealSpeed
+                - (TutorialPath.enters - at) / GameTuning.tutorialMissedFishSpeed
+        }
+    }
+
+    // MARK: The wall
+
+    /// The wall's fish, for a fish of `you`.
+    static func wallFish(you: CGFloat) -> CGFloat { you * GameTuning.tutorialWallSize }
+
+    /// Each of the `meals` meals still to come before the wall (two at first): together they make you
+    /// `GameTuning.tutorialWallMargin` times a wall fish, and one of two isn't enough.
+    static func wallMeal(you: CGFloat, wall: CGFloat, meals: Int = 2) -> CGFloat {
+        let goal = wall * GameTuning.tutorialWallMargin
+        return max(8, ((goal * goal - you * you) / (CGFloat(max(1, meals)) * efficiency)).squareRoot())
+    }
+
+    /// Where the wall's three fish swim (world heights, bottom to top) for water from `bottom` to `top`: one in the
+    /// middle, the other two `GameTuning.tutorialWallSpread` of the water apart (two thirds spaces all three
+    /// evenly), still too close for you to slip between.
+    static func wallHeights(bottom: CGFloat, top: CGFloat) -> [CGFloat] {
+        let middle = (bottom + top) / 2, half = (top - bottom) * GameTuning.tutorialWallSpread / 2
+        return [middle - half, middle, middle + half]
+    }
+
+    /// Whether a fish of `you` can't get past fish of `wall` at `heights` anywhere it can swim.
+    static func wallBlocks(you: CGFloat, wall: CGFloat, heights: [CGFloat], bottom: CGFloat, top: CGFloat) -> Bool {
+        let reach = (you + wall) * GameTuning.collisionScale
+        return stride(from: bottom + you * 0.95, through: top - you * 0.95, by: 1).allSatisfy { y in
+            heights.contains { abs($0 - y) < reach }
+        }
+    }
+
+    static func grow(_ fish: CGFloat, eating meal: CGFloat) -> CGFloat {
+        GameRules.grownRadius(predator: fish, prey: meal, efficiency: efficiency)
+    }
+
     private static var efficiency: CGFloat { GameTuning.tutorialLevel.effectiveAbsorptionEfficiency }
 
-    /// How a beat's fish look: the missed fish is purple and spotted, so you know it again when it comes back.
+    /// How a beat's fish look: the missed fish is purple and spotted, so you know it again when it comes back; the
+    /// wall's three are alike, so they read as one.
     static let missedStyle = FishStyle(body: SKColor(red: 0.61, green: 0.36, blue: 0.90, alpha: 1),
                                        accent: SKColor(red: 0.85, green: 0.72, blue: 1.00, alpha: 1),
                                        pattern: .spots, tail: .fork, eyeScale: 1.1, hasDorsalFin: true)
+    static let wallStyle = FishStyle(body: SKColor(red: 0.16, green: 0.62, blue: 0.62, alpha: 1),
+                                     accent: SKColor(red: 0.55, green: 0.88, blue: 0.84, alpha: 1),
+                                     pattern: .stripes, tail: .fan, eyeScale: 1.0, hasDorsalFin: true)
 }
 
 /// A scripted swim measured from you, so it reads the same at any speed: screens ahead of you (negative: behind)
@@ -83,9 +144,18 @@ struct TutorialPath {
         return (points[points.count - 1].ahead, points[points.count - 1].share)
     }
 
+    /// Just off screen ahead of you, and just off screen behind.
+    static let enters: CGFloat = 0.78
+    static let leaves: CGFloat = -0.45
+
     /// Swims straight at you along `share`, from just off screen to behind you, crossing you at `crossing` seconds.
     static func headOn(share: CGFloat, crossing: CGFloat) -> TutorialPath {
-        let start: CGFloat = 0.78, end: CGFloat = -0.45
-        return TutorialPath(points: [(0, start, share), (crossing * (start - end) / start, end, share)])
+        straight(share: share, speed: enters / crossing)
+    }
+
+    /// Swims at you along `share` at `speed` screens a second (as it looks on screen), from `from` until it's off
+    /// screen behind you.
+    static func straight(share: CGFloat, speed: CGFloat, from: CGFloat = enters) -> TutorialPath {
+        TutorialPath(points: [(0, from, share), ((from - leaves) / speed, leaves, share)])
     }
 }

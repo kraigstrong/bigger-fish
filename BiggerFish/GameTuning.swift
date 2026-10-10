@@ -970,10 +970,48 @@ enum GameTuning {
     /// At a pace of 1: seconds a fish swimming straight at you takes to reach you, the glowing meals and the big fish.
     static let tutorialMealCrossing: CGFloat = 1.7
     static let tutorialBigFishCrossing: CGFloat = 2.0
-    /// At a pace of 1: seconds into the race beat that the missed fish's two little meals come along after you, and
-    /// when the beat moves on even if they weren't both eaten.
-    static let tutorialMissedMealsAt: [CGFloat] = [1.5, 2.3]
-    static let tutorialMissedBeatLimit: CGFloat = 7
+    /// The race, at a pace of 1, in screens a second as they look on screen (you swim a screen every 3.2 s, so anything
+    /// slower than 1 / 3.2 would look to swim backwards). The missed fish sets off `tutorialMissedFishSets` seconds in,
+    /// its two little meals ahead of it and slower, and it catches them this many screens ahead of you: one just
+    /// ahead, one as it passes you. Then it swims on off screen, and comes round again from ahead of you
+    /// `tutorialWrapDelay` seconds into the next beat (and after each time it gets past you).
+    static let tutorialMissedFishSpeed: CGFloat = 0.5
+    static let tutorialMissedMealSpeed: CGFloat = 0.36
+    static let tutorialMissedFishSets: CGFloat = 0.9
+    static let tutorialMissedCatches: [CGFloat] = [0.22, 0]
+    static let tutorialWrapDelay: CGFloat = 1.2
+    /// The wall, at a pace of 1: its three fish are `tutorialWallSize` times you, and two meals make you
+    /// `tutorialWallMargin` times them. The meals come straight at you this many seconds in; the wall appears off
+    /// screen ahead at `tutorialWallArrives` and closes in at `tutorialWallSpeed` screens a second, waiting
+    /// `tutorialWallWaits` screens ahead of you until you're big enough to get through.
+    static let tutorialWallSize: CGFloat = 1.17
+    static let tutorialWallMargin: CGFloat = 1.06
+    static let tutorialWallMealsAt: [CGFloat] = [0.3, 1.3]
+    static let tutorialWallArrives: CGFloat = 1.3
+    static let tutorialWallSpeed: CGFloat = 0.34
+    static let tutorialWallWaits: CGFloat = 0.4
+    /// How far apart the wall's top and bottom fish are, as a share of the water: two thirds spaces all three evenly.
+    /// Much wider and you could slip between them.
+    static let tutorialWallSpread: CGFloat = 2.0 / 3
+    /// The camera stays at its starting zoom through the tutorial (rather than easing out as you grow), so three fish
+    /// can wall off the water and everything reads large.
+    static let tutorialZoom: CGFloat = 1
+    /// The size of each beat's line at the top of the screen.
+    static let tutorialCaptionSize: CGFloat = 30
+    /// The first two beats: one hold has to lift you this share of the water (or to near the top), and letting go
+    /// has to drop you this share from your highest. The finger shows again if you haven't after
+    /// `tutorialHintSeconds`. It presses here (shares of the screen), open water well away from your fish.
+    static let tutorialRiseShare: CGFloat = 0.3
+    static let tutorialFallShare: CGFloat = 0.22
+    static let tutorialHintSeconds: CGFloat = 3.5
+    static let tutorialFingerSpot = CGPoint(x: 0.68, y: 0.42)
+    /// The race: the missed fish and its meals swim in this lane (share of the water), just under the line at the top
+    /// so you can read it and watch; you glide down to `tutorialHeldShare` and hold there while it eats.
+    static let tutorialRaceLane: CGFloat = 0.72
+    static let tutorialHeldShare: CGFloat = 0.28
+    static let tutorialHeldGlide: CGFloat = 220
+    /// How fast (points a second) the wall's glowing meals turn toward your height as they come, so they're easy to get.
+    static let tutorialMealHoming: CGFloat = 110
     /// After the last catch: when its closing line fades in, and when it leaves for the map (seconds, real time).
     static let tutorialFinaleDelay: CGFloat = 0.5
     static let tutorialFinaleSeconds: CGFloat = 2.8
