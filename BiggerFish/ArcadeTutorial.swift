@@ -35,37 +35,29 @@ enum ArcadeTutorial {
     static let title = "Bigger Fish"
     static let card = ["Hold anywhere to rise.", "Let go to fall."]
 
-    /// Sizes (radius; you start at `GameTuning.baseRadius`, 16). With the tutorial's growth, the first meal takes
-    /// you to 18.4; the missed fish (14) eats two little ones (12) and reaches 20.7, clearly bigger than you; the
-    /// last meal (14) takes you to 22.3, just past it.
-    static let firstMeal: CGFloat = 10
-    static let bigFish: CGFloat = 40
-    static let missedFish: CGFloat = 14
-    static let missedFishMeal: CGFloat = 12
-    static let lastMeal: CGFloat = 14
-
-    /// A slow, roomy level whose fish can eat each other, with no fish of its own: the beats bring theirs.
-    static let level = Level(spawnGroups: [], aiSpeedRange: 40...90, aiVerticalSpeed: 50, screenCrossSeconds: 3.2,
-                             absorptionEfficiency: 0.9)
-
     /// Your radius at the start of a beat, eating what the beats before it fed you.
     static func radius(startingAt beat: Beat) -> CGFloat {
         let base = GameTuning.baseRadius
         return beat == .eatSmaller ? base
-            : GameRules.grownRadius(predator: base, prey: firstMeal, efficiency: level.effectiveAbsorptionEfficiency)
+            : GameRules.grownRadius(predator: base, prey: GameTuning.tutorialFirstMeal, efficiency: efficiency)
     }
 
     /// The missed fish after eating its two meals.
     static var missedFishGrown: CGFloat {
-        let once = GameRules.grownRadius(predator: missedFish, prey: missedFishMeal, efficiency: level.effectiveAbsorptionEfficiency)
-        return GameRules.grownRadius(predator: once, prey: missedFishMeal, efficiency: level.effectiveAbsorptionEfficiency)
+        let meal = GameTuning.tutorialMissedFishMeal
+        let once = GameRules.grownRadius(predator: GameTuning.tutorialMissedFish, prey: meal, efficiency: efficiency)
+        return GameRules.grownRadius(predator: once, prey: meal, efficiency: efficiency)
     }
 
-    /// A last meal that takes a fish of `you` just past `rival` (at least 2% bigger), within sensible meal sizes.
+    /// A last meal that takes a fish of `you` to `GameTuning.tutorialCatchMargin` times `rival`, within sensible
+    /// meal sizes. Worked out from the sizes as they are, so it still fits if the race went differently.
     static func lastMeal(you: CGFloat, rival: CGFloat) -> CGFloat {
-        let needed = ((rival * 1.02) * (rival * 1.02) - you * you) / level.effectiveAbsorptionEfficiency
+        let goal = rival * GameTuning.tutorialCatchMargin
+        let needed = (goal * goal - you * you) / efficiency
         return min(you * 0.85, max(8, needed > 0 ? needed.squareRoot() : 8))
     }
+
+    private static var efficiency: CGFloat { GameTuning.tutorialLevel.effectiveAbsorptionEfficiency }
 
     /// How a beat's fish look: the missed fish is purple and spotted, so you know it again when it comes back.
     static let missedStyle = FishStyle(body: SKColor(red: 0.61, green: 0.36, blue: 0.90, alpha: 1),

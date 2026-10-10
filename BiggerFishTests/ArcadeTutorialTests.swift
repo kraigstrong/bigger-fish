@@ -10,22 +10,26 @@ import Testing
 struct ArcadeTutorialTests {
     @Test func sizesTellTheRace() {
         typealias A = ArcadeTutorial
-        let efficiency = A.level.effectiveAbsorptionEfficiency
+        typealias T = GameTuning
+        let efficiency = T.tutorialLevel.effectiveAbsorptionEfficiency
         let afterFirst = A.radius(startingAt: .dodgeBigger)
-        #expect(A.radius(startingAt: .eatSmaller) == GameTuning.baseRadius)
+        #expect(A.radius(startingAt: .eatSmaller) == T.baseRadius)
         // You can eat the first meal, not the big fish, and the missed fish while it passes you.
-        #expect(GameRules.playerEncounter(GameTuning.baseRadius, A.firstMeal) == .firstEatsSecond)
-        #expect(GameRules.playerEncounter(afterFirst, A.bigFish) == .secondEatsFirst)
-        #expect(GameRules.playerEncounter(afterFirst, A.missedFish) == .firstEatsSecond)
+        #expect(GameRules.playerEncounter(T.baseRadius, T.tutorialFirstMeal) == .firstEatsSecond)
+        #expect(GameRules.playerEncounter(afterFirst, T.tutorialBigFish) == .secondEatsFirst)
+        #expect(GameRules.playerEncounter(afterFirst, T.tutorialMissedFish) == .firstEatsSecond)
         // It eats its two meals (they're smaller, not a near tie) and outgrows you.
-        #expect(GameRules.encounter(A.missedFish, A.missedFishMeal) == .firstEatsSecond)
+        #expect(GameRules.encounter(T.tutorialMissedFish, T.tutorialMissedFishMeal) == .firstEatsSecond)
         #expect(GameRules.playerEncounter(afterFirst, A.missedFishGrown) == .secondEatsFirst)
-        // One more meal and it's yours again.
+        // One more meal and it's yours again, by the margin the tuning asks for.
         let last = A.lastMeal(you: afterFirst, rival: A.missedFishGrown)
         #expect(GameRules.playerEncounter(afterFirst, last) == .firstEatsSecond)
         let grown = GameRules.grownRadius(predator: afterFirst, prey: last, efficiency: efficiency)
         #expect(GameRules.playerEncounter(grown, A.missedFishGrown) == .firstEatsSecond)
-        #expect(abs(A.missedFishGrown - 20.7) < 0.1 && grown > A.missedFishGrown)
+        #expect(abs(grown / A.missedFishGrown - T.tutorialCatchMargin) < 0.001)
+        // The sizes the tuning comment describes.
+        #expect(abs(afterFirst - 18.4) < 0.1 && abs(A.missedFishGrown - 20.7) < 0.1)
+        #expect(abs(last - 14.2) < 0.1 && abs(grown - 22.4) < 0.1)
     }
 
     @Test func pathsAreMeasuredFromYou() {

@@ -171,6 +171,8 @@ struct ContentView: View {
     private func playTutorial() {
         let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
         game.analytics = analytics
+        // Seen once it's finished, skipped or left; closing the app partway through plays it again next time.
+        game.onTutorialFinished = { progress.sawTutorial() }
         game.onExit = {
             progress.sawTutorial()
             scene = nil

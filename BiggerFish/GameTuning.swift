@@ -950,6 +950,27 @@ enum GameTuning {
             aiSpeedRange: 80...175, aiVerticalSpeed: 95, screenCrossSeconds: 2.15, absorptionEfficiency: 0.75
         ),
     ]
+
+    // MARK: First-launch tutorial (`ArcadeTutorial`)
+
+    /// Its fish (radius; you start at `baseRadius`, 16). The first meal takes you to 18.4; the fish you miss (14)
+    /// eats two little ones (12) and reaches 20.7, clearly bigger than you; the last meal is sized so you end
+    /// `tutorialCatchMargin` times its size (a meal of 14.2, taking you to 22.4).
+    static let tutorialFirstMeal: CGFloat = 10
+    static let tutorialBigFish: CGFloat = 40
+    static let tutorialMissedFish: CGFloat = 14
+    static let tutorialMissedFishMeal: CGFloat = 12
+    static let tutorialCatchMargin: CGFloat = 1.08
+    /// A slow, roomy level whose fish can eat each other, with no fish of its own: the beats bring theirs.
+    static let tutorialLevel = Level(spawnGroups: [], aiSpeedRange: 40...90, aiVerticalSpeed: 50, screenCrossSeconds: 3.2,
+                                     absorptionEfficiency: 0.9)
+    /// Seconds a fish swimming straight at you takes to reach you: the glowing meals, and the big fish.
+    static let tutorialMealCrossing: CGFloat = 1.7
+    static let tutorialBigFishCrossing: CGFloat = 2.0
+    /// Seconds into the race beat that the missed fish's two little meals come along after you, and when the beat
+    /// moves on even if they weren't both eaten.
+    static let tutorialMissedMealsAt: [CGFloat] = [1.5, 2.3]
+    static let tutorialMissedBeatLimit: CGFloat = 7
 }
 
 struct Level {
