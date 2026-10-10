@@ -370,6 +370,10 @@ enum MeetingPlanner {
             where meetings.indices.contains(id - 1) {
             meetings[id - 1].size = radius / GameTuning.baseRadius
         }
+        for (id, seconds) in GameTuning.midnightFishEarlier[spec.name] ?? [:] where meetings.indices.contains(id - 1) {
+            let step = design.timeline.step(reaching: meetings[id - 1].distance)
+            meetings[id - 1].distance = design.timeline.distance[max(0, step - Int((seconds / GameTuning.simulationStep).rounded()))]
+        }
         let solved = MeetingSolver.justInTime(meetings, spec: spec, seed: seed, timeline: design.timeline)
         let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: [], reachScale: spec.reachScale)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,

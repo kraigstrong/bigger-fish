@@ -864,6 +864,10 @@ enum GameTuning {
     /// Kraig's usual ten meals (52.6); the only meal that tied it sat between a giant and a big fish that eats it,
     /// and the route around threaded two giants, so he died there or just after in 22 tries.
     static let midnightFishRadius: [String: [Int: CGFloat]] = ["Midnight Zone 13": [27: 52]]
+    /// Fish moved to meet you this many seconds earlier, the rest of the level unchanged. Midnight Zone 14's
+    /// big fish 13 swims your way, so you overtake it slowly and it hung in the climb from meal 12 to gate 15;
+    /// Kraig reached the gate once in about eight tries. 0.4 s puts it level with meal 12, gone before the climb.
+    static let midnightFishEarlier: [String: [Int: CGFloat]] = ["Midnight Zone 14": [13: 0.4]]
     /// Played and approved, so shipped exactly as saved in `MidnightPlans.json`: a planner change can't alter them.
     static let midnightFrozen: Set<String> = ["Midnight Zone 1", "Midnight Zone 5", "Midnight Zone 9"]
     /// A Midnight Zone level planned in code: its re-roll if it has one, otherwise the first layout with no planner
