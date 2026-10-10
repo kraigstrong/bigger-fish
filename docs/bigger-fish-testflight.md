@@ -73,6 +73,34 @@ New in 0.3, Midnight Zone and a reordered Shallow Reef:
   result card first. Replaying it shows the card.
 - Shallow Reef plays its levels in the new order; levels cleared before stay cleared by number.
 
+## Turning on the unlock
+
+Bigger Fish is free to try: all ten of Shallow Reef's levels and the first two of every other world
+(`ArcadeUnlock.freeLevels`). A one-time purchase opens every world from the start and every Deep End; a
+world's Deep End still opens when its level 10 is beaten. Xcode builds sell it against `BiggerFish.storekit`.
+Release builds don't sell it until `ArcadeUnlock.isSelling` is turned on, and until then everyone plays
+as if they'd bought it. To turn it on:
+
+1. In App Store Connect, under the app's Monetization > In-App Purchases, create a **Non-Consumable** with
+   product ID `com.kraigstrong.biggerfish.allworlds` (permanent once created), reference name "Unlock every
+   world", price $4.99, display name "Every World", and description "Every world and every Deep End, for
+   good." Turn on Family Sharing. Add the review screenshot (the unlock screen) so it reaches Ready to Submit.
+2. Set `ArcadeUnlock.isSelling` to `true` for Release, and archive. TestFlight testers buy it free in the sandbox.
+3. Submit the in-app purchase with the first App Store version that sells it.
+
+In Xcode, Debug > StoreKit > Manage Transactions deletes a test purchase to play as a new player again.
+Launching with `-arcadeUnlocked YES` (or `NO`) skips StoreKit and plays with (or without) the unlock.
+
+Smoke check, without the unlock:
+
+- Every world on the map is open. Shallow Reef plays levels 1–10; every other world plays levels 1 and 2,
+  and levels 3–10 show a gold padlock and "Unlock". Every Deep End says "Unlock every world to dive in."
+- "Unlock all" on the world map, a padlocked level, and Next level after a world's level 2 each show the unlock
+  screen: a looping clip of Jelly Bloom, Kelp Forest, and Midnight Zone, the price, Restore purchase, and Not now.
+- Beating Shallow Reef's level 10 shows "Shallow Reef conquered!" with the same offer.
+- Buying (or Restore purchase after buying on another device) shows "Every world is open!" and removes every
+  padlock. Beating a world's level 10 then shows its conquered screen with just The Deep End.
+
 ## Test Information (paste into App Store Connect)
 
 **Beta App Description**

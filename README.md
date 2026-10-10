@@ -12,7 +12,8 @@ adds safe dome bounces and lethal tentacles, with protected first encounters fol
 A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
 a fish-only environment. Both worlds use protected first opportunities, food-race budgets, and the same lower meal-growth rate. Both worlds use numbered levels.
 
-This playable slice has no purchases, endless mode, pearls, or shop yet. See
+Free to try: all of Shallow Reef, plus two levels of each other world; a one-time purchase opens every world
+from the start and every Deep End (`ArcadeUnlock.swift`). No endless mode, pearls, or shop yet. See
 [`docs/bigger-fish-playable-scope.md`](docs/bigger-fish-playable-scope.md) for the accepted scope and deferred vision.
 
 ## Running
@@ -33,6 +34,9 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
   - `ArcadeMaps.swift` — world selection and the level paths (one stop per level)
   - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and local campaign saves
+  - `ArcadeUnlock.swift` / `UnlockView.swift` / `WorldClips/` — free to try (all of Shallow Reef, two levels of
+    each other world) and the one-time unlock that opens every world and Deep End; its screen loops a clip of each
+    world. `BiggerFish.storekit` is the scheme's StoreKit test file
   - `Jellyfish.swift` / `ArcadeArt.swift` — arcade-only hazard rules and procedural artwork
   - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them
   - `ArcadePlaytest.swift` — debug-only isolated level launches for playtesting

@@ -16,7 +16,11 @@ extension ArcadeWorld {
 
 struct ArcadeWorldMap: View {
     @ObservedObject var progress: ArcadeProgress
+    /// The unlock is bought (or not on sale): every world is open.
+    let unlocked: Bool
     let onSelect: (ArcadeWorld) -> Void
+    /// The unlock's screen, featuring the world tapped (nil from the Unlock button).
+    let onUnlock: (ArcadeWorld?) -> Void
 
     var body: some View {
         GeometryReader { geometry in
@@ -26,9 +30,10 @@ struct ArcadeWorldMap: View {
             let comingSoon = [("Kelp Forest", Color.blue), ("Midnight Zone", .orange), ("Riptide Reef", .pink)]
                 .filter { soon in !worlds.contains { $0.title == soon.0 } }
             // The first open world with main levels left, else the last open one.
+            let isOpen = { (world: ArcadeWorld) in ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) }
             let focus = ArcadeWorld.campaign.firstIndex { world in
-                progress.isWorldOpen(world) && progress.clearedCounts(in: world).main < min(world.levelCount, ArcadeWorld.mainLevelCount)
-            } ?? (ArcadeWorld.campaign.lastIndex { progress.isWorldOpen($0) } ?? 0)
+                isOpen(world) && progress.clearedCounts(in: world).main < min(world.levelCount, ArcadeWorld.mainLevelCount)
+            } ?? (ArcadeWorld.campaign.lastIndex(where: isOpen) ?? 0)
             ZStack(alignment: .topLeading) {
                 // Your fish swims just above the world you're on, clear of its Deep End ring.
                 MapArtLayer(size: size, points: centers,
@@ -36,20 +41,20 @@ struct ArcadeWorldMap: View {
                 ForEach(0..<5, id: \.self) { index in
                     if worlds.indices.contains(index) {
                         let world = worlds[index]
-                        let open = progress.isWorldOpen(world)
+                        let open = isOpen(world)
                         let cleared = progress.clearedCounts(in: world)
                         let main = min(world.levelCount, ArcadeWorld.mainLevelCount)
                         let complete = open && cleared.main >= main
-                        let detail = !open ? "Beat \(world.previousWorld?.title ?? "") to unlock"
+                        let detail = !open ? "Unlock to play"
                             : !complete ? "\(cleared.main)/\(main) cleared" : "✓ World complete"
                         // A finished world's Deep End shows as a gold ring around it, one arc per level beaten.
                         let deepEnd = complete && world.deepEndCount > 0 ? (cleared: cleared.deepEnd, count: world.deepEndCount) : nil
                         let deepEndLabel = deepEnd.map { ", Deep End \($0.cleared) of \($0.count) cleared" } ?? ""
-                        Button { onSelect(world) } label: {
+                        Button { open ? onSelect(world) : onUnlock(world) } label: {
                             WorldMapStop(title: world.title, detail: detail, world: world,
                                          color: world.color, placeholder: false, locked: !open, deepEnd: deepEnd)
                         }
-                        .buttonStyle(.plain).disabled(!open)
+                        .buttonStyle(.plain)
                         .accessibilityLabel(open ? "\(world.title), \(detail)\(deepEndLabel)" : "\(world.title), locked. \(detail)")
                         .position(x: centers[index].x, y: size.height - centers[index].y)
                     } else {
@@ -62,9 +67,12 @@ struct ArcadeWorldMap: View {
                 }
                 Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
                     .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
-                SoundToggles()
-                    .frame(width: size.width - 24, alignment: .trailing)
-                    .padding(.top, 14)
+                HStack(spacing: 14) {
+                    if !unlocked { UnlockButton { onUnlock(nil) } }
+                    SoundToggles()
+                }
+                .frame(width: size.width - 24, alignment: .trailing)
+                .padding(.top, 14)
                 VStack { Spacer(); Text("Choose a world")
                     .font(.custom("AvenirNext-DemiBold", size: 13)).padding(.bottom, 12) }
                     .frame(width: size.width).allowsHitTesting(false)
@@ -72,6 +80,24 @@ struct ArcadeWorldMap: View {
         }
         .foregroundStyle(.white)
         .background(OceanBackdrop(bloom: false))
+    }
+}
+
+/// On the world map without the unlock: a small gold way to see what it opens.
+private struct UnlockButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Unlock all", systemImage: "lock.open.fill")
+                .font(.custom("AvenirNext-Heavy", size: 15))
+                .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.24))
+                .padding(.horizontal, 16).frame(height: 40)
+                .background(DeepEndColors.gold, in: Capsule())
+                .shadow(color: DeepEndColors.gold.opacity(0.4), radius: 8)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Unlock every world")
     }
 }
 
@@ -110,6 +136,8 @@ struct SoundToggles: View {
 struct ArcadeLevelMap: View {
     let world: ArcadeWorld
     @ObservedObject var progress: ArcadeProgress
+    /// The unlock is bought (or not on sale): no level is past the free ones.
+    let unlocked: Bool
     /// The level just played, when coming back from it.
     var returnedFrom: Int? = nil
     let onBack: () -> Void
@@ -134,7 +162,8 @@ struct ArcadeLevelMap: View {
                                 Color.clear.frame(width: width - dropX, height: size.height)
                                     .overlay(alignment: .topLeading) {
                                         DeepEndZone(open: progress.isOpen(world, ArcadeWorld.mainLevelCount),
-                                                    cleared: progress.clearedCounts(in: world).deepEnd, count: world.deepEndCount)
+                                                    cleared: progress.clearedCounts(in: world).deepEnd, count: world.deepEndCount,
+                                                    needsUnlock: ArcadeUnlock.needsUnlock(world, ArcadeWorld.mainLevelCount, unlocked: unlocked))
                                             .frame(width: width - dropX + insets.trailing + 400,
                                                    height: size.height + insets.top + insets.bottom)
                                             .offset(y: -insets.top)
@@ -146,16 +175,18 @@ struct ArcadeLevelMap: View {
                                         pulsingStops: centers.indices.contains(focus) ? [centers[focus]] : [])
                                 .frame(width: width, height: size.height)
                             ForEach(0..<world.levelCount, id: \.self) { index in
-                                let open = progress.isOpen(world, index)
+                                // Past the free levels, a stop offers the unlock (tapping it shows what it opens).
+                                let needsUnlock = ArcadeUnlock.needsUnlock(world, index, unlocked: unlocked)
+                                let open = progress.isOpen(world, index) && !needsUnlock
                                 let cleared = progress.isCleared(world, index)
                                 Button { onPlay(index) } label: {
                                     MapLevelStop(number: index + 1, title: world.levelTitles[index], color: world.color,
                                                  open: open, cleared: cleared,
                                                  best: progress.save.bestTimes[world.levelID(index)],
-                                                 deep: ArcadeWorld.isDeepEnd(index))
+                                                 deep: ArcadeWorld.isDeepEnd(index), needsUnlock: needsUnlock)
                                 }
-                                .buttonStyle(.plain).disabled(!open)
-                                .accessibilityLabel("\(world.levelTitles[index]), \(open ? (cleared ? "cleared, replay" : "play") : "locked")")
+                                .buttonStyle(.plain).disabled(!open && !needsUnlock)
+                                .accessibilityLabel("\(world.levelTitles[index]), \(needsUnlock ? "part of the unlock" : open ? (cleared ? "cleared, replay" : "play") : "locked")")
                                 .position(x: centers[index].x, y: size.height - centers[index].y)
                             }
                             // Stable scroll targets are separate from the positioned buttons.
@@ -241,6 +272,8 @@ private struct MapLevelStop: View {
     let best: Double?
     /// A Deep End level: deep navy with a gold rim.
     var deep = false
+    /// Past the free levels without the unlock: a gold padlock, and tapping it shows the unlock.
+    var needsUnlock = false
 
     private static let gold = Color(red: 1, green: 0.8, blue: 0.32)
 
@@ -254,14 +287,21 @@ private struct MapLevelStop: View {
             Text("\(number)").font(.custom("AvenirNext-Heavy", size: 21))
                 .foregroundStyle(deep ? Self.gold.opacity(open ? 1 : 0.45)
                                  : open ? Color(red: 0.04, green: 0.12, blue: 0.24) : .white.opacity(0.45))
+            if needsUnlock {
+                Image(systemName: "lock.fill").font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.24))
+                    .frame(width: 24, height: 24).background(Self.gold, in: Circle())
+                    .offset(x: 21, y: 21)
+            }
             if cleared {
                 Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).offset(y: -43)
             }
             VStack(spacing: 4) {
                 Text(title).font(.custom("AvenirNext-DemiBold", size: 12))
-                if let best { Text("Best \(Int(best))s").font(.custom("AvenirNext-DemiBold", size: 11)) }
+                if needsUnlock { Text("Unlock").font(.custom("AvenirNext-Heavy", size: 11)).foregroundStyle(Self.gold) }
+                else if let best { Text("Best \(Int(best))s").font(.custom("AvenirNext-DemiBold", size: 11)) }
                 else if !open { Text("Locked").font(.custom("AvenirNext-DemiBold", size: 11)) }
-            }.opacity(open ? 0.95 : 0.55).offset(y: 51)
+            }.opacity(open || needsUnlock ? 0.95 : 0.55).offset(y: 51)
         }
         .frame(width: 108, height: 128).contentShape(Rectangle())
     }

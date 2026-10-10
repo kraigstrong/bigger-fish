@@ -71,13 +71,6 @@ final class ArcadeProgress: ObservableObject {
         return index == 0 || isCleared(world, index) || isCleared(world, index - 1)
     }
 
-    /// The first world is always open; each one after opens when the one before has its tenth level beaten.
-    /// A world you've already cleared a level in stays open, so players from before this rule keep theirs.
-    func isWorldOpen(_ world: ArcadeWorld) -> Bool {
-        guard let previous = world.previousWorld else { return true }
-        return isCleared(previous, ArcadeWorld.mainLevelCount - 1) || (0..<world.levelCount).contains { isCleared(world, $0) }
-    }
-
     /// How many of the world's main levels, and of its Deep End, are cleared.
     func clearedCounts(in world: ArcadeWorld) -> (main: Int, deepEnd: Int) {
         let cleared = (0..<world.levelCount).filter { isCleared(world, $0) }

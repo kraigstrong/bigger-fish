@@ -17,6 +17,24 @@ struct ArcadeResultTests {
         }
     }
 
+    /// Next level onto a level past the free ones leaves for the unlock's screen instead of playing it.
+    @Test func nextLevelPastTheFreeOnesLeavesForTheUnlock() {
+        for locked in [true, false] {
+            let scene = GameScene(world: .jellyBloom, levelIndex: 1)
+            let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+            view.presentScene(scene)
+            var exited = false
+            scene.levelNeedsUnlock = { index in locked && index >= 2 }
+            scene.onExit = { exited = true }
+            scene.debugStart(); scene.debugClearLevel()
+            scene.debugAdvance(seconds: 1)
+            scene.debugTapResult(.nextLevel)
+            #expect(exited == locked && scene.leftForUnlock == locked)
+            #expect(scene.currentLevelIndex == (locked ? 1 : 2))
+            withExtendedLifetime(view) {}
+        }
+    }
+
     /// A world's first level-10 win skips its result card and leaves for the conquered screen; any other win
     /// shows the card.
     @Test func conqueringWinGoesStraightToTheConqueredScreen() {

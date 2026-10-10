@@ -22,23 +22,16 @@ struct ArcadeCampaignTests {
         }
     }
 
-    @Test func worldsOpenInOrderAndPlayersKeepWorldsTheyStarted() {
+    @Test func theDeepEndOpensWithTheTenthLevel() {
         let (progress, _) = fresh()
-        #expect(progress.isWorldOpen(.shallowReef) && !progress.isWorldOpen(.jellyBloom))
         for index in 0..<9 { progress.clear(.shallowReef, index, seconds: 20) }
-        #expect(!progress.isWorldOpen(.jellyBloom))
+        #expect(!progress.isOpen(.shallowReef, ArcadeWorld.mainLevelCount))
         progress.clear(.shallowReef, 9, seconds: 20)
-        #expect(progress.isWorldOpen(.jellyBloom))
         // The Deep End opens with the tenth level and counts apart from the main run.
         #expect(progress.isOpen(.shallowReef, ArcadeWorld.mainLevelCount) && !progress.isOpen(.shallowReef, 11))
         progress.clear(.shallowReef, 10, seconds: 40)
         #expect(progress.clearedCounts(in: .shallowReef) == (main: 10, deepEnd: 1))
-
-        // Someone who played Jelly Bloom before worlds were locked keeps it open.
-        let (earlier, _) = fresh()
-        earlier.clear(.jellyBloom, 0, seconds: 30)
-        #expect(earlier.isWorldOpen(.jellyBloom))
-        #expect(ArcadeWorld.jellyBloom.previousWorld == .shallowReef && ArcadeWorld.shallowReef.nextWorld == .jellyBloom)
+        #expect(ArcadeWorld.shallowReef.nextWorld == .jellyBloom)
         #expect(ArcadeWorld.campaign.allSatisfy { $0.deepEndCount == $0.levelCount - ArcadeWorld.mainLevelCount })
     }
 
@@ -109,7 +102,7 @@ struct ArcadeCampaignTests {
         // Exactly what 0.2 wrote after beating Kelp Forest and seeing its screen.
         let saved02 = #"{"clearedLevels":["shallow-reef.10","jelly-bloom.10","kelp-forest.10"],"bestTimes":{"kelp-forest.10":41.2},"hasSeenJellyLesson":true,"seenUnlocks":["shallow-reef","jelly-bloom","kelp-forest"]}"#
         let (beaten, defaults) = load(saved02)
-        #expect(beaten.save.announcedWorlds == nil && beaten.isWorldOpen(.midnightZone))
+        #expect(beaten.save.announcedWorlds == nil)
         #expect(beaten.unseenUnlock == .kelpForest)
         beaten.sawUnlock(.kelpForest)
         #expect(ArcadeProgress(defaults: defaults).unseenUnlock == nil)
