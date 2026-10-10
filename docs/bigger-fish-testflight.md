@@ -59,24 +59,41 @@ New in 0.2, worlds unlock in order:
 - Kelp Forest: kelp slows you, fish inside it are silhouettes, and your whole fish stays in front of
   the kelp.
 
+New in 0.3, Midnight Zone and a reordered Shallow Reef:
+
+- **Update over 0.2 with Kelp Forest's level 10 beaten:** your progress, Deep End rings, and best times
+  are all still there. On first launch, Kelp Forest's conquered screen shows once more, now with the
+  "Midnight Zone is open" card, then never again. It doesn't show if you've already played Midnight Zone.
+- **Fresh install:** Midnight Zone shows a lock and "Beat Kelp Forest to unlock". Beating Kelp Forest's
+  level 10 opens it, and its conquered screen points to it.
+- Midnight Zone: the water is dark except your headlamp's beam, which tilts as you rise or dive; every
+  other fish carries the same small lure light, and its body only shows in your beam. Your whole fish
+  stays bright.
+- Beating any world's level 10 for the first time goes straight to its conquered screen, with no
+  result card first. Replaying it shows the card.
+- Shallow Reef plays its levels in the new order; levels cleared before stay cleared by number.
+
 ## Test Information (paste into App Store Connect)
 
 **Beta App Description**
 
 > Bigger Fish is an arcade game about working your way up the food chain. Hold to rise, release to
 > fall. Eat fish smaller than you, avoid the bigger ones, and grow until you're the last fish
-> swimming. This beta has three worlds of ten levels each: Shallow Reef; Jelly Bloom, where
-> jellyfish domes bounce you and their tentacles sting; and Kelp Forest, where kelp slows you down
-> and hides what's inside it. Beat a world's tenth level to open the next, and The Deep End: five
-> extra-hard levels for when you can't get enough.
+> swimming. This beta has four worlds of ten levels each: Shallow Reef; Jelly Bloom, where
+> jellyfish domes bounce you and their tentacles sting; Kelp Forest, where kelp slows you down and
+> hides what's inside it; and Midnight Zone, where it's dark but for your headlamp, and every other
+> fish carries the same little light, so you can't tell how big one is until your beam lands on it.
+> Beat a world's tenth level to open the next, and The Deep End: five extra-hard levels for when you
+> can't get enough.
 
 **What to Test**
 
-> Thanks for playing! New in this build: Kelp Forest, a third world, and The Deep End, five extra-hard
-> levels in each world after level 10. Worlds now open one at a time, so beat a world's tenth level to
-> open the next. We'd love to hear:
-> - Which levels felt too hard or too easy, and where you got stuck.
-> - How Kelp Forest's kelp feels: does slowing down in it, and not seeing what's inside, feel fair?
+> Thanks for playing! New in this build: Midnight Zone, a fourth world. Beat Kelp Forest's level 10 to
+> open it; if you already have, you'll be shown the way in once. Shallow Reef's levels are also
+> reordered to ramp up more smoothly, and your cleared levels stay cleared. We'd love to hear:
+> - How Midnight Zone's dark feels: is not knowing a fish's size until your light lands on it fair?
+> - Which levels felt too hard or too easy, and roughly how many tries they took.
+> - Whether Shallow Reef's new order feels like a steady climb.
 > - Whether The Deep End is a fun challenge or just frustrating.
 > - Anything about how to play that was confusing.
 > - Bugs, crashes, or sound problems.
