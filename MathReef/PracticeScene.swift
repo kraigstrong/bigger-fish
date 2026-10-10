@@ -204,8 +204,12 @@ final class PracticeScene: SKScene {
     private let closeButton = SKNode()
     /// Top right of the maps; opens Settings (sound on/off, and links for grown-ups).
     private let settingsButton = SKNode()
-    /// Settings or one of its grown-up screens is open over the map.
-    private var isShowingSettings = false
+    /// Which of Settings' screens is open over the map, if any. A late answer from the App Store redraws only the
+    /// screen that asked for it (a price for the unlock screen, a result for the wait), never whatever a kid has open
+    /// by then: nobody reaches the unlock screen without passing the parental gate.
+    private enum SettingsScreen { case settings, gate, links, unlockPrompt, unlock, waiting, message }
+    private var settingsScreen: SettingsScreen?
+    private var isShowingSettings: Bool { settingsScreen != nil }
     /// The question on screen while the parental gate is open.
     private var parentalGate: ParentalGate?
     /// Where passing the gate leads: the privacy and support links, or the unlock screen.
@@ -411,7 +415,7 @@ final class PracticeScene: SKScene {
         updateProgress()
         closeButton.isHidden = true
         settingsButton.isHidden = false
-        isShowingSettings = false
+        settingsScreen = nil
         render()
     }
 
@@ -438,16 +442,16 @@ final class PracticeScene: SKScene {
             ("Reset ×", { [weak self] in self?.debugSetUpMultiplication(.reset) }),
         ]
         #endif
-        showSettingsPanel(title: "Settings", lines: lines, buttons: buttons, animated: animated)
+        showSettingsPanel(.settings, title: "Settings", lines: lines, buttons: buttons, animated: animated)
     }
 
     /// Settings and its grown-up screens: centered over the dimmed map. `animated: false` redraws in
     /// place without the panel's fade-in, for a change on the same screen (a sound toggle, a digit).
     private func showSettingsPanel(
-        title: String, lines: [PanelLine], buttons: [(title: String, action: () -> Void)],
+        _ screen: SettingsScreen, title: String, lines: [PanelLine], buttons: [(title: String, action: () -> Void)],
         buttonMinWidth: CGFloat = 140, rowStarts: Set<Int> = [], animated: Bool
     ) {
-        isShowingSettings = true
+        settingsScreen = screen
         holdTouches.removeAll()
         showPanel(title: title, lines: lines, buttons: buttons, centerX: size.width / 2,
                   buttonMinWidth: buttonMinWidth, rowStarts: rowStarts)
@@ -466,7 +470,7 @@ final class PracticeScene: SKScene {
     }
 
     private func hideSettings() {
-        isShowingSettings = false
+        settingsScreen = nil
         parentalGate = nil
         hidePanel()
     }
@@ -497,7 +501,7 @@ final class PracticeScene: SKScene {
             ("Cancel", { [weak self] in self?.leaveGate() }),
         ]
         showSettingsPanel(
-            title: "For grown-ups", lines: [(gate.question, 20, false), (entry, 30, true)],
+            .gate, title: "For grown-ups", lines: [(gate.question, 20, false), (entry, 30, true)],
             // A keypad: 1–5, 6–9 and 0, then Delete and Cancel, the same on every screen size.
             buttons: buttons, buttonMinWidth: 56, rowStarts: [5, 10], animated: false
         )
@@ -542,7 +546,7 @@ final class PracticeScene: SKScene {
         #endif
         buttons.append(("Done", { [weak self] in self?.hideSettings() }))
         showSettingsPanel(
-            title: "For grown-ups", lines: [("Privacy and support open in Safari.", 18, false)],
+            .links, title: "For grown-ups", lines: [("Privacy and support open in Safari.", 18, false)],
             buttons: buttons, animated: false
         )
     }
@@ -566,7 +570,7 @@ final class PracticeScene: SKScene {
     private func showUnlockPrompt() {
         analytics.paywallShown()
         showSettingsPanel(
-            title: "More of the reef",
+            .unlockPrompt, title: "More of the reef",
             lines: [("Ask a grown-up to unlock all the levels.", 18, false)],
             buttons: [
                 ("Grown-ups", { [weak self] in self?.showParentalGate(leadingTo: .unlock) }),
@@ -580,7 +584,7 @@ final class PracticeScene: SKScene {
     private func showUnlockScreen() {
         let price = purchases.displayPrice
         showSettingsPanel(
-            title: "Unlock the whole reef",
+            .unlock, title: "Unlock the whole reef",
             lines: [("Every level in all five worlds, for good.", 18, false),
                     ("One purchase, shared with your family.", 18, false)],
             buttons: [
@@ -594,7 +598,7 @@ final class PracticeScene: SKScene {
         if price == nil {
             Task { [weak self] in
                 await self?.purchases.loadProduct()
-                guard let self, purchases.displayPrice != nil, isShowingSettings else { return }
+                guard let self, purchases.displayPrice != nil, settingsScreen == .unlock else { return }
                 showUnlockScreen()
             }
         }
@@ -604,7 +608,9 @@ final class PracticeScene: SKScene {
         showWaiting()
         Task { [weak self] in
             guard let self else { return }
-            switch await purchases.purchase() {
+            let outcome = await purchases.purchase()
+            guard settingsScreen == .waiting else { return }
+            switch outcome {
             case .unlocked:
                 showUnlocked()
             case .pending:
@@ -621,7 +627,9 @@ final class PracticeScene: SKScene {
         showWaiting()
         Task { [weak self] in
             guard let self else { return }
-            if await purchases.restore() {
+            let restored = await purchases.restore()
+            guard settingsScreen == .waiting else { return }
+            if restored {
                 showUnlocked()
             } else {
                 showUnlockMessage("Nothing to restore", "No unlock was found for this Apple Account or family.")
@@ -630,7 +638,7 @@ final class PracticeScene: SKScene {
     }
 
     private func showWaiting() {
-        showSettingsPanel(title: "Talking to the App Store…", lines: [], buttons: [], animated: false)
+        showSettingsPanel(.waiting, title: "Talking to the App Store…", lines: [], buttons: [], animated: false)
     }
 
     private func showUnlocked() {
@@ -639,7 +647,7 @@ final class PracticeScene: SKScene {
 
     private func showUnlockMessage(_ title: String, _ line: String) {
         showSettingsPanel(
-            title: title, lines: [(line, 18, false)],
+            .message, title: title, lines: [(line, 18, false)],
             buttons: [("OK", { [weak self] in
                 guard let self else { return }
                 hideSettings()
@@ -667,7 +675,7 @@ final class PracticeScene: SKScene {
 
     /// A perfect round that earns `crown` in the last world opened, without touching saved progress.
     private func previewCrown(_ crown: Crown) {
-        isShowingSettings = false
+        settingsScreen = nil
         removeMaps()
         removeTutorial()
         resetSession()  // brings the player fish on screen to receive the crown
@@ -1242,7 +1250,7 @@ final class PracticeScene: SKScene {
         tutorialCurtain = nil
         removeMaps()
         hidePanel()
-        isShowingSettings = false
+        settingsScreen = nil
         parentalGate = nil
         resetSession()  // the player fish, as at the start of a round; none of the round's questions are asked
         phase = .tutorial
@@ -1418,9 +1426,10 @@ final class PracticeScene: SKScene {
                 hit.action()
                 return
             }
-            // A tap outside the Settings panel closes it without reaching the map underneath.
-            if isShowingSettings {
-                hideSettings()
+            // A tap outside the Settings panel closes it without reaching the map underneath, except while
+            // waiting on the App Store: its answer lands there, so it stays until that answer comes.
+            if let screen = settingsScreen {
+                if screen != .waiting { hideSettings() }
                 return
             }
             if phase == .tutorial, let overlay = tutorialOverlay, overlay.skipFrame.contains(p) {
