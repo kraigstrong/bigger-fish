@@ -240,6 +240,31 @@ struct ProgressStoreTests {
         return defaults
     }
 
+    /// A save that doesn't read whole never costs a child their progress: the original is set aside before anything
+    /// can overwrite it, and every level's record that still reads is kept, through the next finished round.
+    @Test func aSaveThatDoesntReadWholeKeepsWhatItCan() throws {
+        let addition = Curriculum.worlds.first { $0.id == "addition" }!
+        let first = addition.levels[0].id, second = addition.levels[1].id
+        // One good record and one that can't be a record (a bad field type).
+        let damaged = #"{"\#(first)":{"passed":true,"bestPercent":90,"hasPlayed":true},"\#(second)":{"passed":"yes"}}"#
+        let defaults = freshDefaults()
+        defaults.set(Data(damaged.utf8), forKey: "mathReef.progress.v2")
+        let store = ProgressStore(defaults: defaults)
+        #expect(store.record(for: addition.levels[0]).passed && store.record(for: addition.levels[0]).bestPercent == 90)
+        #expect(defaults.data(forKey: ProgressStore.unreadableKey) == Data(damaged.utf8))
+        // The next round saves alongside what was kept, and the original stays set aside.
+        store.finishRound(2, in: addition, correct: 10, attempts: 10)
+        let reloaded = ProgressStore(defaults: defaults)
+        #expect(reloaded.record(for: addition.levels[0]).passed && reloaded.record(for: addition.levels[2]).passed)
+        #expect(defaults.data(forKey: ProgressStore.unreadableKey) == Data(damaged.utf8))
+
+        // Not even JSON: nothing to keep, but the original is still set aside, not lost.
+        let garbage = freshDefaults()
+        garbage.set(Data("not json".utf8), forKey: "mathReef.progress.v2")
+        #expect(!ProgressStore(defaults: garbage).hasProgress)
+        #expect(garbage.data(forKey: ProgressStore.unreadableKey) == Data("not json".utf8))
+    }
+
     /// The Settings shortcuts in debug builds land each crown state, and don't touch other worlds.
     @Test func debugWorldSetupsReachEachCrownState() {
         let defaults = freshDefaults()

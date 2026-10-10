@@ -61,14 +61,37 @@ final class ProgressStore {
     private let key = "mathReef.progress.v2"
     private var records: [String: LevelRecord]
 
+    /// Where a save that couldn't be read whole is kept, untouched, so the next save can't destroy it.
+    static let unreadableKey = "mathReef.progress.v2.unreadable"
+
+    /// A child's progress must always load. A save that doesn't read whole (corrupted, or from a version that changed a
+    /// record in a way this one can't read) is set aside first, then every record that still reads is kept, so the
+    /// next finished round can't overwrite the rest with nothing.
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if let data = defaults.data(forKey: key),
-           let saved = try? JSONDecoder().decode([String: LevelRecord].self, from: data) {
-            records = saved
-        } else {
+        guard let data = defaults.data(forKey: key) else {
             records = [:]
+            return
         }
+        if let saved = try? JSONDecoder().decode([String: LevelRecord].self, from: data) {
+            records = saved
+            return
+        }
+        // Only the first one: the original is the one worth keeping.
+        if defaults.data(forKey: Self.unreadableKey) == nil { defaults.set(data, forKey: Self.unreadableKey) }
+        records = Self.salvage(data)
+    }
+
+    /// Each level's record that still reads on its own, from a save that didn't read whole.
+    private static func salvage(_ data: Data) -> [String: LevelRecord] {
+        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [:] }
+        var records: [String: LevelRecord] = [:]
+        for (id, value) in object where JSONSerialization.isValidJSONObject(value) {
+            guard let piece = try? JSONSerialization.data(withJSONObject: value),
+                  let record = try? JSONDecoder().decode(LevelRecord.self, from: piece) else { continue }
+            records[id] = record
+        }
+        return records
     }
 
     func record(for level: Level) -> LevelRecord {
