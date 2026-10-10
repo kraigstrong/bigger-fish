@@ -920,14 +920,19 @@ final class GameScene: SKScene {
             layoutStatic()
             resetGame(startPlaying: false)
         case .playAgain, .tryAgain:
-            replaying = true
-            resetGame(startPlaying: false)
+            replayLevel()
         case .levels, .world:
             #if DEBUG
             finishRunRecording("level_map")
             #endif
             onExit?()
         }
+    }
+
+    /// The same level again (Retry, Play again, or Restart, by touch or VoiceOver): no card first, just the prompt.
+    private func replayLevel() {
+        replaying = true
+        resetGame(startPlaying: false)
     }
 
     private func startRun() {
@@ -1036,8 +1041,7 @@ final class GameScene: SKScene {
                     recordRunEvent("resume")
                     #endif
                 } else if restartButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
-                    replaying = true
-                    resetGame(startPlaying: false)
+                    replayLevel()
                 } else if effectsButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
                     toggleSound(effects: true)
                 } else if musicButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
@@ -2803,7 +2807,7 @@ final class GameScene: SKScene {
         }
         accessibilityElements = [
             element(resumeButton, "Resume") { $0.setPhase(.playing) },
-            element(restartButton, "Restart") { $0.resetGame(startPlaying: false) },
+            element(restartButton, "Restart") { $0.replayLevel() },
             element(mapButton, "Level map") { scene in
                 #if DEBUG
                 scene.finishRunRecording("level_map")
