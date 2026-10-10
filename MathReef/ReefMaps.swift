@@ -54,15 +54,7 @@ final class WorldMapNode: SKNode {
         // Clear of the Dynamic Island on either side (its landscape safe-area inset, the largest of any
         // iPhone): the first stop's circle on the left, and on the right the fish, which sits 66
         // past the last stop with its nose about 24 further.
-        let count = worlds.count
-        let edge: CGFloat = 62
-        let left = edge + 44, right = size.width - edge - 94
-        centers = worlds.indices.map { i in
-            CGPoint(
-                x: count > 1 ? left + (right - left) * CGFloat(i) / CGFloat(count - 1) : size.width / 2,
-                y: size.height * (i.isMultiple(of: 2) ? 0.60 : 0.38)
-            )
-        }
+        centers = OceanMapLayout.worldCenters(count: worlds.count, size: size)
         playable = worlds.map { !$0.comingSoon }
 
         let trail = dottedPath(through: centers)
@@ -169,11 +161,7 @@ final class LevelMapNode: SKNode {
         addChild(bed)
         addChild(content)
 
-        let spacing: CGFloat = 118, startX: CGFloat = 110
-        centers = levels.indices.map { i in
-            CGPoint(x: startX + spacing * CGFloat(i),
-                    y: size.height * 0.44 + sin(CGFloat(i) * 1.1) * size.height * 0.16)
-        }
+        centers = OceanMapLayout.levelCenters(count: levels.count, height: size.height)
         radii = levels.map { $0.isCheckpoint ? 34 : 28 }
         playable = levels.map { $0.state != .locked }
 
@@ -192,7 +180,7 @@ final class LevelMapNode: SKNode {
             content.addChild(fish)
         }
 
-        let contentWidth = startX * 2 + spacing * CGFloat(max(0, levels.count - 1))
+        let contentWidth = OceanMapLayout.levelContentWidth(count: levels.count)
         minOffset = min(0, size.width - contentWidth)
         if centers.indices.contains(focus) {
             content.position.x = (size.width / 2 - centers[focus].x).clamped(minOffset, 0)

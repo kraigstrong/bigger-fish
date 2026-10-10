@@ -31,6 +31,7 @@
 /* Begin PBXFileReference section */
 		BF00000000000000000000B0 /* BiggerFish.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BiggerFish.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BF00000000000000000000B1 /* BiggerFishTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BiggerFishTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BF00000000000000000000F9 /* BiggerFish.storekit */ = {isa = PBXFileReference; lastKnownFileType = text.json.storekit; path = BiggerFish.storekit; sourceTree = "<group>"; };
 		CC0000000000000000000010 /* MathReef.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MathReef.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC0000000000000000000011 /* MathReefTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MathReefTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC0000000000000000000099 /* MathReef.storekit */ = {isa = PBXFileReference; lastKnownFileType = text.json.storekit; path = MathReef.storekit; sourceTree = "<group>"; };
@@ -100,6 +101,7 @@
 				BF00000000000000000000A4 /* BiggerFishTests */,
 				CC0000000000000000000020 /* MathReef */,
 				CC0000000000000000000021 /* MathReefTests */,
+				BF00000000000000000000F9 /* BiggerFish.storekit */,
 				CC0000000000000000000099 /* MathReef.storekit */,
 				BF00000000000000000000A2 /* Products */,
 			);
@@ -385,14 +387,17 @@
 		BF00000000000000000000F3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = MKACSCQ588;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "BiggerFish-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Bigger Fish";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.arcade-games";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -401,7 +406,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kraigstrong.biggerfish;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -412,14 +417,17 @@
 		BF00000000000000000000F4 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = MKACSCQ588;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "BiggerFish-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Bigger Fish";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.arcade-games";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -428,7 +436,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kraigstrong.biggerfish;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;

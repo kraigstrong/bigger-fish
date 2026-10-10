@@ -1,8 +1,31 @@
 import CoreGraphics
+import Foundation
 import FishKit
+import SpriteKit
 
 /// Every feel-related constant lives here so it can be tweaked quickly between device runs.
 enum GameTuning {
+    /// Gameplay coordinates never depend on the device's display dimensions.
+    static let playfieldSize = CGSize(width: 874, height: 402)
+
+    static func fittedPlayfieldSize(in available: CGSize) -> CGSize {
+        let scale = max(0, min(available.width / playfieldSize.width,
+                               available.height / playfieldSize.height))
+        return CGSize(width: playfieldSize.width * scale, height: playfieldSize.height * scale)
+    }
+
+    // MARK: Simulation timing
+
+    static let simulationStep: CGFloat = 1.0 / 60
+    /// Bound catch-up after a hitch; longer stalls discard excess elapsed time.
+    static let maximumFrameElapsed: CGFloat = 0.25
+    static let slowMotionRecoveryRate: CGFloat = 2.5
+    #if DEBUG
+    /// Log display gaps or frame work longer than 2.5 normal 60 Hz frames.
+    static let debugFrameHitchSeconds: CGFloat = simulationStep * 2.5
+    static let debugMealHitchSeconds: CGFloat = simulationStep / 2
+    #endif
+
     // MARK: Player movement
 
     static let motion = MotionTuning(
@@ -16,6 +39,26 @@ enum GameTuning {
     )
     /// Where the player sits horizontally on screen (fraction of width).
     static let playerScreenX: CGFloat = 0.30
+
+    /// The loading screen stays up at least this long, so a fast launch doesn't flash it.
+    static let launchMinimumSeconds: Double = 0.8
+    /// The loading bar: a short dash sweeping back and forth along a thin track (points and seconds).
+    static let launchBarTrack: CGFloat = 120
+    static let launchBarFillShare: CGFloat = 0.22
+    static let launchBarThickness: CGFloat = 4
+    static let launchBarSweepSeconds: Double = 0.55
+
+    // MARK: Sound
+
+    static let effectVolume: Float = 0.7
+    /// The level-clear chime is fuller than the other effects, so it plays a little quieter.
+    static let clearSoundVolume: Float = 0.55
+    /// A jellyfish bounce reuses the gulp, sped up (and pitched up) by this much.
+    static let bounceSoundRate: Float = 1.35
+    /// Music sits under the effects; both tracks are normalized to -18 LUFS before this.
+    static let musicVolume: Float = 0.45
+    /// Crossfade between the menu and game tracks.
+    static let musicFadeSeconds: Double = 1.0
 
     // MARK: Camera
 
@@ -37,10 +80,12 @@ enum GameTuning {
 
     /// Points of radius for a normalized size of 1.0 (the player's starting size).
     static let baseRadius: CGFloat = 16
-    /// Radii differing by less than this fraction bump apart instead of eating.
+    /// Within this fraction, player encounters favor the player; NPC encounters bump apart.
     static let nearEqualThreshold: CGFloat = 0.01
     /// Collision distance = (rA + rB) * collisionScale. Bodies are 1.35r long and 0.95r tall.
     static let collisionScale: CGFloat = 1.05
+    /// Applies to every arcade meal, including saved tuning overrides and AI meals.
+    static let mealGrowthScale: CGFloat = 0.90
     static let growDuration: CGFloat = 0.35
     /// Seconds for the mouth to open when a swallow begins, and to close after it ends.
     static let mouthOpenSeconds: CGFloat = 0.06
@@ -88,14 +133,808 @@ enum GameTuning {
 
     static let winSlowFactor: CGFloat = 0.3
     static let winSlowDuration: CGFloat = 1.2
+    /// Seconds a world-conquering win plays (its sound and glow) before going straight to the conquered screen.
+    static let conqueredExitDelay: CGFloat = 1.6
     /// Seconds after a win/loss before a tap restarts (avoids accidental restarts from a held finger).
     static let restartDelay: CGFloat = 0.8
 
+    // MARK: Jelly Bloom
+
+    static let hazardHitboxScale: CGFloat = 0.8
+    static let urchinRadius: CGFloat = 15
+    static let jellyDomeForgiveness: CGFloat = 10
+    static let jellyBounceSpeed: CGFloat = 460
+    static let jellyBounceSeconds: CGFloat = 0.28
+    static let jellyBounceCooldown: CGFloat = 0.24
+    /// A jellyfish swims in strokes: a quick squeeze (this share of the stroke), then a slow release.
+    static let jellyStrokeSeconds: CGFloat = 1.7
+    static let jellySqueezeShare: CGFloat = 0.28
+    /// How long a jellyfish's tentacles flash after stinging.
+    static let jellyStingFlashSeconds: CGFloat = 0.6
+    /// A stung fish jolts, rolls belly-up, and sinks out of sight; the result panel waits for it.
+    static let stingJoltSeconds: CGFloat = 0.45
+    static let stingRollSeconds: CGFloat = 0.35
+    static let stingFadeStart: CGFloat = 0.9
+    static let stingSeconds: CGFloat = 1.5
+    static let stingResultDelay: CGFloat = 1.1
+    static let jellyAvoidancePredictionSteps = 8
+    static let bloomFloorLanePadding: CGFloat = 20
+    /// Alternating bell heights for authored layouts without per-level heights.
+    static let bloomAuthoredJellyHeights: [CGFloat] = [0.37, 0.68]
+    static let bloomJellyFallbackFloorGap: CGFloat = 12
+
+    /// Swimmers anticipate curtains; no chasing or fleeing.
+    static let bloomAvoidanceLookAhead: CGFloat = 1.2
+    static let bloomAvoidancePadding: CGFloat = 16
+    static let bloomAvoidanceRiseSpeed: CGFloat = 140
+    static let bloomAvoidanceTurnRate: CGFloat = 8
+
+    static let bloomFoodPocketHalfWidth: CGFloat = 76
+    static let bloomFoodPocketHalfHeight: CGFloat = 24
+    static let bloomFoodPocketLift: CGFloat = 40
+    static let bloomFoodPocketReleaseSeconds: CGFloat = 4
+    static let bloomJellyOpeningScreens: ClosedRange<CGFloat> = 0.80...1.00
+    static let bloomJellyLastScreens: ClosedRange<CGFloat> = 3.40...3.60
+    static let bloomJellyGapWeight: ClosedRange<CGFloat> = 0.10...1.80
+    static let bloomJellySpacingPadding: CGFloat = 40
+    static let bloomJellyHeightRange: ClosedRange<CGFloat> = 0.28...0.76
+    static let bloomFoodPatrolScreens: CGFloat = 0.16
+
+    // Level 2 only: a meal beyond the far shoulder, where an early bounce sends you away.
+    static let bloomSidePocketJellyIndex = 1
+    static let bloomSidePocketOffset: CGFloat = 112
+    static let bloomSidePocketDrop: CGFloat = 16
+    static let bloomSidePocketSpawnHalfWidth: CGFloat = 30
+    static let bloomSidePocketPatrolHalfWidth: CGFloat = 44
+    static let bloomSidePredatorOffset: CGFloat = 200
+
+    /// Jelly Bloom 2: each bell wanders this far side to side (screen widths each way) and bobs this many
+    /// points, over these periods.
+    static let jellyDriftScreens: CGFloat = 0.1
+    static let jellyDriftSeconds: CGFloat = 12
+    static let jellyBobPoints: CGFloat = 22
+    static let jellyBobSeconds: CGFloat = 7
+
+    static let bloomFoodRefillSeconds: CGFloat = 3
+    static let bloomFoodRefillCount = 2
+    static let bloomFoodRadiusFraction: ClosedRange<CGFloat> = 0.45...0.65
+
+    /// World 1 remains intact. Bloom's curve varies the food-race window, not chase AI.
+    /// The original five profiles, kept for comparison in the debug tuner.
+    static let bloomReferenceLevels: [Level] = [
+        Level(spawnGroups: [(9, 0.30...0.65), (5, 0.65...0.85)],
+              aiSpeedRange: 30...80, aiVerticalSpeed: 35, screenCrossSeconds: 3.1,
+              absorptionEfficiency: 0.90,
+              jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6)),
+        bloomRaceLevel(foodCount: 7, giants: 1, speed: 30...80, vertical: 35,
+                       efficiency: 0.88, jellyCount: 5, jellyRadius: 44, tentacles: 70,
+                       sidePocket: true, compactSpeedScale: 0.65),
+        bloomRaceLevel(foodCount: 3, giants: 2, speed: 45...110, vertical: 55,
+                       efficiency: 0.78, jellyCount: 6, jellyRadius: 46, tentacles: 75,
+                       seedOffset: 1, compactSpeedScale: 0.65),
+        bloomRaceLevel(foodCount: 3, giants: 2, speed: 65...155, vertical: 80,
+                       efficiency: 0.78, jellyCount: 6, jellyRadius: 46, tentacles: 75,
+                       night: true, compactSpeedScale: 0.50),
+        bloomRaceLevel(foodCount: 7, giants: 2, speed: 65...155, vertical: 80,
+                       efficiency: 0.82, jellyCount: 7, jellyRadius: 48, tentacles: 75,
+                       seedOffset: 1, compactSpeedScale: 0.763, mediumSpeedMultiplier: 0.85),
+    ]
+
+    /// Original authoring targets; campaign order follows human playtesting.
+    static let bloomSetupSeedOffsets: [UInt64] = [1, 0, 4, 4, 6, 1, 444, 12, 26, 38]
+    /// Original setup identities keep their seeds and difficulty when campaign slots move.
+    static let bloomCampaignOrder = [0, 1, 5, 3, 4, 6, 2, 7, 8, 9]
+    static let bloomLevels: [Level] = bloomCampaignOrder.map { bloomLevelSetups[$0] }
+    static let bloomLevelSetups: [Level] = (0..<10).map { index in
+        let difficulty = EncounterDifficulty(value: Double(index) / 9)
+        let speed: ClosedRange<CGFloat> = index == 1 ? 40...175
+            : (35 + CGFloat(difficulty.bounded) * 35)...(150 + CGFloat(difficulty.bounded) * 50)
+        return Level(spawnGroups: [(16, 0.65...3)],
+            aiSpeedRange: speed, aiVerticalSpeed: index == 1 ? 85 : 65 + CGFloat(difficulty.bounded) * 35,
+            screenCrossSeconds: 3.1, absorptionEfficiency: freeEncounterAbsorption,
+            jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6,
+                night: index >= 7, maintainsFloorLane: true),
+            roamingFoodChain: true, ecosystemSeedOffset: bloomSetupSeedOffsets[index],
+            encounterDifficulty: difficulty, freeEncounterMovement: true, ecosystemSeedIndex: index)
+    }
+
+    // Encounter groups are authoring budgets, never movement cages. Level 2 retains its accepted layout.
+    static let freeEncounterAbsorption: CGFloat = 0.55
+    static let freeEncounterCatchFraction: ClosedRange<CGFloat> = 0.55...0.90
+    static let freeEncounterCounts = [4, 3, 5, 4]
+    static let freeEncounterEdibleCounts = [3, 2, 3, 3]
+    static let freeEncounterEdibleSizes: ClosedRange<CGFloat> = 0.65...1.0
+    static let freeEncounterThreatSizes: ClosedRange<CGFloat> = 1.15...1.35
+    static let freeEncounterHeights: [CGFloat] = [0.32, 0.67, 0.40, 0.56]
+    static let freeEncounterReleaseScreens: CGFloat = 0.18
+    static let freeEncounterLingerScreens: CGFloat = 0.30
+    static let freeEncounterSpawnSpreadScreens: CGFloat = 0.28
+    static let freeEncounterFacingRate: CGFloat = 14
+    static let freeEncounterEdibleShare: ClosedRange<CGFloat> = 0.62...0.85
+    static let freeEncounterHeightVariation: CGFloat = 0.07
+    static let freeEncounterHorizontalVariation: CGFloat = 0.16
+
+    static let shallowEncounterCounts = [5, 4, 6, 5]
+    static let shallowExpectedCatchFraction: ClosedRange<CGFloat> = 0.45...0.90
+    static let shallowEdibleShare: ClosedRange<CGFloat> = 0.64...0.88
+    static let shallowSetupSeedOffsets: [UInt64] = [2, 7, 13, 23, 31, 47, 60, 71, 92, 101]
+
+    static func freeEncounterExpectedCatchFraction(_ difficulty: Double, shallow: Bool = false) -> CGFloat {
+        let value = CGFloat(min(1, max(0, difficulty)))
+        if shallow {
+            return shallowExpectedCatchFraction.lowerBound
+                + value * (shallowExpectedCatchFraction.upperBound - shallowExpectedCatchFraction.lowerBound)
+        }
+        let anchor: CGFloat = 1.0 / 9
+        let accepted: CGFloat = freeEncounterCatchFraction.lowerBound
+            + anchor * (freeEncounterCatchFraction.upperBound - freeEncounterCatchFraction.lowerBound)
+        return value <= anchor ? 0.45 + (accepted - 0.45) * value / anchor
+            : accepted + (freeEncounterCatchFraction.upperBound - accepted) * (value - anchor) / (1 - anchor)
+    }
+
+    static func freeEncounterWaveBudgets(seed: UInt64, difficulty: Double, preserveLevelTwo: Bool, shallow: Bool = false) -> [(count: Int, edible: Int)] {
+        if preserveLevelTwo {
+            return zip(freeEncounterCounts, freeEncounterEdibleCounts).map { (count: $0.0, edible: $0.1) }
+        }
+        var generator = SeededGenerator(seed: seed &+ 0x94D049BB133111EB)
+        let counts = (shallow ? shallowEncounterCounts : freeEncounterCounts).shuffled(using: &generator)
+        let shares = shallow ? shallowEdibleShare : freeEncounterEdibleShare
+        let share = shares.upperBound - CGFloat(min(1, max(0, difficulty)))
+            * (shares.upperBound - shares.lowerBound)
+        return counts.map { count in
+            let varied = share + CGFloat.random(in: -0.06...0.06, using: &generator)
+            return (count: count, edible: min(count - 1, max(2, Int((CGFloat(count) * varied).rounded()))))
+        }
+    }
+
+
+    static let encounterCatchBudget: ClosedRange<Double> = 3.5...10.5
+    static let encounterClearance: ClosedRange<CGFloat> = 10...32
+    static let encounterFoodSpacingScreens: CGFloat = 0.15
+    static let encounterThreatOffsetScreens: CGFloat = 0.18
+    static let encounterFormations: [EncounterFormation] = [
+        EncounterFormation(name: "opening", foodOffsets: [
+            CGPoint(x: -encounterFoodSpacingScreens, y: 0), .zero, CGPoint(x: encounterFoodSpacingScreens, y: 0)], threatOffset: encounterThreatOffsetScreens),
+        EncounterFormation(name: "descending", foodOffsets: [
+            CGPoint(x: -0.17, y: 24), CGPoint(x: -0.015, y: 12), CGPoint(x: 0.17, y: 0)], threatOffset: 0.20),
+        EncounterFormation(name: "ascending", foodOffsets: [
+            CGPoint(x: -0.17, y: 0), CGPoint(x: 0.015, y: 12), CGPoint(x: 0.17, y: 24)], threatOffset: -0.20),
+        EncounterFormation(name: "crest", foodOffsets: [
+            CGPoint(x: -0.19, y: 0), CGPoint(x: 0, y: 24), CGPoint(x: 0.19, y: 0)], threatOffset: 0.25),
+    ]
+
+    static func encounterFormationOrder(seed: UInt64) -> [EncounterFormation] {
+        var generator = SeededGenerator(seed: seed &+ 0xD1B54A32D192ED03)
+        return [encounterFormations[0]] + encounterFormations.dropFirst().shuffled(using: &generator)
+    }
+    static let encounterBellHeight: ClosedRange<CGFloat> = 0.30...0.43
+    static let encounterFoodRadius: CGFloat = 0.85
+    static let encounterAbsorption: CGFloat = 0.82
+    static let encounterCount = 4
+    static let encounterFoodCount = 3
+    static let encounterPatrolWidth: CGFloat = 42
+    static let encounterPatrolHeight: CGFloat = 12
+    static let encounterPatrolSpeedScale: CGFloat = 0.75
+    static let encounterTurnLead: CGFloat = 16
+    static let encounterFacingRate: CGFloat = 14
+    static let encounterSeparationPadding: CGFloat = 12
+    static let encounterSeparationLookAhead: CGFloat = 0.6
+    static let encounterSeparationSpeed: CGFloat = 65
+    static let protectedFishContactPadding: CGFloat = 1
+    static let protectedFishTurnHoldSeconds: CGFloat = 2
+    static let encounterExitScreens: CGFloat = 0.45
+    static let encounterFirstScreens: CGFloat = 0.75
+    static let encounterSpacingScreens: CGFloat = 0.78
+    static let encounterJitterScreens: CGFloat = 0.04
+
+    private static func bloomRaceLevel(foodCount: Int, giants: Int, speed: ClosedRange<CGFloat>,
+                                       vertical: CGFloat, efficiency: CGFloat, jellyCount: Int,
+                                       jellyRadius: CGFloat, tentacles: CGFloat, sidePocket: Bool = false,
+                                       night: Bool = false, seedOffset: UInt64 = 0, compactSpeedScale: CGFloat = 1,
+                                       mediumSpeedMultiplier: CGFloat = 1) -> Level {
+        Level(spawnGroups: [(foodCount, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08),
+                            (4, 1.20...1.60), (giants, 2.00...2.60)],
+              aiSpeedRange: speed, aiVerticalSpeed: vertical, screenCrossSeconds: 3.1,
+              absorptionEfficiency: efficiency,
+              jellies: JellyLayout(count: jellyCount, radius: jellyRadius, tentacleLength: tentacles,
+                                  sway: 6, night: night, maintainsFloorLane: true),
+              bounceFoodPockets: true, sidePocketExperiment: sidePocket, roamingFoodChain: true,
+              ecosystemSeedOffset: seedOffset, compactAISpeedScale: compactSpeedScale,
+              mediumAISpeedMultiplier: mediumSpeedMultiplier)
+    }
+
+    // MARK: Free to try (`ArcadeUnlock`)
+
+    /// Levels free without the unlock in each world after Shallow Reef (all ten of whose are free): a taste of what the
+    /// unlock opens. 0 locks those worlds whole.
+    static let freeLevelsPerWorld = 2
+
     // MARK: Levels
 
-    /// Each level ramps several levers at once: fewer easy meals, more near-equal and larger fish,
-    /// faster fish, a faster player, and less growth per meal.
-    static let levels: [Level] = [
+    /// Fish-only encounters use the same first-opportunity protection and growth as Jelly Bloom.
+    static let shallowCampaignOrder = [0, 1, 3, 4, 5, 6, 7, 2, 8, 9]
+    static let levels: [Level] = shallowCampaignOrder.map { shallowLevelSetups[$0] }
+    static let shallowLevelSetups: [Level] = (0..<10).map { index in
+        let value = Double(index) / 9
+        let difficulty = EncounterDifficulty(value: value)
+        return Level(spawnGroups: [(20, 0.65...3)],
+            aiSpeedRange: (45 + CGFloat(value) * 25)...(120 + CGFloat(value) * 80),
+            aiVerticalSpeed: 60 + CGFloat(value) * 40,
+            screenCrossSeconds: 2.9 - CGFloat(value) * 0.4,
+            absorptionEfficiency: freeEncounterAbsorption,
+            roamingFoodChain: true, ecosystemSeedOffset: shallowSetupSeedOffsets[index],
+            encounterDifficulty: difficulty, freeEncounterMovement: true, ecosystemSeedIndex: index)
+    }
+
+    // MARK: Meeting planner (prototype, fish-only)
+
+    // Meeting layout shared by every planned level; each MeetingSpec sets its own spacing and sizes.
+    /// The first meeting comes this many screen widths into the run.
+    static let plannerFirstMeetingScreens: CGFloat = 0.6
+    /// The last meeting comes this many screens before the lap ends.
+    static let plannerLastMeetingMargin: CGFloat = 0.3
+    /// A near-equal swallow takes up to 0.8 s; the next meeting waits a beat longer.
+    static let plannerGateRecoverySeconds: CGFloat = 1.0
+    /// A danger meal's threat crosses this many screen widths of time before or after it.
+    static let plannerDangerOffsetScreens: CGFloat = 0.07
+    /// Seconds between a fork's two lanes crossing: too close to take both.
+    static let plannerForkOffsetSeconds: CGFloat = 0.12
+    /// Room, in meeting gaps, to reach either lane before a fork and to come back after it.
+    static let plannerForkLead: CGFloat = 1.3
+    /// Heights as a share of the water a fish can reach: single meals, fork lanes, and the meals either side of a fork.
+    static let plannerHeightLimits: ClosedRange<CGFloat> = 0.08...0.92
+    static let plannerHighLane: ClosedRange<CGFloat> = 0.78...0.92
+    static let plannerLowLane: ClosedRange<CGFloat> = 0.08...0.22
+    static let plannerMidWater: ClosedRange<CGFloat> = 0.42...0.58
+    /// Screen points of combined body overlap counted on top of swimming reach between meals.
+    static let plannerMealHeightTolerance: CGFloat = 20
+    /// The first meal (zero-based) a threat may cross beside.
+    static let plannerEarliestDangerMeal = 3
+    /// A gate's wall fish cross this long before and after it: apart enough that eating the gate comes
+    /// first, close enough that there's no time to swim around.
+    static let plannerWallOffsetSeconds: CGFloat = 0.1
+    /// Screen points between a gate and its wall fish: under a fish's width, so nobody slips between,
+    /// and clear of the separation reach planned fish keep from each other on screen.
+    static let plannerWallGap: CGFloat = 30
+    /// Fish you overtake swim within this share of the slow end of the speed range: near your speed they
+    /// creep toward you for seconds, as if fleeing.
+    static let plannerSameDirectionSpeedShare = 0.3
+
+    // Jelly Bloom 2's planned jellies.
+    /// A bounce meal crosses this long after the pocket meal you bounce from.
+    static let plannerBounceSeconds: CGFloat = 0.5
+    /// A pocket you bounce on is at most this share of your size, so it's swallowed before the climb.
+    static let plannerBouncePocketSize: CGFloat = 0.76
+    /// Screen points of water between a pocket meal's body and the dome under it (plus a fifth of its radius).
+    static let plannerPocketGap: CGFloat = 8
+    /// Scattered open-water jellies (`JellySpec.scattered`) are tried this often along the lap, clear of any
+    /// straight swim between two meals at most this far apart in time.
+    static let plannerScatterStep: CGFloat = 0.1
+    static let plannerScatterSwimSeconds: CGFloat = 1.2
+    /// Screen points kept clear between any dome and the surface, beyond its bob: room for a fish to pass over.
+    static let plannerDomeHeadroom: CGFloat = 40
+    /// Screen points a pocket meal keeps below the top of the water, room to bounce.
+    static let plannerPocketHeadroom: CGFloat = 50
+    /// Screen points a bounce meal sits beyond swimming reach and within the bounce's.
+    static let plannerBounceMargin: CGFloat = 12
+    /// The demo meal crosses this high (share of the water); its bounce sends it up there.
+    static let plannerDemoHeight: ClosedRange<CGFloat> = 0.72...0.86
+    static let plannerDemoHeightTolerance: CGFloat = 60
+    /// The demo fish lands on its jelly while the jelly is this far across the screen, at least this long
+    /// after the start and before you meet it.
+    static let plannerDemoScreen: ClosedRange<CGFloat> = 0.5...0.85
+    static let plannerDemoLeadSeconds: CGFloat = 0.6
+    /// The solver only replays a swim around the jellies when it's within this many screen points of its height.
+    static let plannerJellyReplayMargin: CGFloat = 30
+    /// Times the solver restarts a fish where its swim, steered around bells on screen, actually meets you.
+    static let plannerSteeredRespawns = 3
+    /// Jellies leave room for a player this much bigger than the reference route's.
+    static let plannerJellyPlayerAllowance: CGFloat = 1.2
+
+    /// Planned fish you haven't met only separate within this many points of the screen.
+    static let plannedContactScreenMargin: CGFloat = 100
+    /// The planner keeps unmet fish apart over a wider window, so route timing drift can't bring a contact on screen.
+    static let plannerContactScreenMargin: CGFloat = 180
+
+    /// Reef Lab: a ten-level planned Shallow Reef to A/B test against the campaign, slot for slot. Levels 2,
+    /// 6, and 10 are the playtested Easy, Medium, and Hard (their names seed their layouts, so keep them;
+    /// each has one fewer open-water threat than it asks for, as played);
+    /// the levels between step their settings from one to the next. Speeds follow Shallow Reef's authoring
+    /// curve. Forks offer a high and a low lane at once, the long lane buying margin beside danger; open-water
+    /// threats return on lap two near the size you should have reached.
+    static let reefLabSpecs: [MeetingSpec] = [
+        // An introduction: forgiving gates and a couple of big fish to avoid, with plenty of room.
+        MeetingSpec(name: "Reef Lab 1",
+            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
+            extraThreats: 1, lapTwoSize: 0.9...0.96, headOnShare: 0.5, heightSwing: 0.1...0.35, foodSize: 0.7...0.84,
+            gateMargin: 0.9, dangerGap: 80, threatClearance: 120, spacing: 0.27, aiSpeed: 45...120, aiVertical: 60,
+            crossSeconds: 2.9),
+        MeetingSpec(name: "Easy",
+            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
+            extraThreats: 2, lapTwoSize: 0.72...0.82, headOnShare: 0.55, heightSwing: 0.1...0.45, foodSize: 0.68...0.84,
+            gateMargin: 0.8, dangerGap: 70, threatClearance: 110, spacing: 0.25, aiSpeed: 48...129, aiVertical: 64,
+            crossSeconds: 2.86),
+        MeetingSpec(name: "Reef Lab 3",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2)],
+            extraThreats: 2, lapTwoSize: 0.76...0.85, headOnShare: 0.55, heightSwing: 0.2...0.55, foodSize: 0.68...0.84,
+            gateMargin: 0.7, dangerGap: 62, threatClearance: 95, spacing: 0.24, aiSpeed: 51...138, aiVertical: 69,
+            crossSeconds: 2.81),
+        MeetingSpec(name: "Reef Lab 4",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 2, lapTwoSize: 0.8...0.88, headOnShare: 0.58, heightSwing: 0.25...0.6,
+            foodSize: 0.67...0.83, gateMargin: 0.6, dangerGap: 55, threatClearance: 85, spacing: 0.23,
+            aiSpeed: 53...147, aiVertical: 73, crossSeconds: 2.77),
+        MeetingSpec(name: "Reef Lab 5",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.82...0.9, headOnShare: 0.6, heightSwing: 0.3...0.7,
+            foodSize: 0.66...0.82, gateMargin: 0.55, dangerGap: 50, threatClearance: 78, spacing: 0.22,
+            aiSpeed: 56...156, aiVertical: 76, crossSeconds: 2.72),
+        MeetingSpec(name: "Medium",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
+            foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
+            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68),
+        MeetingSpec(name: "Reef Lab 7",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.88...0.94, headOnShare: 0.62, heightSwing: 0.4...0.78,
+            foodSize: 0.7...0.85, gateMargin: 0.35, dangerGap: 36, threatClearance: 56, spacing: 0.24,
+            aiSpeed: 62...173, aiVertical: 87, crossSeconds: 2.63),
+        // Hard's shape without its walls: near-size meals and little margin. Playtested: "about perfect".
+        MeetingSpec(name: "Reef Lab 8",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.2, dangerGap: 26, threatClearance: 40, spacing: 0.25,
+            aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true),
+        // Walls arrive: a gate can't be dodged and saved for lap two. Playtested: "about perfect".
+        MeetingSpec(name: "Reef Lab 9",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.92...0.97, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.74...0.88, gateMargin: 0.12, dangerGap: 20, threatClearance: 34, spacing: 0.27,
+            aiSpeed: 67...191, aiVertical: 96, crossSeconds: 2.54, walledGates: true, timesTheEdge: true),
+        // Every gate can be reached by the short lanes with nothing to spare; the long lanes, beside tight
+        // danger, buy margin. Meals are close to your size, so every catch is a close call; gates are barely
+        // edible and walled; lap-two fish are barely edible.
+        MeetingSpec(name: "Hard",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.94...0.99, headOnShare: 0.7, heightSwing: 0.5...0.85,
+            foodSize: 0.76...0.9, gateMargin: 0.05, dangerGap: 16, threatClearance: 28, spacing: 0.26,
+            aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, walledGates: true, timesTheEdge: true),
+
+        // Bonus levels 11–15: levels 8–10's difficulty, each with a feel of its own.
+        // Crossroads: two forks before every gate, so there are many ways through; one late fork is three meals
+        // high or one low. Unwalled, like level 8.
+        MeetingSpec(name: "Crossroads",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 2, short: 1)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 3, short: 1), .init(long: 1, short: 1)], needed: 3, dangerFoods: 2)],
+            worldScreens: 6, extraThreats: 3, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.2, dangerGap: 26, threatClearance: 40, spacing: 0.25,
+            aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true),
+        // Frenzy: quick meals and four walled gates. It opens with a burst: eat three of the first four or the
+        // first gate eats you.
+        MeetingSpec(name: "Frenzy",
+            segments: [.init(singles: 3, forks: [.init(long: 1, short: 1)], needed: 3),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 6, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.66...0.8, gateMargin: 0.15, dangerGap: 24, threatClearance: 38, spacing: 0.21,
+            aiSpeed: 64...186, aiVertical: 93, crossSeconds: 2.57, walledGates: true, timesTheEdge: true),
+        // Gauntlet: big fish everywhere in open water, threading between meals, and they all come back on
+        // lap two a little smaller than you. (Bigger ones crowded each other off schedule.)
+        MeetingSpec(name: "Gauntlet",
+            segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 6.5, extraThreats: 6, lapTwoSize: 0.86...0.93, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.18, dangerGap: 24, threatClearance: 30, spacing: 0.26,
+            aiSpeed: 66...188, aiVertical: 94, crossSeconds: 2.56, timesTheEdge: true),
+        // Heavyweights: few meals, each nearly your size, so every bite is a close call; one or two meals
+        // open each walled gate.
+        MeetingSpec(name: "Heavyweights",
+            segments: [.init(singles: 1, forks: [.init(long: 1, short: 1)], needed: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 0, forks: [.init(long: 1, short: 1)], needed: 1, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5.5, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.45...0.82,
+            foodSize: 0.85...0.93, gateMargin: 0.1, dangerGap: 22, threatClearance: 34, spacing: 0.3,
+            aiSpeed: 66...190, aiVertical: 95, crossSeconds: 2.55, walledGates: true, timesTheEdge: true),
+        // Needle: tight windows. Most meals cross a beat from a big fish with little room between, and every
+        // gate is walled.
+        MeetingSpec(name: "Needle",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 3),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 3)],
+            worldScreens: 5, extraThreats: 2, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.74...0.88, gateMargin: 0.1, dangerGap: 12, threatClearance: 30, spacing: 0.26,
+            aiSpeed: 70...200, aiVertical: 100, crossSeconds: 2.48, walledGates: true, timesTheEdge: true),
+    ]
+
+    /// Playtested levels whose shipped plans are frozen: regenerating ReefLabPlans.json keeps them exactly
+    /// as played, so later planner changes can't reshuffle them. Remove a name to re-plan that level.
+    /// The bonus levels (11 on) joined once they'd been played. Gauntlet is its plan as first played with
+    /// fish 9, the first giant, started 380 points closer: it crosses just after the first gate, over the
+    /// swim to the next meal, instead of closing the high lane while a big fish guards the low one.
+    /// Heavyweights is its plan with fish 20, a giant, started 420 points farther: it crosses while you
+    /// swallow the second walled gate instead of between that gate and the fork before it, where it shut
+    /// both lanes out. That gate (fish 22) is 38.8 points rather than 42: a player one meal short who took
+    /// the low lane met it still growing from the lane's meal and lost. At 38.8 the lane's meal makes it
+    /// edible from the first frame after its swallow; without that meal it still isn't.
+    static let reefLabFrozen: Set<String> = Set(reefLabSpecs.map(\.name))
+
+    /// Jelly Bloom 2: Shallow Reef 2's ten fish curves, with drifting jellyfish brought in a mechanic at a time.
+    /// Levels 1–2: bells to bounce on if you like, with lots of room (level 1 shows a fish bouncing). From 3,
+    /// meals with tentacles hanging just above them. From 5, meals only a bounce reaches in time, then
+    /// forks split by a jelly: bounce off its dome into the high lane or dive under its tentacles.
+    /// Levels 9–10: tentacles wall the gates from above. Names seed the layouts; never rename one.
+    static let jellyLabSpecs: [MeetingSpec] = [
+        MeetingSpec(name: "Jelly Lab 1",
+            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
+            extraThreats: 1, lapTwoSize: 0.9...0.96, headOnShare: 0.5, heightSwing: 0.1...0.35, foodSize: 0.7...0.84,
+            gateMargin: 0.9, dangerGap: 80, threatClearance: 120, spacing: 0.27, aiSpeed: 45...120, aiVertical: 60,
+            crossSeconds: 2.9, jellies: JellySpec(demoBounce: true, pockets: 1, open: 1)),
+        MeetingSpec(name: "Jelly Lab 2",
+            segments: [.init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2)],
+            extraThreats: 2, lapTwoSize: 0.72...0.82, headOnShare: 0.55, heightSwing: 0.1...0.45, foodSize: 0.68...0.84,
+            gateMargin: 0.8, dangerGap: 70, threatClearance: 110, spacing: 0.25, aiSpeed: 48...129, aiVertical: 64,
+            crossSeconds: 2.86, jellies: JellySpec(pockets: 2, open: 2)),
+        MeetingSpec(name: "Jelly Lab 3",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2)],
+            extraThreats: 2, lapTwoSize: 0.76...0.85, headOnShare: 0.55, heightSwing: 0.2...0.55, foodSize: 0.68...0.84,
+            gateMargin: 0.7, dangerGap: 62, threatClearance: 95, spacing: 0.24, aiSpeed: 51...138, aiVertical: 69,
+            crossSeconds: 2.81, jellies: JellySpec(pockets: 1, stingMeals: 1, open: 1)),
+        MeetingSpec(name: "Jelly Lab 4",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 2, lapTwoSize: 0.8...0.88, headOnShare: 0.58, heightSwing: 0.25...0.6,
+            foodSize: 0.67...0.83, gateMargin: 0.6, dangerGap: 55, threatClearance: 85, spacing: 0.23,
+            aiSpeed: 53...147, aiVertical: 73, crossSeconds: 2.77, jellies: JellySpec(pockets: 1, stingMeals: 2, open: 1)),
+        MeetingSpec(name: "Jelly Lab 5",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1, bounceMeals: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.82...0.9, headOnShare: 0.6, heightSwing: 0.3...0.7,
+            foodSize: 0.66...0.82, gateMargin: 0.55, dangerGap: 50, threatClearance: 78, spacing: 0.22,
+            aiSpeed: 56...156, aiVertical: 76, crossSeconds: 2.72, jellies: JellySpec(pockets: 1, stingMeals: 1, open: 1)),
+        MeetingSpec(name: "Jelly Lab 6",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 2)], needed: 2, dangerFoods: 1, bounceMeals: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.85...0.93, headOnShare: 0.6, heightSwing: 0.35...0.75,
+            foodSize: 0.66...0.82, gateMargin: 0.45, dangerGap: 45, threatClearance: 70, spacing: 0.22,
+            aiSpeed: 59...164, aiVertical: 78, crossSeconds: 2.68, jellies: JellySpec(stingMeals: 2, open: 1)),
+        MeetingSpec(name: "Jelly Lab 7",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 2, bounceMeals: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 1)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.88...0.94, headOnShare: 0.62, heightSwing: 0.4...0.78,
+            foodSize: 0.7...0.85, gateMargin: 0.35, dangerGap: 36, threatClearance: 56, spacing: 0.24,
+            aiSpeed: 62...173, aiVertical: 87, crossSeconds: 2.63, jellies: JellySpec(stingMeals: 2, open: 1)),
+        MeetingSpec(name: "Jelly Lab 8",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1, bounce: true), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.2, dangerGap: 26, threatClearance: 40, spacing: 0.25,
+            aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true,
+            jellies: JellySpec(night: true, stingMeals: 2, open: 1)),
+        MeetingSpec(name: "Jelly Lab 9",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.92...0.97, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.74...0.88, gateMargin: 0.12, dangerGap: 20, threatClearance: 34, spacing: 0.27,
+            aiSpeed: 67...191, aiVertical: 96, crossSeconds: 2.54, walledGates: true, timesTheEdge: true,
+            jellies: JellySpec(night: true, stingMeals: 1, tentacleWalls: true)),
+        MeetingSpec(name: "Jelly Lab 10",
+            segments: [.init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 2),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1, bounce: true), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 2)],
+            worldScreens: 5, extraThreats: 3, lapTwoSize: 0.94...0.99, headOnShare: 0.7, heightSwing: 0.5...0.85,
+            foodSize: 0.76...0.9, gateMargin: 0.05, dangerGap: 16, threatClearance: 28, spacing: 0.26,
+            aiSpeed: 75...210, aiVertical: 105, crossSeconds: 2.4, walledGates: true, timesTheEdge: true,
+            jellies: JellySpec(night: true, stingMeals: 1, tentacleWalls: true)),
+
+        // Bonus levels 11–15: levels 8–10's difficulty, each with a feel of its own, several from Shallow Reef's
+        // bonus levels with jellies added.
+        // Bell Field: a field of bells, about twice as thick as other levels: jellies scattered through open water
+        // as well as meals on domes and under tentacles, a fork split by a bell, a bounce-only meal, and fewer
+        // big fish. Unwalled, like level 8, with tighter gates than the first version.
+        MeetingSpec(name: "Bell Field",
+            segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1, bounce: true)], needed: 3, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1, bounceMeals: 1)],
+            worldScreens: 7.5, extraThreats: 2, lapTwoSize: 0.9...0.96, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.15, dangerGap: 26, threatClearance: 40, spacing: 0.25,
+            aiSpeed: 64...182, aiVertical: 91, crossSeconds: 2.59, timesTheEdge: true,
+            jellies: JellySpec(pockets: 1, stingMeals: 3, open: 9, openClearance: 36, scattered: true)),
+        // Jelly Frenzy: Shallow Reef's Frenzy (quick meals, four walled gates, a burst opening) with meals on domes
+        // and jellies scattered through open water. Gates are tighter than the first version, beaten on try two.
+        // Ships as variation 2 of these settings (its intro was a favorite), with the three open-water jellies
+        // after the third gate removed by hand: grown huge for the cleanup, you couldn't steer around them.
+        MeetingSpec(name: "Jelly Frenzy",
+            segments: [.init(singles: 3, forks: [.init(long: 1, short: 1)], needed: 3),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 6.5, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.66...0.8, gateMargin: 0.11, dangerGap: 24, threatClearance: 38, spacing: 0.21,
+            aiSpeed: 64...186, aiVertical: 93, crossSeconds: 2.57, walledGates: true, timesTheEdge: true,
+            jellies: JellySpec(pockets: 2, stingMeals: 1, open: 7, openClearance: 36, scattered: true)),
+        // Jelly Gauntlet: Shallow Reef's Gauntlet with four big fish, a little smaller, threading between bells.
+        MeetingSpec(name: "Jelly Gauntlet",
+            segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 6.5, extraThreats: 4, lapTwoSize: 0.82...0.9, headOnShare: 0.66, heightSwing: 0.45...0.82,
+            foodSize: 0.73...0.87, gateMargin: 0.18, dangerGap: 24, threatClearance: 30, spacing: 0.26,
+            aiSpeed: 66...188, aiVertical: 94, crossSeconds: 2.56, timesTheEdge: true,
+            jellies: JellySpec(pockets: 1, stingMeals: 1)),
+        // Night Heavyweights: Shallow Reef's Heavyweights (few meals, each nearly your size) with meals on domes,
+        // tentacles walling the gates, and a meal only a bounce reaches. Gates are tighter and danger crosses
+        // closer than the first version, which was beaten on the first try. Its big fish 14 starts 250 points
+        // farther ahead than planned so it doesn't run into fish 12 and 13 on screen.
+        MeetingSpec(name: "Night Heavyweights",
+            segments: [.init(singles: 1, forks: [.init(long: 1, short: 1)], needed: 1),
+                       .init(singles: 0, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1, bounceMeals: 1),
+                       .init(singles: 0, forks: [.init(long: 1, short: 1)], needed: 1, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1)],
+            worldScreens: 6.5, extraThreats: 1, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.45...0.82,
+            foodSize: 0.85...0.93, gateMargin: 0.08, dangerGap: 18, threatClearance: 34, spacing: 0.3,
+            aiSpeed: 66...190, aiVertical: 95, crossSeconds: 2.55, walledGates: true, timesTheEdge: true,
+            jellies: JellySpec(night: true, pockets: 2, stingMeals: 1, tentacleWalls: true)),
+        // Curtain: tight windows under tentacles. Most meals cross just under hanging tentacles, and tentacles
+        // wall the gates.
+        MeetingSpec(name: "Curtain",
+            segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                       .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1),
+                       .init(singles: 1, forks: [.init(long: 2, short: 1), .init(long: 1, short: 1)], needed: 3,
+                             dangerFoods: 1)],
+            worldScreens: 5.5, extraThreats: 2, lapTwoSize: 0.93...0.98, headOnShare: 0.68, heightSwing: 0.5...0.85,
+            foodSize: 0.74...0.88, gateMargin: 0.1, dangerGap: 12, threatClearance: 30, spacing: 0.26,
+            aiSpeed: 70...200, aiVertical: 100, crossSeconds: 2.48, walledGates: true, timesTheEdge: true,
+            jellies: JellySpec(night: true, stingMeals: 4, stingGap: 20, tentacleWalls: true)),
+    ]
+
+    /// Playtested Jelly Bloom 2 levels whose shipped plans are kept exactly as played (see `reefLabFrozen`).
+    /// Level 10 is the plan first played there, with one big fish (21) started 30 points lower and 500 ahead
+    /// so it no longer hovers over the bell that splits its late fork, and fish 20 started 150 earlier so it has
+    /// passed that bell before the fork reaches it. The bonus levels (11 on) were played as first planned; each
+    /// leaves this set while it's reworked and rejoins once it's played again.
+    static let jellyLabFrozen: Set<String> = Set(jellyLabSpecs.map(\.name))
+
+    // MARK: Kelp Forest
+
+    /// Kelp Forest's levels: fish appear just off screen right before you meet them (`MeetingPlanner.kelpPlan`),
+    /// so these plan in milliseconds at launch rather than shipping as data. They follow Shallow Reef's ten
+    /// levels, already tuned for difficulty, with kelp columns closing in as they go.
+    /// Levels 11-15 are its Deep End, following the other worlds' (Crossroads, Frenzy, Gauntlet, Heavyweights,
+    /// Needle) with kelp denser than level 10's.
+    static let kelpSpecs: [MeetingSpec] = (0..<15).map { index in
+        var spec = reefLabSpecs[index]
+        spec.name = "Kelp Forest \(index + 1)"
+        spec.kelp = kelpRamp[index]
+        return spec
+    }
+    /// Levels 1, 5, and 10 were played and liked (first wins on tries 1, 4, and 17); the levels between step
+    /// evenly from one to the next.
+    static let kelpRamp: [KelpSpec] = {
+        let anchors = [(level: 0, kelp: KelpSpec(columns: 0.35, gap: 1.1)), (level: 4, kelp: KelpSpec(columns: 0.55, gap: 0.6)),
+                       (level: 9, kelp: KelpSpec(columns: 0.75, gap: 0.35))]
+        let main = (0..<10).map { index in
+            if let anchor = anchors.first(where: { $0.level == index }) { return anchor.kelp }
+            let (a, b) = index < anchors[1].level ? (anchors[0], anchors[1]) : (anchors[1], anchors[2])
+            let t = Double(index - a.level) / Double(b.level - a.level)
+            return KelpSpec(columns: a.kelp.columns + (b.kelp.columns - a.kelp.columns) * t,
+                            gap: a.kelp.gap + (b.kelp.gap - a.kelp.gap) * t)
+        }
+        // The Deep End: about 65% to 77% kelp.
+        return main + [KelpSpec(columns: 0.7, gap: 0.38), KelpSpec(columns: 0.75, gap: 0.32), KelpSpec(columns: 0.8, gap: 0.3),
+                       KelpSpec(columns: 0.75, gap: 0.3), KelpSpec(columns: 0.85, gap: 0.25)]
+    }()
+    /// Kelp Forest's levels as the game plays them: from `KelpPlans.json` for the frozen ones, otherwise planned
+    /// in code at launch. See "Level design: iterate in code, freeze before publishing" in AGENTS.md.
+    static let kelpLevels: [Level] = {
+        let bundled = Bundle.main.url(forResource: "KelpPlans", withExtension: "json")
+            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
+        return kelpSpecs.enumerated().map { index, spec in
+            let frozen = kelpFrozen.contains(spec.name) ? bundled.first { $0.spec == spec } : nil
+            var level = (frozen ?? kelpPlan(index)).level
+            level.ecosystemSeedIndex = index
+            return level
+        }
+    }()
+    /// Played and approved, so shipped exactly as saved in `KelpPlans.json`: a planner change can't alter them.
+    /// Take a level out of this set (with Kraig's OK) to tune it in code again, then regenerate the file.
+    static let kelpFrozen: Set<String> = Set(kelpSpecs.map(\.name))
+
+    /// A Kelp Forest level planned in code: its re-roll if it has one, otherwise the first layout (the Deep End
+    /// searching for one with no planner complaints and no wall of giants), with its hand tweaks applied.
+    static func kelpPlan(_ index: Int) -> MeetingPlan {
+        let spec = kelpSpecs[index]
+        if let variation = kelpRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation) }
+        guard ArcadeWorld.isDeepEnd(index) else { return MeetingPlanner.kelpPlan(spec) }
+        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
+            ?? MeetingPlanner.kelpPlan(spec)
+    }
+    /// A wall of giants: threats this big alongside you at the same time, leaving no gap this tall (screen
+    /// points: room for you at the size you'd be) anywhere in the water.
+    static let giantRadius: CGFloat = 60
+    static let giantWallGap: CGFloat = 80
+    /// Levels re-rolled to another layout of the same settings. Kelp Forest 9's first had two giants just under
+    /// the biggest you can grow in the opening; whichever ate first was out of reach for good.
+    /// The Deep End is pinned to the layouts Kraig played (the first each with no planner complaints and no wall of
+    /// giants), so launch doesn't search for them; 15 is also the layout whose opening he likes.
+    static let kelpRerolls: [String: Int] = ["Kelp Forest 9": 3, "Kelp Forest 11": 0, "Kelp Forest 12": 1,
+                                             "Kelp Forest 13": 3, "Kelp Forest 14": 0, "Kelp Forest 15": 0]
+    /// Fish made a different size by hand. Kelp Forest 15's gate 21 needed six meals with no slack; Kraig found
+    /// a way through with five (1, 3, 7, 11, 14: radius 31.8) and wants that to eat it. Four stay too few (28.2).
+    static let kelpFishRadius: [String: [Int: CGFloat]] = ["Kelp Forest 15": [21: 31]]
+    /// Big fish that swim at you instead of the way you're going, in levels where two you'd overtake slowly
+    /// walled you in. Same meetings: a fish swimming at you just passes in a moment. Kelp Forest 8: fish 13
+    /// hung over the low lane while you caught up with fish 16 along the floor.
+    static let kelpSwimsAtYou: [String: Set<Int>] = ["Kelp Forest 8": [13, 16]]
+    /// Screen points beyond the edge of the screen where a Kelp Forest fish appears.
+    static let kelpAppearMargin: CGFloat = 30
+    /// It follows its approach until you're this many screens past its meeting, then roams like any fish.
+    static let kelpApproachReleaseScreens: CGFloat = 0.15
+    /// Approaches (screen points): how far a meal glides into its meeting height from above or below, and
+    /// how far it weaves either way, settling as it reaches you. Big fish move this share as much.
+    static let kelpGlideHeight: ClosedRange<CGFloat> = 60...140
+    static let kelpWeaveHeight: ClosedRange<CGFloat> = 24...44
+    static let kelpWeaves: ClosedRange<CGFloat> = 0.7...1.5
+    static let kelpBigFishApproachShare: CGFloat = 0.45
+    /// A turning fish swims away from you at this share of your starting speed, then turns toward you this
+    /// many seconds before the meeting.
+    static let kelpTurnAwaySpeed: ClosedRange<CGFloat> = 0.45...0.7
+    static let kelpTurnBefore: ClosedRange<CGFloat> = 0.55...0.9
+    /// Columns start this many screens into the lap, so you start in open water, and stop as far before its end.
+    static let kelpFirstColumnScreens: CGFloat = 0.8
+    /// Kelp grows from this far below the bottom of the screen, so it's rooted in the seabed.
+    static let kelpRootY: CGFloat = -14
+    /// Columns reach this far above the top of the screen.
+    static let kelpCanopy: CGFloat = 30
+    /// Inside kelp you rise and fall at this share of your usual speed.
+    static let kelpDrag: CGFloat = 0.65
+    /// Other fish inside kelp darken to this one color, behind the fronds. Each part keeps its own transparency.
+    static let kelpSilhouette = SKColor(red: 0.03, green: 0.09, blue: 0.07, alpha: 1)
+
+    // MARK: Midnight Zone
+
+    /// Midnight Zone's ten levels, planned like Kelp Forest's (fish appear just off screen right before you meet
+    /// them) with no kelp, following Shallow Reef's levels. Levels 1, 5, and 9 were the trials Kraig played and
+    /// liked (Shallow Reef 1, 5, and 10). Between them the levels step through Shallow Reef's in order, skipping
+    /// Medium (6), which is close to 5; level 10 is Shallow Reef's hardest again, with a layout of its own.
+    /// Levels 11-15 are its Deep End, following the other worlds' (Crossroads, Frenzy, Gauntlet, Heavyweights,
+    /// Needle).
+    static let midnightSpecs: [MeetingSpec] = [0, 1, 2, 3, 4, 6, 7, 8, 9, 9, 10, 11, 12, 13, 14].enumerated().map { index, source in
+        var spec = reefLabSpecs[source]
+        spec.name = "Midnight Zone \(index + 1)"
+        return spec
+    }
+    /// The trials were planned as Midnight Zone 1, 2, and 3; levels 5 and 9 keep those layouts.
+    static let midnightSeedNames: [String: String] = ["Midnight Zone 5": "Midnight Zone 2", "Midnight Zone 9": "Midnight Zone 3"]
+    /// Midnight Zone's levels as the game plays them: from `MidnightPlans.json` for the frozen ones, otherwise
+    /// planned in code (`midnightPlan`).
+    static let midnightLevels: [Level] = {
+        let bundled = Bundle.main.url(forResource: "MidnightPlans", withExtension: "json")
+            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
+        return midnightSpecs.enumerated().map { index, spec in
+            let frozen = midnightFrozen.contains(spec.name) ? bundled.first { $0.spec == spec } : nil
+            var level = (frozen ?? midnightPlan(index)).level
+            level.ecosystemSeedIndex = index
+            return level
+        }
+    }()
+    /// Levels re-rolled to another layout of the same settings. Midnight Zone 8's first walled gate needed six
+    /// meals with none to spare, the only way there a climb-dive-climb-dive through mid-water meals between big
+    /// fish; Kraig, playing the high lanes, arrived one gate short every time.
+    static let midnightRerolls: [String: Int] = ["Midnight Zone 8": 1]
+    /// Fish made a different size by hand. Midnight Zone 13's walled gate 27 (54.3) was a hair bigger than
+    /// Kraig's usual ten meals (52.6); the only meal that tied it sat between a giant and a big fish that eats it,
+    /// and the route around threaded two giants, so he died there or just after in 22 tries.
+    static let midnightFishRadius: [String: [Int: CGFloat]] = ["Midnight Zone 13": [27: 52]]
+    /// Fish moved to meet you this many seconds earlier, the rest of the level unchanged. Midnight Zone 14's
+    /// big fish 13 swims your way, so you overtake it slowly and it hung in the climb from meal 12 to gate 15;
+    /// Kraig reached the gate once in about eight tries. 0.4 s puts it level with meal 12, gone before the climb.
+    static let midnightFishEarlier: [String: [Int: CGFloat]] = ["Midnight Zone 14": [13: 0.4]]
+    /// Played and approved, so shipped exactly as saved in `MidnightPlans.json`: a planner change can't alter them.
+    /// All fifteen (Kraig, 2026-10-09: "lock in the midnight levels", then "I played 14 and 15 and approve").
+    static let midnightFrozen: Set<String> = Set(midnightSpecs.map(\.name))
+    /// A Midnight Zone level planned in code: its re-roll if it has one, otherwise the first layout with no planner
+    /// issues and no wall of giants.
+    static func midnightPlan(_ index: Int) -> MeetingPlan {
+        let spec = midnightSpecs[index], seedName = midnightSeedNames[spec.name]
+        if let variation = midnightRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation, seedName: seedName) }
+        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
+            .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
+    }
+    /// The dark multiplies everything outside your headlamp by this color: dim, not pitch black. Kraig's plays:
+    /// a bit darker than 0.12, 0.15, 0.26, then with the lures, even darker than 0.07, 0.09, 0.17.
+    static let midnightDark = SKColor(red: 0.035, green: 0.045, blue: 0.09, alpha: 1)
+    /// Every other fish carries an anglerfish lure: one small light, the same for every fish, glowing over the dark,
+    /// so you see where each fish is but not how big it is until your beam lands on it. False for plain dark.
+    static let anglerLures = true
+    static let lureColor = SKColor(red: 0.62, green: 1, blue: 0.86, alpha: 1)
+    /// The lure's bright core and its soft halo (radii in screen points, the same for every fish).
+    static let lureCore: CGFloat = 3
+    static let lureHalo: CGFloat = 12
+    /// The headlamp's beam: half its width (radians), and how far it reaches as a share of the screen's width.
+    static let headlampHalfAngle: CGFloat = 0.3
+    static let headlampReach: CGFloat = 0.8
+    /// The beam tilts with you, up to this far (radians) at full rising or falling speed, so diving or climbing
+    /// fast leaves the far right of the screen dark.
+    static let headlampMaxTilt: CGFloat = 0.6
+    /// A soft glow around your head, as a share of the beam's reach, so a fish right beside you is never invisible.
+    static let headlampGlow: CGFloat = 0.14
+
+    /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
+    static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")
+
+    /// Planned levels from a bundled plan file; a spec newer than the file is planned on first use instead.
+    private static func plannedLevels(_ specs: [MeetingSpec], file: String) -> [Level] {
+        let bundled = Bundle.main.url(forResource: file, withExtension: "json")
+            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
+        return specs.enumerated().map { index, spec in
+            // Whichever variation was shipped for a spec; a level replanned as another layout ships that one.
+            var level = (bundled.first { $0.spec == spec } ?? MeetingPlanner.plan(spec)).level
+            level.ecosystemSeedIndex = index
+            return level
+        }
+    }
+
+    /// Reef Lab's levels, planned on the Mac and shipped as data so no device plans them while you play.
+    /// Regenerate with the `reef-lab-plans.request` marker (MeetingPlannerTests) after changing the specs or
+    /// the planner; a test fails while the file is out of date. A spec that's newer than the file is planned
+    /// on first use instead.
+    static let reefLabLevels: [Level] = plannedLevels(reefLabSpecs, file: "ReefLabPlans")
+    /// Shallow Reef's levels in play order: which Reef Lab level plays in each slot. Testers' 0.1 numbers (win
+    /// rate, median tries to a first clear) had levels 3 and 4 harder than 5 and 6, and level 8 a wall (1%, 21+
+    /// tries) harder than Hard at 10, so Kraig reordered them (2026-10-09): 5 and 6 play third and fourth, 3 and
+    /// 4 fifth and sixth, Hard eighth, and level 8 is the finale. Saves key levels by slot, so every clear
+    /// stays; each layout keeps its own setup number in the stats (`ecosystemSeedIndex`). Kelp Forest and
+    /// Midnight Zone follow `reefLabSpecs` by index and don't change.
+    static let shallowReefOrder = [0, 1, 4, 5, 2, 3, 6, 9, 8, 7, 10, 11, 12, 13, 14]
+    static let shallowReefLevels: [Level] = shallowReefOrder.map { reefLabLevels[$0] }
+
+    /// Preserve the original campaign, including the favorite fourth level, for debug comparison.
+    static let shallowReferenceLevels: [Level] = [
         Level(
             spawnGroups: [(6, 0.30...0.55), (5, 0.55...0.80), (3, 0.90...1.15), (2, 1.35...1.70), (1, 2.10...2.50)],
             aiSpeedRange: 35...95, aiVerticalSpeed: 45, screenCrossSeconds: 2.75, absorptionEfficiency: 0.90
@@ -117,6 +956,89 @@ enum GameTuning {
             aiSpeedRange: 80...175, aiVerticalSpeed: 95, screenCrossSeconds: 2.15, absorptionEfficiency: 0.75
         ),
     ]
+
+    // MARK: First-launch tutorial (`ArcadeTutorial`)
+
+    /// Its fish (radius; you start at `baseRadius`, 16). The first meal takes you to 18.4; the fish you miss (14)
+    /// eats two little ones (12) and reaches 20.7, clearly bigger than you; the last meal is sized so you end
+    /// `tutorialCatchMargin` times its size (a meal of 14.2, taking you to 22.4).
+    static let tutorialFirstMeal: CGFloat = 10
+    static let tutorialBigFish: CGFloat = 40
+    static let tutorialMissedFish: CGFloat = 14
+    static let tutorialMissedFishMeal: CGFloat = 12
+    static let tutorialCatchMargin: CGFloat = 1.08
+    /// How fast the whole tutorial plays: its fish swim their paths, and you swim forward, at this share of the
+    /// timings below (rising and falling are as fast as ever). Lower is slower.
+    static let tutorialPace: CGFloat = 0.75
+    /// A slow, roomy level whose fish can eat each other, with no fish of its own: the beats bring theirs.
+    static let tutorialLevel = Level(spawnGroups: [], aiSpeedRange: 40...90, aiVerticalSpeed: 50,
+                                     screenCrossSeconds: 3.2 / tutorialPace, absorptionEfficiency: 0.9)
+    /// At a pace of 1: seconds a fish swimming straight at you takes to reach you, the glowing meals and the big fish.
+    static let tutorialMealCrossing: CGFloat = 1.7
+    static let tutorialBigFishCrossing: CGFloat = 2.0
+    /// The race, at a pace of 1, in screens a second as they look on screen (you swim a screen every 3.2 s, so anything
+    /// slower than 1 / 3.2 would look to swim backwards). The missed fish sets off `tutorialMissedFishSets` seconds in,
+    /// its two little meals ahead of it and slower, and it catches them this many screens ahead of you: both well
+    /// to the right, so it's done eating and growing, and you see it at its new size, before it swims off past you.
+    /// Then it comes round again from ahead of you `tutorialWrapDelay` seconds into the next beat (and after each time
+    /// it gets past you).
+    static let tutorialMissedFishSpeed: CGFloat = 0.5
+    static let tutorialMissedMealSpeed: CGFloat = 0.36
+    static let tutorialMissedFishSets: CGFloat = 0.9
+    static let tutorialMissedCatches: [CGFloat] = [0.5, 0.26]
+    static let tutorialWrapDelay: CGFloat = 1.2
+    /// The wall, the last beat, plays like a level: two meals and then the wall swim freely ahead of you, and the wall
+    /// eats you if you reach it before you've eaten both. Its three fish are `tutorialWallSize` times you, and the two
+    /// meals make you `tutorialWallMargin` times them (one isn't enough).
+    static let tutorialWallSize: CGFloat = 1.17
+    static let tutorialWallMargin: CGFloat = 1.06
+    /// Each meal, in the order you meet it: where it starts (screens ahead of you, share of the water), how far up or
+    /// down from there it wanders (share of the water), which way it swims (-1 at you, 1 away, so you chase it), and how
+    /// fast (points a second, a little faster and slower as it goes). Both are well off screen when the beat starts.
+    static let tutorialWallMeals: [TutorialSwim] = [
+        TutorialSwim(ahead: 0.9, home: 0.66, wander: 0.1, heading: -1, speed: 28),
+        TutorialSwim(ahead: 1.5, home: 0.33, wander: 0.1, heading: 1, speed: 32),
+    ]
+    /// How fast a meal wanders up and down (points a second): gently, so it's easy to line up with.
+    static let tutorialMealWander: CGFloat = 26
+    /// The wall starts this many screens ahead of you and swims at you at a steady `tutorialWallSwim` points a second, its
+    /// three fish side by side (staggered, you could slip past one and then duck the next), each bobbing
+    /// `tutorialWallBob` points as it comes. It comes into view while you're still after the second meal, and you
+    /// reach it about two seconds after eating it.
+    static let tutorialWallAhead: CGFloat = 2.48
+    static let tutorialWallSwim: CGFloat = 18
+    static let tutorialWallBob: CGFloat = 4
+    /// Through the wall, its other two fish (smaller than you now) turn and bolt ahead at `tutorialFleeDash` times your
+    /// speed, one for each of `tutorialFleeDashes` seconds, so they're strung out ahead of you, then tire to
+    /// `tutorialFleeSpeed` points a second (slower than you) for you to catch them one at a time. One that gets past you
+    /// comes round again from ahead.
+    static let tutorialFleeDash: CGFloat = 1.6
+    static let tutorialFleeDashes: [CGFloat] = [1.1, 1.9]
+    static let tutorialFleeSpeed: CGFloat = 45
+    /// How far apart the wall's top and bottom fish are, as a share of the water (two thirds would space all three
+    /// evenly). Any wider and, with them bobbing, you could slip between them.
+    static let tutorialWallSpread: CGFloat = 0.64
+    /// The camera stays at its starting zoom through the tutorial (rather than easing out as you grow), so three fish
+    /// can wall off the water and everything reads large.
+    static let tutorialZoom: CGFloat = 1
+    /// The size of each beat's line at the top of the screen.
+    static let tutorialCaptionSize: CGFloat = 30
+    /// The first two beats: holding has to lift you this share of the water above your lowest (a short hold does it;
+    /// you don't need to reach the top, and a few short taps add up), and letting go has to drop you this share from your
+    /// highest. The finger shows again if you haven't after `tutorialHintSeconds`. It presses here (shares of the
+    /// screen), open water well away from your fish.
+    static let tutorialRiseShare: CGFloat = 0.15
+    static let tutorialFallShare: CGFloat = 0.22
+    static let tutorialHintSeconds: CGFloat = 3.5
+    static let tutorialFingerSpot = CGPoint(x: 0.68, y: 0.42)
+    /// The race: the missed fish and its meals swim in this lane (share of the water), just under the line at the top
+    /// so you can read it and watch; you glide down to `tutorialHeldShare` and hold there while it eats.
+    static let tutorialRaceLane: CGFloat = 0.72
+    static let tutorialHeldShare: CGFloat = 0.28
+    static let tutorialHeldGlide: CGFloat = 220
+    /// After the last catch: when its closing line fades in, and when it leaves for the map (seconds, real time).
+    static let tutorialFinaleDelay: CGFloat = 0.5
+    static let tutorialFinaleSeconds: CGFloat = 2.8
 }
 
 struct Level {
@@ -127,4 +1049,27 @@ struct Level {
     /// Seconds for the player to cross one screen width.
     let screenCrossSeconds: CGFloat
     let absorptionEfficiency: CGFloat
+    var effectiveAbsorptionEfficiency: CGFloat { absorptionEfficiency * GameTuning.mealGrowthScale }
+    var jellies: JellyLayout? = nil
+    var aiCanEat: Bool = true
+    var requiredMeals: Int = 0
+    var predatorSpawnSeparationScreens: CGFloat = 0
+    var bounceFoodPockets: Bool = false
+    var sidePocketExperiment: Bool = false
+    var roamingFoodChain: Bool = false
+    /// Fixed per-level seed selection keeps retries consistent. Debug studies perturb this seed.
+    var ecosystemSeedOffset: UInt64 = 0
+    var compactAISpeedScale: CGFloat = 1
+    var mediumAISpeedMultiplier: CGFloat = 1
+    var encounterDifficulty: EncounterDifficulty? = nil
+    var freeEncounterMovement: Bool = false
+    /// Seed identity is independent of the displayed campaign number.
+    var ecosystemSeedIndex: Int? = nil
+    var worldScreens: CGFloat = GameTuning.worldScreens
+    /// Planned meetings replace seeded spawning; see docs/meeting-planner.md.
+    var meetingPlan: MeetingPlan? = nil
+    func spawnSeed(index: Int, bloom: Bool, offset: UInt64? = nil) -> UInt64 {
+        GameTuning.spawnSeed &+ UInt64((ecosystemSeedIndex ?? index) + (bloom ? 100 : 0))
+            &+ (offset ?? ecosystemSeedOffset)
+    }
 }

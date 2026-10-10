@@ -1,0 +1,177 @@
+{
+  "world": "shallow-reef",
+  "generationVersion": 1,
+  "logicalPlayfield": [
+    874,
+    402
+  ],
+  "effectiveAbsorption": 0.495,
+  "diagnosticRuns": 72,
+  "selectedValidationRuns": 40,
+  "levels": [
+    {
+      "level": 1,
+      "seedOffset": 2,
+      "spawnSeed": 20260929,
+      "expectedEdibleCatchFraction": 0.45,
+      "wins": 3,
+      "runs": 3,
+      "fullInitialSpawn": true,
+      "initialGrowthPath": true,
+      "noMealStallLap": 1.8433908045976688,
+      "winningPolicies": [
+        "collector",
+        "opportunist",
+        "cautious"
+      ],
+      "originalSetupLevel": 1
+    },
+    {
+      "level": 2,
+      "seedOffset": 7,
+      "spawnSeed": 20260935,
+      "expectedEdibleCatchFraction": 0.5,
+      "wins": 3,
+      "runs": 3,
+      "fullInitialSpawn": true,
+      "initialGrowthPath": true,
+      "noMealStallLap": 1.5496108949416372,
+      "winningPolicies": [
+        "collector",
+        "opportunist",
+        "cautious"
+      ],
+      "originalSetupLevel": 2
+    },
+    {
+      "level": 3,
+      "seedOffset": 23,
+      "spawnSeed": 20260953,
+      "expectedEdibleCatchFraction": 0.6,
+      "wins": 2,
+      "runs": 3,
+      "fullInitialSpawn": true,
+      "initialGrowthPath": true,
+      "noMealStallLap": 1.2259036144578355,
+      "winningPolicies": [
+        "collector",
+        "opportunist"
+      ],
+      "originalSetupLevel": 4
+    },
+    {
+      "level": 4,
+      "seedOffset": 31,
+      "spawnSeed": 20260962,
+      "expectedEdibleCatchFraction": 0.65,
+      "wins": 3,
+      "runs": 3,
+      "fullInitialSpawn": true,
+      "initialGrowthPath": true,
+      "noMealStallLap": 1.1540816326530494,
+      "winningPolicies": [
+        "collector",
+        "opportunist",
+        "cautious"
+      ],
+      "originalSetupLevel": 5
+    },
+    {
+      "level": 5,
+      "seedOffset": 47,
+      "spawnSeed": 20260979,
+      "expectedEdibleCatchFraction": 0.7,
+      "wins": 1,
+      "runs": 3,
+      "fullInitialSpawn": true,
+      "initialGrowthPath": true,
+      "noMealStallLap": 1.2852697095435661,
+      "winningPolicies": [
+        "collector"
+      ],
+      "originalSetupLevel": 6
+    },
+    {
+      "level": 6,
+      "seedOffset": 60,
+      "spawnSeed": 20260993,
+      "expectedEdibleCatchFraction": 0.75,
+      "wins": 2,
+      "runs": 3,
+      "fullInitialSpawn": true,
+      "initialGrowthPath": true,
+      "noMealStallLap": 1.4018987341772218,
+      "winningPolicies": [
+        "collector",
+        "opportunist"
+      ],
+      "originalSetupLevel": 7
+    },
+    {
+      "level": 7,
+      "seedOffset": 71,
+      "spawnSeed": 20261005,
+      "expectedEdibleCatchFraction": 0.8,
+      "wins": 3,
+      "runs": 3,
+      "fullInitialSpawn": true,
+      "initialGrowthPath": true,
+      "noMealStallLap": 1.0396995708154517,
+      "winningPolicies": [
+        "collector",
+        "opportunist",
+        "cautious"
+      ],
+      "originalSetupLevel": 8
+    },
+    {
+      "level": 8,
+      "seedOffset": 13,
+      "spawnSeed": 20260942,
+      "expectedEdibleCatchFraction": 0.55,
+      "wins": 3,
+      "runs": 3,
+      "fullInitialSpawn": true,
+      "initialGrowthPath": true,
+      "noMealStallLap": 1.2065217391304086,
+      "winningPolicies": [
+        "collector",
+        "opportunist",
+        "cautious"
+      ],
+      "originalSetupLevel": 3
+    },
+    {
+      "level": 9,
+      "seedOffset": 92,
+      "spawnSeed": 20261027,
+      "expectedEdibleCatchFraction": 0.85,
+      "wins": 2,
+      "runs": 3,
+      "fullInitialSpawn": true,
+      "initialGrowthPath": true,
+      "noMealStallLap": 1.845524017467215,
+      "winningPolicies": [
+        "collector",
+        "opportunist"
+      ],
+      "originalSetupLevel": 9
+    },
+    {
+      "level": 10,
+      "seedOffset": 101,
+      "spawnSeed": 20261037,
+      "expectedEdibleCatchFraction": 0.9,
+      "wins": 2,
+      "runs": 3,
+      "fullInitialSpawn": true,
+      "initialGrowthPath": true,
+      "noMealStallLap": 1.0766666666666735,
+      "winningPolicies": [
+        "collector",
+        "opportunist"
+      ],
+      "originalSetupLevel": 10
+    }
+  ]
+}

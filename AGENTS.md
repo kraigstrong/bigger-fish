@@ -32,12 +32,29 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   `MathReef/` or `BiggerFish/` without editing `project.pbxproj`.
 - **Never rename Math Reef level IDs.** They're the keys for saved progress. Generated fact decks use
   fixed seeds so they never change between launches.
+- **Never lose Bigger Fish progress.** World IDs (`shallow-reef`, `jelly-bloom`, `kelp-forest`, `midnight-zone`) and level
+  numbers (`shallow-reef.8`) are the keys for saved progress: never rename them or renumber a released
+  world's levels. Which layout plays in a numbered slot can change with Kraig's OK, since a cleared level
+  stays cleared by its number (Shallow Reef's play order is `GameTuning.shallowReefOrder`). A new field in `ArcadeSave` must load when a save doesn't have it (decode it with a
+  default), and `ArcadeCampaignTests` loads a real 0.1 save to prove old saves still work.
+- **Bigger Fish level design: iterate in code, freeze before publishing.** While a world's levels are being
+  playtested, plan them in code at launch (Kelp Forest: `MeetingPlanner.kelpPlan`, milliseconds per level),
+  so a fix is a one-line change Kraig can rebuild and play: a re-roll to another variation
+  (`GameTuning.kelpRerolls`), a fish made a different size (`kelpFishRadius`), or turned to swim at you
+  (`kelpSwimsAtYou`). Once a level is played and approved, freeze it: add it to the world's frozen set
+  (`kelpFrozen`, `reefLabFrozen`, `jellyLabFrozen`), regenerate the world's plans file with its marker (for Kelp
+  Forest, `touch build/arcade-development/kelp-plans.request`, then run
+  `MeetingPlannerTests/manualWriteKelpPlans()`), and commit the JSON. **Freeze every level before
+  publishing (TestFlight or the App Store):** the shipped game loads saved plans and never plans on the device,
+  and a planner change can't alter a level players have. To change a frozen level, take it out of the frozen
+  set with Kraig's OK, tune it in code, and freeze it again.
 - **Tuning constants stay in one place per app:** `ReefTuning` at the top of
   `MathReef/PracticeScene.swift` and `BiggerFish/GameTuning.swift`.
 - **Debug-only tools go behind `#if DEBUG`.** Math Reef's Settings has crown previews and
   Multiplication progress shortcuts in Xcode builds only. Anything a kid or parent shouldn't see
   follows the same pattern.
-- **Audio:** every sound's source and license goes in `MathReef/Sounds/CREDITS.md`. Mixkit's
+- **Audio:** every sound's source and license goes in its app's credits file:
+  `MathReef/Sounds/CREDITS.md` or `BiggerFish/Sounds/CREDITS.md`. Mixkit's
   *sound effects* license covers games; Mixkit's *music* license does not, so no Mixkit music in
   the apps.
 - **Privacy:** Math Reef is a kids' app. Don't add third-party analytics, ads, or tracking SDKs.
@@ -56,9 +73,12 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
 
 ## Pull requests
 
-- **Base:** branch from the latest `origin/main` and open PRs against `main`. Don't stack PRs on other
-  PR branches.
+- **Base:** branch from the latest `origin/main` and open PRs against `main`, for both apps and FishKit.
+  (The old `codex/bigger-fish-integration` branch is retired.) Don't stack PRs on other PR branches.
 - **Check before pushing:** PRs often merge quickly. Confirm a PR is still open before pushing more
   commits to its branch, and open a new PR if it has merged.
-- **Commit messages:** Math Reef commits start with `Math Reef:` and a short summary, then explain the
-  why in the body.
+- **Commit messages:** start with the app (`Math Reef:` or `Bigger Fish:`) and a short summary, then
+  explain the why in the body.
+- **Releases:** each app archives from `main` at a tagged commit (`math-reef-v1.0.1`,
+  `bigger-fish-v0.4-beta.1`). Unreleased work for one app can sit on `main` while the other ships: they're
+  separate targets, and Bigger Fish's unlock stays off in Release until `ArcadeUnlock.isSelling` is turned on.
