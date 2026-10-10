@@ -1562,7 +1562,8 @@ final class GameScene: SKScene {
             return
         }
         func gone(_ id: Int?) -> Bool { id.map { fishByID[$0] == nil } ?? true }
-        func next(after delay: CGFloat) { tutorialNextBeatAt = simClock + delay }
+        // The pause before the next beat is in the tutorial's own timings too, so it keeps pace with the fish.
+        func next(after delay: CGFloat) { tutorialNextBeatAt = simClock + delay / T.tutorialPace }
         switch tutorialBeat {
         case .eatSmaller:
             if gone(tutorialMeal) {
