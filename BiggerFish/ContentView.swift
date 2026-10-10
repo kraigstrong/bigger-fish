@@ -173,10 +173,10 @@ struct ContentView: View {
         withAnimation { celebrating = world }
     }
 
-    /// On a map with nothing else on screen, after a win, with the app in front: the moment to ask for a review, if
+    /// On a map with nothing else on screen (no unlock, conquered, or Settings screen), after a win, with the app in front: the moment to ask for a review, if
     /// one is due. (In the background or under Notification Center, a request may show nothing yet use up an ask.)
     private var quietOnMap: Bool {
-        loaded && scenePhase == .active && scene == nil && celebrating == nil && offer == nil && lastPlayWon
+        loaded && scenePhase == .active && scene == nil && celebrating == nil && offer == nil && !showsSettings && lastPlayWon
     }
 
     private func askForReviewIfDue() {
