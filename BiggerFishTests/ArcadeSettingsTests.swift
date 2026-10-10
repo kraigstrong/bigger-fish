@@ -42,6 +42,10 @@ struct ArcadeSettingsTests {
         #expect(!UIApplication.shared.isIdleTimerDisabled)
         view.presentScene(nil)
         #expect(!UIApplication.shared.isIdleTimerDisabled)
+        // A scene that's never shown (a simulation) leaves the setting alone.
+        let headless = GameScene(world: .shallowReef, levelIndex: 0)
+        headless.debugStart()
+        #expect(!UIApplication.shared.isIdleTimerDisabled)
     }
 
     @MainActor @Test func voiceOverReachesThePauseMenuAndItsSoundSwitches() {

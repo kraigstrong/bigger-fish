@@ -777,8 +777,9 @@ final class GameScene: SKScene {
 
     private func setPhase(_ newPhase: Phase) {
         // Awake only while you're playing: the card before a level, the pause menu, the result, and the maps let the
-        // phone sleep as it normally would.
-        UIApplication.shared.isIdleTimerDisabled = Self.keepsScreenAwake(newPhase)
+        // phone sleep as it normally would. Only a scene on screen decides: headless simulations (the tuner's checks)
+        // leave the phone alone.
+        if view != nil { UIApplication.shared.isIdleTimerDisabled = Self.keepsScreenAwake(newPhase) }
         if newPhase != .won && newPhase != .lost { accessibilityElements = nil }
         if newPhase == .ready || newPhase == .paused || phase == .ready || phase == .paused {
             frameAccumulator = 0
