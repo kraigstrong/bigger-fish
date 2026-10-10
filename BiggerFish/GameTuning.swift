@@ -996,6 +996,8 @@ enum GameTuning {
     /// The camera stays at its starting zoom through the tutorial (rather than easing out as you grow), so three fish
     /// can wall off the water and everything reads large.
     static let tutorialZoom: CGFloat = 1
+    /// The size of each beat's line at the top of the screen.
+    static let tutorialCaptionSize: CGFloat = 30
     /// After the last catch: when its closing line fades in, and when it leaves for the map (seconds, real time).
     static let tutorialFinaleDelay: CGFloat = 0.5
     static let tutorialFinaleSeconds: CGFloat = 2.8

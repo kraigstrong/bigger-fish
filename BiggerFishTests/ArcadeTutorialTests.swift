@@ -74,6 +74,18 @@ struct ArcadeTutorialTests {
         #expect([T.tutorialMissedMealSpeed, T.tutorialMissedFishSpeed, T.tutorialWallSpeed].allSatisfy { $0 > you })
     }
 
+    @Test func youCantEatTheMissedFishsMealsWhileItEatsThem() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        // Even going straight for its meals, you hold your height while it eats, so it eats both and grows.
+        let run = scene.debugPlayTutorial(greedy: true)
+        #expect(run.finished)
+        let grew = scene.debugMissedFishGrewTo ?? 0
+        #expect(abs(grew - ArcadeTutorial.missedFishGrown) < 0.5, "it grew to \(grew)")
+        withExtendedLifetime(view) {}
+    }
+
     @Test func pathsAreMeasuredFromYou() {
         let path = TutorialPath.headOn(share: 0.6, crossing: 1.6)
         #expect(path.at(0) == (0.78, 0.6))
