@@ -147,7 +147,10 @@ final class GameScene: SKScene {
         return levelIndex == (seeded ? arcadeWorld.seededLevels.count : arcadeWorld.levelCount) - 1
     }
     var analytics: ArcadeAnalytics?
-    var metricsHasCleared: ((Int) -> Bool)?
+    /// Whether a level of this world is cleared, for metrics and the world's progress pips.
+    var hasCleared: ((Int) -> Bool)?
+    /// Whether this run's level was already cleared when it started: a first clear fills its pip in with a pop.
+    private var clearedBeforeRun = false
     private var metricAccumulator: ArcadeMetricAccumulator?
     private var fatalMetrics: ArcadeRunMetrics?
     private var metricDeathCause = "none"
@@ -789,7 +792,8 @@ final class GameScene: SKScene {
                 }
             } else {
                 messageNode.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
-                showMessage(levelTitle, lines: arcadeWorld.levelCard)
+                showMessage(levelTitle, lines: arcadeWorld.levelCard,
+                            progress: worldProgress(won: false).map { WorldProgressStrip(progress: $0, next: levelIndex) })
             }
         case .playing, .paused:
             hideMessage()
@@ -817,6 +821,16 @@ final class GameScene: SKScene {
     }
     private var levelTitle: String { plannerName ?? arcadeWorld.levelTitles[levelIndex] }
 
+    /// How far through its world's run this level is (nil for the tutorial and Xcode-only test levels). `won` counts
+    /// this level as cleared, as a practice run's win isn't saved.
+    private func worldProgress(won: Bool) -> WorldProgress? {
+        guard !isTutorial, !seeded, plannerName == nil else { return nil }
+        let level = levelIndex
+        return WorldProgress(world: arcadeWorld, level: level) { index in
+            (won && index == level) || hasCleared?(index) == true
+        }
+    }
+
     private func showResult(passed: Bool) {
         holdTouches.removeAll()
         messageNode.removeAllActions()
@@ -833,7 +847,15 @@ final class GameScene: SKScene {
         } else {
             detail = "\(levelTitle) complete!"
         }
-        let panel = ArcadeResultPanel(size: size, passed: passed, hasNext: !isFinalLevel && !isWorldFinale, detail: detail)
+        // After a win, the world's pips: this level's fills in if it's a first clear, and the next one pulses.
+        var strip: WorldProgressStrip?
+        if passed, let progress = worldProgress(won: true) {
+            let next = progress.run.contains(levelIndex + 1) ? levelIndex + 1 : nil
+            strip = WorldProgressStrip(progress: progress, next: next, earned: clearedBeforeRun ? nil : levelIndex)
+            if !clearedBeforeRun { strip?.playEarned(levelIndex, after: 0.85) }
+        }
+        let panel = ArcadeResultPanel(size: size, passed: passed, hasNext: !isFinalLevel && !isWorldFinale, detail: detail,
+                                      progress: strip)
         panel.onSelect = { [weak self] action in self?.selectResult(action) }
         messageNode.addChild(panel)
         resultPanel = panel
@@ -890,6 +912,7 @@ final class GameScene: SKScene {
             showsJellyLesson = false
         }
         simClock = 0
+        clearedBeforeRun = hasCleared?(levelIndex) ?? false
         var collects = analytics?.enabled == true && !isTutorial
         #if DEBUG
         collects = collects && simulationTuning == nil && !debugPracticeRun && !debugHasTuningOverride && ArcadePlaytest.selection == nil
@@ -898,7 +921,7 @@ final class GameScene: SKScene {
             metricAccumulator = ArcadeMetricAccumulator()
             fatalMetrics = nil; metricDeathCause = "none"
             let context = metricContext, count = arcadeWorld.levelCount
-            let cleared = metricsHasCleared?(levelIndex) ?? false
+            let cleared = hasCleared?(levelIndex) ?? false
             enqueueMetricOperation { $0.start(context, worldLevelCount: count, alreadyCleared: cleared) }
             observeMetrics()
         }
@@ -2739,7 +2762,8 @@ final class GameScene: SKScene {
         return button
     }
 
-    private func showMessage(_ title: String, lines: [String], delay: TimeInterval = 0) {
+    /// `progress`: the world's pips and crown, under the title.
+    private func showMessage(_ title: String, lines: [String], delay: TimeInterval = 0, progress: WorldProgressStrip? = nil) {
         messageNode.removeAllActions()
         messageNode.removeAllChildren()
 
@@ -2748,12 +2772,14 @@ final class GameScene: SKScene {
         let start = label("Tap anywhere to begin", fontSize: 22, heavy: true)
         start.name = "beginPrompt"
         let maxTextWidth = max(240, (size.width - messageNode.position.x - 28) * 2 - 70)
-        for text in [titleLabel, start] + lineLabels where text.frame.width > maxTextWidth {
+        for text in [titleLabel, start] + lineLabels + [progress?.caption].compactMap({ $0 }) where text.frame.width > maxTextWidth {
             text.fontSize *= maxTextWidth / text.frame.width
         }
         let lineSpacing: CGFloat = 30
-        let height = 150 + CGFloat(lines.count) * lineSpacing
-        let width = max(titleLabel.frame.width, start.frame.width, lineLabels.map(\.frame.width).max() ?? 0) + 70
+        let progressHeight: CGFloat = progress == nil ? 0 : 62
+        let height = 150 + CGFloat(lines.count) * lineSpacing + progressHeight
+        let width = max(titleLabel.frame.width, start.frame.width, lineLabels.map(\.frame.width).max() ?? 0,
+                        progress?.width ?? 0) + 70
 
         let panel = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
         panel.fillColor = SKColor(white: 0, alpha: 0.3)
@@ -2765,6 +2791,11 @@ final class GameScene: SKScene {
         titleLabel.position = CGPoint(x: 0, y: y)
         messageNode.addChild(titleLabel)
         y -= 45
+        if let progress {
+            progress.position = CGPoint(x: 0, y: y + 4)
+            messageNode.addChild(progress)
+            y -= progressHeight
+        }
         for line in lineLabels {
             line.position = CGPoint(x: 0, y: y)
             messageNode.addChild(line)
@@ -3165,6 +3196,11 @@ final class GameScene: SKScene {
         return phase == .playing
     }
     var debugLevelIndex: Int { levelIndex }
+    /// The world's pips on the card showing (the ready card or a win's), by their caption.
+    var debugProgressCaption: String? {
+        messageNode.children.lazy.compactMap { $0 as? WorldProgressStrip }.first?.caption.text
+            ?? resultPanel?.children.lazy.compactMap { $0 as? WorldProgressStrip }.first?.caption.text
+    }
     var debugConfiguredSpawnSeed: UInt64 { ecosystemSeed }
     var debugResultTitles: [String] { resultPanel?.controls.map { $0.action.title } ?? [] }
     func debugTapResult(_ action: ArcadeResultAction?) {
