@@ -21,6 +21,8 @@ struct ArcadeWorldMap: View {
     let onSelect: (ArcadeWorld) -> Void
     /// The unlock's screen, featuring the world tapped (nil from the Unlock button).
     let onUnlock: (ArcadeWorld?) -> Void
+    /// Settings: sound, vibration, the tutorial, restoring, privacy and support.
+    let onSettings: () -> Void
 
     var body: some View {
         GeometryReader { geometry in
@@ -72,7 +74,7 @@ struct ArcadeWorldMap: View {
                     .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
                 HStack(spacing: 14) {
                     if !unlocked { UnlockButton { onUnlock(nil) } }
-                    SoundToggles()
+                    SettingsButton(action: onSettings)
                 }
                 .frame(width: size.width - 24, alignment: .trailing)
                 .padding(.top, 14)
@@ -104,35 +106,22 @@ private struct UnlockButton: View {
     }
 }
 
-/// The sound effects and music switches, as two small round buttons.
-struct SoundToggles: View {
-    @ObservedObject var settings = ArcadeSettings.shared
+/// On the world map: the gear that opens Settings.
+private struct SettingsButton: View {
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            toggle($settings.soundEffectsOn, symbol: "speaker.wave.2.fill", label: "Sound effects")
-            toggle($settings.musicOn, symbol: "music.note", label: "Music")
-        }
-    }
-
-    private func toggle(_ isOn: Binding<Bool>, symbol: String, label: String) -> some View {
-        Button { isOn.wrappedValue.toggle() } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .bold))
+        Button(action: action) {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 18, weight: .bold))
                 .frame(width: 40, height: 40)
-                .background(Circle().fill(.white.opacity(isOn.wrappedValue ? 0.18 : 0.05)))
+                .background(Circle().fill(.white.opacity(0.18)))
                 .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
-                .overlay {
-                    // Off: struck through and dimmed.
-                    if !isOn.wrappedValue {
-                        Capsule().frame(width: 2.5, height: 30).rotationEffect(.degrees(-45))
-                    }
-                }
-                .opacity(isOn.wrappedValue ? 1 : 0.55)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(label)
-        .accessibilityValue(isOn.wrappedValue ? "On" : "Off")
+        .accessibilityLabel("Settings")
     }
 }
 

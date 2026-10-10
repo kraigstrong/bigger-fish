@@ -30,6 +30,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     /// The unlock's screen, featuring the world the player was trying to get into.
     @State private var offer: UnlockOffer?
+    /// Settings, from the gear on the world map.
+    @State private var showsSettings = false
     /// The loading screen shows until every world's levels are ready.
     @State private var loaded = false
     #if DEBUG
@@ -61,7 +63,16 @@ struct ContentView: View {
                                onPlay: { play(world, index: $0) })
             } else {
                 ArcadeWorldMap(progress: progress, unlocked: unlocked, onSelect: { selectedWorld = $0; returnedFrom = nil },
-                               onUnlock: { world in withAnimation { offer = UnlockOffer(featured: world) } })
+                               onUnlock: { world in withAnimation { offer = UnlockOffer(featured: world) } },
+                               onSettings: { withAnimation { showsSettings = true } })
+            }
+        }
+        .overlay {
+            if scene == nil && showsSettings {
+                SettingsView(purchases: purchases,
+                             onReplayTutorial: { showsSettings = false; playTutorial() },
+                             onClose: { withAnimation { showsSettings = false } })
+                    .transition(.opacity)
             }
         }
         .overlay {

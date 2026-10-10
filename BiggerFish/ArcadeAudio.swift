@@ -2,20 +2,24 @@ import AVFoundation
 import Combine
 import UIKit
 
-/// The player's sound choices, saved on the device.
+/// The player's sound and vibration choices, saved on the device.
 final class ArcadeSettings: ObservableObject {
     static let shared = ArcadeSettings()
     private static let effectsKey = "biggerFish.soundEffectsOn"
     private static let musicKey = "biggerFish.musicOn"
+    private static let vibrationKey = "biggerFish.vibrationOn"
     private let defaults: UserDefaults
 
     @Published var soundEffectsOn: Bool { didSet { defaults.set(soundEffectsOn, forKey: Self.effectsKey) } }
     @Published var musicOn: Bool { didSet { defaults.set(musicOn, forKey: Self.musicKey) } }
+    /// The game's haptics: close calls, bounces, stings, and being eaten.
+    @Published var vibrationOn: Bool { didSet { defaults.set(vibrationOn, forKey: Self.vibrationKey) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         soundEffectsOn = defaults.object(forKey: Self.effectsKey) as? Bool ?? true
         musicOn = defaults.object(forKey: Self.musicKey) as? Bool ?? true
+        vibrationOn = defaults.object(forKey: Self.vibrationKey) as? Bool ?? true
     }
 }
 
