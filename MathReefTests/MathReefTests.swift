@@ -467,6 +467,14 @@ struct PracticeSessionTests {
     }
 }
 
+/// The screen stays awake only while a child is playing: the maps, Settings, and the cards around a round sleep.
+@Test func theScreenStaysAwakeOnlyDuringPlay() {
+    let awake: [PracticeScene.Phase] = [.answering, .feedback, .tutorial]
+    let sleeps: [PracticeScene.Phase] = [.home, .world, .instructions, .summary]
+    #expect(awake.allSatisfy(PracticeScene.keepsScreenAwake))
+    #expect(!sleeps.contains(where: PracticeScene.keepsScreenAwake))
+}
+
 struct ReviewMixTests {
     private func world(_ id: String) -> World { Curriculum.worlds.first { $0.id == id }! }
 

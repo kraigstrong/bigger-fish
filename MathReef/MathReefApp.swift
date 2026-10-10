@@ -22,6 +22,5 @@ struct ContentView: View {
             .ignoresSafeArea()
             .statusBarHidden()
             .persistentSystemOverlays(.hidden)
-            .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
     }
 }

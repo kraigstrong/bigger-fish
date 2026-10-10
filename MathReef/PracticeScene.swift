@@ -156,7 +156,7 @@ private struct LabSwallow {
 }
 
 final class PracticeScene: SKScene {
-    private enum Phase { case home, world, instructions, answering, feedback, summary, tutorial }
+    enum Phase { case home, world, instructions, answering, feedback, summary, tutorial }
     private enum PanelStyle { case neutral, correct, wrong }
     private typealias L = ReefTuning
     private typealias PanelLine = (text: String, fontSize: CGFloat, heavy: Bool)
@@ -175,7 +175,14 @@ final class PracticeScene: SKScene {
     private var tutorialRingsAnswer = false
     private var worldMap: WorldMapNode?
     private var levelMap: LevelMapNode?
-    private var phase: Phase = .home
+    private var phase: Phase = .home {
+        // Awake only while a child is playing; the maps, Settings, and the cards around a round let the phone sleep as
+        // it normally would.
+        didSet { UIApplication.shared.isIdleTimerDisabled = Self.keepsScreenAwake(phase) }
+    }
+    static func keepsScreenAwake(_ phase: Phase) -> Bool {
+        phase == .answering || phase == .feedback || phase == .tutorial
+    }
     private var worldIndex = 0
     private var levelIndex = 0
     private var world: World { Curriculum.worlds[worldIndex] }
