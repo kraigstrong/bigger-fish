@@ -66,7 +66,8 @@ struct ArcadeTutorialTests {
         #expect(leads.allSatisfy { $0 > 0 && $0 < T.tutorialMissedFishSets })
         #expect(T.tutorialMissedMealSpeed < T.tutorialMissedFishSpeed)
         let catches = T.tutorialMissedCatches
-        #expect(catches[0] > 0 && catches[1] < 0 && catches[1] > -0.3, "one as it passes you, one just behind, on screen")
+        // Both well on screen (you're 0.3 of a screen from its left edge), the first ahead of you.
+        #expect(catches[0] > catches[1] && catches[0] > 0 && catches.allSatisfy { $0 > -0.15 && $0 < 0.5 })
         let between = (catches[0] - catches[1]) / T.tutorialMissedFishSpeed / T.tutorialPace
         #expect(between > 0.55, "time to swallow the first meal before the second: \(between) s")
         // Everything that swims at you does so faster than you swim, so it never looks to swim backwards.

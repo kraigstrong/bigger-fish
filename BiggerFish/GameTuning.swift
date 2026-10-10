@@ -972,13 +972,13 @@ enum GameTuning {
     static let tutorialBigFishCrossing: CGFloat = 2.0
     /// The race, at a pace of 1, in screens a second as they look on screen (you swim a screen every 3.2 s, so anything
     /// slower than 1 / 3.2 would look to swim backwards). The missed fish sets off `tutorialMissedFishSets` seconds in,
-    /// its two little meals ahead of it and slower, and it catches them this many screens ahead of you: one as it
-    /// passes you, one just behind. Then it swims on off screen, and comes round again from ahead of you
+    /// its two little meals ahead of it and slower, and it catches them this many screens ahead of you: one just
+    /// ahead, one as it passes you. Then it swims on off screen, and comes round again from ahead of you
     /// `tutorialWrapDelay` seconds into the next beat (and after each time it gets past you).
     static let tutorialMissedFishSpeed: CGFloat = 0.5
     static let tutorialMissedMealSpeed: CGFloat = 0.36
     static let tutorialMissedFishSets: CGFloat = 0.9
-    static let tutorialMissedCatches: [CGFloat] = [0.03, -0.2]
+    static let tutorialMissedCatches: [CGFloat] = [0.22, 0]
     static let tutorialWrapDelay: CGFloat = 1.2
     /// The wall, at a pace of 1: its three fish are `tutorialWallSize` times you, and two meals make you
     /// `tutorialWallMargin` times them. The meals come straight at you this many seconds in; the wall appears off
