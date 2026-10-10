@@ -73,14 +73,7 @@ struct MeetingPlannerTests {
             #expect(plan.fish.map(\.id) == Array(1...plan.fish.count))
             #expect(plan.analysis.meetings.filter { $0.minimumMeals != nil }.count > plan.fish.count / 2)
         }
-        // Today's planner places every big fish a spec asks for, with at most one fish slightly off its plan.
-        for spec in specs {
-            let plan = MeetingPlanner.plan(spec)
-            let walls = plan.fish.filter { $0.role == .threat }.count
-                - spec.extraThreats - spec.segments.reduce(0) { $0 + $1.dangerFoods }
-            #expect(walls >= 0, "\(spec.name) is missing big fish")
-            #expect(plan.issues.count <= 1 && plan.issues.allSatisfy { $0.contains("is off its plan") }, "\(spec.name): \(plan.issues)")
-        }
+        // What today's planner makes of each spec: `todaysPlannerPlansASampleCleanly` below.
         let tightest = plans.map { plan in
             plan.fish.filter { $0.role == .gate }.compactMap { plan.analysis.meeting(fishID: $0.id)?.robustSlack }.min() ?? -1
         }
@@ -96,19 +89,41 @@ struct MeetingPlannerTests {
         #expect(GameTuning.reefLabFrozen.isSubset(of: specs.map(\.name)))
     }
 
-    /// Open-water threats never land beside each other, even when one moves earlier into another's slot.
-    @Test func plannedThreatsNeverCrossOnTopOfEachOther() {
-        for spec in GameTuning.reefLabSpecs {
-            let plan = MeetingPlanner.plan(spec)
-            let crossings = Dictionary(uniqueKeysWithValues: plan.predicted.map { ($0.fishID, $0) })
-            let threats = plan.fish.filter { $0.role == .threat }
-            for (offset, a) in threats.enumerated() {
-                for b in threats.dropFirst(offset + 1) {
-                    let first = crossings[a.id]!, second = crossings[b.id]!
-                    guard abs(first.time - second.time) < 0.15 else { continue }
-                    #expect(abs(first.y - second.y) >= Double(a.radius + b.radius) * Double(GameTuning.collisionScale),
-                            "\(spec.name): threats \(a.id) and \(b.id) cross on top of each other")
-                }
+    /// Re-planning a Shallow Reef spec takes from about a second to half a minute in Debug, so the suite re-plans a
+    /// sample: the playtested Easy, Medium, and Hard (levels 2, 6, and 10 of the ten) and the last Deep End level,
+    /// Needle. CI re-plans every spec nightly (`.github/workflows/ci.yml`). To do that locally, run xcodebuild with
+    /// `TEST_RUNNER_BIGGER_FISH_FULL_PLANNER_TESTS=1` in its environment (xcodebuild drops the prefix).
+    static let replansEverySpec = ProcessInfo.processInfo.environment["BIGGER_FISH_FULL_PLANNER_TESTS"] == "1"
+    static let sampledSpecs = ["Easy", "Medium", "Hard", "Needle"]
+
+    @Test(.enabled(if: !replansEverySpec), arguments: sampledSpecs)
+    func todaysPlannerPlansASampleCleanly(_ name: String) throws {
+        try Self.checkTodaysPlan(name)
+    }
+
+    @Test(.enabled(if: replansEverySpec), arguments: GameTuning.reefLabSpecs.map(\.name))
+    func todaysPlannerPlansEverySpecCleanly(_ name: String) throws {
+        try Self.checkTodaysPlan(name)
+    }
+
+    /// One plan per spec for both checks; each spec is its own test case, so they plan in parallel.
+    private static func checkTodaysPlan(_ name: String) throws {
+        let spec = try #require(GameTuning.reefLabSpecs.first { $0.name == name })
+        let plan = MeetingPlanner.plan(spec)
+        // Today's planner places every big fish a spec asks for, with at most one fish slightly off its plan.
+        let walls = plan.fish.filter { $0.role == .threat }.count
+            - spec.extraThreats - spec.segments.reduce(0) { $0 + $1.dangerFoods }
+        #expect(walls >= 0, "\(spec.name) is missing big fish")
+        #expect(plan.issues.count <= 1 && plan.issues.allSatisfy { $0.contains("is off its plan") }, "\(spec.name): \(plan.issues)")
+        // Open-water threats never land beside each other, even when one moves earlier into another's slot.
+        let crossings = Dictionary(uniqueKeysWithValues: plan.predicted.map { ($0.fishID, $0) })
+        let threats = plan.fish.filter { $0.role == .threat }
+        for (offset, a) in threats.enumerated() {
+            for b in threats.dropFirst(offset + 1) {
+                let first = crossings[a.id]!, second = crossings[b.id]!
+                guard abs(first.time - second.time) < 0.15 else { continue }
+                #expect(abs(first.y - second.y) >= Double(a.radius + b.radius) * Double(GameTuning.collisionScale),
+                        "\(spec.name): threats \(a.id) and \(b.id) cross on top of each other")
             }
         }
     }
