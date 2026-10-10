@@ -55,6 +55,18 @@ struct ContentView: View {
                     .transition(.opacity)
             }
         }
+        .overlay(alignment: .topLeading) {
+            // Small, for players who've played before and reinstalled.
+            if let scene, scene.isTutorial {
+                Button("Skip") { scene.skipTutorial() }
+                    .font(.custom("AvenirNext-DemiBold", size: 14)).foregroundStyle(.white.opacity(0.75))
+                    .padding(.horizontal, 14).padding(.vertical, 7)
+                    .background(.black.opacity(0.25), in: Capsule())
+                    .buttonStyle(.plain)
+                    .padding(.leading, 24).padding(.top, 14)
+                    .accessibilityLabel("Skip the tutorial")
+            }
+        }
         #if DEBUG
         .overlay(alignment: .bottomTrailing) {
             Button("Tuning", systemImage: "slider.horizontal.3") {
@@ -81,6 +93,7 @@ struct ContentView: View {
                 selectedWorld = world
                 withAnimation { celebrating = world }
             }
+            .replayingTutorial { playTutorial() }
         }
         #endif
         .statusBarHidden()
@@ -125,6 +138,11 @@ struct ContentView: View {
         let remaining = GameTuning.launchMinimumSeconds - Date().timeIntervalSince(started)
         if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
         withAnimation(.easeOut(duration: 0.35)) { loaded = true }
+        // A new player starts with the tutorial, then lands on Shallow Reef.
+        if progress.needsTutorial {
+            playTutorial()
+            return
+        }
         // Players who beat a tenth level before its unlock screen existed see it once, on the world map.
         if let world = progress.unseenUnlock {
             try? await Task.sleep(for: .seconds(0.5))
@@ -148,6 +166,21 @@ struct ContentView: View {
         scene = game
     }
     #endif
+
+    /// The first-launch tutorial (`ArcadeTutorial`): seen once however it ends, then on to Shallow Reef's levels.
+    private func playTutorial() {
+        let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        game.analytics = analytics
+        // Seen once it's finished, skipped or left; closing the app partway through plays it again next time.
+        game.onTutorialFinished = { progress.sawTutorial() }
+        game.onExit = {
+            progress.sawTutorial()
+            scene = nil
+            selectedWorld = .shallowReef
+            returnedFrom = nil
+        }
+        scene = game
+    }
 
     /// `seeded` (Debug, from the tuner) plays the world's original seeded level instead of its planned one.
     private func play(_ world: ArcadeWorld, index: Int, practice: Bool = false, seeded: Bool = false) {

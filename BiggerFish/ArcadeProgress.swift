@@ -12,6 +12,8 @@ struct ArcadeSave: Codable {
     var seenUnlocks: Set<String>? = nil
     /// Worlds an unlock screen has announced as open (the next world on a world's "conquered" screen).
     var announcedWorlds: Set<String>? = nil
+    /// The first-launch tutorial has been shown (finished, skipped, or left).
+    var hasSeenTutorial: Bool? = nil
 
     init() {}
 
@@ -22,6 +24,7 @@ struct ArcadeSave: Codable {
         hasSeenJellyLesson = (try? values.decodeIfPresent(Bool.self, forKey: .hasSeenJellyLesson)) ?? false
         seenUnlocks = try? values.decodeIfPresent(Set<String>.self, forKey: .seenUnlocks)
         announcedWorlds = try? values.decodeIfPresent(Set<String>.self, forKey: .announcedWorlds)
+        hasSeenTutorial = try? values.decodeIfPresent(Bool.self, forKey: .hasSeenTutorial)
     }
 }
 
@@ -131,6 +134,14 @@ final class ArcadeProgress: ObservableObject {
         let shown = ArcadeWorld.campaign.prefix(index + 1)
         save.seenUnlocks = (save.seenUnlocks ?? []).union(shown.map(\.rawValue))
         save.announcedWorlds = (save.announcedWorlds ?? []).union(shown.compactMap { $0.nextWorld?.rawValue })
+        persist()
+    }
+
+    /// Only a new player sees the tutorial: someone updating with levels already cleared knows the game.
+    var needsTutorial: Bool { save.hasSeenTutorial != true && save.clearedLevels.isEmpty }
+
+    func sawTutorial() {
+        save.hasSeenTutorial = true
         persist()
     }
 
