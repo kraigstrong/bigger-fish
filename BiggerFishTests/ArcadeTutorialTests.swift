@@ -32,6 +32,43 @@ struct ArcadeTutorialTests {
         #expect(abs(last - 14.2) < 0.1 && abs(grown - 22.4) < 0.1)
     }
 
+    @Test func theWallTakesTwoMealsAndBlocksTheWater() {
+        typealias A = ArcadeTutorial
+        typealias T = GameTuning
+        let you = A.radius(startingAt: .eatEnough)
+        let wall = A.wallFish(you: you)
+        // You're bigger than every fish so far, and a wall fish is a little bigger than you.
+        #expect(you > A.missedFishGrown && GameRules.playerEncounter(you, wall) == .secondEatsFirst)
+        let meal = A.wallMeal(you: you, wall: wall)
+        #expect(GameRules.playerEncounter(you, meal) == .firstEatsSecond)
+        let once = A.grow(you, eating: meal), twice = A.grow(once, eating: meal)
+        #expect(GameRules.playerEncounter(once, wall) == .secondEatsFirst, "one meal shouldn't be enough")
+        #expect(GameRules.playerEncounter(twice, wall) == .firstEatsSecond, "two meals should be")
+        #expect(abs(twice / wall - T.tutorialWallMargin) < 0.001)
+        // Missed one: the next makes you big enough on its own.
+        #expect(GameRules.playerEncounter(A.grow(once, eating: A.wallMeal(you: once, wall: wall, meals: 1)), wall) == .firstEatsSecond)
+        // At the tutorial's zoom, three wall fish leave no gap anywhere you can swim.
+        let water = PlayerTimeline.waterBounds(zoom: T.tutorialZoom)
+        let heights = A.wallHeights(you: you, wall: wall, bottom: water.bottom, top: water.top)
+        #expect(heights.count == 3)
+        #expect(A.wallBlocks(you: you, wall: wall, heights: heights, bottom: water.bottom, top: water.top))
+    }
+
+    @Test func theMissedFishCatchesItsMealsAsItPassesYou() {
+        typealias T = GameTuning
+        let leads = ArcadeTutorial.missedMealLeads
+        // Its meals set off first, slower, and it has caught the first before it reaches the second.
+        #expect(leads.allSatisfy { $0 > 0 && $0 < T.tutorialMissedFishSets })
+        #expect(T.tutorialMissedMealSpeed < T.tutorialMissedFishSpeed)
+        let catches = T.tutorialMissedCatches
+        #expect(catches[0] > 0 && catches[1] < 0 && catches[1] > -0.3, "one as it passes you, one just behind, on screen")
+        let between = (catches[0] - catches[1]) / T.tutorialMissedFishSpeed / T.tutorialPace
+        #expect(between > 0.55, "time to swallow the first meal before the second: \(between) s")
+        // Everything that swims at you does so faster than you swim, so it never looks to swim backwards.
+        let you = 1 / 3.2
+        #expect([T.tutorialMissedMealSpeed, T.tutorialMissedFishSpeed, T.tutorialWallSpeed].allSatisfy { $0 > you })
+    }
+
     @Test func pathsAreMeasuredFromYou() {
         let path = TutorialPath.headOn(share: 0.6, crossing: 1.6)
         #expect(path.at(0) == (0.78, 0.6))
