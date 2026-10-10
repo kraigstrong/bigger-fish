@@ -51,8 +51,9 @@ final class WorldProgressStrip: SKNode {
     let rowWidth: CGFloat
     let caption: SKLabelNode
 
-    /// `earned`: a level just won for the first time, drawn empty until `playEarned` fills it in.
-    init(progress: WorldProgress, next: Int?, earned: Int? = nil) {
+    /// `earned`: a level just won for the first time, drawn empty until `playEarned` fills it in. `captioned`: the line
+    /// under the pips (the card before a level shows the pips alone).
+    init(progress: WorldProgress, next: Int?, earned: Int? = nil, captioned: Bool = true) {
         self.progress = progress
         color = progress.isDeepEnd ? Self.gold : progress.world.mapColor
         crown = SKSpriteNode.symbol("crown.fill", pointSize: 20, weight: .bold,
@@ -80,6 +81,7 @@ final class WorldProgressStrip: SKNode {
         caption.fontColor = SKColor(white: 1, alpha: 0.9)
         caption.verticalAlignmentMode = .center
         caption.position = CGPoint(x: 0, y: -27)
+        caption.isHidden = !captioned
         addChild(caption)
         if let next { pulse(next) }
     }
@@ -87,8 +89,9 @@ final class WorldProgressStrip: SKNode {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    /// Width the strip needs, caption included.
-    var width: CGFloat { max(rowWidth, caption.frame.width) }
+    /// Width the strip needs, caption included, and its height below the pips' middle.
+    var width: CGFloat { caption.isHidden ? rowWidth : max(rowWidth, caption.frame.width) }
+    var depth: CGFloat { caption.isHidden ? Self.pipRadius + 4 : 38 }
 
     /// Fills in the level just won: a pop, a ring bursting out, and a glint on the crown if that conquered the run.
     func playEarned(_ index: Int, after delay: TimeInterval) {

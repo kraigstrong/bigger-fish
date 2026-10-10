@@ -193,6 +193,8 @@ final class GameScene: SKScene {
     /// Set from `onClear` when this win conquers the world for the first time: instead of its result card, the
     /// level leaves for the world's conquered screen once the win has played.
     var leavesForConqueredScreen = false
+    /// Playing the same level again (Retry, Play again, or Restart): no card before it, just the prompt.
+    private var replaying = false
     /// Whether a level is past the free ones without the unlock. Next level onto one leaves the level instead, with
     /// `leftForUnlock` set, so the unlock's screen can show.
     var levelNeedsUnlock: ((Int) -> Bool)?
@@ -794,10 +796,16 @@ final class GameScene: SKScene {
                     tutorialCaptionPending = nil
                     showTutorialCaption(caption)
                 }
-            } else {
+            } else if replaying {
+                // Again straight after playing it: no card, just the prompt (your first touch starts it, as ever).
                 messageNode.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
-                showMessage(levelTitle, lines: arcadeWorld.levelCard,
-                            progress: worldProgress(won: false).map { WorldProgressStrip(progress: $0, next: levelIndex) })
+                showStartPrompt()
+            } else {
+                // The level and its pips; a world's first level also says what's new in it, until it's beaten.
+                messageNode.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
+                let introduces = levelIndex == 0 && hasCleared?(0) != true
+                showMessage(levelTitle, lines: introduces ? arcadeWorld.rules : [],
+                            progress: worldProgress(won: false).map { WorldProgressStrip(progress: $0, next: levelIndex, captioned: false) })
             }
         case .playing, .paused:
             hideMessage()
@@ -909,6 +917,7 @@ final class GameScene: SKScene {
             layoutStatic()
             resetGame(startPlaying: false)
         case .playAgain, .tryAgain:
+            replaying = true
             resetGame(startPlaying: false)
         case .levels, .world:
             #if DEBUG
@@ -924,6 +933,7 @@ final class GameScene: SKScene {
             showsJellyLesson = false
         }
         simClock = 0
+        replaying = false
         clearedBeforeRun = hasCleared?(levelIndex) ?? false
         var collects = analytics?.enabled == true && !isTutorial
         #if DEBUG
@@ -1023,6 +1033,7 @@ final class GameScene: SKScene {
                     recordRunEvent("resume")
                     #endif
                 } else if restartButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
+                    replaying = true
                     resetGame(startPlaying: false)
                 } else if effectsButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
                     toggleSound(effects: true)
@@ -2781,15 +2792,15 @@ final class GameScene: SKScene {
 
         let titleLabel = label(title, fontSize: 40, heavy: true)
         let lineLabels = lines.map { label($0, fontSize: 19, heavy: false) }
-        let start = label("Tap anywhere to begin", fontSize: 22, heavy: true)
+        let start = label("Tap to start", fontSize: 22, heavy: true)
         start.name = "beginPrompt"
         let maxTextWidth = max(240, (size.width - messageNode.position.x - 28) * 2 - 70)
         for text in [titleLabel, start] + lineLabels + [progress?.caption].compactMap({ $0 }) where text.frame.width > maxTextWidth {
             text.fontSize *= maxTextWidth / text.frame.width
         }
         let lineSpacing: CGFloat = 30
-        let progressHeight: CGFloat = progress == nil ? 0 : 62
-        let height = 150 + CGFloat(lines.count) * lineSpacing + progressHeight
+        let progressHeight: CGFloat = progress.map { $0.depth + 24 } ?? 0
+        let height = (lines.isEmpty ? 130 : 150) + CGFloat(lines.count) * lineSpacing + progressHeight
         let width = max(titleLabel.frame.width, start.frame.width, lineLabels.map(\.frame.width).max() ?? 0,
                         progress?.width ?? 0) + 70
 
@@ -2818,6 +2829,22 @@ final class GameScene: SKScene {
 
         messageNode.alpha = 0
         messageNode.run(.sequence([.wait(forDuration: delay), .fadeIn(withDuration: 0.25)]))
+    }
+
+    /// Before playing a level again: just the prompt, small, on its own.
+    private func showStartPrompt() {
+        messageNode.removeAllActions()
+        messageNode.removeAllChildren()
+        let start = label("Tap to start", fontSize: 22, heavy: true)
+        start.name = "beginPrompt"
+        let pill = SKShapeNode(rectOf: CGSize(width: start.frame.width + 44, height: 48), cornerRadius: 24)
+        pill.fillColor = SKColor(white: 0, alpha: 0.3)
+        pill.strokeColor = .clear
+        pill.name = "startPrompt"
+        messageNode.addChild(pill)
+        messageNode.addChild(start)
+        messageNode.alpha = 0
+        messageNode.run(.fadeIn(withDuration: 0.2))
     }
 
     private func hideMessage() {
@@ -3118,6 +3145,8 @@ final class GameScene: SKScene {
 
     // Integration-test fixtures exercise the real scene update and hazard resolution.
     func debugStart() { startRun() }
+    /// Ends the run as if you'd been eaten.
+    func debugLose() { lose() }
     /// Every bell landing this run: who, on which jelly, when, and where on screen.
     private(set) var debugBounces: [(fishID: Int, jelly: Int, time: CGFloat, screenX: CGFloat)] = []
     /// Plays the tutorial with a simple player on the real controls: it heads for the glowing meal, goes after the
@@ -3208,11 +3237,14 @@ final class GameScene: SKScene {
         return phase == .playing
     }
     var debugLevelIndex: Int { levelIndex }
-    /// The world's pips on the card showing (the ready card or a win's), by their caption.
+    /// The world's pips on the card showing (the ready card or a win's), by their caption ("" for pips alone).
     var debugProgressCaption: String? {
-        messageNode.children.lazy.compactMap { $0 as? WorldProgressStrip }.first?.caption.text
-            ?? resultPanel?.children.lazy.compactMap { $0 as? WorldProgressStrip }.first?.caption.text
+        let strip = messageNode.children.lazy.compactMap { $0 as? WorldProgressStrip }.first
+            ?? resultPanel?.children.lazy.compactMap { $0 as? WorldProgressStrip }.first
+        return strip.map { $0.caption.isHidden ? "" : $0.caption.text ?? "" }
     }
+    /// The words on the card before a level, top to bottom.
+    var debugCardTexts: [String] { messageNode.children.compactMap { ($0 as? SKLabelNode)?.text } }
     var debugConfiguredSpawnSeed: UInt64 { ecosystemSeed }
     var debugResultTitles: [String] { resultPanel?.controls.map { $0.action.title } ?? [] }
     func debugTapResult(_ action: ArcadeResultAction?) {

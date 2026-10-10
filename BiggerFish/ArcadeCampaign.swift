@@ -88,13 +88,15 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     var nextWorld: ArcadeWorld? {
         Self.campaign.firstIndex(of: self).flatMap { Self.campaign.indices.contains($0 + 1) ? Self.campaign[$0 + 1] : nil }
     }
-    /// The card before each of the world's levels: the same on every level.
-    var levelCard: [String] {
+    /// What's new in the world, on the card before its first level until that's beaten (every other card is just the
+    /// level and its pips). Shallow Reef has nothing new: the tutorial teaches the controls, eating and avoiding, and
+    /// being the last fish swimming.
+    var rules: [String] {
         switch self {
-        case .shallowReef: ["Hold to rise. Release to fall.", "Eat smaller fish. Avoid bigger fish.", "Be the last fish swimming."]
-        case .jellyBloom: ["Bounce the tops.", "Dodge the tentacles.", "Be the last fish swimming."]
-        case .kelpForest: ["Kelp slows you down.", "Fish in the kelp hide their colors.", "Be the last fish swimming."]
-        case .midnightZone: ["Your light shows the way.", "Fish lurk in the dark.", "Be the last fish swimming."]
+        case .shallowReef: []
+        case .jellyBloom: ["Bounce the tops.", "Dodge the tentacles."]
+        case .kelpForest: ["Kelp slows you down.", "Fish in the kelp hide their colors."]
+        case .midnightZone: ["Your light shows the way.", "Fish lurk in the dark."]
         }
     }
     func levelID(_ index: Int) -> String { "\(rawValue).\(index + 1)" }

@@ -62,7 +62,7 @@ struct ArcadeResultTests {
             view.presentScene(scene)
             let prompt = try #require(scene.childNode(withName: "//beginPrompt") as? SKLabelNode)
             let card = try #require(scene.childNode(withName: "//readyCard") as? SKShapeNode)
-            #expect(prompt.text == "Tap anywhere to begin")
+            #expect(prompt.text == "Tap to start")
             #expect(prompt.fontSize >= 22 && prompt.alpha == 1)
             #expect(card.frame.contains(prompt.frame))
             #expect(!(card.parent?.children.contains { $0 is SKShapeNode && $0 !== card } ?? true))
