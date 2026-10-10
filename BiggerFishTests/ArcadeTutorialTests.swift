@@ -1,4 +1,5 @@
 import CoreGraphics
+import FishKit
 import Foundation
 import SpriteKit
 import Testing
@@ -65,10 +66,15 @@ struct ArcadeTutorialTests {
         #expect(leads.allSatisfy { $0 > 0 && $0 < T.tutorialMissedFishSets })
         #expect(T.tutorialMissedMealSpeed < T.tutorialMissedFishSpeed)
         let catches = T.tutorialMissedCatches
-        // Both well on screen (you're 0.3 of a screen from its left edge), the first ahead of you.
-        #expect(catches[0] > catches[1] && catches[0] > 0 && catches.allSatisfy { $0 > -0.15 && $0 < 0.5 })
+        // Both well on screen and ahead of you (you're 0.3 of a screen from its left edge, and it starts 0.7 ahead).
+        #expect(catches[0] > catches[1] && catches.allSatisfy { $0 > 0 && $0 < 0.6 })
         let between = (catches[0] - catches[1]) / T.tutorialMissedFishSpeed / T.tutorialPace
         #expect(between > 0.55, "time to swallow the first meal before the second: \(between) s")
+        // It's done eating and growing, with a moment to see it at its new size, before it swims off the left edge.
+        let meal = T.tutorialMissedFishMeal, grown = ArcadeTutorial.grow(T.tutorialMissedFish, eating: meal)
+        let bite = SwallowTiming.duration(sizeRatio: meal / grown, curve: T.swallowDurationCurve) + T.growDuration
+        let onScreen = (catches[1] + T.playerScreenX) / T.tutorialMissedFishSpeed / T.tutorialPace
+        #expect(onScreen > bite + 0.6, "after its second bite it's on screen \(onScreen) s, and takes \(bite) s to finish growing")
         // Everything that swims at you does so faster than you swim, so it never looks to swim backwards.
         let you = 1 / 3.2
         #expect([T.tutorialMissedMealSpeed, T.tutorialMissedFishSpeed].allSatisfy { $0 > you })
@@ -139,6 +145,40 @@ struct ArcadeTutorialTests {
         let run = scene.debugPlayTutorial(from: .eatEnough, lag: 0.5)
         #expect(run.finished && scene.debugWallBeat.meals.isEmpty, "after \(run.seconds) s")
         withExtendedLifetime(view) {}
+    }
+
+    /// "Hold anywhere to rise" wants a clear rise, not a trip to the top: one short hold does it.
+    @Test func aShortHoldIsEnoughToRise() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        scene.debugStartTutorial(at: .holdToRise)
+        let start = scene.debugPlayerShare
+        scene.debugHold(true)
+        var highest = start, held: CGFloat = 0
+        while scene.debugTutorialBeat == .holdToRise && held < 3 {
+            scene.debugAdvance(seconds: 1.0 / 60)
+            held += 1.0 / 60
+            highest = max(highest, scene.debugPlayerShare)
+        }
+        #expect(scene.debugTutorialBeat == .letGoToFall)
+        #expect(highest < 0.8 && held < 1.2, "rose from \(start) to \(highest) over \(held) s")
+        withExtendedLifetime(view) {}
+    }
+
+    /// Caught by a fish on a scripted path, you're carried smoothly into it: the screen doesn't race ahead. (A path is
+    /// measured from you, and you're carried along by the fish that caught you, so each chased the other ahead.)
+    @Test func beingCaughtDoesntSweepTheScreenAhead() {
+        for beat in [ArcadeTutorial.Beat.dodgeBigger, .catchItBack] {
+            let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+            let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+            view.presentScene(scene)
+            let run = scene.debugPlayTutorial(eatenOn: beat)
+            #expect(!run.finished && scene.debugTutorialBeat == beat, "\(beat): reached \(scene.debugTutorialBeat)")
+            // You swim about 3.4 points a frame; being carried into a fish is no faster than that.
+            #expect(scene.debugCaughtStep > 0 && scene.debugCaughtStep < 8, "\(beat): jumped \(scene.debugCaughtStep) points in a frame")
+            withExtendedLifetime(view) {}
+        }
     }
 
     @Test func pathsAreMeasuredFromYou() {

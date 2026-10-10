@@ -978,13 +978,14 @@ enum GameTuning {
     static let tutorialBigFishCrossing: CGFloat = 2.0
     /// The race, at a pace of 1, in screens a second as they look on screen (you swim a screen every 3.2 s, so anything
     /// slower than 1 / 3.2 would look to swim backwards). The missed fish sets off `tutorialMissedFishSets` seconds in,
-    /// its two little meals ahead of it and slower, and it catches them this many screens ahead of you: one just
-    /// ahead, one as it passes you. Then it swims on off screen, and comes round again from ahead of you
-    /// `tutorialWrapDelay` seconds into the next beat (and after each time it gets past you).
+    /// its two little meals ahead of it and slower, and it catches them this many screens ahead of you: both well
+    /// to the right, so it's done eating and growing, and you see it at its new size, before it swims off past you.
+    /// Then it comes round again from ahead of you `tutorialWrapDelay` seconds into the next beat (and after each time
+    /// it gets past you).
     static let tutorialMissedFishSpeed: CGFloat = 0.5
     static let tutorialMissedMealSpeed: CGFloat = 0.36
     static let tutorialMissedFishSets: CGFloat = 0.9
-    static let tutorialMissedCatches: [CGFloat] = [0.22, 0]
+    static let tutorialMissedCatches: [CGFloat] = [0.5, 0.26]
     static let tutorialWrapDelay: CGFloat = 1.2
     /// The wall, the last beat, plays like a level: two meals and then the wall swim freely ahead of you, and the wall
     /// eats you if you reach it before you've eaten both. Its three fish are `tutorialWallSize` times you, and the two
@@ -1014,10 +1015,11 @@ enum GameTuning {
     static let tutorialZoom: CGFloat = 1
     /// The size of each beat's line at the top of the screen.
     static let tutorialCaptionSize: CGFloat = 30
-    /// The first two beats: one hold has to lift you this share of the water (or to near the top), and letting go
-    /// has to drop you this share from your highest. The finger shows again if you haven't after
-    /// `tutorialHintSeconds`. It presses here (shares of the screen), open water well away from your fish.
-    static let tutorialRiseShare: CGFloat = 0.3
+    /// The first two beats: holding has to lift you this share of the water above your lowest (a short hold does it;
+    /// you don't need to reach the top, and a few short taps add up), and letting go has to drop you this share from your
+    /// highest. The finger shows again if you haven't after `tutorialHintSeconds`. It presses here (shares of the
+    /// screen), open water well away from your fish.
+    static let tutorialRiseShare: CGFloat = 0.15
     static let tutorialFallShare: CGFloat = 0.22
     static let tutorialHintSeconds: CGFloat = 3.5
     static let tutorialFingerSpot = CGPoint(x: 0.68, y: 0.42)

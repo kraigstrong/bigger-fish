@@ -1539,9 +1539,10 @@ final class GameScene: SKScene {
     private var tutorialWallBreach: Int?
     /// Fish swimming freely as in a level (the last beat's), and how each swims.
     private var tutorialSwims: [Int: TutorialSwim] = [:]
-    /// The opening's finger, where your hold began, your highest since letting go, and when the finger shows again.
+    /// The opening's finger, your lowest while it asks you to rise, your highest since letting go, and when the finger
+    /// shows again.
     private lazy var tutorialHint = TutorialHint(spot: CGPoint(x: size.width * T.tutorialFingerSpot.x, y: size.height * T.tutorialFingerSpot.y))
-    private var tutorialHoldFrom: CGFloat?
+    private var tutorialLowest: CGFloat?
     private var tutorialPeak: CGFloat = 0
     private var tutorialHintAt: CGFloat = 0
     /// Whether the beat's glowing meal went into you (rather than swimming off).
@@ -1583,7 +1584,7 @@ final class GameScene: SKScene {
         tutorialNextBeatAt = nil
         tutorialComesRoundAt = nil
         tutorialCaptionPending = nil
-        tutorialHoldFrom = nil
+        tutorialLowest = nil
         if tutorialHint.parent == nil {
             tutorialHint.zPosition = 6
             uiLayer.addChild(tutorialHint)
@@ -1616,7 +1617,7 @@ final class GameScene: SKScene {
         switch beat {
         case .holdToRise:
             tutorialCaptionPending = beat.caption
-            tutorialHoldFrom = nil
+            tutorialLowest = nil
             tutorialHint.show(.hold)
             tutorialHintAt = simClock + T.tutorialHintSeconds
         case .letGoToFall:
@@ -1697,9 +1698,11 @@ final class GameScene: SKScene {
         switch tutorialBeat {
         case .holdToRise:
             followTutorialHint()
-            if isHolding { tutorialHoldFrom = tutorialHoldFrom ?? player.position.y } else { tutorialHoldFrom = nil }
+            // Risen far enough above your lowest: one short hold does it, and so do a few taps.
+            let lowest = min(tutorialLowest ?? player.position.y, player.position.y)
+            tutorialLowest = lowest
             let nearTop = player.position.y >= waterTop - player.radius * 0.95 - water * 0.04
-            if let from = tutorialHoldFrom, player.position.y - from >= T.tutorialRiseShare * water || nearTop {
+            if player.position.y - lowest >= T.tutorialRiseShare * water || nearTop {
                 hideTutorialCaption()
                 next(after: 0.15)
             } else if simClock >= tutorialHintAt {
@@ -1856,6 +1859,13 @@ final class GameScene: SKScene {
     private func tutorialTime(since start: CGFloat) -> CGFloat { (simClock - start) * T.tutorialPace }
 
     private func moveScripted(_ f: Fish, _ scripted: (path: TutorialPath, start: CGFloat, leaves: Bool), _ dt: CGFloat) {
+        // Paths are measured from you, so once you're caught they stop: you're carried into whoever caught you, and a
+        // fish placed from you would chase you ahead, sweeping the screen along. It swims on as it was going instead
+        // (and doesn't leave mid-bite).
+        guard player.state == .swimming else {
+            f.position = CGPoint(x: world.wrap(f.position.x + f.velocity.dx * dt), y: f.position.y)
+            return
+        }
         let t = tutorialTime(since: scripted.start)
         if scripted.leaves && t > scripted.path.duration {
             removeTutorialFish(f.id)
@@ -3144,12 +3154,15 @@ final class GameScene: SKScene {
     /// `greedy`: a player who goes after the missed fish's meals while it eats them.
     /// `missesAWallMeal`: a player who lets the wall's first meal go by. `from`: start at that beat (the size the beats
     /// before it make you). `lag`: a slower player, who steers for where things were that many seconds ago, and holds
-    /// at least `lag` before changing their mind. Ends when it's won or lost.
+    /// at least `lag` before changing their mind. `eatenOn`: on that beat, swims into the nearest bigger fish (how far you
+    /// jump in a frame once caught is in `debugCaughtStep`). Ends when it's won or lost.
     func debugPlayTutorial(limit: CGFloat = 90, greedy: Bool = false, missesAWallMeal: Bool = false,
-                           from start: ArcadeTutorial.Beat = .holdToRise, lag: CGFloat = 0,
+                           from start: ArcadeTutorial.Beat = .holdToRise, lag: CGFloat = 0, eatenOn: ArcadeTutorial.Beat? = nil,
                            onFrame: (() -> Void)? = nil) -> (finished: Bool, beats: [(beat: ArcadeTutorial.Beat, at: CGFloat)], seconds: CGFloat) {
         tutorialCheckpoint = start
         resetGame(startPlaying: true)
+        debugCaughtStep = 0
+        var lastX = player.position.x
         var beats: [(beat: ArcadeTutorial.Beat, at: CGFloat)] = [(tutorialBeat, 0)]
         var seen: [(at: CGFloat, target: CGFloat)] = []
         var holding = false, decidedAt: CGFloat = -1
@@ -3159,6 +3172,9 @@ final class GameScene: SKScene {
             let target: CGFloat
             if tutorialBeat == .holdToRise || tutorialBeat == .letGoToFall {
                 target = tutorialBeat == .holdToRise ? waterTop : waterBottom
+            } else if tutorialBeat == eatenOn, let threat = fish.filter({ !$0.isPlayer && $0.state == .swimming && $0.radius > player.radius })
+                        .min(by: { abs(world.delta(from: player.position.x, to: $0.position.x)) < abs(world.delta(from: player.position.x, to: $1.position.x)) }) {
+                target = threat.position.y
             } else if tutorialBeat == .eatEnough,
                       let next = tutorialWallMeals.dropFirst(missesAWallMeal ? 1 : 0).compactMap({ fishByID[$0] })
                           .first(where: { $0.state == .swimming }) {
@@ -3187,6 +3203,8 @@ final class GameScene: SKScene {
             simulationHolding = holding
             advanceFrame(T.simulationStep)
             onFrame?()
+            if player.state != .swimming { debugCaughtStep = max(debugCaughtStep, abs(world.delta(from: lastX, to: player.position.x))) }
+            lastX = player.position.x
             if beats.last?.beat != tutorialBeat {
                 if tutorialBeat == .catchItBack { debugMissedFishGrewTo = rival?.targetRadius }
                 beats.append((tutorialBeat, simClock))
@@ -3198,12 +3216,17 @@ final class GameScene: SKScene {
 
     /// The missed fish's size once its race beat was over, from the last `debugPlayTutorial`.
     private(set) var debugMissedFishGrewTo: CGFloat?
+    /// The furthest you moved in one frame once caught, in the last `debugPlayTutorial`.
+    private(set) var debugCaughtStep: CGFloat = 0
     /// The wall beat's fish still swimming, and how many fish are on scripted paths.
     var debugWallBeat: (meals: [Fish], wall: [Fish], scripted: Int) {
         (tutorialWallMeals.compactMap { fishByID[$0] }, tutorialWall.compactMap { fishByID[$0] }, tutorialPaths.count)
     }
     var debugTutorialBeat: ArcadeTutorial.Beat { tutorialBeat }
     var debugPlayerRadius: CGFloat { player.targetRadius }
+    /// How far up the water you are (0 the bottom, 1 the top), and holding on or off as a test's touch.
+    var debugPlayerShare: CGFloat { waterShare(player.position.y) }
+    func debugHold(_ on: Bool) { simulationHolding = on }
     /// Where a fish is: screens ahead of you (the way you're swimming, round the wrapped world), and share of the water.
     func debugTutorialPlace(_ f: Fish) -> (ahead: CGFloat, share: CGFloat) {
         var ahead = world.delta(from: player.position.x, to: f.position.x)
