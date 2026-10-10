@@ -31,9 +31,10 @@ enum ArcadeTutorial {
         var checkpoint: Beat { self == .catchItBack ? .missedFishEats : self }
     }
 
-    /// The card before it starts.
+    /// The card before it starts, and the line it ends on before fading to the map.
     static let title = "Bigger Fish"
     static let card = ["Hold anywhere to rise.", "Let go to fall."]
+    static let finale = "Now you're ready to play!"
 
     /// Your radius at the start of a beat, eating what the beats before it fed you.
     static func radius(startingAt beat: Beat) -> CGFloat {

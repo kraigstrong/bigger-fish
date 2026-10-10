@@ -974,6 +974,9 @@ enum GameTuning {
     /// when the beat moves on even if they weren't both eaten.
     static let tutorialMissedMealsAt: [CGFloat] = [1.5, 2.3]
     static let tutorialMissedBeatLimit: CGFloat = 7
+    /// After the last catch: when its closing line fades in, and when it leaves for the map (seconds, real time).
+    static let tutorialFinaleDelay: CGFloat = 0.5
+    static let tutorialFinaleSeconds: CGFloat = 2.8
 }
 
 struct Level {

@@ -782,7 +782,11 @@ final class GameScene: SKScene {
         case .playing, .paused:
             hideMessage()
         case .won:
-            if leavesForConqueredScreen || isTutorial {
+            if isTutorial {
+                // A moment to enjoy the catch, then its closing line, then off to the map.
+                showTutorialFinale()
+                pendingConqueredExitAt = realClock + T.tutorialFinaleSeconds
+            } else if leavesForConqueredScreen {
                 pendingConqueredExitAt = realClock + T.conqueredExitDelay
             } else {
                 showResult(passed: true)
@@ -1669,6 +1673,24 @@ final class GameScene: SKScene {
     private func hideTutorialCaption() {
         tutorialCaption.removeAllActions()
         tutorialCaption.run(.fadeOut(withDuration: 0.25))
+    }
+
+    private func showTutorialFinale() {
+        messageNode.removeAllActions()
+        messageNode.removeAllChildren()
+        let line = label(ArcadeTutorial.finale, fontSize: 34, heavy: true)
+        let maxWidth = size.width - 80
+        if line.frame.width > maxWidth { line.fontSize *= maxWidth / line.frame.width }
+        let panel = SKShapeNode(rectOf: CGSize(width: line.frame.width + 70, height: 84), cornerRadius: 24)
+        panel.fillColor = SKColor(white: 0, alpha: 0.3)
+        panel.strokeColor = .clear
+        messageNode.addChild(panel)
+        messageNode.addChild(line)
+        messageNode.position = CGPoint(x: size.width / 2, y: size.height * 0.6)
+        messageNode.alpha = 0
+        messageNode.setScale(0.92)
+        messageNode.run(.sequence([.wait(forDuration: TimeInterval(T.tutorialFinaleDelay)),
+                                   .group([.fadeIn(withDuration: 0.35), .scale(to: 1, duration: 0.35)])]))
     }
 
     /// Leaves the tutorial for the map (its skip control).
