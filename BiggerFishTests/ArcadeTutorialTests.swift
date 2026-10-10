@@ -155,6 +155,31 @@ struct ArcadeTutorialTests {
         withExtendedLifetime(view) {}
     }
 
+    /// The fish that got away swims smoothly round to you while you eat your meal and catch it: eating doesn't stop
+    /// it in its tracks and then snap it back along its path.
+    @Test func theMissedFishSwimsSmoothlyWhileYouEat() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        // Its place on screen in screen widths, across and up.
+        let tall = (PlayerTimeline.waterBounds(zoom: GameTuning.tutorialZoom).top - PlayerTimeline.waterBounds(zoom: GameTuning.tutorialZoom).bottom)
+            / GameTuning.playfieldSize.width
+        var last: (x: CGFloat, y: CGFloat)?, biggest: CGFloat = 0
+        let run = scene.debugPlayTutorial(from: .missedFishEats) {
+            guard scene.debugTutorialBeat == .catchItBack, let rival = scene.debugMissedFish, rival.state == .swimming else { last = nil; return }
+            let place = scene.debugTutorialPlace(rival)
+            // Only while it's on screen (coming round, it jumps from behind you to ahead, out of sight).
+            guard place.ahead > -0.35 && place.ahead < 0.75 else { last = nil; return }
+            let now = (x: place.ahead, y: place.share * tall)
+            if let last { biggest = max(biggest, hypot(now.x - last.x, now.y - last.y)) }
+            last = now
+        }
+        #expect(run.finished)
+        // It comes at you at about 0.007 screens a frame; a snap back along its path is far more.
+        #expect(biggest < 0.015, "it moved \(biggest) screens in one frame")
+        withExtendedLifetime(view) {}
+    }
+
     /// "Hold anywhere to rise" wants a clear rise, not a trip to the top: one short hold does it.
     @Test func aShortHoldIsEnoughToRise() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)

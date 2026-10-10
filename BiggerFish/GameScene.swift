@@ -1862,10 +1862,13 @@ final class GameScene: SKScene {
     private func moveScripted(_ f: Fish, _ scripted: (path: TutorialPath, start: CGFloat, leaves: Bool), _ dt: CGFloat) {
         // Paths are measured from you, so once you're caught they stop: you're carried into whoever caught you, and a
         // fish placed from you would chase you ahead, sweeping the screen along. It swims on as it was going instead
-        // (and doesn't leave mid-bite).
-        guard player.state == .swimming else {
+        // (and doesn't leave mid-bite). Only once you're caught: while you're eating, you swim on, and so do they.
+        switch player.state {
+        case .beingSwallowed, .removed:
             f.position = CGPoint(x: world.wrap(f.position.x + f.velocity.dx * dt), y: f.position.y)
             return
+        case .swimming, .swallowing:
+            break
         }
         let t = tutorialTime(since: scripted.start)
         if scripted.leaves && t > scripted.path.duration {
@@ -3224,6 +3227,8 @@ final class GameScene: SKScene {
         (tutorialWallMeals.compactMap { fishByID[$0] }, tutorialWall.compactMap { fishByID[$0] }, tutorialPaths.count)
     }
     var debugTutorialBeat: ArcadeTutorial.Beat { tutorialBeat }
+    /// The fish that got away, while it's around.
+    var debugMissedFish: Fish? { tutorialMissedFish.flatMap { fishByID[$0] } }
     var debugPlayerRadius: CGFloat { player.targetRadius }
     /// How far up the water you are (0 the bottom, 1 the top), and holding on or off as a test's touch.
     var debugPlayerShare: CGFloat { waterShare(player.position.y) }
