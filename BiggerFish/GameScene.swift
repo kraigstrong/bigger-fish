@@ -1664,6 +1664,20 @@ final class GameScene: SKScene {
                                                         speed: T.tutorialWallSwim, bob: T.tutorialWallBob))
             }
             lossReason = "Eat both fish to get through."
+        case .lastFish:
+            tutorialCaptionPending = beat.caption
+            // The rest of the wall, smaller than you now, turns and bolts ahead, strung out, then tires for you to catch.
+            let rest = tutorialWall.filter { $0 != tutorialWallBreach && fishByID[$0] != nil }
+            for (id, dash) in zip(rest, T.tutorialFleeDashes) {
+                guard var swim = tutorialSwims[id] else { continue }
+                swim.heading = 1
+                swim.bob = 0
+                swim.wander = 0.05
+                swim.speed = T.tutorialFleeSpeed
+                swim.dashSpeed = playerSpeed * T.tutorialFleeDash
+                swim.dashUntil = simClock + dash
+                tutorialSwims[id] = swim
+            }
         }
     }
 
@@ -1769,13 +1783,24 @@ final class GameScene: SKScene {
                 tutorialComesRoundAt = simClock + T.tutorialWrapDelay / T.tutorialPace
             }
         case .eatEnough:
-            // Played like a level, so nothing here steers anything: you're through once you've eaten a wall fish. The
-            // wall eating you ends it like any level, and Retry starts the wall again.
-            if let breach = tutorialWallBreach, fishByID[breach] == nil {
+            // Played like a level, so nothing here steers anything: once you bite into a wall fish you're through, and
+            // the rest of the wall bolts. The wall eating you ends it like any level, and Retry starts the wall again.
+            if tutorialWallBreach != nil { beginTutorialBeat(.lastFish) }
+        case .lastFish:
+            let rest = tutorialWall.compactMap { fishByID[$0] }
+            if rest.isEmpty && swallows.isEmpty {
+                // The last fish swimming: the tutorial is done.
                 hideTutorialCaption()
                 analytics?.tutorial(.completed)
                 onTutorialFinished?()
                 win()
+                return
+            }
+            // One that got past you comes round the reef again: in from off screen ahead, swimming away from you.
+            for f in rest where f.state == .swimming && world.delta(from: player.position.x, to: f.position.x) < -size.width * 0.45 / zoom {
+                f.position = CGPoint(x: world.wrap(player.position.x + 0.85 * size.width / zoom), y: f.position.y)
+                f.velocity = CGVector(dx: T.tutorialFleeSpeed, dy: 0)
+                previousPresentation[f.id] = FishPresentation(f)
             }
         }
     }
@@ -1836,8 +1861,11 @@ final class GameScene: SKScene {
         let reach = swim.bob > 0 ? swim.bob + 1 : swim.wander * water
         let low = max(waterBottom + f.radius, home - reach), high = max(low, min(waterTop - f.radius, home + reach))
         let pulse = swim.bob > 0 ? 0 : 0.2 * sin(simClock * 0.9 + f.phase)
-        let cruise = swim.heading * swim.speed * (1 + pulse)
-        let vx = f.velocity.dx + (cruise - f.velocity.dx) * min(1, dt * 1.5)
+        // Bolting, a fish is up to speed in a moment; after, it tires back to its pace gradually.
+        let dashing = simClock < swim.dashUntil
+        let pace = dashing ? swim.dashSpeed : swim.speed * (1 + pulse)
+        let cruise = swim.heading * pace
+        let vx = f.velocity.dx + (cruise - f.velocity.dx) * min(1, dt * (dashing ? 6 : 1.5))
         let desiredVY: CGFloat
         if swim.bob > 0 {
             desiredVY = (home + sin(simClock * 1.1 + f.phase) * swim.bob - f.position.y) * 3
@@ -3159,9 +3187,11 @@ final class GameScene: SKScene {
     /// `missesAWallMeal`: a player who lets the wall's first meal go by. `from`: start at that beat (the size the beats
     /// before it make you). `lag`: a slower player, who steers for where things were that many seconds ago, and holds
     /// at least `lag` before changing their mind. `eatenOn`: on that beat, swims into the nearest bigger fish (how far you
-    /// jump in a frame once caught is in `debugCaughtStep`). Ends when it's won or lost.
+    /// jump in a frame once caught is in `debugCaughtStep`). `letsTheLastFishGo`: doesn't chase the wall's last two.
+    /// Ends when it's won or lost.
     func debugPlayTutorial(limit: CGFloat = 90, greedy: Bool = false, missesAWallMeal: Bool = false,
                            from start: ArcadeTutorial.Beat = .holdToRise, lag: CGFloat = 0, eatenOn: ArcadeTutorial.Beat? = nil,
+                           letsTheLastFishGo: Bool = false,
                            onFrame: (() -> Void)? = nil) -> (finished: Bool, beats: [(beat: ArcadeTutorial.Beat, at: CGFloat)], seconds: CGFloat) {
         tutorialCheckpoint = start
         resetGame(startPlaying: true)
@@ -3179,6 +3209,12 @@ final class GameScene: SKScene {
             } else if tutorialBeat == eatenOn, let threat = fish.filter({ !$0.isPlayer && $0.state == .swimming && $0.radius > player.radius })
                         .min(by: { abs(world.delta(from: player.position.x, to: $0.position.x)) < abs(world.delta(from: player.position.x, to: $1.position.x)) }) {
                 target = threat.position.y
+            } else if tutorialBeat == .lastFish && letsTheLastFishGo {
+                target = (waterBottom + waterTop) / 2
+            } else if tutorialBeat == .lastFish, let prey = fish.filter({ !$0.isPlayer && $0.state == .swimming && $0.radius < player.radius
+                        && world.delta(from: player.position.x, to: $0.position.x) > -player.radius })
+                        .min(by: { world.delta(from: player.position.x, to: $0.position.x) < world.delta(from: player.position.x, to: $1.position.x) }) {
+                target = prey.position.y
             } else if tutorialBeat == .eatEnough,
                       let next = tutorialWallMeals.dropFirst(missesAWallMeal ? 1 : 0).compactMap({ fishByID[$0] })
                           .first(where: { $0.state == .swimming }) {

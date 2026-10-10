@@ -2,10 +2,10 @@ import CoreGraphics
 import FishKit
 import SpriteKit
 
-/// Bigger Fish's first-launch tutorial: seven short beats, the same every time, that teach the race at the heart of
+/// Bigger Fish's first-launch tutorial: eight short beats, the same every time, that teach the race at the heart of
 /// the game. Hold to rise and let go to fall, as Math Reef teaches it; eat smaller fish, steer clear of bigger ones, and eat on your first pass: a fish you miss keeps eating,
 /// swims on round the reef, and comes back bigger. Then the gates every level has: eat enough to get through, played
-/// like a level. The early fish swim scripted paths, but every bite is the game's own (the same collisions, swallows,
+/// like a level, and how a level is won: be the last fish swimming. The early fish swim scripted paths, but every bite is the game's own (the same collisions, swallows,
 /// and growth as a level), so you watch a missed fish's real size change.
 enum ArcadeTutorial {
     enum Beat: Int, CaseIterable {
@@ -24,6 +24,9 @@ enum ArcadeTutorial {
         /// Played like a level: two meals swimming freely, then a wall of three fish a little bigger than you swimming
         /// at you. Eat both and you eat your way through; miss one and the wall eats you (one tap tries it again).
         case eatEnough
+        /// Through the wall, the other two (smaller than you now) bolt ahead and tire: catch them both, and you're the
+        /// last fish swimming. A level is won the same way.
+        case lastFish
 
         /// The one short line shown with the beat.
         var caption: String {
@@ -35,11 +38,18 @@ enum ArcadeTutorial {
             case .missedFishEats: "Fish you miss keep eating"
             case .catchItBack: "Grow, then catch it"
             case .eatEnough: "Eat enough to get through"
+            case .lastFish: "Be the last fish swimming"
             }
         }
 
-        /// Where a retry starts after being eaten: the race's two beats go together.
-        var checkpoint: Beat { self == .catchItBack ? .missedFishEats : self }
+        /// Where a retry starts after being eaten: the race's two beats go together, and so do the wall's.
+        var checkpoint: Beat {
+            switch self {
+            case .catchItBack: .missedFishEats
+            case .lastFish: .eatEnough
+            default: self
+            }
+        }
     }
 
     /// The line it ends on before fading to the map.
@@ -50,7 +60,7 @@ enum ArcadeTutorial {
         let base = GameTuning.baseRadius
         guard beat.rawValue > Beat.eatSmaller.rawValue else { return base }
         let afterFirst = grow(base, eating: GameTuning.tutorialFirstMeal)
-        guard beat == .eatEnough else { return afterFirst }
+        guard beat.rawValue >= Beat.eatEnough.rawValue else { return afterFirst }
         let afterLast = grow(afterFirst, eating: lastMeal(you: afterFirst, rival: missedFishGrown))
         return grow(afterLast, eating: missedFishGrown)
     }
@@ -143,6 +153,9 @@ struct TutorialSwim {
     var speed: CGFloat
     /// A wall fish holds its height instead of wandering, bobbing this many points either side.
     var bob: CGFloat = 0
+    /// Bolting: this many points a second until `dashUntil` (sim seconds), easing back to `speed` after.
+    var dashSpeed: CGFloat = 0
+    var dashUntil: CGFloat = 0
 }
 
 /// A scripted swim measured from you, so it reads the same at any speed: screens ahead of you (negative: behind)

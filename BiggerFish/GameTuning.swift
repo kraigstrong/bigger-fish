@@ -1008,6 +1008,13 @@ enum GameTuning {
     static let tutorialWallAhead: CGFloat = 2.48
     static let tutorialWallSwim: CGFloat = 18
     static let tutorialWallBob: CGFloat = 4
+    /// Through the wall, its other two fish (smaller than you now) turn and bolt ahead at `tutorialFleeDash` times your
+    /// speed, one for each of `tutorialFleeDashes` seconds, so they're strung out ahead of you, then tire to
+    /// `tutorialFleeSpeed` points a second (slower than you) for you to catch them one at a time. One that gets past you
+    /// comes round again from ahead.
+    static let tutorialFleeDash: CGFloat = 1.6
+    static let tutorialFleeDashes: [CGFloat] = [1.1, 1.9]
+    static let tutorialFleeSpeed: CGFloat = 45
     /// How far apart the wall's top and bottom fish are, as a share of the water (two thirds would space all three
     /// evenly). Any wider and, with them bobbing, you could slip between them.
     static let tutorialWallSpread: CGFloat = 0.64

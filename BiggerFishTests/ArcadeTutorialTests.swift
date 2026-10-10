@@ -145,6 +145,46 @@ struct ArcadeTutorialTests {
         withExtendedLifetime(view) {}
     }
 
+    /// Through the wall, the other two (smaller than you now) bolt ahead, one further than the other, and tire: you
+    /// catch them both and you're the last fish swimming, which ends it, as it ends a level.
+    @Test func throughTheWallYouBecomeTheLastFishSwimming() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        var frames = 0, ahead: [CGFloat] = []
+        let run = scene.debugPlayTutorial(from: .eatEnough) {
+            guard scene.debugTutorialBeat == .lastFish else { return }
+            frames += 1
+            // A couple of seconds in: both out ahead of you, on screen, strung out.
+            if frames == 140 { ahead = scene.debugWallBeat.wall.filter { $0.state == .swimming }.map { scene.debugTutorialPlace($0).ahead } }
+        }
+        #expect(run.finished && run.beats.map(\.beat) == [.eatEnough, .lastFish], "beats: \(run.beats.map(\.beat))")
+        #expect(ahead.count == 2 && ahead.allSatisfy { $0 > 0.08 && $0 < 0.7 }, "ahead: \(ahead)")
+        #expect((ahead.max() ?? 0) - (ahead.min() ?? 0) > 0.08, "strung out: \(ahead)")
+        #expect(scene.debugWallBeat.wall.isEmpty && scene.debugWallBeat.meals.isEmpty)
+        withExtendedLifetime(view) {}
+    }
+
+    /// One of the last two that gets past you comes round again from off screen ahead, swimming away, so it can still
+    /// be caught (it's never left behind for good, and it doesn't pop up in view).
+    @Test func aLastFishThatGetsPastYouComesRoundAgain() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        var last: [Int: CGFloat] = [:], cameRound: [CGFloat] = []
+        let run = scene.debugPlayTutorial(limit: 45, from: .eatEnough, letsTheLastFishGo: true) {
+            guard scene.debugTutorialBeat == .lastFish else { return }
+            for f in scene.debugWallBeat.wall where f.state == .swimming {
+                let ahead = scene.debugTutorialPlace(f).ahead
+                if let before = last[f.id], before < -0.3 && ahead > 0.3 { cameRound.append(ahead) }
+                last[f.id] = ahead
+            }
+        }
+        #expect(!run.finished && !cameRound.isEmpty, "came round at \(cameRound)")
+        #expect(cameRound.allSatisfy { $0 > 0.75 }, "it should come back off screen: \(cameRound)")
+        withExtendedLifetime(view) {}
+    }
+
     /// The meals wander, but gently: a first-time player who's slow on the controls still catches both.
     @Test func aSlowPlayerStillGetsThroughTheWall() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
