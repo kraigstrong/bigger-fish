@@ -67,6 +67,15 @@ func reefLabel(_ text: String, fontSize: CGFloat, heavy: Bool, color: SKColor = 
     return label
 }
 
+/// An SF Symbol as a sprite, drawn in `color` (the settings gear, the tutorial's finger).
+func reefSymbol(_ name: String, pointSize: CGFloat, weight: UIImage.SymbolWeight = .semibold, color: UIColor = .white) -> SKSpriteNode? {
+    let config = UIImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
+    guard let symbol = UIImage(systemName: name, withConfiguration: config)?
+        .withTintColor(color, renderingMode: .alwaysOriginal) else { return nil }
+    let image = UIGraphicsImageRenderer(size: symbol.size).image { _ in symbol.draw(at: .zero) }
+    return SKSpriteNode(texture: SKTexture(image: image))
+}
+
 /// A five-point star; filled gold when earned, a faint outline when not.
 func starShape(radius r: CGFloat, filled: Bool) -> SKShapeNode {
     let path = CGMutablePath()

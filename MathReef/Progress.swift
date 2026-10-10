@@ -69,6 +69,11 @@ final class ProgressStore {
         records[level.id] ?? LevelRecord()
     }
 
+    /// Any round finished or level passed, in any world: someone has played here before.
+    var hasProgress: Bool {
+        records.values.contains { $0.hasPlayed || $0.passed || $0.bestPercent > 0 }
+    }
+
     /// Saves a finished round; returns true if it passed. A pass is never taken away. Passing a
     /// checkpoint also passes every earlier level in the world.
     @discardableResult

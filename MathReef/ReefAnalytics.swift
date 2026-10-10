@@ -170,6 +170,19 @@ final class ReefAnalytics {
         reportOnce("unlocked")
     }
 
+    /// Whether the first-launch tutorial's milestones are sent. Off: they'd fit the milestone shape
+    /// with no new fields ("tutorial_completed", "tutorial_skipped"), but brightbench.app rejects a
+    /// whole batch over a milestone name it doesn't know, and the privacy policy doesn't list them.
+    /// Turn on only after the server accepts them and the policy describes them.
+    static let reportsTutorial = false
+
+    /// The tutorial was finished (the first catch) or skipped. Once per install. Sends nothing
+    /// while `reportsTutorial` is off.
+    func tutorialFinished(skipped: Bool) {
+        guard enabled, Self.reportsTutorial else { return }
+        reportOnce(skipped ? "tutorial_skipped" : "tutorial_completed")
+    }
+
     /// The close button during a round. Does nothing if no round is in progress (the instructions).
     func roundQuit() {
         guard let round else { return }
