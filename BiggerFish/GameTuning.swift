@@ -835,7 +835,7 @@ enum GameTuning {
     /// Other fish inside kelp darken to this one color, behind the fronds. Each part keeps its own transparency.
     static let kelpSilhouette = SKColor(red: 0.03, green: 0.09, blue: 0.07, alpha: 1)
 
-    // MARK: Midnight Zone (prototype, Xcode builds only)
+    // MARK: Midnight Zone
 
     /// Midnight Zone's ten levels, planned like Kelp Forest's (fish appear just off screen right before you meet
     /// them) with no kelp, following Shallow Reef's levels. Levels 1, 5, and 9 were the trials Kraig played and

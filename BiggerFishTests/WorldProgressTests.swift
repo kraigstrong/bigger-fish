@@ -5,6 +5,7 @@ import UIKit
 @testable import BiggerFish
 
 /// A playtester didn't know beating all ten levels was the goal: every card and map shows the run and what's left.
+@MainActor
 struct WorldProgressTests {
     @Test func aWorldsRunIsItsTenLevelsThenItsDeepEnd() {
         let none = WorldProgress(world: .kelpForest, level: 3) { _ in false }

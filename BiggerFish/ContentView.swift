@@ -24,7 +24,7 @@ struct ContentView: View {
     @State private var celebrationOffersUnlock = false
     /// The unlock's screen, featuring the world the player was trying to get into.
     @State private var offer: UnlockOffer?
-    /// The loading screen shows until both worlds' levels are decoded.
+    /// The loading screen shows until every world's levels are ready.
     @State private var loaded = false
     #if DEBUG
     @StateObject private var tuningStore = ArcadeTuningStore()
@@ -170,9 +170,7 @@ struct ContentView: View {
         let started = Date()
         await Task.detached(priority: .userInitiated) {
             _ = GameTuning.shallowReefLevels.count + GameTuning.jellyLabLevels.count + GameTuning.kelpLevels.count
-            #if DEBUG
-            _ = GameTuning.midnightLevels.count
-            #endif
+                + GameTuning.midnightLevels.count
         }.value
         let remaining = GameTuning.launchMinimumSeconds - Date().timeIntervalSince(started)
         if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
@@ -186,9 +184,11 @@ struct ContentView: View {
             playTutorial()
             return
         }
-        // Players who beat a tenth level before its unlock screen existed see it once, on the world map.
+        // Players who beat a tenth level before its unlock screen existed see it once, on the world map. It's only
+        // counted as seen if it shows: someone who taps into a level in the moment before keeps it for next time.
         if let world = progress.unseenUnlock {
             try? await Task.sleep(for: .seconds(0.5))
+            guard scene == nil else { return }
             progress.sawUnlock(world)
             celebrate(world)
         }
