@@ -99,10 +99,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .midnightZone: ["Your light shows the way.", "Fish lurk in the dark.", "Be the last fish swimming."]
         case .riptideReef: ["Currents speed you up and slow you down.", "Small fish get swept along.", "Be the last fish swimming."]
         }
-    }
-    /// The world's fixed currents, if it has any.
-    var currents: [GameTuning.Current] {
-        self == .riptideReef ? GameTuning.riptideCurrents : []
+    
     }
     func levelID(_ index: Int) -> String { "\(rawValue).\(index + 1)" }
 }

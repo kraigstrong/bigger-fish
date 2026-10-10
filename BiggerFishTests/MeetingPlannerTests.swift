@@ -187,21 +187,43 @@ struct MeetingPlannerTests {
         #expect(GameTuning.midnightFrozen == Set(GameTuning.midnightSpecs.map(\.name)))
     }
 
-    /// Riptide Reef's trials: Midnight Zone's planner with two fixed currents. However the currents change your
-    /// pace, planned fish follow their approach at that pace and still meet you, on the fullest route too.
-    @MainActor @Test func riptideReefTrialsMeetYouThroughTheCurrents() {
-        let plans = ArcadeWorld.riptideReef.levels.map { $0.meetingPlan! }
-        #expect(plans.map(\.spec.name) == ["Riptide Reef 1", "Riptide Reef 2", "Riptide Reef 3"])
-        #expect(plans.allSatisfy { $0.issues.isEmpty && !$0.hasGiantWall })
+    /// Riptide Reef's scenarios each need their current. A catch's meal is met riding the fast current and gets
+    /// away from a player who swims alongside it; a dodge's giant sinks clear of a player riding the slow current,
+    /// who still eats the meal, and onto one who doesn't. Played out with your height set by forward distance.
+    @MainActor @Test func riptideReefScenariosNeedTheirCurrent() {
         #expect(ArcadeWorld.prototypes.contains(.riptideReef) && !ArcadeWorld.campaign.contains(.riptideReef))
-        let currents = ArcadeWorld.riptideReef.currents
-        #expect(GameTuning.currentSpeed(atWaterShare: 0.8, in: currents) == 1.35)
-        #expect(GameTuning.currentSpeed(atWaterShare: 0.2, in: currents) == 0.65)
-        #expect(GameTuning.currentSpeed(atWaterShare: 0.5, in: currents) == nil)
-        for (index, plan) in plans.enumerated() {
-            let route = plan.fullestRoute
-            let crossings = GameScene(world: .riptideReef, levelIndex: index).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
-            #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(plan.spec.name)")
+        for (index, level) in ArcadeWorld.riptideReef.levels.enumerated() {
+            let plan = level.meetingPlan!, scenarios = GameTuning.riptideScenarios[index]
+            #expect(plan.issues.isEmpty, "\(plan.spec.name): \(plan.issues)")
+            let currents = plan.currents ?? []
+            #expect(currents.count == scenarios.count, "\(plan.spec.name)")
+            let racers = plan.fish.filter { $0.racer == true }
+            #expect(racers.count == scenarios.count)
+            let screen = GameTuning.playfieldSize.width
+            for (number, (kind, current)) in zip(scenarios, currents).enumerated() {
+                let racer = racers.min { abs($0.meetingDistance - current.end) < abs($1.meetingDistance - current.end) }!
+                let meal = kind == .catchMeal ? racer
+                    : plan.fish.first { $0.racer != true && $0.role == .food && abs($0.meetingDistance - racer.meetingDistance) < 1 }!
+                let band = (current.low + current.high) / 2
+                let scene = (current.start - screen)...(racer.meetingDistance + screen)
+                // Riding: in the band through the scene. Alongside: just outside the band until the current ends.
+                let outside = current.low > 0.5 ? current.low - 0.06 : current.high + 0.06
+                let riding: (CGFloat) -> CGFloat = { scene.contains($0) ? band : 0.5 }
+                let alongside: (CGFloat) -> CGFloat = { d in !scene.contains(d) ? 0.5 : d <= current.end ? outside : band }
+                let radii = plan.referenceRadii
+                let rode = GameScene(world: .riptideReef, levelIndex: index).debugClosestApproach(share: riding, radii: radii, within: scene)
+                let swam = GameScene(world: .riptideReef, levelIndex: index).debugClosestApproach(share: alongside, radii: radii, within: scene)
+                let name = "\(plan.spec.name) scenario \(number + 1)"
+                switch kind {
+                case .catchMeal:
+                    #expect(rode[meal.id]! <= 0, "\(name): riding the current misses the meal by \(rode[meal.id]!)")
+                    #expect(swam[meal.id]! > 0, "\(name): the meal doesn't get away (\(swam[meal.id]!))")
+                case .dodgeGiant:
+                    #expect(rode[racer.id]! > 0, "\(name): the giant hits you riding the current (\(rode[racer.id]!))")
+                    #expect(rode[meal.id]! <= 0, "\(name): riding the current misses the meal by \(rode[meal.id]!)")
+                    #expect(swam[racer.id]! <= 0, "\(name): the giant misses you without the current (\(swam[racer.id]!))")
+                }
+            }
         }
     }
 
