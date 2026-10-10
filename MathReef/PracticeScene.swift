@@ -74,6 +74,36 @@ enum ReefTuning {
     /// or bottom of the screen.
     static let promptEdgeClearance: CGFloat = 6
     static let promptFlipFadeSeconds: CGFloat = 0.08
+
+    // MARK: First-launch tutorial (Tutorial.swift)
+
+    /// "Hold" is done once one hold lifts the fish this far (a fraction of the water it can reach),
+    /// or all the way to the top.
+    static let tutorialRiseFraction: CGFloat = 0.4
+    /// "Let go" is done once the released fish sinks this far below its highest point, or to the bottom.
+    static let tutorialSinkFraction: CGFloat = 0.25
+    /// A kid who hasn't done what a step asks for this long sees its hint again. Only the hint
+    /// repeats: nothing in the tutorial times out or moves on by itself.
+    static let tutorialHintSeconds: CGFloat = 3.5
+    /// Where the finger presses, as fractions of the screen: open water, well clear of the fish at
+    /// `playerScreenX`, so "anywhere" reads as anywhere.
+    static let tutorialFingerSpot = CGPoint(x: 0.68, y: 0.38)
+    static let tutorialCaptionFontSize: CGFloat = 44
+    /// "Eat the answer" sits this far below the top of the screen, clear of the answers.
+    static let tutorialEatCaptionInset: CGFloat = 26
+    /// The first 2 swims this high (a fraction of the water the fish can reach, like `laneFractions`):
+    /// below the round's top lane so it passes clearly under "Eat the answer", but still close enough
+    /// to the top that a fish held all the way up catches it.
+    static let tutorialTopLane: CGFloat = 0.85
+    /// "Eat the answer": the 2 and the 3 swim in side by side at this speed (lanes: `TutorialFlow.lanes`).
+    static let tutorialAnswerSwimSpeed: CGFloat = 30
+    /// The ending (`TutorialEnding`): the happy moment after the first catch ("Yes!"), then the
+    /// closing line, then a fade through the deep-water color to the reef map. Skip only fades.
+    static let tutorialCelebrationSeconds: TimeInterval = 1.4
+    static let tutorialClosingLineSeconds: TimeInterval = 1.5
+    static let tutorialClosingLineFontSize: CGFloat = 52
+    static let tutorialFadeOutSeconds: TimeInterval = 0.35
+    static let tutorialFadeInSeconds: TimeInterval = 0.4
 }
 
 /// Which side of the player fish the question rides on. It starts above and stays on its side until
@@ -126,13 +156,23 @@ private struct LabSwallow {
 }
 
 final class PracticeScene: SKScene {
-    private enum Phase { case home, world, instructions, answering, feedback, summary }
+    private enum Phase { case home, world, instructions, answering, feedback, summary, tutorial }
     private enum PanelStyle { case neutral, correct, wrong }
     private typealias L = ReefTuning
     private typealias PanelLine = (text: String, fontSize: CGFloat, heavy: Bool)
 
     private let store = ProgressStore(defaults: PracticeScene.savedState)
     private let review = ReefReview(defaults: PracticeScene.savedState)
+    private let tutorialRecord = TutorialRecord(defaults: PracticeScene.savedState)
+    /// The first-launch tutorial while it plays (see Tutorial.swift).
+    private var tutorial: TutorialFlow?
+    private var tutorialOverlay: TutorialOverlay?
+    /// Covers the screen while the tutorial's ending fades to the reef map.
+    private var tutorialCurtain: SKSpriteNode?
+    /// How many times the 2 and the 3 have swum by.
+    private var tutorialPasses = 0
+    /// Once a kid has missed the 2 or eaten the 3, a ring marks the 2.
+    private var tutorialRingsAnswer = false
     private var worldMap: WorldMapNode?
     private var levelMap: LevelMapNode?
     private var phase: Phase = .home
@@ -247,7 +287,12 @@ final class PracticeScene: SKScene {
         buildBackground()
         buildCloseButton()
         buildSettingsButton()
-        showHome()
+        // A store capture stages its own scenes and never plays the tutorial.
+        if !Self.isCapturing && tutorialRecord.shouldPlayAtLaunch(hasProgress: store.hasProgress) {
+            startTutorial()
+        } else {
+            showHome()
+        }
         #if DEBUG
         // `-previewCrown gold` (or `silver`) in the scheme's launch arguments opens on the crown.
         let args = ProcessInfo.processInfo.arguments
@@ -269,7 +314,7 @@ final class PracticeScene: SKScene {
         buildSettingsButton()
         // Any round in progress is gone, so it shouldn't count as abandoned later.
         analytics.roundDiscarded()
-        showHome()
+        if phase == .tutorial { startTutorial() } else { showHome() }
     }
 
     @objc private func appWillResignActive() {
@@ -358,6 +403,7 @@ final class PracticeScene: SKScene {
         }
         clearWave()
         removeMaps()
+        removeTutorial()
         hidePanel()
         phase = menu
         holdTouches.removeAll()
@@ -381,8 +427,9 @@ final class PracticeScene: SKScene {
         ]
         #if DEBUG
         // For seeing rare moments on a device. Debug builds only, so never in the App Store.
-        lines.append(("Xcode builds only: crown previews, and Multiplication's saved progress", 15, false))
+        lines.append(("Xcode builds only: the tutorial, crown previews, and Multiplication's saved progress", 15, false))
         buttons += [
+            ("Replay tutorial", { [weak self] in self?.startTutorial() }),
             ("Preview silver", { [weak self] in self?.previewCrown(.silver) }),
             ("Preview gold", { [weak self] in self?.previewCrown(.gold) }),
             ("× silver", { [weak self] in self?.debugSetUpMultiplication(.silver) }),
@@ -622,6 +669,7 @@ final class PracticeScene: SKScene {
     private func previewCrown(_ crown: Crown) {
         isShowingSettings = false
         removeMaps()
+        removeTutorial()
         resetSession()  // brings the player fish on screen to receive the crown
         audio.playMusic(nil, fade: 0.6)
         phase = .summary
@@ -875,22 +923,27 @@ final class PracticeScene: SKScene {
         let choices = fact.choices(using: &rng)
         let lanes = Array(L.laneFractions.indices).shuffled(using: &rng)
         for (choice, lane) in zip(choices, lanes) {
-            let f = Fish(id: nextID, isPlayer: false, position: .zero, radius: L.answerRadius)
-            nextID += 1
-            f.facing = -1
-            f.phase = CGFloat.random(in: 0...(2 * .pi), using: &rng)
-
-            let node = FishNode(style: FishStyle.random(using: &rng), isPlayer: false, tailPhase: f.phase)
-            node.zPosition = 20
-            let number = numberLabel(choice.value)
-            number.zPosition = 10
-            node.addChild(number)
-            fishLayer.addChild(node)
-
-            let answer = AnswerFish(fish: f, node: node, numberLabel: number, choice: choice)
-            place(answer, lane: lane)
-            answers.append(answer)
+            place(addAnswerFish(choice), lane: lane)
         }
+    }
+
+    /// A new answer fish wearing its number, in a random color; `place` puts it in the water.
+    private func addAnswerFish(_ choice: Choice) -> AnswerFish {
+        let f = Fish(id: nextID, isPlayer: false, position: .zero, radius: L.answerRadius)
+        nextID += 1
+        f.facing = -1
+        f.phase = CGFloat.random(in: 0...(2 * .pi), using: &rng)
+
+        let node = FishNode(style: FishStyle.random(using: &rng), isPlayer: false, tailPhase: f.phase)
+        node.zPosition = 20
+        let number = numberLabel(choice.value)
+        number.zPosition = 10
+        node.addChild(number)
+        fishLayer.addChild(node)
+
+        let answer = AnswerFish(fish: f, node: node, numberLabel: number, choice: choice)
+        answers.append(answer)
+        return answer
     }
 
     private func place(_ answer: AnswerFish, lane: Int) {
@@ -1178,6 +1231,174 @@ final class PracticeScene: SKScene {
         ]
     }
 
+    // MARK: - First-launch tutorial
+
+    /// Hold, let go, and a first catch, with the real fish and movement (see Tutorial.swift). Plays
+    /// before the reef map on a fresh install; finishing or skipping fades to the map.
+    private func startTutorial() {
+        removeTutorial()
+        // Restarted mid-fade (the screen resized): no curtain left over the new start.
+        tutorialCurtain?.removeFromParent()
+        tutorialCurtain = nil
+        removeMaps()
+        hidePanel()
+        isShowingSettings = false
+        parentalGate = nil
+        resetSession()  // the player fish, as at the start of a round; none of the round's questions are asked
+        phase = .tutorial
+        holdTouches.removeAll()
+        setPrompt(nil)
+        updateProgress()
+        closeButton.isHidden = true
+        tutorial = TutorialFlow()
+        tutorialPasses = 0
+        tutorialRingsAnswer = false
+        let overlay = TutorialOverlay(size: size)
+        overlay.zPosition = 5  // over the question, under the panel
+        uiLayer.addChild(overlay)
+        tutorialOverlay = overlay
+        overlay.show(.hold)
+        audio.playMusic(.game)
+        render()
+    }
+
+    private func removeTutorial() {
+        removeAction(forKey: "tutorialEnd")
+        tutorialOverlay?.removeFromParent()
+        tutorialOverlay = nil
+        tutorial = nil
+    }
+
+    /// The 2 was eaten, or Skip tapped. The tutorial is done for good from this moment, so closing the
+    /// app during the ending doesn't play it again. Then the ending plays (`TutorialEnding`).
+    private func endTutorial(skipped: Bool) {
+        guard action(forKey: "tutorialEnd") == nil else { return }
+        tutorialRecord.markDone()
+        analytics.tutorialFinished(skipped: skipped)
+        let beats = TutorialEnding.beats(skipped: skipped).map { beat, seconds in
+            SKAction.sequence([
+                .run { [weak self] in self?.playEnding(beat, seconds: seconds) },
+                .wait(forDuration: seconds),
+            ])
+        }
+        run(.sequence(beats), withKey: "tutorialEnd")
+    }
+
+    private func playEnding(_ beat: TutorialEnding.Beat, seconds: TimeInterval) {
+        switch beat {
+        case .celebrate:
+            // The game's own right-answer moment: the bell, sparkles, and "Yes!".
+            audio.play(.star)
+            sparkleBurst(at: CGPoint(x: size.width * L.playerScreenX, y: player.position.y), in: uiLayer)
+            showPanel(title: "Yes!", lines: [(TutorialFlow.fact.solution, 28, true)], buttons: [], style: .correct)
+        case .closingLine:
+            panel.run(.fadeOut(withDuration: 0.25))
+            playerPrompt.run(.fadeOut(withDuration: 0.25))
+            tutorialOverlay?.showClosingLine()
+            // Quiet for the map's jingle.
+            audio.playMusic(nil, fade: seconds)
+        case .fadeOut:
+            // Down to the deep-water color the scene sits on, over everything.
+            let curtain = SKSpriteNode(color: backgroundColor, size: CGSize(width: size.width * 2, height: size.height * 2))
+            curtain.position = CGPoint(x: size.width / 2, y: size.height / 2)
+            curtain.zPosition = 1000
+            curtain.alpha = 0
+            addChild(curtain)
+            curtain.run(.fadeIn(withDuration: seconds))
+            tutorialCurtain = curtain
+        case .fadeIn:
+            // The map is built under the curtain, which then lifts.
+            let curtain = tutorialCurtain
+            tutorialCurtain = nil
+            showHome()
+            curtain?.run(.sequence([.fadeOut(withDuration: seconds), .removeFromParent()]))
+        }
+    }
+
+    private func advanceTutorial(_ dt: CGFloat) {
+        guard var flow = tutorial else { return }
+        tutorialOverlay?.follow(fish: CGPoint(x: size.width * L.playerScreenX, y: player.position.y))
+        let event = flow.update(
+            fishY: player.position.y, holding: !holdTouches.isEmpty, dt: dt, minY: playerMinY, maxY: playerMaxY
+        )
+        tutorial = flow
+        if let event { handleTutorial(event) }
+    }
+
+    private func handleTutorial(_ event: TutorialFlow.Event) {
+        guard let current = tutorial?.step, let overlay = tutorialOverlay else { return }
+        switch event {
+        case .began(let step):
+            overlay.show(step)
+            switch step {
+            case .hold: break
+            case .letGo: gentleHaptic.impactOccurred(intensity: 0.5)
+            case .eat:
+                setPrompt(TutorialFlow.fact.prompt)
+                spawnTutorialAnswers()
+            case .done: endTutorial(skipped: false)
+            }
+        case .hint:
+            overlay.replayHint(current)
+            if current == .eat { ringTutorialAnswer() }
+        case .tryAgain:
+            overlay.replayHint(current)
+            ringTutorialAnswer()
+        }
+    }
+
+    /// The 2 and the 3 side by side, coming in from the right, slow and without the round's random
+    /// stagger so they read as a choice.
+    private func spawnTutorialAnswers() {
+        clearWave()
+        let lanes = TutorialFlow.lanes(onPass: tutorialPasses)
+        tutorialPasses += 1
+        for choice in TutorialFlow.choices {
+            let answer = addAnswerFish(choice)
+            let lane = choice.isCorrect ? lanes.right : lanes.wrong
+            answer.baseY = playerMinY + (playerMaxY - playerMinY) * lane
+            answer.swimSpeed = L.tutorialAnswerSwimSpeed
+            answer.bobAmplitude = L.answerBobRange.lowerBound
+            answer.bobRate = L.answerBobRateRange.lowerBound
+            answer.fish.position = CGPoint(x: player.position.x + size.width * L.spawnAheadScreens, y: answer.baseY)
+            answer.fish.velocity = CGVector(dx: -answer.swimSpeed, dy: 0)
+        }
+        if tutorialRingsAnswer { ringTutorialAnswer() }
+    }
+
+    private func ringTutorialAnswer() {
+        tutorialRingsAnswer = true
+        for answer in answers where answer.isCorrect && !answer.fading
+            && answer.node.childNode(withName: TutorialOverlay.answerRingName) == nil {
+            answer.node.addChild(TutorialOverlay.answerRing())
+        }
+    }
+
+    /// "Eat the answer": the 2 ends the tutorial; the 3 bounces off, never a wrong-answer panel. A pass
+    /// with no catch comes round again.
+    private func checkTutorialCatch() {
+        guard tutorial?.step == .eat, swallow == nil else { return }
+        let reach = (L.playerRadius + L.answerRadius) * L.collisionScale
+        let swimming = answers.filter { !$0.fading }
+        if let hit = swimming.first(where: {
+            hypot($0.fish.position.x - player.position.x, $0.fish.position.y - player.position.y) < reach
+        }) {
+            if hit.isCorrect {
+                for other in answers where other !== hit { fadeOut(other) }
+                hit.node.childNode(withName: TutorialOverlay.answerRingName)?.removeFromParent()
+                beginSwallow(hit, failing: false)
+                positiveHaptic.notificationOccurred(.success)
+            } else {
+                bounce(hit)
+                gentleHaptic.impactOccurred(intensity: 0.5)
+            }
+            if let event = tutorial?.ate(correct: hit.isCorrect) { handleTutorial(event) }
+        } else if swimming.allSatisfy({ $0.fish.position.x < player.position.x - size.width * L.missedBehindScreens }) {
+            if let event = tutorial?.missed() { handleTutorial(event) }
+            spawnTutorialAnswers()
+        }
+    }
+
     // MARK: - Input
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -1202,7 +1423,12 @@ final class PracticeScene: SKScene {
                 hideSettings()
                 return
             }
-            if phase == .answering || phase == .feedback {
+            if phase == .tutorial, let overlay = tutorialOverlay, overlay.skipFrame.contains(p) {
+                // Once the 2 is eaten the tutorial is finished, and ends on its own.
+                if tutorial?.step != .done { endTutorial(skipped: true) }
+                return
+            }
+            if phase == .answering || phase == .feedback || phase == .tutorial {
                 holdTouches.insert(touch)
             }
             if phase == .home { worldMap?.handleTap(at: p) }
@@ -1237,10 +1463,11 @@ final class PracticeScene: SKScene {
         let targetScale = slow ? L.incorrectTimeScale : 1
         timeScale += (targetScale - timeScale) * min(1, realDt * 8)
 
-        if phase == .answering || phase == .feedback {
+        if phase == .answering || phase == .feedback || phase == .tutorial {
             simulate(realDt * timeScale)
             updatePromptPlacement()
         }
+        if phase == .tutorial { advanceTutorial(realDt) }
         if phase == .feedback {
             feedbackRemaining -= realDt
             if feedbackRemaining <= 0 { finishFeedback() }
@@ -1285,6 +1512,7 @@ final class PracticeScene: SKScene {
                 reintroduceWave()
             }
         }
+        if phase == .tutorial { checkTutorialCatch() }
     }
 
     // MARK: - Swallow and bounce
@@ -1604,11 +1832,7 @@ final class PracticeScene: SKScene {
     private func buildSettingsButton() {
         settingsButton.removeAllChildren()
         settingsButton.addChild(roundButtonBacking())
-        let config = UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
-        if let symbol = UIImage(systemName: "gearshape.fill", withConfiguration: config)?
-            .withTintColor(.white, renderingMode: .alwaysOriginal) {
-            let image = UIGraphicsImageRenderer(size: symbol.size).image { _ in symbol.draw(at: .zero) }
-            let gear = SKSpriteNode(texture: SKTexture(image: image))
+        if let gear = reefSymbol("gearshape.fill", pointSize: 17) {
             gear.zPosition = 1
             settingsButton.addChild(gear)
         }
