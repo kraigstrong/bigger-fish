@@ -73,9 +73,12 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
 
 ## Pull requests
 
-- **Base:** branch from the latest `origin/main` and open PRs against `main`. Don't stack PRs on other
-  PR branches.
+- **Base:** branch from the latest `origin/main` and open PRs against `main`, for both apps and FishKit.
+  (The old `codex/bigger-fish-integration` branch is retired.) Don't stack PRs on other PR branches.
 - **Check before pushing:** PRs often merge quickly. Confirm a PR is still open before pushing more
   commits to its branch, and open a new PR if it has merged.
-- **Commit messages:** Math Reef commits start with `Math Reef:` and a short summary, then explain the
-  why in the body.
+- **Commit messages:** start with the app (`Math Reef:` or `Bigger Fish:`) and a short summary, then
+  explain the why in the body.
+- **Releases:** each app archives from `main` at a tagged commit (`math-reef-v1.0.1`,
+  `bigger-fish-v0.4-beta.1`). Unreleased work for one app can sit on `main` while the other ships: they're
+  separate targets, and Bigger Fish's unlock stays off in Release until `ArcadeUnlock.isSelling` is turned on.

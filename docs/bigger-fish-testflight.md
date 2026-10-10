@@ -25,8 +25,8 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
 1. **App record (first time only).** In App Store Connect, go to Apps, then + New App. Choose iOS,
    name it Bigger Fish, pick the `com.kraigstrong.biggerfish` bundle ID, and use `biggerfish` as the
    SKU. If the bundle ID isn't in the list, archiving once with automatic signing registers it.
-2. **Archive.** Check out the integration branch at the commit you want. In Xcode, choose the
-   BiggerFish scheme and Any iOS Device (arm64), then Product > Archive.
+2. **Archive.** Check out `main` at the commit you want and tag it (`bigger-fish-v0.4-beta.1`). In Xcode,
+   choose the BiggerFish scheme and Any iOS Device (arm64), then Product > Archive.
 3. **Upload.** In the Organizer, choose Distribute App > App Store Connect > Upload. Leave "Manage
    Version and Build Number" on so each upload gets a new build number.
 4. **Internal test.** When the build finishes processing, add yourself to an internal group (Apple

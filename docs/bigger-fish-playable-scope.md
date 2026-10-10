@@ -61,6 +61,7 @@ Size readability remains the priority. Cosmetics must never change the fish's ap
 
 ## Branches
 
-Development integrates on `codex/bigger-fish-integration`; feature branches open PRs into it, and
-it merges to `main` when ready. Math Reef releases are tagged (`math-reef-v1.0.0`); a Math Reef
-hotfix branches from its tag, then merges back into `main` and from there into the integration branch.
+Both apps develop on `main`: feature branches open PRs into it. (Bigger Fish used to integrate on
+`codex/bigger-fish-integration`; that branch merged into `main` on 2026-10-10 and is retired.) Each app's
+releases are tagged (`math-reef-v1.0.0`, `bigger-fish-v0.3-beta.1`); a hotfix branches from its tag and
+merges back into `main`.
