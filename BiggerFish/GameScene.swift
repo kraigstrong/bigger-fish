@@ -1457,6 +1457,13 @@ final class GameScene: SKScene {
         return SKTexture(image: image)
     }()
 
+    /// Where your fish sits across the screen: `playerScreenX`, surging ahead in a fast current and easing back a
+    /// little in a slow one. Presentation only; the game itself always reckons from `playerScreenX`.
+    private var screenAnchorX: CGFloat {
+        size.width * (T.playerScreenX + (currentPace - 1) * (currentPace > 1 ? T.currentSurgeAhead : T.currentSurgeBack))
+    }
+    private var wake: SKEmitterNode?
+
     /// How far up the water a height is, as on screen: 0 the bottom, 1 the top.
     private func waterShare(_ y: CGFloat) -> CGFloat { (y - waterBottom) / max(1, waterTop - waterBottom) }
 
@@ -1472,6 +1479,28 @@ final class GameScene: SKScene {
     private func layoutCurrents() {
         currentStreaks.forEach { $0.node.removeFromParent() }
         currentStreaks.removeAll()
+        wake?.removeFromParent()
+        wake = nil
+        if !arcadeWorld.currents.isEmpty {
+            let bubbles = SKEmitterNode()
+            bubbles.particleTexture = WaterTextures.dot()
+            bubbles.particleBirthRate = 0
+            bubbles.particleLifetime = 0.5
+            bubbles.particleLifetimeRange = 0.2
+            bubbles.particleSize = CGSize(width: 5, height: 5)
+            bubbles.particleScaleRange = 0.6
+            bubbles.particleAlpha = 0.55
+            bubbles.particleAlphaSpeed = -1
+            bubbles.emissionAngle = .pi
+            bubbles.emissionAngleRange = 0.25
+            bubbles.particleSpeed = T.currentBubbleSpeed
+            bubbles.particleSpeedRange = 60
+            bubbles.particlePositionRange = CGVector(dx: 6, dy: 14)
+            bubbles.zPosition = 29
+            fishLayer.addChild(bubbles)
+            bubbles.targetNode = fishLayer
+            wake = bubbles
+        }
         var rng = SeededGenerator(seed: 0x52495054)
         let span = screenWaterTop - screenWaterBottom
         for current in arcadeWorld.currents {
@@ -1506,7 +1535,7 @@ final class GameScene: SKScene {
     /// Columns stay screen-tall at any zoom and narrow as the camera zooms out.
     private func renderKelp(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
         for (bed, back, front) in kelpBeds {
-            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: bed.x) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: bed.x) * zoom
             let half = bed.halfWidth * zoom + 40
             let hidden = x + half < 0 || x - half > size.width
             back.isHidden = hidden
@@ -1711,7 +1740,7 @@ final class GameScene: SKScene {
 
     private func renderJellies(cameraX: CGFloat, zoom: CGFloat, fraction: CGFloat, time: CGFloat) {
         for urchin in urchins {
-            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: urchin.x) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: urchin.x) * zoom
             urchin.node.isHidden = x < -30 || x > size.width + 30
             urchin.node.position = CGPoint(x: x, y: screenWaterBottom + T.urchinRadius * 0.55 * zoom)
             urchin.node.setScale(zoom)
@@ -1720,7 +1749,7 @@ final class GameScene: SKScene {
             let position = index < previousJellyPositions.count
                 ? PresentationInterpolation.position(from: previousJellyPositions[index], to: jelly.position,
                     fraction: fraction, world: world) : jelly.position
-            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: position.x) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: position.x) * zoom
             jelly.node.isHidden = x < -100 || x > size.width + 100
             jelly.node.position = CGPoint(x: x, y: waterCenter + (position.y - waterCenter) * zoom)
             jelly.node.setScale(zoom)
@@ -2048,7 +2077,7 @@ final class GameScene: SKScene {
         let zoom = previousZoom + (self.zoom - previousZoom) * fraction
         let time = realClock + frameAccumulator
         let cameraX = presentationPose(player, fraction: fraction).position.x
-        let anchorX = size.width * T.playerScreenX
+        let anchorX = screenAnchorX
         renderJellies(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
         renderKelp(cameraX: cameraX, zoom: zoom, time: time)
         renderCurrents(time: time)
@@ -2103,6 +2132,12 @@ final class GameScene: SKScene {
                     light.yScale = 1 / lure.yScale
                 }
             }
+            if f.isPlayer, let wake {
+                // Off your tail in a fast current, from your face in a slow one, more the stronger it pushes.
+                let r = pose.radius * zoom, push = abs(currentPace - 1) / 0.35
+                wake.position = CGPoint(x: node.position.x + (currentPace > 1 ? -1.3 : 1.2) * r, y: node.position.y)
+                wake.particleBirthRate = push > 0.08 ? T.currentBubbles * min(1, push) : 0
+            }
             if f.isPlayer, let headlamp {
                 // Strapped to your head, pointing where you're swimming: rising or falling fast swings it off the
                 // far right of the screen.
@@ -2130,7 +2165,7 @@ final class GameScene: SKScene {
             let roll = ease(limp / T.stingRollSeconds)
             let shake = jolting ? CGPoint(x: sin(time * 97) * 2.5, y: cos(time * 83) * 2.5) : .zero
             let sink = limp * (22 + 18 * limp)
-            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: stung.position.x) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: stung.position.x) * zoom
             stung.node.position = CGPoint(x: x + shake.x,
                                           y: waterCenter + (stung.position.y - waterCenter) * zoom - sink + shake.y)
             stung.node.alpha = 1 - ease((elapsed - T.stingFadeStart) / (T.stingSeconds - T.stingFadeStart))

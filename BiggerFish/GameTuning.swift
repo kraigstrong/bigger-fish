@@ -907,6 +907,15 @@ enum GameTuning {
     /// The streaks that show a current flowing: how many per current and their speed across the screen (points/s).
     static let currentStreaks = 16
     static let currentStreakSpeed: CGFloat = 140
+    /// The camera lags a current so the speed reads as yours: your fish slides this share of the screen's width
+    /// ahead per unit of extra pace (1.35 → about an eighth of the screen). Going back it barely moves, so fish
+    /// still appear off screen (`kelpAppearMargin`).
+    static let currentSurgeAhead: CGFloat = 0.35
+    static let currentSurgeBack: CGFloat = 0.08
+    /// Bubbles off your fish in a current: a wake off your tail in a fast one, water rushing past from your face
+    /// in a slow one. Most bubbles per second at a full current, and their speed across the screen.
+    static let currentBubbles: CGFloat = 70
+    static let currentBubbleSpeed: CGFloat = 220
     /// Played and approved, so shipped exactly as saved in `MidnightPlans.json`: a planner change can't alter them.
     /// All fifteen (Kraig, 2026-10-09: "lock in the midnight levels", then "I played 14 and 15 and approve").
     static let midnightFrozen: Set<String> = Set(midnightSpecs.map(\.name))
