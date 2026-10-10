@@ -961,14 +961,17 @@ enum GameTuning {
     static let tutorialMissedFish: CGFloat = 14
     static let tutorialMissedFishMeal: CGFloat = 12
     static let tutorialCatchMargin: CGFloat = 1.08
+    /// How fast the whole tutorial plays: its fish swim their paths, and you swim forward, at this share of the
+    /// timings below (rising and falling are as fast as ever). Lower is slower.
+    static let tutorialPace: CGFloat = 0.75
     /// A slow, roomy level whose fish can eat each other, with no fish of its own: the beats bring theirs.
-    static let tutorialLevel = Level(spawnGroups: [], aiSpeedRange: 40...90, aiVerticalSpeed: 50, screenCrossSeconds: 3.2,
-                                     absorptionEfficiency: 0.9)
-    /// Seconds a fish swimming straight at you takes to reach you: the glowing meals, and the big fish.
+    static let tutorialLevel = Level(spawnGroups: [], aiSpeedRange: 40...90, aiVerticalSpeed: 50,
+                                     screenCrossSeconds: 3.2 / tutorialPace, absorptionEfficiency: 0.9)
+    /// At a pace of 1: seconds a fish swimming straight at you takes to reach you, the glowing meals and the big fish.
     static let tutorialMealCrossing: CGFloat = 1.7
     static let tutorialBigFishCrossing: CGFloat = 2.0
-    /// Seconds into the race beat that the missed fish's two little meals come along after you, and when the beat
-    /// moves on even if they weren't both eaten.
+    /// At a pace of 1: seconds into the race beat that the missed fish's two little meals come along after you, and
+    /// when the beat moves on even if they weren't both eaten.
     static let tutorialMissedMealsAt: [CGFloat] = [1.5, 2.3]
     static let tutorialMissedBeatLimit: CGFloat = 7
 }

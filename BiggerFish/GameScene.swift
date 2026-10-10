@@ -1552,7 +1552,7 @@ final class GameScene: SKScene {
             tutorialCaptionPending = nil
             showTutorialCaption(caption)
         }
-        let elapsed = simClock - tutorialBeatStart
+        let elapsed = tutorialTime(since: tutorialBeatStart)
         if let at = tutorialNextBeatAt {
             if simClock >= at, let next = ArcadeTutorial.Beat(rawValue: tutorialBeat.rawValue + 1) { beginTutorialBeat(next) }
             return
@@ -1596,7 +1596,7 @@ final class GameScene: SKScene {
                 return
             }
             // It got past: around it comes again, with another meal if you still need one.
-            if let scripted = tutorialPaths[missed.id], simClock - scripted.start >= scripted.path.duration {
+            if let scripted = tutorialPaths[missed.id], tutorialTime(since: scripted.start) >= scripted.path.duration {
                 if gone(tutorialMeal) && player.targetRadius <= missed.targetRadius {
                     tutorialMeal = spawnTutorialFish(ArcadeTutorial.lastMeal(you: player.targetRadius, rival: missed.targetRadius),
                         path: .headOn(share: waterShare(player.position.y).clamped(0.25, 0.75), crossing: T.tutorialMealCrossing), glows: true)
@@ -1632,8 +1632,11 @@ final class GameScene: SKScene {
         return id
     }
 
+    /// Seconds of the tutorial's own timings since `start`, run at `tutorialPace`.
+    private func tutorialTime(since start: CGFloat) -> CGFloat { (simClock - start) * T.tutorialPace }
+
     private func moveScripted(_ f: Fish, _ scripted: (path: TutorialPath, start: CGFloat, leaves: Bool), _ dt: CGFloat) {
-        let t = simClock - scripted.start
+        let t = tutorialTime(since: scripted.start)
         if scripted.leaves && t > scripted.path.duration {
             removeTutorialFish(f.id)
             return
