@@ -46,13 +46,16 @@ struct ArcadeWorldMap: View {
                         let main = min(world.levelCount, ArcadeWorld.mainLevelCount)
                         let complete = open && cleared.main >= main
                         let detail = !open ? "Unlock to play"
-                            : !complete ? "\(cleared.main)/\(main) cleared" : "✓ World complete"
-                        // A finished world's Deep End shows as a gold ring around it, one arc per level beaten.
+                            : complete ? "Conquered!" : cleared.main == 0 ? "\(main) levels to conquer" : "\(main - cleared.main) more to conquer"
+                        // A ring around the world fills in an arc per level beaten; once it's conquered, the ring turns
+                        // gold for its Deep End.
                         let deepEnd = complete && world.deepEndCount > 0 ? (cleared: cleared.deepEnd, count: world.deepEndCount) : nil
                         let deepEndLabel = deepEnd.map { ", Deep End \($0.cleared) of \($0.count) cleared" } ?? ""
                         Button { open ? onSelect(world) : onUnlock(world) } label: {
                             WorldMapStop(title: world.title, detail: detail, world: world,
-                                         color: world.color, placeholder: false, locked: !open, deepEnd: deepEnd)
+                                         color: world.color, placeholder: false, locked: !open, deepEnd: deepEnd,
+                                         progress: open && !complete ? (cleared: cleared.main, count: main) : nil,
+                                         conquered: complete)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(open ? "\(world.title), \(detail)\(deepEndLabel)" : "\(world.title), locked. \(detail)")
@@ -140,6 +143,8 @@ struct ArcadeLevelMap: View {
     let unlocked: Bool
     /// The level just played, when coming back from it.
     var returnedFrom: Int? = nil
+    /// A level just cleared for the first time: your fish swims from it to the next one.
+    var advancedFrom: Int? = nil
     let onBack: () -> Void
     let onPlay: (Int) -> Void
 
@@ -148,7 +153,8 @@ struct ArcadeLevelMap: View {
             let size = geometry.size
             let width = max(size.width, OceanMapLayout.levelContentWidth(count: world.levelCount))
             let centers = OceanMapLayout.levelCenters(count: world.levelCount, height: size.height)
-            let focus = progress.mapFocus(in: world, returningFrom: returnedFrom)
+            let advanced = advancedFrom.flatMap { progress.isOpen(world, $0 + 1) && centers.indices.contains($0 + 1) ? $0 : nil }
+            let focus = advanced.map { $0 + 1 } ?? progress.mapFocus(in: world, returningFrom: returnedFrom)
             ZStack(alignment: .topLeading) {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -172,6 +178,7 @@ struct ArcadeLevelMap: View {
                             }
                             MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
                                         fishHome: centers.indices.contains(focus) ? CGPoint(x: centers[focus].x, y: centers[focus].y + 58) : nil,
+                                        fishFrom: advanced.map { CGPoint(x: centers[$0].x, y: centers[$0].y + 58) },
                                         pulsingStops: centers.indices.contains(focus) ? [centers[focus]] : [])
                                 .frame(width: width, height: size.height)
                             ForEach(0..<world.levelCount, id: \.self) { index in
@@ -183,7 +190,8 @@ struct ArcadeLevelMap: View {
                                     MapLevelStop(number: index + 1, title: world.levelTitles[index], color: world.color,
                                                  open: open, cleared: cleared,
                                                  best: progress.save.bestTimes[world.levelID(index)],
-                                                 deep: ArcadeWorld.isDeepEnd(index), needsUnlock: needsUnlock)
+                                                 deep: ArcadeWorld.isDeepEnd(index), needsUnlock: needsUnlock,
+                                                 conquers: index == ArcadeWorld.mainLevelCount - 1)
                                 }
                                 .buttonStyle(.plain).disabled(!open && !needsUnlock)
                                 .accessibilityLabel("\(world.levelTitles[index]), \(needsUnlock ? "part of the unlock" : open ? (cleared ? "cleared, replay" : "play") : "locked")")
@@ -209,18 +217,25 @@ struct ArcadeLevelMap: View {
                             .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
                     }.buttonStyle(.plain).accessibilityLabel("Back to worlds")
                     Text(world.title).font(.custom("AvenirNext-Heavy", size: 26))
-                    Text("\(progress.clearedCounts(in: world).main)/\(min(world.levelCount, ArcadeWorld.mainLevelCount)) cleared")
-                        .font(.custom("AvenirNext-DemiBold", size: 14))
+                    WorldProgressBar(progress: WorldProgress(world: world, level: 0) { progress.isCleared(world, $0) })
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 24).padding(.top, 10)
-                VStack { Spacer(); Text("Clear a level to open the next. Swipe to explore.")
+                VStack { Spacer(); Text(goal)
                     .font(.custom("AvenirNext-DemiBold", size: 12)).padding(.bottom, 12) }
                     .frame(width: size.width).allowsHitTesting(false)
             }
         }
         .foregroundStyle(.white)
         .background(OceanBackdrop(bloom: world.hasJellies))
+    }
+
+    /// Along the bottom: the world's goal until it's met, then its Deep End's.
+    private var goal: String {
+        let main = WorldProgress(world: world, level: 0) { progress.isCleared(world, $0) }
+        guard main.isConquered, world.deepEndCount > 0 else { return "Clear all \(main.run.count) levels to conquer \(world.title). Swipe to explore." }
+        let deep = WorldProgress(world: world, level: ArcadeWorld.mainLevelCount) { progress.isCleared(world, $0) }
+        return deep.isConquered ? "\(world.title) and its Deep End conquered!" : "\(world.title) conquered! The Deep End waits past level \(ArcadeWorld.mainLevelCount)."
     }
 }
 
@@ -232,11 +247,18 @@ private struct WorldMapStop: View {
     let placeholder: Bool
     var locked = false
     var deepEnd: (cleared: Int, count: Int)? = nil
+    /// The world's ten levels, as a ring in its color, until it's conquered.
+    var progress: (cleared: Int, count: Int)? = nil
+    /// Beaten its tenth level: a gold crown on top.
+    var conquered = false
 
     var body: some View {
         ZStack {
             if let deepEnd {
                 DeepEndRing(cleared: deepEnd.cleared, count: deepEnd.count).frame(width: 96, height: 96)
+            } else if let progress {
+                DeepEndRing(cleared: progress.cleared, count: progress.count, lineWidth: 3.5, color: color)
+                    .frame(width: 96, height: 96)
             }
             Circle().fill(color.opacity(0.16))
                 .overlay(Circle().stroke(color.opacity(placeholder ? 0.4 : 0.65), lineWidth: 2))
@@ -251,6 +273,12 @@ private struct WorldMapStop: View {
                 }
             } else {
                 Image(systemName: "lock.fill").font(.system(size: 24, weight: .bold))
+            }
+            if conquered {
+                Image(systemName: "crown.fill").font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(DeepEndColors.gold)
+                    .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
+                    .offset(y: -50)
             }
             VStack(spacing: 4) {
                 Text(title).font(.custom("AvenirNext-Heavy", size: 16))
@@ -274,6 +302,8 @@ private struct MapLevelStop: View {
     var deep = false
     /// Past the free levels without the unlock: a gold padlock, and tapping it shows the unlock.
     var needsUnlock = false
+    /// The world's tenth level, which conquers it: a crown over it, gold once it's beaten.
+    var conquers = false
 
     private static let gold = Color(red: 1, green: 0.8, blue: 0.32)
 
@@ -293,7 +323,12 @@ private struct MapLevelStop: View {
                     .frame(width: 24, height: 24).background(Self.gold, in: Circle())
                     .offset(x: 21, y: 21)
             }
-            if cleared {
+            if conquers {
+                Image(systemName: "crown.fill").font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(cleared ? Self.gold : .white.opacity(open ? 0.9 : 0.5))
+                    .shadow(color: cleared ? Self.gold.opacity(0.6) : .clear, radius: 6)
+                    .offset(y: -45)
+            } else if cleared {
                 Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).offset(y: -43)
             }
             VStack(spacing: 4) {
@@ -309,8 +344,9 @@ private struct MapLevelStop: View {
 
 private struct MapArtLayer: View {
     private let scene: MapDecorationScene
-    init(size: CGSize, points: [CGPoint], fishHome: CGPoint?, pulsingStops: [CGPoint] = []) {
-        scene = MapDecorationScene(size: size, points: points, fishHome: fishHome, pulsingStops: pulsingStops)
+    /// `fishFrom`: where your fish starts, swimming on to `fishHome`.
+    init(size: CGSize, points: [CGPoint], fishHome: CGPoint?, fishFrom: CGPoint? = nil, pulsingStops: [CGPoint] = []) {
+        scene = MapDecorationScene(size: size, points: points, fishHome: fishHome, fishFrom: fishFrom, pulsingStops: pulsingStops)
     }
     var body: some View {
         SpriteView(scene: scene, preferredFramesPerSecond: 30, options: [.allowsTransparency, .ignoresSiblingOrder])
@@ -321,8 +357,14 @@ private struct MapArtLayer: View {
 private final class MapDecorationScene: SKScene {
     private let marker = FishNode(style: .player, isPlayer: true, tailPhase: 0)
     private let home: CGPoint?
-    init(size: CGSize, points: [CGPoint], fishHome: CGPoint?, pulsingStops: [CGPoint]) {
+    /// A swim from a level just cleared to the next: where it starts, and when (the first frame).
+    private let from: CGPoint?
+    private var swimStart: TimeInterval?
+    private static let swimDelay: TimeInterval = 0.35
+    private static let swimSeconds: TimeInterval = 1.1
+    init(size: CGSize, points: [CGPoint], fishHome: CGPoint?, fishFrom: CGPoint?, pulsingStops: [CGPoint]) {
         home = fishHome
+        from = fishFrom
         super.init(size: size)
         backgroundColor = .clear
         scaleMode = .resizeFill
@@ -339,7 +381,7 @@ private final class MapDecorationScene: SKScene {
             ])))
             addChild(halo)
         }
-        if let fishHome { marker.position = fishHome; addChild(marker) }
+        if let fishHome { marker.position = fishFrom ?? fishHome; addChild(marker) }
         else if pulsingStops.isEmpty { isPaused = true }
     }
     @available(*, unavailable)
@@ -347,9 +389,23 @@ private final class MapDecorationScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         guard let home else { return }
         let time = CGFloat(currentTime)
-        marker.position = CGPoint(x: home.x, y: home.y + sin(time * 2) * 4)
+        var spot = home
+        var swimming = false
+        if let from {
+            let start = swimStart ?? currentTime
+            swimStart = start
+            let t = CGFloat(min(1, max(0, (currentTime - start - Self.swimDelay) / Self.swimSeconds)))
+            if t < 1 {
+                // Eased along, with a little hop over the path between the stops.
+                let eased = t * t * (3 - 2 * t)
+                spot = CGPoint(x: from.x + (home.x - from.x) * eased,
+                               y: from.y + (home.y - from.y) * eased + sin(.pi * eased) * 22)
+                swimming = t > 0
+            }
+        }
+        marker.position = CGPoint(x: spot.x, y: spot.y + sin(time * 2) * 4)
         marker.apply(radius: 18, facing: 1, tilt: cos(time * 2) * 0.08, stretchX: 1, stretchY: 1,
-                     mouthOpen: 0, time: time, tailRate: 9)
+                     mouthOpen: 0, time: time, tailRate: swimming ? 22 : 9)
     }
 }
 

@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var scene: GameScene?
     /// The level last played in `selectedWorld`, so its map opens there; nil on first entry.
     @State private var returnedFrom: Int?
+    /// A level just cleared for the first time, when coming back to its map: your fish swims on to the next.
+    @State private var advancedFrom: Int?
     /// A world whose tenth level was just beaten for the first time; its unlock screen shows back on the map.
     @State private var conquered: ArcadeWorld?
     @State private var celebrating: ArcadeWorld?
@@ -48,7 +50,9 @@ struct ContentView: View {
                 .transition(.opacity)
             } else if let world = selectedWorld {
                 ArcadeLevelMap(world: world, progress: progress, unlocked: unlocked, returnedFrom: returnedFrom,
-                               onBack: { selectedWorld = nil; returnedFrom = nil }, onPlay: { play(world, index: $0) })
+                               advancedFrom: advancedFrom,
+                               onBack: { selectedWorld = nil; returnedFrom = nil; advancedFrom = nil },
+                               onPlay: { play(world, index: $0) })
             } else {
                 ArcadeWorldMap(progress: progress, unlocked: unlocked, onSelect: { selectedWorld = $0; returnedFrom = nil },
                                onUnlock: { world in withAnimation { offer = UnlockOffer(featured: world) } })
@@ -172,8 +176,12 @@ struct ContentView: View {
         let remaining = GameTuning.launchMinimumSeconds - Date().timeIntervalSince(started)
         if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
         withAnimation(.easeOut(duration: 0.35)) { loaded = true }
-        // A new player starts with the tutorial, then lands on Shallow Reef.
-        if progress.needsTutorial {
+        // A new player starts with the tutorial, then lands on Shallow Reef (not a level launched for playtesting).
+        var startsWithTutorial = progress.needsTutorial
+        #if DEBUG
+        startsWithTutorial = startsWithTutorial && ArcadePlaytest.selection == nil
+        #endif
+        if startsWithTutorial {
             playTutorial()
             return
         }
@@ -241,16 +249,20 @@ struct ContentView: View {
         game.debugPracticeRun = practice
         #endif
         game.analytics = analytics
-        game.metricsHasCleared = { index in progress.isCleared(world, index) }
+        game.hasCleared = { index in progress.isCleared(world, index) }
         if offersUnlock {
             game.levelNeedsUnlock = { [purchases] index in
                 ArcadeUnlock.needsUnlock(world, index, unlocked: purchases.isUnlocked)
             }
         }
+        // The last level cleared for the first time this visit, so the map can show the step forward.
+        var firstClear: Int?
+        advancedFrom = nil
         game.onClear = { [weak game] index, seconds in
             #if DEBUG
             guard let scene = game, !scene.debugPracticeRun, !scene.debugHasTuningOverride else { return }
             #endif
+            firstClear = progress.isCleared(world, index) ? nil : index
             if index == ArcadeWorld.mainLevelCount - 1 && !progress.isCleared(world, index) {
                 // Straight to the conquered screen, with no result card first.
                 conquered = world
@@ -267,6 +279,14 @@ struct ContentView: View {
         game.onExit = { [weak game] in
             game?.exitMetrics()
             returnedFrom = game?.currentLevelIndex
+            // Left from the card of a level just cleared for the first time: your fish swims on to the next stop.
+            // (A world just conquered stays on its crowned tenth level.)
+            if let firstClear, firstClear == returnedFrom, conquered == nil, firstClear + 1 < world.levelCount {
+                advancedFrom = firstClear
+                returnedFrom = firstClear + 1
+                // Once: the map's fish has swum by then, and redrawing the map later shouldn't swim it again.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { if advancedFrom == firstClear { advancedFrom = nil } }
+            }
             scene = nil
             if game?.leftForUnlock == true {
                 // Next level was past the free ones: the map waits on it, under what the unlock opens.

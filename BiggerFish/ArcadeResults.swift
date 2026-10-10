@@ -32,7 +32,8 @@ final class ArcadeResultPanel: SKNode {
     private(set) var controls: [(action: ArcadeResultAction, frame: CGRect)] = []
     private(set) var primaryAction: ArcadeResultAction?
 
-    init(size: CGSize, passed: Bool, hasNext: Bool, detail: String) {
+    /// `progress`, after a win: the world's pips and crown, in place of the detail line.
+    init(size: CGSize, passed: Bool, hasNext: Bool, detail: String, progress: WorldProgressStrip? = nil) {
         super.init()
         let choices = ArcadeResultAction.choices(passed: passed, hasNext: hasNext)
         primaryAction = choices.first
@@ -40,8 +41,10 @@ final class ArcadeResultPanel: SKNode {
         let heading = text(passed ? "Level passed!" : "Try again!", size: 32, heavy: true)
         let line = text(detail, size: 20, heavy: false)
         if line.frame.width > maxWidth - 60 { line.fontSize *= (maxWidth - 60) / line.frame.width }
-        let width = min(maxWidth, max(430, heading.frame.width + 60, line.frame.width + 60))
-        let height: CGFloat = 256
+        let detailWidth = progress?.width ?? line.frame.width
+        let width = min(maxWidth, max(430, heading.frame.width + 60, detailWidth + 60))
+        // The pips and their caption take a little more room than the detail line; the buttons stay put.
+        let height: CGFloat = progress == nil ? 256 : 284
         let backing = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
         backing.fillColor = passed ? SKColor(red: 0.10, green: 0.52, blue: 0.30, alpha: 0.92)
                                    : SKColor(white: 0, alpha: 0.65)
@@ -49,10 +52,16 @@ final class ArcadeResultPanel: SKNode {
         backing.lineWidth = 2
         backing.zPosition = -1
         addChild(backing)
-        heading.position = CGPoint(x: 0, y: 83)
-        line.position = CGPoint(x: 0, y: 40)
         addChild(heading)
-        addChild(line)
+        if let progress {
+            heading.position = CGPoint(x: 0, y: 100)
+            progress.position = CGPoint(x: 0, y: 60)
+            addChild(progress)
+        } else {
+            heading.position = CGPoint(x: 0, y: 83)
+            line.position = CGPoint(x: 0, y: 40)
+            addChild(line)
+        }
         for (i, action) in choices.enumerated() {
             let primary = i == 0
             let secondaryCount = choices.count - 1
