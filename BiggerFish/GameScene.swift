@@ -347,6 +347,8 @@ final class GameScene: SKScene {
     private let closeCallHaptic = UIImpactFeedbackGenerator(style: .rigid)
     private let eatenHaptic = UIImpactFeedbackGenerator(style: .heavy)
     private let eatenNotification = UINotificationFeedbackGenerator()
+    /// The Vibration setting (Settings on the world map): off, the game plays no haptics.
+    private var vibrates: Bool { ArcadeSettings.shared.vibrationOn }
 
     /// Camera scale: 1 at the start of a run, easing toward `minZoom` as the player grows.
     /// World y equals screen y at zoom 1; zooming out makes the water taller in world units.
@@ -2142,7 +2144,7 @@ final class GameScene: SKScene {
                         bounceRemaining = T.jellyBounceSeconds
                         bounceCooldown = T.jellyBounceCooldown
                         f.pulse = T.pulseDuration
-                        closeCallHaptic.impactOccurred(intensity: 0.55)
+                        if vibrates { closeCallHaptic.impactOccurred(intensity: 0.55) }
                         playSound(.bounce)
                     }
                 case .tentacles:
@@ -2189,7 +2191,7 @@ final class GameScene: SKScene {
         }
         if victim.isPlayer {
             lossReason = reason
-            eatenNotification.notificationOccurred(.error)
+            if vibrates { eatenNotification.notificationOccurred(.error) }
             playSound(.sting)
             lose(resultDelay: T.stingResultDelay)
         } else {
@@ -2420,7 +2422,7 @@ final class GameScene: SKScene {
             slowMoFactor = T.closeCallSlowFactor
             slowMoRemaining = T.closeCallSlowDuration
         }
-        if prey.isPlayer {
+        if prey.isPlayer && vibrates {
             eatenHaptic.impactOccurred(intensity: 1)
             eatenNotification.notificationOccurred(.error)
         }
@@ -2512,7 +2514,7 @@ final class GameScene: SKScene {
             updateMealIndicator()
             playSound(.eat)
         }
-        if predator.isPlayer && s.ratio >= T.closeCallRatio {
+        if predator.isPlayer && s.ratio >= T.closeCallRatio && vibrates {
             closeCallHaptic.impactOccurred()
         }
         if prey.isPlayer {

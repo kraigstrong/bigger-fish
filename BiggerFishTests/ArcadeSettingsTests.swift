@@ -19,6 +19,26 @@ struct ArcadeSettingsTests {
         defaults.removePersistentDomain(forName: suite)
     }
 
+    @Test func vibrationStartsOnAndIsRemembered() {
+        let suite = "biggerFish.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        #expect(ArcadeSettings(defaults: defaults).vibrationOn)
+        ArcadeSettings(defaults: defaults).vibrationOn = false
+        #expect(!ArcadeSettings(defaults: defaults).vibrationOn)
+    }
+
+    /// Settings: the privacy policy and support are on biggerfish.app, restoring shows only while the unlock is on sale
+    /// and not bought, and the version reads from Info.plist.
+    @Test func settingsLinksRestoreAndVersion() {
+        #expect(ArcadeLinks.privacy.absoluteString == "https://biggerfish.app/privacy")
+        #expect(ArcadeLinks.support.absoluteString == "https://biggerfish.app/support")
+        #expect(SettingsView.showsRestore(selling: true, unlocked: false))
+        #expect(!SettingsView.showsRestore(selling: true, unlocked: true) && !SettingsView.showsRestore(selling: false, unlocked: false))
+        #expect(SettingsView.versionLine(["CFBundleShortVersionString": "0.4", "CFBundleVersion": "7"]) == "Version 0.4 (7)")
+        #expect(SettingsView.versionLine(Bundle.main.infoDictionary ?? [:]).hasPrefix("Version 0."))
+    }
+
     @Test func everySoundShipsInTheApp() {
         for effect in ArcadeAudio.Effect.allCases {
             #expect(Bundle.main.url(forResource: effect.rawValue, withExtension: "caf") != nil, "\(effect) is missing")
