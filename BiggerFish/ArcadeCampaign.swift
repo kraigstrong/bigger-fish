@@ -13,6 +13,10 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     /// Worlds still being prototyped: on the map in Xcode builds only, after the campaign and open from the start,
     /// so nothing unlocks them and the campaign's last world doesn't point to them. Midnight Zone started here.
     static let prototypes: [ArcadeWorld] = []
+    /// Worlds that joined the campaign after players could already beat the world before them (whose "conquered"
+    /// screen then said more worlds were coming). Those players are shown that screen once more, announcing it.
+    /// Add a world here when it ships after the world before it.
+    static let lateArrivals: Set<ArcadeWorld> = [.midnightZone]
     static var mapWorlds: [ArcadeWorld] {
         #if DEBUG
         campaign + prototypes
