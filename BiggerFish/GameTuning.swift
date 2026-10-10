@@ -868,6 +868,45 @@ enum GameTuning {
     /// big fish 13 swims your way, so you overtake it slowly and it hung in the climb from meal 12 to gate 15;
     /// Kraig reached the gate once in about eight tries. 0.4 s puts it level with meal 12, gone before the climb.
     static let midnightFishEarlier: [String: [Int: CGFloat]] = ["Midnight Zone 14": [13: 0.4]]
+
+    // MARK: Riptide Reef (prototype, Xcode builds only)
+
+    /// Riptide Reef's trial levels, planned like Midnight Zone's (fish appear just off screen right before you meet
+    /// them): easy, medium, and hard from Shallow Reef's levels 1, 5, and 10, with two fixed currents.
+    static let riptideSpecs: [MeetingSpec] = [0, 4, 9].enumerated().map { index, source in
+        var spec = reefLabSpecs[source]
+        spec.name = "Riptide Reef \(index + 1)"
+        return spec
+    }
+    /// Each level is the first layout with no planner issues and no wall of giants.
+    static let riptideLevels: [Level] = riptideSpecs.enumerated().map { index, spec in
+        let plan = (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
+            ?? MeetingPlanner.kelpPlan(spec)
+        var level = plan.level
+        level.ecosystemSeedIndex = index
+        return level
+    }
+    /// A current: a band of the water (0 its bottom, 1 its top, as on screen) where you swim forward at `speed`
+    /// times your usual pace (above 1 with you, below 1 against you), and small fish are swept along with it.
+    struct Current: Equatable {
+        let low: CGFloat
+        let high: CGFloat
+        let speed: CGFloat
+    }
+    /// Kraig's first trial (2026-10-09): fixed for the level, a fast current high and a slow one low, calm water
+    /// between.
+    static let riptideCurrents = [Current(low: 0.66, high: 0.9, speed: 1.35), Current(low: 0.1, high: 0.34, speed: 0.65)]
+    static func currentSpeed(atWaterShare share: CGFloat, in currents: [Current]) -> CGFloat? {
+        currents.first { (($0.low)...($0.high)).contains(share) }?.speed
+    }
+    /// How quickly your pace eases into a current's (per second), so entering one is a push, not a jolt.
+    static let currentEase: CGFloat = 4
+    /// Fish this small or smaller (radius; you start at 16) are swept along by a current once they've met you; bigger
+    /// ones swim straight through.
+    static let currentSweepsRadius: CGFloat = 24
+    /// The streaks that show a current flowing: how many per current and their speed across the screen (points/s).
+    static let currentStreaks = 16
+    static let currentStreakSpeed: CGFloat = 140
     /// Played and approved, so shipped exactly as saved in `MidnightPlans.json`: a planner change can't alter them.
     /// All fifteen (Kraig, 2026-10-09: "lock in the midnight levels", then "I played 14 and 15 and approve").
     static let midnightFrozen: Set<String> = Set(midnightSpecs.map(\.name))

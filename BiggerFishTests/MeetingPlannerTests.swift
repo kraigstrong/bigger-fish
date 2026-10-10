@@ -187,6 +187,24 @@ struct MeetingPlannerTests {
         #expect(GameTuning.midnightFrozen == Set(GameTuning.midnightSpecs.map(\.name)))
     }
 
+    /// Riptide Reef's trials: Midnight Zone's planner with two fixed currents. However the currents change your
+    /// pace, planned fish follow their approach at that pace and still meet you, on the fullest route too.
+    @MainActor @Test func riptideReefTrialsMeetYouThroughTheCurrents() {
+        let plans = ArcadeWorld.riptideReef.levels.map { $0.meetingPlan! }
+        #expect(plans.map(\.spec.name) == ["Riptide Reef 1", "Riptide Reef 2", "Riptide Reef 3"])
+        #expect(plans.allSatisfy { $0.issues.isEmpty && !$0.hasGiantWall })
+        #expect(ArcadeWorld.prototypes.contains(.riptideReef) && !ArcadeWorld.campaign.contains(.riptideReef))
+        let currents = ArcadeWorld.riptideReef.currents
+        #expect(GameTuning.currentSpeed(atWaterShare: 0.8, in: currents) == 1.35)
+        #expect(GameTuning.currentSpeed(atWaterShare: 0.2, in: currents) == 0.65)
+        #expect(GameTuning.currentSpeed(atWaterShare: 0.5, in: currents) == nil)
+        for (index, plan) in plans.enumerated() {
+            let route = plan.fullestRoute
+            let crossings = GameScene(world: .riptideReef, levelIndex: index).debugEncounterCrossings(radii: plan.radii(eating: route), eaten: route)
+            #expect(Set(crossings.map(\.fishID)) == Set(plan.fish.map(\.id)), "\(plan.spec.name)")
+        }
+    }
+
     @Test func bundledMidnightPlansMatchTheSpecs() throws {
         let url = try #require(Bundle(for: BundleToken.self).url(forResource: "MidnightPlans", withExtension: "json")
             ?? Bundle.main.url(forResource: "MidnightPlans", withExtension: "json"))

@@ -10,6 +10,7 @@ extension ArcadeWorld {
         case .jellyBloom: UIColor(red: 0.75, green: 0.52, blue: 1, alpha: 1)
         case .kelpForest: UIColor(red: 0.45, green: 0.78, blue: 0.32, alpha: 1)
         case .midnightZone: UIColor(red: 1, green: 0.66, blue: 0.3, alpha: 1)
+        case .riptideReef: UIColor(red: 0.95, green: 0.42, blue: 0.62, alpha: 1)
         }
     }
 }
@@ -354,6 +355,7 @@ extension ArcadeWorld {
         case .jellyBloom: "WorldJellyBloom"
         case .kelpForest: "WorldKelpForest"
         case .midnightZone: "WorldMidnightZone"
+        case .riptideReef: "WorldRiptideReef"
         }
     }
 }
@@ -361,9 +363,14 @@ extension ArcadeWorld {
 struct WorldIllustration: View {
     let world: ArcadeWorld
     var body: some View {
-        Image(world.illustration)
-            .resizable()
-            .scaledToFit()
-            .accessibilityHidden(true)
+        Group {
+            if world == .riptideReef {
+                // A stand-in while Riptide Reef is a prototype, until it has a picture of its own.
+                Image(systemName: "water.waves").resizable().scaledToFit().padding(10).foregroundStyle(world.color)
+            } else {
+                Image(world.illustration).resizable().scaledToFit()
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
