@@ -782,7 +782,11 @@ final class GameScene: SKScene {
         case .playing, .paused:
             hideMessage()
         case .won:
-            if leavesForConqueredScreen || isTutorial {
+            if isTutorial {
+                // A moment to enjoy the catch, then its closing line, then off to the map.
+                showTutorialFinale()
+                pendingConqueredExitAt = realClock + T.tutorialFinaleSeconds
+            } else if leavesForConqueredScreen {
                 pendingConqueredExitAt = realClock + T.conqueredExitDelay
             } else {
                 showResult(passed: true)
@@ -1552,13 +1556,14 @@ final class GameScene: SKScene {
             tutorialCaptionPending = nil
             showTutorialCaption(caption)
         }
-        let elapsed = simClock - tutorialBeatStart
+        let elapsed = tutorialTime(since: tutorialBeatStart)
         if let at = tutorialNextBeatAt {
             if simClock >= at, let next = ArcadeTutorial.Beat(rawValue: tutorialBeat.rawValue + 1) { beginTutorialBeat(next) }
             return
         }
         func gone(_ id: Int?) -> Bool { id.map { fishByID[$0] == nil } ?? true }
-        func next(after delay: CGFloat) { tutorialNextBeatAt = simClock + delay }
+        // The pause before the next beat is in the tutorial's own timings too, so it keeps pace with the fish.
+        func next(after delay: CGFloat) { tutorialNextBeatAt = simClock + delay / T.tutorialPace }
         switch tutorialBeat {
         case .eatSmaller:
             if gone(tutorialMeal) {
@@ -1596,7 +1601,7 @@ final class GameScene: SKScene {
                 return
             }
             // It got past: around it comes again, with another meal if you still need one.
-            if let scripted = tutorialPaths[missed.id], simClock - scripted.start >= scripted.path.duration {
+            if let scripted = tutorialPaths[missed.id], tutorialTime(since: scripted.start) >= scripted.path.duration {
                 if gone(tutorialMeal) && player.targetRadius <= missed.targetRadius {
                     tutorialMeal = spawnTutorialFish(ArcadeTutorial.lastMeal(you: player.targetRadius, rival: missed.targetRadius),
                         path: .headOn(share: waterShare(player.position.y).clamped(0.25, 0.75), crossing: T.tutorialMealCrossing), glows: true)
@@ -1632,8 +1637,11 @@ final class GameScene: SKScene {
         return id
     }
 
+    /// Seconds of the tutorial's own timings since `start`, run at `tutorialPace`.
+    private func tutorialTime(since start: CGFloat) -> CGFloat { (simClock - start) * T.tutorialPace }
+
     private func moveScripted(_ f: Fish, _ scripted: (path: TutorialPath, start: CGFloat, leaves: Bool), _ dt: CGFloat) {
-        let t = simClock - scripted.start
+        let t = tutorialTime(since: scripted.start)
         if scripted.leaves && t > scripted.path.duration {
             removeTutorialFish(f.id)
             return
@@ -1666,6 +1674,24 @@ final class GameScene: SKScene {
     private func hideTutorialCaption() {
         tutorialCaption.removeAllActions()
         tutorialCaption.run(.fadeOut(withDuration: 0.25))
+    }
+
+    private func showTutorialFinale() {
+        messageNode.removeAllActions()
+        messageNode.removeAllChildren()
+        let line = label(ArcadeTutorial.finale, fontSize: 34, heavy: true)
+        let maxWidth = size.width - 80
+        if line.frame.width > maxWidth { line.fontSize *= maxWidth / line.frame.width }
+        let panel = SKShapeNode(rectOf: CGSize(width: line.frame.width + 70, height: 84), cornerRadius: 24)
+        panel.fillColor = SKColor(white: 0, alpha: 0.3)
+        panel.strokeColor = .clear
+        messageNode.addChild(panel)
+        messageNode.addChild(line)
+        messageNode.position = CGPoint(x: size.width / 2, y: size.height * 0.6)
+        messageNode.alpha = 0
+        messageNode.setScale(0.92)
+        messageNode.run(.sequence([.wait(forDuration: TimeInterval(T.tutorialFinaleDelay)),
+                                   .group([.fadeIn(withDuration: 0.35), .scale(to: 1, duration: 0.35)])]))
     }
 
     /// Leaves the tutorial for the map (its skip control).

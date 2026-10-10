@@ -39,6 +39,7 @@ struct ContentView: View {
                     .frame(width: geometry.size.width, height: geometry.size.height)
                 }
                 .ignoresSafeArea()
+                .transition(.opacity)
             } else if let world = selectedWorld {
                 ArcadeLevelMap(world: world, progress: progress, returnedFrom: returnedFrom,
                                onBack: { selectedWorld = nil; returnedFrom = nil }, onPlay: { play(world, index: $0) })
@@ -175,9 +176,12 @@ struct ContentView: View {
         game.onTutorialFinished = { progress.sawTutorial() }
         game.onExit = {
             progress.sawTutorial()
-            scene = nil
-            selectedWorld = .shallowReef
-            returnedFrom = nil
+            // A gentle fade to Shallow Reef's map, not a cut.
+            withAnimation(.easeInOut(duration: 0.7)) {
+                scene = nil
+                selectedWorld = .shallowReef
+                returnedFrom = nil
+            }
         }
         scene = game
     }
