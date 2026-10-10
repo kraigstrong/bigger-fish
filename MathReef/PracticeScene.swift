@@ -97,8 +97,13 @@ enum ReefTuning {
     static let tutorialTopLane: CGFloat = 0.85
     /// "Eat the answer": the 2 and the 3 swim in side by side at this speed (lanes: `TutorialFlow.lanes`).
     static let tutorialAnswerSwimSpeed: CGFloat = 30
-    /// The celebration after the first catch, before the reef map.
-    static let tutorialCelebrationSeconds: TimeInterval = 2.2
+    /// The ending (`TutorialEnding`): the happy moment after the first catch ("Yes!"), then the
+    /// closing line, then a fade through the deep-water color to the reef map. Skip only fades.
+    static let tutorialCelebrationSeconds: TimeInterval = 1.4
+    static let tutorialClosingLineSeconds: TimeInterval = 1.5
+    static let tutorialClosingLineFontSize: CGFloat = 52
+    static let tutorialFadeOutSeconds: TimeInterval = 0.35
+    static let tutorialFadeInSeconds: TimeInterval = 0.4
 }
 
 /// Which side of the player fish the question rides on. It starts above and stays on its side until
@@ -162,6 +167,8 @@ final class PracticeScene: SKScene {
     /// The first-launch tutorial while it plays (see Tutorial.swift).
     private var tutorial: TutorialFlow?
     private var tutorialOverlay: TutorialOverlay?
+    /// Covers the screen while the tutorial's ending fades to the reef map.
+    private var tutorialCurtain: SKSpriteNode?
     /// How many times the 2 and the 3 have swum by.
     private var tutorialPasses = 0
     /// Once a kid has missed the 2 or eaten the 3, a ring marks the 2.
@@ -1227,9 +1234,12 @@ final class PracticeScene: SKScene {
     // MARK: - First-launch tutorial
 
     /// Hold, let go, and a first catch, with the real fish and movement (see Tutorial.swift). Plays
-    /// before the reef map on a fresh install; finishing or skipping goes to the map.
+    /// before the reef map on a fresh install; finishing or skipping fades to the map.
     private func startTutorial() {
         removeTutorial()
+        // Restarted mid-fade (the screen resized): no curtain left over the new start.
+        tutorialCurtain?.removeFromParent()
+        tutorialCurtain = nil
         removeMaps()
         hidePanel()
         isShowingSettings = false
@@ -1259,10 +1269,50 @@ final class PracticeScene: SKScene {
         tutorial = nil
     }
 
-    private func finishTutorial(skipped: Bool) {
+    /// The 2 was eaten, or Skip tapped. The tutorial is done for good from this moment, so closing the
+    /// app during the ending doesn't play it again. Then the ending plays (`TutorialEnding`).
+    private func endTutorial(skipped: Bool) {
+        guard action(forKey: "tutorialEnd") == nil else { return }
         tutorialRecord.markDone()
         analytics.tutorialFinished(skipped: skipped)
-        showHome()
+        let beats = TutorialEnding.beats(skipped: skipped).map { beat, seconds in
+            SKAction.sequence([
+                .run { [weak self] in self?.playEnding(beat, seconds: seconds) },
+                .wait(forDuration: seconds),
+            ])
+        }
+        run(.sequence(beats), withKey: "tutorialEnd")
+    }
+
+    private func playEnding(_ beat: TutorialEnding.Beat, seconds: TimeInterval) {
+        switch beat {
+        case .celebrate:
+            // The game's own right-answer moment: the bell, sparkles, and "Yes!".
+            audio.play(.star)
+            sparkleBurst(at: CGPoint(x: size.width * L.playerScreenX, y: player.position.y), in: uiLayer)
+            showPanel(title: "Yes!", lines: [(TutorialFlow.fact.solution, 28, true)], buttons: [], style: .correct)
+        case .closingLine:
+            panel.run(.fadeOut(withDuration: 0.25))
+            playerPrompt.run(.fadeOut(withDuration: 0.25))
+            tutorialOverlay?.showClosingLine()
+            // Quiet for the map's jingle.
+            audio.playMusic(nil, fade: seconds)
+        case .fadeOut:
+            // Down to the deep-water color the scene sits on, over everything.
+            let curtain = SKSpriteNode(color: backgroundColor, size: CGSize(width: size.width * 2, height: size.height * 2))
+            curtain.position = CGPoint(x: size.width / 2, y: size.height / 2)
+            curtain.zPosition = 1000
+            curtain.alpha = 0
+            addChild(curtain)
+            curtain.run(.fadeIn(withDuration: seconds))
+            tutorialCurtain = curtain
+        case .fadeIn:
+            // The map is built under the curtain, which then lifts.
+            let curtain = tutorialCurtain
+            tutorialCurtain = nil
+            showHome()
+            curtain?.run(.sequence([.fadeOut(withDuration: seconds), .removeFromParent()]))
+        }
     }
 
     private func advanceTutorial(_ dt: CGFloat) {
@@ -1286,7 +1336,7 @@ final class PracticeScene: SKScene {
             case .eat:
                 setPrompt(TutorialFlow.fact.prompt)
                 spawnTutorialAnswers()
-            case .done: celebrateTutorial()
+            case .done: endTutorial(skipped: false)
             }
         case .hint:
             overlay.replayHint(current)
@@ -1349,17 +1399,6 @@ final class PracticeScene: SKScene {
         }
     }
 
-    /// The first catch: a bell, sparkles, and the game's own "Yes!", then the reef map.
-    private func celebrateTutorial() {
-        audio.play(.star)
-        sparkleBurst(at: CGPoint(x: size.width * L.playerScreenX, y: player.position.y), in: uiLayer)
-        showPanel(title: "Yes!", lines: [(TutorialFlow.fact.solution, 28, true)], buttons: [], style: .correct)
-        run(.sequence([
-            .wait(forDuration: L.tutorialCelebrationSeconds),
-            .run { [weak self] in self?.finishTutorial(skipped: false) },
-        ]), withKey: "tutorialEnd")
-    }
-
     // MARK: - Input
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -1386,7 +1425,7 @@ final class PracticeScene: SKScene {
             }
             if phase == .tutorial, let overlay = tutorialOverlay, overlay.skipFrame.contains(p) {
                 // Once the 2 is eaten the tutorial is finished, and ends on its own.
-                if tutorial?.step != .done { finishTutorial(skipped: true) }
+                if tutorial?.step != .done { endTutorial(skipped: true) }
                 return
             }
             if phase == .answering || phase == .feedback || phase == .tutorial {

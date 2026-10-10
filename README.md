@@ -46,8 +46,9 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   - `PracticeScene.swift` — screen flow and gameplay; tuning is `ReefTuning` at the top
   - `Tutorial.swift` — the first-launch tutorial (Hold, Let go, Eat the answer with 1 + 1), played with the
     real movement before the reef map on a fresh install. It never fails or times out; a stuck kid
-    sees the hint again. Saved as done once finished or skipped, and skipped for players who already
-    have progress. Xcode builds can replay it from Settings.
+    sees the hint again. The first catch gets "Yes!", then "Ready to play!", then a fade to the map
+    (Skip just fades). Saved as done the moment the 2 is eaten or Skip is tapped, and skipped for
+    players who already have progress. Xcode builds can replay it from Settings.
   - `ReefAnalytics.swift` — anonymous first-party counts (milestones and round outcomes), queued on the device and sent in batches to brightbench.app (off during test runs)
   - `StoreCapture.swift` — debug-only staged scenes and an autopilot for App Store screenshots and the preview video
 - `Packages/FishKit/` — shared fish engine used by both apps:

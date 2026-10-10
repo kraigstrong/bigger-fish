@@ -8,8 +8,9 @@ import UIKit
 //   2. "Let go": the finger lifts off with a pop. Letting go sinks the fish.
 //   3. "Eat the answer": 1 + 1, with a 2 and a 3 swimming by. Eating the 2 ends the tutorial; the 3 just
 //      bounces off.
-// It never fails and never moves on by itself: a kid who's stuck sees the step's hint again. It plays
-// once, on a fresh install, before the reef map; players with progress from before it existed skip it.
+// It never fails and never moves on by itself: a kid who's stuck sees the step's hint again. After the
+// catch, "Ready to play!" and a fade to the reef map (`TutorialEnding`). It plays once, on a fresh
+// install, before the reef map; players with progress from before it existed skip it.
 // The steps' logic is here and tested; the scene drives it (PracticeScene.swift) with the real
 // movement, answer fish, and swallow. Tuning is in `ReefTuning`.
 
@@ -143,6 +144,27 @@ struct TutorialFlow {
     }
 }
 
+/// How the tutorial ends, in beats the scene plays in order. After the first catch: the game's own
+/// right-answer moment ("Yes!", the bell, sparkles), a closing line, then a gentle fade through the
+/// deep-water color to the reef map, so it never just cuts away. Skip fades straight to the map. The
+/// tutorial is saved as done when the ending starts, so closing the app during it doesn't replay it.
+enum TutorialEnding {
+    enum Beat: Hashable { case celebrate, closingLine, fadeOut, fadeIn }
+
+    /// For early readers: three short words at most.
+    static let closingLine = "Ready to play!"
+
+    /// Each beat and how long it lasts (timings in `ReefTuning`).
+    static func beats(skipped: Bool) -> [(beat: Beat, seconds: TimeInterval)] {
+        typealias L = ReefTuning
+        let fade: [(beat: Beat, seconds: TimeInterval)] = [
+            (.fadeOut, L.tutorialFadeOutSeconds), (.fadeIn, L.tutorialFadeInSeconds),
+        ]
+        guard !skipped else { return fade }
+        return [(.celebrate, L.tutorialCelebrationSeconds), (.closingLine, L.tutorialClosingLineSeconds)] + fade
+    }
+}
+
 /// What the tutorial draws over the water: the demo finger, each step's word, arrows by the player
 /// fish, and a small Skip button for grown-ups. Built from the game's own shapes, font, and SF Symbols.
 final class TutorialOverlay: SKNode {
@@ -151,6 +173,8 @@ final class TutorialOverlay: SKNode {
 
     private let fingerSpot: CGPoint
     private let captionSpot: CGPoint
+    /// Where the "Yes!" card shows, right of the fish: the closing line takes its place.
+    private let closingSpot: CGPoint
     private let eatCaptionSpot: CGPoint
     /// The finger, with its tip at the node's origin.
     private let hand = SKNode()
@@ -169,6 +193,7 @@ final class TutorialOverlay: SKNode {
         captionSpot = CGPoint(x: fingerSpot.x, y: fingerSpot.y + 74)
         // Along the top, above both answers' lanes.
         eatCaptionSpot = CGPoint(x: size.width / 2, y: size.height - L.tutorialEatCaptionInset)
+        closingSpot = CGPoint(x: size.width * 0.6, y: size.height / 2)
         super.init()
 
         // The symbol's fingertip is near its top-left corner; anchor it there.
@@ -263,6 +288,26 @@ final class TutorialOverlay: SKNode {
         }
     }
 
+    /// "Ready to play!", big, between two gold stars, where the "Yes!" card was. It pops in like the
+    /// step words, then gently breathes until the fade.
+    func showClosingLine() {
+        setCaption(TutorialEnding.closingLine, at: closingSpot, fontSize: L.tutorialClosingLineFontSize)
+        // The caption starts its pop-in small; measure it at full size.
+        let halfWidth = caption.calculateAccumulatedFrame().width / caption.xScale / 2
+        for side: CGFloat in [-1, 1] {
+            let star = starShape(radius: 15, filled: true)
+            star.position = CGPoint(x: side * (halfWidth + 26), y: 4)
+            star.run(.repeatForever(.sequence([
+                .rotate(byAngle: side * 0.25, duration: 0.5), .rotate(byAngle: -side * 0.25, duration: 0.5),
+            ])))
+            caption.addChild(star)
+        }
+        caption.run(.sequence([
+            .wait(forDuration: 0.3),
+            .repeatForever(.sequence([.scale(to: 1.05, duration: 0.5), .scale(to: 1, duration: 0.5)])),
+        ]))
+    }
+
     /// Plays the step's hint again, for a kid who hasn't done it yet.
     func replayHint(_ step: TutorialFlow.Step) {
         caption.run(.sequence([.scale(to: 1.25, duration: 0.15), .scale(to: 1, duration: 0.2)]))
@@ -296,12 +341,12 @@ final class TutorialOverlay: SKNode {
 
     // MARK: Drawing
 
-    private func setCaption(_ text: String, at point: CGPoint) {
+    private func setCaption(_ text: String, at point: CGPoint, fontSize: CGFloat = L.tutorialCaptionFontSize) {
         caption.removeAllChildren()
         caption.removeAllActions()
-        let shadow = reefLabel(text, fontSize: L.tutorialCaptionFontSize, heavy: true, color: SKColor(white: 0, alpha: 0.6))
+        let shadow = reefLabel(text, fontSize: fontSize, heavy: true, color: SKColor(white: 0, alpha: 0.6))
         shadow.position = CGPoint(x: 2, y: -2)
-        let front = reefLabel(text, fontSize: L.tutorialCaptionFontSize, heavy: true)
+        let front = reefLabel(text, fontSize: fontSize, heavy: true)
         front.zPosition = 0.5
         caption.addChild(shadow)
         caption.addChild(front)
