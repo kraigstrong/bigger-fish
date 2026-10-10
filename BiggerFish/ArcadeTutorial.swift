@@ -38,7 +38,7 @@ enum ArcadeTutorial {
             case .missedFishEats: "Fish you miss keep eating"
             case .catchItBack: "Grow, then catch it"
             case .eatEnough: "Eat enough to get through"
-            case .lastFish: "Be the last fish swimming"
+            case .lastFish: "Be the last fish swimming to win"
             }
         }
 
