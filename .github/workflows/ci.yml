@@ -53,6 +53,8 @@ jobs:
           xcrun simctl list devices | grep "$id"
           echo "SIMULATOR_ID=$id" >> "$GITHUB_ENV"
 
+      # Warnings fail the build. Xcode builds the FishKit dependency with warnings suppressed, which conflicts
+      # with treating them as errors, so CI turns that off too: FishKit is held to the same standard.
       - name: Test
         working-directory: ${{ matrix.dir }}
         run: |
@@ -61,7 +63,9 @@ jobs:
             -enableCodeCoverage "$COVERAGE" \
             -resultBundlePath "$RUNNER_TEMP/tests.xcresult" \
             -quiet \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
+            SWIFT_SUPPRESS_WARNINGS=NO
 
       - name: Coverage summary
         if: always() && env.COVERAGE == 'YES'
