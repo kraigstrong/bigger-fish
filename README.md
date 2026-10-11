@@ -241,6 +241,9 @@ Current Jelly Bloom playtest: [free-moving ten-level campaign](docs/jelly-bloom-
 Bigger Fish, separate from Math Reef. `ArcadeAnalytics.isEnabled` controls collection; it is
 on for the beta, with the endpoint, policy, and report live on brightbench.app.
 No player/install/session IDs, exact play timestamps, device information, or trajectories are sent.
+The paywall funnel (where the unlock's screen was shown from, purchase and restore outcomes, a milestone when a
+world's ten main levels are beaten, and whether each run had the unlock) is built but stays off behind
+`ArcadeAnalytics.sendsPaywallEvents` until brightbench.app accepts it and the privacy policy describes it.
 
 The schema records content identity (world, campaign/endless mode, displayed slot, original setup,
 seed, content revision, app version/build/channel), outcomes, local attempts-to-first-clear,

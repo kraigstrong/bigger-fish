@@ -10,6 +10,9 @@ struct UnlockView: View {
     var featured: ArcadeWorld? = nil
     /// The world just beaten, when this stands in for its "conquered" screen.
     var conquered: ArcadeWorld? = nil
+    /// What opened this screen, for counting how buying and restoring go here; nil (a tuner preview) isn't counted.
+    var source: ArcadeAnalytics.OfferSource? = nil
+    var analytics: ArcadeAnalytics? = nil
     let onClose: () -> Void
 
     private enum Stage: Equatable {
@@ -101,7 +104,9 @@ struct UnlockView: View {
     private func buy() {
         stage = .working
         Task {
-            switch await purchases.purchase() {
+            let outcome = await purchases.purchase()
+            if let source { analytics?.purchase(outcome, from: source) }
+            switch outcome {
             case .unlocked:
                 stage = Self.unlockedMessage
             case .pending:
@@ -118,7 +123,9 @@ struct UnlockView: View {
     private func restore() {
         stage = .working
         Task {
-            stage = await purchases.restore() ? Self.unlockedMessage
+            let found = await purchases.restore()
+            if let source { analytics?.restore(found: found, from: source) }
+            stage = found ? Self.unlockedMessage
                 : .message("Nothing to restore", "No unlock was found for this Apple Account.", unlocked: false)
         }
     }

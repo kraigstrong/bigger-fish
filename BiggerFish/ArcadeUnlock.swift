@@ -50,7 +50,8 @@ enum ArcadeUnlock {
 /// in App Store Connect). Modeled on Math Reef's `ReefPurchases`.
 @MainActor
 final class ArcadePurchases: ObservableObject {
-    enum PurchaseOutcome { case unlocked, pending, cancelled, failed }
+    /// Raw values are what the paywall funnel reports (`ArcadeAnalytics.purchase`); the server accepts only these.
+    enum PurchaseOutcome: String, CaseIterable { case unlocked, pending, cancelled, failed }
 
     /// Cached so the maps draw correctly at launch and offline; StoreKit confirms it.
     @Published private(set) var isUnlocked: Bool
