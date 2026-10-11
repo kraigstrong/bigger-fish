@@ -39,7 +39,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   - `SettingsView.swift` — Settings from the world map's gear: sound, music, vibration, replaying the tutorial,
     restoring the unlock, the privacy policy and support (biggerfish.app), the credits, and the version
   - `CreditsScene.swift` / `ArcadeCredits.swift` / `Credits.json` — the credits, played: from Settings, a calm swim
-    where every name is a fish to eat (the play-testers, then the music and sound credits), with a thank-you for each
+    where every name is a fish to eat (design, the play-testers, then the music and sound credits), with a thank-you for each
     and a card at the end. Nothing can eat you, and it saves nothing. Add a name by editing `Credits.json`
   - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and campaign saves, kept on the device and
     backed up to iCloud key-value storage. At launch and whenever iCloud's copy changes (another device, a reinstall's
