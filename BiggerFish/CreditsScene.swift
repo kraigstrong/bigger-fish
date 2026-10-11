@@ -234,6 +234,8 @@ final class CreditsScene: SKScene, ObservableObject {
         let panel = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
         panel.fillColor = SKColor(white: 0, alpha: 0.3)
         panel.strokeColor = .clear
+        // Under its text: the scene ignores sibling order, so the same depth could draw it over them.
+        panel.zPosition = -1
         card.addChild(panel)
         title.position = CGPoint(x: 0, y: height / 2 - 45)
         line.position = CGPoint(x: 0, y: height / 2 - 90)
