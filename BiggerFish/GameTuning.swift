@@ -936,8 +936,7 @@ enum GameTuning {
     static let creditsThanksFont: CGFloat = 22
     static let creditsThanksRise: CGFloat = 44
     static let creditsThanksSeconds: CGFloat = 1.7
-    /// The opening line, at the top for its first few seconds, and the end card after the last name.
-    static let creditsIntroSeconds: CGFloat = 4.5
+    /// The end card, this long after the last name.
     static let creditsCardDelay: CGFloat = 1.0
     /// Where each name comes in, which way it swims, and how it looks: the same every time.
     static let creditsSeed: UInt64 = 104

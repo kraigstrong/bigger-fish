@@ -63,6 +63,18 @@ struct ArcadeCreditsTests {
 
     // MARK: Playing it
 
+    /// Like a level, it opens on a card and nothing swims until the first tap.
+    @Test func itWaitsForATapToStart() {
+        let scene = CreditsScene(settings: settings())
+        let view = present(scene)
+        defer { withExtendedLifetime(view) {} }
+        let start = scene.debugPlayer.position
+        for frame in 0..<120 { scene.update(TimeInterval(frame) / 60) }
+        #expect(scene.debugWaitingToStart && scene.debugClock == 0 && scene.debugPlayer.position == start)
+        scene.debugAdvance(seconds: 1)
+        #expect(!scene.debugWaitingToStart && scene.debugClock > 0.9 && scene.debugPlayer.position.x != start.x)
+    }
+
     /// A player who goes for each name eats them all, in the file's order, and reaches the card in about a minute: each
     /// with the eat sound and a tap, growing a little (the camera easing out), then the clear chime.
     @Test func aPlayerEatsEveryNameInOrderInAboutAMinute() {
