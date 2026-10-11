@@ -3,6 +3,10 @@ import UIKit
 
 // The pause menu's controls, drawn in Settings' language (`SettingsView`): uppercase headings, plain rows, a gold
 // accent, on the same deep-blue backdrop.
+//
+// The scenes draw with `ignoresSiblingOrder`, so siblings at the same zPosition come out in any order: on a phone, a
+// backdrop or a tile added first can be drawn over the text added after it. Everything that sits on something else
+// gets its own depth.
 
 /// The pause menu's backdrop: Settings' deep-blue gradient over the whole screen, the paused game faintly showing.
 enum MenuBackdrop {
@@ -10,6 +14,8 @@ enum MenuBackdrop {
         let node = SKSpriteNode(texture: texture, size: size)
         node.anchorPoint = .zero
         node.alpha = 0.93
+        // Under everything on it, the controls' own backgrounds included.
+        node.zPosition = -10
         return node
     }
 
@@ -43,6 +49,7 @@ final class MenuButtonRow: SKNode {
             let pill = SKShapeNode(rect: rect, cornerRadius: size.height / 2)
             pill.fillColor = MenuSwitchRow.gold
             pill.strokeColor = .clear
+            pill.zPosition = -1
             addChild(pill)
             label.fontColor = Self.navy
             label.horizontalAlignmentMode = .center
@@ -57,6 +64,7 @@ final class MenuButtonRow: SKNode {
             let tile = SKShapeNode(rect: rect, cornerRadius: 12)
             tile.fillColor = UIColor(white: 1, alpha: 0.08)
             tile.strokeColor = .clear
+            tile.zPosition = -1
             addChild(tile)
             label.fontColor = .white
             label.horizontalAlignmentMode = .left
@@ -107,11 +115,14 @@ final class MenuSwitchRow: SKNode {
         knob.fillColor = .white
         knob.strokeColor = UIColor(white: 0, alpha: 0.12)
         knob.lineWidth = 0.5
+        knob.name = "knob"
         super.init()
 
         let switchX = Self.size.width / 2 - track.width / 2
-        for node in [offTrack, onTrack, knob] {
+        // The knob over the gold track, over the grey one.
+        for (node, depth) in [(offTrack, CGFloat(-2)), (onTrack, -1), (knob, 0)] {
             node.position.x = switchX
+            node.zPosition = depth
             addChild(node)
         }
         if let icon = SKSpriteNode.symbol(symbol, pointSize: 16, weight: .semibold) {

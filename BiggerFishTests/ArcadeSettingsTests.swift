@@ -112,6 +112,34 @@ struct ArcadeSettingsTests {
         }
     }
 
+    /// The scene draws with `ignoresSiblingOrder`, so only depth decides what's on top: the backdrop under everything,
+    /// and each control's words and icons over its own background. (Siblings at one depth drew in any order on a phone:
+    /// the backdrop came out over the controls.)
+    @MainActor @Test func thePauseMenuDrawsInOrderByDepthAlone() throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        defer { withExtendedLifetime(view) {} }
+        scene.debugStart()
+        scene.debugPauseForTuning()
+        let menu = scene.debugPauseMenu
+        func descendants(_ node: SKNode) -> [SKNode] { node.children.flatMap { [$0] + descendants($0) } }
+        func depth(_ node: SKNode) -> CGFloat {
+            var z: CGFloat = 0, current: SKNode? = node
+            while let at = current, at !== menu { z += at.zPosition; current = at.parent }
+            return z
+        }
+        let all = descendants(menu)
+        let backdrop = try #require(all.first { $0.name == "pauseBackdrop" })
+        #expect(all.filter { $0 !== backdrop }.allSatisfy { depth($0) > depth(backdrop) })
+        let words = all.filter { $0 is SKLabelNode || ($0 is SKSpriteNode && $0 !== backdrop) }
+        let backgrounds = all.filter { $0 is SKShapeNode && $0.name != "knob" }
+        let knobs = all.filter { $0.name == "knob" }
+        #expect(!words.isEmpty && !backgrounds.isEmpty && knobs.count == 3)
+        #expect(words.map(depth).min()! > backgrounds.map(depth).max()!)
+        #expect(knobs.map(depth).min()! > backgrounds.map(depth).max()!)
+    }
+
     @MainActor @Test func voiceOverReachesThePauseMenuAndItsSoundSwitches() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
