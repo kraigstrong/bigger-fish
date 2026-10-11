@@ -365,9 +365,9 @@ final class GameScene: SKScene {
         debugHaptics.append(haptic)
         #endif
         switch haptic {
-        case .meal: mealHaptic.impactOccurred(intensity: 0.5)
+        case .meal: mealHaptic.impactOccurred(intensity: T.mealHapticIntensity)
         case .closeCall: closeCallHaptic.impactOccurred()
-        case .bounce: closeCallHaptic.impactOccurred(intensity: 0.55)
+        case .bounce: closeCallHaptic.impactOccurred(intensity: T.bounceHapticIntensity)
         case .sting: eatenNotification.notificationOccurred(.error)
         case .eaten:
             eatenHaptic.impactOccurred(intensity: 1)
@@ -375,7 +375,8 @@ final class GameScene: SKScene {
         case .win: winNotification.notificationOccurred(.success)
         case .conquer:
             winNotification.notificationOccurred(.success)
-            run(.sequence([.wait(forDuration: 0.25), .run { [weak self] in self?.eatenHaptic.impactOccurred(intensity: 1) }]))
+            run(.sequence([.wait(forDuration: TimeInterval(T.conquerThumpDelay)),
+                           .run { [weak self] in self?.eatenHaptic.impactOccurred(intensity: T.conquerThumpIntensity) }]))
         }
     }
 
