@@ -343,6 +343,14 @@ enum GameTuning {
               mediumAISpeedMultiplier: mediumSpeedMultiplier)
     }
 
+    // MARK: Asking for a review (`ArcadeReview`)
+
+    /// At most this many requests ever, this far apart (90 days), as Math Reef does.
+    static let reviewRequestLimit = 2
+    static let reviewRetryInterval: TimeInterval = 90 * 24 * 60 * 60
+    /// How long after landing on the map the request waits, so it doesn't pop up mid-transition.
+    static let reviewRequestDelay: TimeInterval = 1.0
+
     // MARK: Free to try (`ArcadeUnlock`)
 
     /// Levels free without the unlock in each world after Shallow Reef (all ten of whose are free): a taste of what the

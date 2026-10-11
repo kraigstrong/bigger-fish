@@ -64,12 +64,16 @@ final class ArcadeAnalytics {
         defaults.data(forKey: prefix + "queue").flatMap { try? JSONDecoder().decode([Queued].self, from: $0) } ?? []
     }
     var queue: [ArcadeMetricEvent] { storedQueue.map(\.event) }
-    private func stamp(_ event: ArcadeMetricEvent) -> Queued {
+    /// Where this build came from: "debug" (Xcode), "testflight", or "appstore".
+    static var channel: String {
         #if DEBUG
-        let channel = "debug"
+        "debug"
         #else
-        let channel = Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt" ? "testflight" : "appstore"
+        Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt" ? "testflight" : "appstore"
         #endif
+    }
+    private func stamp(_ event: ArcadeMetricEvent) -> Queued {
+        let channel = Self.channel
         return Queued(event: event,
             appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1",
             build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1", channel: channel)

@@ -1,4 +1,5 @@
 import SpriteKit
+import StoreKit
 import SwiftUI
 
 struct ContentView: View {
@@ -22,6 +23,11 @@ struct ContentView: View {
     /// The conquered screen is the unlock's offer (beating Shallow Reef without it), decided as it opens so a purchase
     /// made on it shows its thanks rather than switching screens.
     @State private var celebrationOffersUnlock = false
+    /// Asking for an App Store review after a high point (see `ArcadeReview`), and whether the last level played was won.
+    @State private var review = ArcadeReview()
+    @State private var lastPlayWon = true
+    @Environment(\.requestReview) private var requestReview
+    @Environment(\.scenePhase) private var scenePhase
     /// The unlock's screen, featuring the world the player was trying to get into.
     @State private var offer: UnlockOffer?
     /// Settings, from the gear on the world map.
@@ -135,6 +141,8 @@ struct ContentView: View {
             }
         }
         #endif
+        .onChange(of: quietOnMap) { _, quiet in if quiet { askForReviewIfDue() } }
+        .onChange(of: offer == nil) { _, closed in if !closed { review.sawOffer() } }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .task { await warmUp() }
@@ -161,7 +169,25 @@ struct ContentView: View {
     /// its Deep End included.
     private func celebrate(_ world: ArcadeWorld) {
         celebrationOffersUnlock = ArcadeUnlock.needsUnlock(world, ArcadeWorld.mainLevelCount, unlocked: purchases.isUnlocked)
+        if celebrationOffersUnlock { review.sawOffer() }
         withAnimation { celebrating = world }
+    }
+
+    /// On a map with nothing else on screen (no unlock, conquered, or Settings screen), after a win, with the app in front: the moment to ask for a review, if
+    /// one is due. (In the background or under Notification Center, a request may show nothing yet use up an ask.)
+    private var quietOnMap: Bool {
+        loaded && scenePhase == .active && scene == nil && celebrating == nil && offer == nil && !showsSettings && lastPlayWon
+    }
+
+    private func askForReviewIfDue() {
+        guard quietOnMap, review.shouldRequest(channel: ArcadeAnalytics.channel) else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(GameTuning.reviewRequestDelay))
+            // Still on the map, with nothing come up meanwhile.
+            guard quietOnMap, review.shouldRequest(channel: ArcadeAnalytics.channel) else { return }
+            review.didRequest()
+            requestReview()
+        }
     }
 
     /// The unlock is bought, or isn't on sale yet: nothing past the free levels is locked.
@@ -273,11 +299,15 @@ struct ContentView: View {
         // The last level cleared for the first time this visit, so the map can show the step forward.
         var firstClear: Int?
         advancedFrom = nil
+        lastPlayWon = false
         game.onClear = { [weak game] index, seconds in
             #if DEBUG
             guard let scene = game, !scene.debugPracticeRun, !scene.debugHasTuningOverride else { return }
             #endif
             firstClear = progress.isCleared(world, index) ? nil : index
+            lastPlayWon = true
+            // A high point worth a review: conquering a world, or a first Deep End clear.
+            if firstClear != nil && (index == ArcadeWorld.mainLevelCount - 1 || ArcadeWorld.isDeepEnd(index)) { review.earned() }
             if index == ArcadeWorld.mainLevelCount - 1 && !progress.isCleared(world, index) {
                 // Straight to the conquered screen, with no result card first.
                 conquered = world
