@@ -155,7 +155,10 @@ struct ContentView: View {
         .onChange(of: music, initial: true) { _, music in ArcadeAudio.shared.playMusic(music) }
         .onAppear {
             purchases.start()
-            if !metricsLaunched { analytics.launched(); analytics.flush(); metricsLaunched = true }
+            if !metricsLaunched {
+                if analytics.enabled { ArcadeURLMetricSender.warmUp() }
+                analytics.launched(); analytics.flush(); metricsLaunched = true
+            }
             #if DEBUG
             StoreCapture.begin()
             if scene == nil, let world = ArcadePlaytest.mapSelection {
