@@ -31,10 +31,10 @@ after a loss. The final level offers Play again / Levels. Only buttons advance t
 Pausing offers Resume, Restart, and Level map. Cleared levels remain replayable. World completion
 returns to its map with the final level focused rather than restarting the campaign.
 
-A clear means becoming the last fish swimming, with no meal quota or replenishment. Meal counters
-and HUD code remain dormant for a future endless mode. All tuning lives in `GameTuning`; the
-current campaigns are described in [shallow-reef-ten-level-campaign.md](shallow-reef-ten-level-campaign.md)
-and [jelly-bloom-free-campaign.md](jelly-bloom-free-campaign.md).
+A clear means becoming the last fish swimming, with no meal quota or replenishment. All tuning lives in
+`GameTuning`; the campaigns are planned levels, described in [meeting-planner.md](meeting-planner.md). The
+original seeded campaigns, with their spawner, food refills, and meal counter, are retired; an endless mode
+could start from them in git history.
 
 ## Privacy
 

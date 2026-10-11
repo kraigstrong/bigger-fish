@@ -219,9 +219,8 @@ variations still plan on the device.
 
 Reef Lab and Jelly Bloom 2 were A/B tested as Shallow Reef 2 and Jelly Bloom 2 against the seeded
 campaigns, won, and now are **Shallow Reef** and **Jelly Bloom**, under the original `shallow-reef` and
-`jelly-bloom` IDs (progress and anonymous analytics). The seeded levels stay in `GameTuning` for the
-debug tuner and the generator's tests (`GameScene(seeded: true)`). In Debug builds, **Tuning > Players**
-resets a world's progress for a new player.
+`jelly-bloom` IDs (progress and anonymous analytics). The seeded campaigns are retired; git history has
+them. In Debug builds, **Tuning > Players** resets a world's progress for a new player.
 
 **Tuning > Shallow Reef variations** (Debug) plays other layouts of the same settings as practice runs, or launch with
 `-arcadePlanner 10.3` (Shallow Reef level 10, variation 3); `-arcadePlaytest shallow-reef.10` plays the level

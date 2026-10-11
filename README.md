@@ -120,12 +120,8 @@ python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-
 ## Tuning
 
 Every feel constant — movement, growth, swallow timing, AI behavior, spawn distribution,
-and the `aiFishCanEatEachOther` flag — lives in `BiggerFish/GameTuning.swift`.
-Shallow Reef's ten levels are defined in `GameTuning.levels`; Jelly Bloom's ten are in
-`GameTuning.bloomLevels`. Both use encounter difficulty targets; their original five
-profiles remain in `GameTuning.shallowReferenceLevels` and `GameTuning.bloomReferenceLevels` for comparison. Each sets fish speeds, player speed, and meal growth;
-Bloom also sets jelly count, tentacle length, sway, and its night palette. See
-[`docs/shallow-reef-ten-level-campaign.md`](docs/shallow-reef-ten-level-campaign.md) for the new fish-only campaign targets.
+and the `aiFishCanEatEachOther` flag — lives in `BiggerFish/GameTuning.swift`, along with each
+world's level specs (see Meeting planner below).
 
 For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4` in Xcode (world ID
 plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save.
@@ -158,32 +154,15 @@ periodically and on pause, and keep the latest 100 files. An interrupted run rem
 an abrupt process kill may lose the most recent queued records. Nothing is uploaded automatically.
 Add `-arcadeDisableRunRecording` to Xcode's launch arguments to disable recording temporarily.
 
-
-### Tune on your phone (Debug only)
-
-Tap **Tuning** on a map or during a run. During play this pauses and flushes the recording.
-Choose a world/level, edit fish counts and size ranges, growth, AI/player speed, food-pocket
-release, jelly count/radius/tentacles, bounce strength, or layout/seed variation. **Apply & Play**
-saves a per-level override and starts a fresh practice run immediately, without rebuilding.
-Practice runs and overridden levels do not write campaign progress. Closing the panel leaves
-an existing run paused. Overrides persist across launches and restarts.
-
-Save named presets for comparisons. **Load shipped settings** loads the checked-in configuration;
-**Load before-roaming experiment** restores the prior slow AI, bounded food pockets, and authored
-jelly layout. Those buttons edit the draft; Apply saves it. **Remove override for this level**
-clears its saved settings and starts a practice run with the checked-in configuration.
-Presets are local, hold at most ten names, and can be applied to another level. Level geometry and
-starting fish cannot always fit extreme combinations; the run analysis flags spawn shortfalls.
-These tools and overrides are absent in Release/TestFlight.
-
 ### Meeting planner
 
 Both worlds play planned levels: each gate's slack and routes are designed, and every fish still swims
 freely into its meeting. They won an A/B test as Shallow Reef 2 and Jelly Bloom 2 (internally Reef Lab
 and Jelly Lab) and replaced the seeded campaigns under the original `shallow-reef` and `jelly-bloom` IDs.
-Jelly Bloom's jellyfish drift, to bounce off and dodge. In Debug builds, **Tuning > Players** resets a
-world for a new player, **Tuning > Shallow Reef variations** plays other layouts, and the rest of the
-tuner still edits the retired seeded levels. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
+Jelly Bloom's jellyfish drift, to bounce off and dodge. In Debug builds, **Tuning** (on a map or during
+a run) has **Players**, to reset a world for a new player, and **Shallow Reef variations**, to play other
+layouts. The seeded campaigns are retired; git history has them. See
+[`docs/meeting-planner.md`](docs/meeting-planner.md).
 
 ### Automatic run diagnostics
 
@@ -201,39 +180,12 @@ food chain. Jellyfish no longer kill AI fish. Threat/cleanup metrics concern fis
 early deaths are descriptive; fast deaths can be desirable opening tension. Cleanup tails are
 review signals, not a validated universal fun score.
 Compare them with player feedback, especially the favorite Shallow Reef level 4 recordings.
-Diagnostics are offline and do not alter gameplay. New recordings include the effective tuning
-and both seeds, so changes on the phone remain attributable.
+Diagnostics are offline and do not alter gameplay. New recordings include the level's settings
+and its seed.
 
 Player encounters within the 1% near-equal radius band favor the player, including a
 fractionally larger opponent. NPC ties still bump apart. New run headers include
 `playerWinsTies`; the offline analyzer preserves the old rule for older recordings.
-
-### Simulate food races locally (Debug only)
-
-The freely moving ten-level campaign and its 1,488 seed-search/validation runs are described in
-[the campaign report](docs/jelly-bloom-free-campaign.md). The debug tuner exposes difficulty,
-seed re-rolls, copyable full seeds, effective growth, and an advisory three-size winning-route check.
-
-The original five-level profiles remain in the debug tuner for comparison; their studies are in
-git history.
-
-To repeat the final validation:
-
-```sh
-python3 scripts/study-arcade-balance.py \
-  --profiles docs/jelly-bloom-free-campaign-profiles.json --seeds 0 --passes 0 \
-  --sizes 874x402,852x393,667x375 --limit 90 --run \
-  --output build/arcade-development/studies/validation
-```
-
-Use `--passes 0,1,2` to test skipped circuits or `--meal-limits=-1,0,1,2,3,4,5,6`
-for first-pass meal caps. Requests, raw results, summaries, and logs stay under ignored `build/`.
-The study uses simulator tests, does not render or record runs, and cannot write campaign
-progress. Its activation marker is removed by the command afterward. Normal test runs skip
-large studies unless that marker was explicitly prepared. Shut down the simulator after a batch
-if you are done testing.
-
-Current Jelly Bloom playtest: [free-moving ten-level campaign](docs/jelly-bloom-free-campaign.md), with globally reduced meal growth.
 
 ## Anonymous arcade diagnostics
 
