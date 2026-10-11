@@ -29,14 +29,15 @@ struct ArcadeCreditsTests {
 
     // MARK: The names
 
-    /// The play-testers come first, exactly as Kraig gave them, then the music and sound effects, which are the ones
-    /// Sounds/CREDITS.md names: a sound added or swapped there fails this until Credits.json follows.
+    /// Design and the play-testers come first, exactly as Kraig gave them, then the music and sound effects, which are
+    /// the ones Sounds/CREDITS.md names: a sound added or swapped there fails this until Credits.json follows.
     @Test func theNamesAreTheTestersThenWhatCreditsMDNames() throws {
         let credits = try #require(ArcadeCredits.load(), "Credits.json is missing from the app or doesn't decode")
         #expect(credits == ArcadeCredits.shipped)
-        #expect(credits.groups.map(\.heading) == ["Play-testers", "Music", "Sound effects"])
-        #expect(credits.groups[0].credits.map(\.name) == ["Chad H", "Adam A", "Andy W", "Riley S", "Reagan S"])
-        #expect(credits.names.map(\.tag) == Array(repeating: "Play-tester", count: 5)
+        #expect(credits.groups.map(\.heading) == ["Design", "Play-testers", "Music", "Sound effects"])
+        #expect(credits.groups[0].credits.map(\.name) == ["Megan S"])
+        #expect(credits.groups[1].credits.map(\.name) == ["Chad H", "Adam A", "Andy W", "Riley S", "Reagan S"])
+        #expect(credits.names.map(\.tag) == ["Design"] + Array(repeating: "Play-tester", count: 5)
             + ["Music · Tidal Groove", "Music · Aquarium Fish", "Sound effects"])
 
         let markdown = try String(contentsOf: Self.root.appendingPathComponent("BiggerFish/Sounds/CREDITS.md"), encoding: .utf8)
@@ -50,13 +51,14 @@ struct ArcadeCreditsTests {
         let libraries = Set(section("Sound effects").matches(of: #/- (\w+) \d+, "/#).map { String($0.1) })
         #expect(tracks.count == 2 && libraries == ["Mixkit"], "parsed \(tracks) and \(libraries)")
 
-        let music = credits.groups[1].credits
+        func group(_ heading: String) -> [ArcadeCredits.Entry] { credits.groups.first { $0.heading == heading }?.credits ?? [] }
+        let music = group("Music")
         #expect(music.map(\.name) == tracks.map(\.creator))
         for (entry, track) in zip(music, tracks) {
             #expect(track.title.hasPrefix(entry.work ?? "?"), "\(entry.name) made \(track.title)")
             #expect(entry.via == track.source)
         }
-        #expect(credits.groups[2].credits.map(\.name) == libraries.sorted())
+        #expect(group("Sound effects").map(\.name) == libraries.sorted())
     }
 
     // MARK: Playing it

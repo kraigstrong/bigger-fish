@@ -1,6 +1,13 @@
 {
   "groups": [
     {
+      "heading": "Design",
+      "role": "Design",
+      "credits": [
+        { "name": "Megan S" }
+      ]
+    },
+    {
       "heading": "Play-testers",
       "role": "Play-tester",
       "credits": [
