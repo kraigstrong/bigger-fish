@@ -190,25 +190,29 @@ struct WorldConqueredView: View {
             LinearGradient(colors: [DeepEndColors.night, DeepEndColors.abyss], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
                 .onTapGesture(perform: onLater)
-            VStack(spacing: 14) {
-                VStack(spacing: 2) {
-                    Text("\(world.title) conquered!").font(.custom("AvenirNext-Heavy", size: 28))
-                    Text("You ate your way to the top.").font(.custom("AvenirNext-DemiBold", size: 14)).opacity(0.85)
-                }
-                if world.deepEndCount > 0 {
-                    UnlockCard(title: "The Deep End is open", line: "Need more challenge?\nGo into the deep.",
-                               button: "Dive in", color: DeepEndColors.gold, action: onDeepEnd) {
-                        DeepEndBadge(size: 88)
-                    }
-                }
-                Button("Maybe later", action: onLater)
-                    .font(.custom("AvenirNext-DemiBold", size: 15)).buttonStyle(.plain).opacity(0.8)
-                    .padding(.top, 2)
-            }
-            .foregroundStyle(.white)
-            .scaleEffect(shown ? 1 : 0.85).opacity(shown ? 1 : 0)
+            ScreenScaled { _, _ in card }
         }
         .onAppear { withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { shown = true } }
+    }
+
+    private var card: some View {
+        VStack(spacing: 14) {
+            VStack(spacing: 2) {
+                Text("\(world.title) conquered!").font(.custom("AvenirNext-Heavy", size: 28))
+                Text("You ate your way to the top.").font(.custom("AvenirNext-DemiBold", size: 14)).opacity(0.85)
+            }
+            if world.deepEndCount > 0 {
+                UnlockCard(title: "The Deep End is open", line: "Need more challenge?\nGo into the deep.",
+                           button: "Dive in", color: DeepEndColors.gold, action: onDeepEnd) {
+                    DeepEndBadge(size: 88)
+                }
+            }
+            Button("Maybe later", action: onLater)
+                .font(.custom("AvenirNext-DemiBold", size: 15)).buttonStyle(.plain).opacity(0.8)
+                .padding(.top, 2)
+        }
+        .foregroundStyle(.white)
+        .scaleEffect(shown ? 1 : 0.85).opacity(shown ? 1 : 0)
     }
 
     private struct UnlockCard<Picture: View>: View {

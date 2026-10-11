@@ -13,6 +13,8 @@ struct ContentView: View {
     @State private var metricsLaunched = false
     @State private var selectedWorld: ArcadeWorld?
     @State private var scene: GameScene?
+    /// The level's pause menu is up (`GameScene.onPause`).
+    @State private var scenePaused = false
     /// The level last played in `selectedWorld`, so its map opens there; nil on first entry.
     @State private var returnedFrom: Int?
     /// A level just cleared for the first time, when coming back to its map: your fish swims on to the next.
@@ -36,6 +38,8 @@ struct ContentView: View {
     @State private var credits: CreditsScene?
     /// The loading screen shows until every world's levels are ready.
     @State private var loaded = false
+    /// `ScreenFit.menuScale` for the window: 1 on a phone.
+    @State private var menuScale: CGFloat = 1
     #if DEBUG
     @State private var showsTuning = false
     #endif
@@ -47,18 +51,8 @@ struct ContentView: View {
             } else if let credits {
                 CreditsView(scene: credits).transition(.opacity)
             } else if let scene {
-                GeometryReader { geometry in
-                    let fitted = GameTuning.fittedPlayfieldSize(in: geometry.size)
-                    ZStack {
-                        OceanBackdrop(bloom: scene.arcadeWorld.hasJellies)
-                        SpriteView(scene: scene, preferredFramesPerSecond: 120, options: [.ignoresSiblingOrder])
-                            .id(ObjectIdentifier(scene))
-                            .frame(width: fitted.width, height: fitted.height)
-                    }
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                }
-                .ignoresSafeArea()
-                .transition(.opacity)
+                PlayfieldScreen(scene: scene, water: .of(scene.arcadeWorld), paused: scenePaused)
+                    .transition(.opacity)
             } else if let world = selectedWorld {
                 ArcadeLevelMap(world: world, progress: progress, unlocked: unlocked, returnedFrom: returnedFrom,
                                advancedFrom: advancedFrom,
@@ -105,13 +99,7 @@ struct ContentView: View {
         .overlay(alignment: .topLeading) {
             // Small, for players who've played before and reinstalled.
             if let scene, scene.isTutorial {
-                Button("Skip") { scene.skipTutorial() }
-                    .font(.custom("AvenirNext-DemiBold", size: 14)).foregroundStyle(.white.opacity(0.75))
-                    .padding(.horizontal, 14).padding(.vertical, 7)
-                    .background(.black.opacity(0.25), in: Capsule())
-                    .buttonStyle(.plain)
-                    .padding(.leading, 24).padding(.top, 14)
-                    .accessibilityLabel("Skip the tutorial")
+                SkipButton(accessibilityLabel: "Skip the tutorial") { scene.skipTutorial() }
             }
         }
         #if DEBUG
@@ -151,6 +139,9 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in if phase == .background { analytics.backgrounded() } }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
+        // Bigger on an iPad: the Skip buttons over the scenes (each menu screen sizes itself, `ScreenScaled`).
+        .environment(\.menuScale, menuScale)
+        .onGeometryChange(for: CGFloat.self) { ScreenFit.menuScale(for: $0.size) } action: { menuScale = $0 }
         .task { await warmUp() }
         .onChange(of: music, initial: true) { _, music in ArcadeAudio.shared.playMusic(music) }
         .onAppear {
@@ -179,6 +170,7 @@ struct ContentView: View {
     #if DEBUG
     /// A screen opened at launch to check its layout (`ArcadePlaytest.screen`).
     private func open(_ screen: ArcadePlaytest.Screen) {
+        ArcadePlaytest.captureScreen()
         switch screen {
         case .worlds: break
         case .settings: showsSettings = true
@@ -283,7 +275,7 @@ struct ContentView: View {
             scene = nil
         }
         selectedWorld = .shallowReef
-        scene = game
+        show(game)
     }
     #endif
 
@@ -306,6 +298,13 @@ struct ContentView: View {
                 returnedFrom = nil
             }
         }
+        show(game)
+    }
+
+    /// Puts a level (or the tutorial) on screen.
+    private func show(_ game: GameScene) {
+        scenePaused = false
+        game.onPause = { scenePaused = $0 }
         scene = game
     }
 
@@ -392,7 +391,25 @@ struct ContentView: View {
                 celebrate(world)
             }
         }
-        scene = game
+        show(game)
+    }
+}
+
+/// Skip, small in the screen's top corner, for the tutorial and the credits: for players who've seen them before.
+struct SkipButton: View {
+    let accessibilityLabel: String
+    let action: () -> Void
+    @Environment(\.menuScale) private var scale
+
+    var body: some View {
+        Button("Skip", action: action)
+            .font(.custom("AvenirNext-DemiBold", size: 14)).foregroundStyle(.white.opacity(0.75))
+            .padding(.horizontal, 14).padding(.vertical, 7)
+            .background(.black.opacity(0.25), in: Capsule())
+            .buttonStyle(.plain)
+            .padding(.leading, 24).padding(.top, 14)
+            .scaleEffect(scale, anchor: .topLeading)
+            .accessibilityLabel(accessibilityLabel)
     }
 }
 

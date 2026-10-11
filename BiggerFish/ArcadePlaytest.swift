@@ -70,11 +70,32 @@ enum ArcadePlaytest {
     /// unlock ("conquered" shows the unlock's offer without it), or -arcadePlaytest with -arcadeResult for a result card.
     enum Screen: String { case worlds, settings, unlock, conquered, credits, tutorial, pause }
 
-    static let screen: Screen? = {
+    static let screen: Screen? = argument("-arcadeScreen").flatMap(Screen.init(rawValue:))
+
+    /// With -arcadeScreenCapture <name> as well: the screen once it has settled, saved to
+    /// Documents/ScreenCheck/<name>.png at the screen's full resolution. (An iPad simulator held upright shows a
+    /// landscape-only app shrunk, and so do its screenshots.)
+    @MainActor static func captureScreen() {
+        guard screen != nil, let name = argument("-arcadeScreenCapture") else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(GameTuning.launchMinimumSeconds + 3.5))
+            let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("ScreenCheck", isDirectory: true)
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            guard let data = StoreCapture.windowPNG(),
+                  (try? data.write(to: directory.appendingPathComponent("\(name).png"), options: .atomic)) != nil else {
+                print("[ScreenCheck] \(name) failed")
+                return
+            }
+            print("[ScreenCheck] \(name) saved")
+        }
+    }
+
+    private static func argument(_ flag: String) -> String? {
         let args = ProcessInfo.processInfo.arguments
-        guard let flag = args.firstIndex(of: "-arcadeScreen"), args.indices.contains(flag + 1) else { return nil }
-        return Screen(rawValue: args[flag + 1])
-    }()
+        guard let index = args.firstIndex(of: flag), args.indices.contains(index + 1) else { return nil }
+        return args[index + 1]
+    }
 
     /// A screen check's own saved state, wiped and staged at launch as the App Store captures stage theirs: Shallow
     /// Reef conquered with a best time on each level, the tutorial and every "conquered" screen seen. Never backed up

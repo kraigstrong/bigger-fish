@@ -25,9 +25,11 @@ struct ArcadeWorldMap: View {
     let onSettings: () -> Void
 
     var body: some View {
-        GeometryReader { geometry in
-            let size = geometry.size
-            let centers = OceanMapLayout.worldCenters(count: 5, size: size)
+        ScreenScaled { size, _ in
+            // On a screen taller than a phone's (an iPad), the stops keep a phone's spread, in the middle.
+            let spread = min(size.height, ScreenFit.largestPhone.height)
+            let centers = OceanMapLayout.worldCenters(count: 5, size: CGSize(width: size.width, height: spread))
+                .map { CGPoint(x: $0.x, y: $0.y + (size.height - spread) / 2) }
             let worlds = ArcadeWorld.mapWorlds
             // The fifth stop, until a fifth world is on the map (as a prototype in Xcode builds).
             let comingSoon = [("Riptide Reef", Color.pink)]
@@ -146,8 +148,7 @@ struct ArcadeLevelMap: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            let size = geometry.size
+        ScreenScaled { size, insets in
             let width = max(size.width, OceanMapLayout.levelContentWidth(count: world.levelCount))
             let centers = OceanMapLayout.levelCenters(count: world.levelCount, height: size.height)
             let advanced = advancedFrom.flatMap { progress.isOpen(world, $0 + 1) && centers.indices.contains($0 + 1) ? $0 : nil }
@@ -161,7 +162,6 @@ struct ArcadeLevelMap: View {
                                 // Drawn out past the safe area at the bottom and right, and past the end, so the deep
                                 // water fills the screen even when the map bounces at its end. As an overlay it takes
                                 // no room, so the map's layers keep their size and the fish stays on its stop.
-                                let insets = geometry.safeAreaInsets
                                 Color.clear.frame(width: width - dropX, height: size.height)
                                     .overlay(alignment: .topLeading) {
                                         DeepEndZone(open: progress.isOpen(world, ArcadeWorld.mainLevelCount),
@@ -354,8 +354,41 @@ private struct MapArtLayer: View {
         scene = MapDecorationScene(size: size, points: points, fishHome: fishHome, fishFrom: fishFrom, pulsingStops: pulsingStops)
     }
     var body: some View {
-        SpriteView(scene: scene, preferredFramesPerSecond: 30, options: [.allowsTransparency, .ignoresSiblingOrder])
-            .allowsHitTesting(false).accessibilityHidden(true)
+        MapArtView(scene: scene).allowsHitTesting(false).accessibilityHidden(true)
+    }
+}
+
+/// The map art's SpriteKit view: SpriteView's, but drawn at the menus' scale (`ScreenScaled`) on an iPad, where a
+/// SwiftUI scale effect would only stretch what it drew at a phone's size.
+private struct MapArtView: UIViewRepresentable {
+    let scene: SKScene
+
+    func makeUIView(context: Context) -> ScaledView {
+        let view = ScaledView()
+        view.allowsTransparency = true
+        view.ignoresSiblingOrder = true
+        view.preferredFramesPerSecond = 30
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: ScaledView, context: Context) {
+        view.menuScale = context.environment.menuScale
+        if view.scene !== scene { view.presentScene(scene) }
+    }
+
+    final class ScaledView: SKView {
+        var menuScale: CGFloat = 1 { didSet { if menuScale != oldValue { matchScreen() } } }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            matchScreen()
+        }
+
+        private func matchScreen() {
+            guard let screen = window?.windowScene?.screen else { return }
+            contentScaleFactor = screen.scale * menuScale
+        }
     }
 }
 
