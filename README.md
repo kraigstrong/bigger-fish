@@ -174,6 +174,12 @@ syncs to iCloud.
 Add `-arcadeResult passed` or `-arcadeResult failed` to preview its result panel without recording a
 clear. Remove the arguments to return to the normal world map and real campaign progress.
 
+To check a screen's layout at a device's size (an iPad, a small phone), `-arcadeScreen <screen>` opens it at launch:
+`worlds`, `settings`, `unlock`, `conquered`, `credits`, `tutorial`, or `pause` (with `-arcadePlaytest` for the
+level to pause). It plays in a staged save of its own (`biggerFish.screen`: Shallow Reef conquered, the tutorial
+seen), which never syncs to iCloud. Add `-arcadeMap <world ID>` for a level map, `-arcadeUnlocked YES` or `NO` for
+either side of the unlock, or `-arcadePlaytest` with `-arcadeResult` for a result card.
+
 ## Debug playtest recordings
 
 Bigger Fish Xcode Debug builds automatically record runs locally in `Documents/ArcadeRuns`.

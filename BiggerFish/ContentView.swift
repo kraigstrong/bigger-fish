@@ -122,7 +122,7 @@ struct ContentView: View {
             }
             .font(.caption.bold()).buttonStyle(.borderedProminent)
             .padding(.trailing, 12).padding(.bottom, 4)
-            .opacity(StoreCapture.moment == nil && credits == nil ? 1 : 0)
+            .opacity(StoreCapture.moment == nil && ArcadePlaytest.screen == nil && credits == nil ? 1 : 0)
         }
         .sheet(isPresented: $showsTuning) {
             ArcadeTuningPanel(onPlanner: playPlanner, onResetProgress: { progress.reset($0) })
@@ -171,9 +171,36 @@ struct ContentView: View {
             if scene == nil, let planner = ArcadePlaytest.planner {
                 playPlanner(planner.spec, variation: planner.variation)
             }
+            if let screen = ArcadePlaytest.screen { open(screen) }
             #endif
         }
     }
+
+    #if DEBUG
+    /// A screen opened at launch to check its layout (`ArcadePlaytest.screen`).
+    private func open(_ screen: ArcadePlaytest.Screen) {
+        switch screen {
+        case .worlds: break
+        case .settings: showsSettings = true
+        case .unlock: offer = UnlockOffer(featured: .jellyBloom, source: nil)
+        case .conquered:
+            selectedWorld = .shallowReef
+            celebrate(.shallowReef, preview: true)
+        case .credits:
+            showsSettings = true
+            playCredits()
+        case .tutorial: playTutorial()
+        case .pause:
+            guard let scene else { return }
+            Task { @MainActor in
+                while scene.view == nil { try? await Task.sleep(for: .milliseconds(50)) }
+                try? await Task.sleep(for: .seconds(0.5))
+                scene.debugStart()
+                scene.debugPauseForTuning()
+            }
+        }
+    }
+    #endif
 
     /// Shows a world's conquered screen. Without the unlock, beating Shallow Reef is the moment to show what it opens,
     /// its Deep End included. `preview` (Xcode builds, from the tuner) shows it without counting it.

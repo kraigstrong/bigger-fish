@@ -61,7 +61,33 @@ enum ArcadePlaytest {
     static let suiteName = "biggerFish.playtest"
 
     static var defaults: UserDefaults {
-        StoreCapture.defaults ?? (selection == nil ? .standard : UserDefaults(suiteName: suiteName)!)
+        StoreCapture.defaults ?? screenDefaults ?? (selection == nil ? .standard : UserDefaults(suiteName: suiteName)!)
+    }
+
+    /// A screen to open at launch, to check its layout at a device's size (an iPad, a small phone):
+    /// -arcadeScreen worlds, settings, unlock, conquered, credits, tutorial, or pause (with -arcadePlaytest for the
+    /// level to pause). Add -arcadeMap <world ID> for a level map, -arcadeUnlocked YES or NO for either side of the
+    /// unlock ("conquered" shows the unlock's offer without it), or -arcadePlaytest with -arcadeResult for a result card.
+    enum Screen: String { case worlds, settings, unlock, conquered, credits, tutorial, pause }
+
+    static let screen: Screen? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let flag = args.firstIndex(of: "-arcadeScreen"), args.indices.contains(flag + 1) else { return nil }
+        return Screen(rawValue: args[flag + 1])
+    }()
+
+    /// A screen check's own saved state, wiped and staged at launch as the App Store captures stage theirs: Shallow
+    /// Reef conquered with a best time on each level, the tutorial and every "conquered" screen seen. Never backed up
+    /// to iCloud (`ArcadeProgress.backup`).
+    static let screenSuiteName = "biggerFish.screen"
+
+    private static let screenDefaults: UserDefaults? = screen.map { _ in
+        let defaults = UserDefaults(suiteName: screenSuiteName)!
+        defaults.removePersistentDomain(forName: screenSuiteName)
+        if let data = try? JSONEncoder().encode(StoreCapture.stagedSave(for: .conquered)) {
+            defaults.set(data, forKey: ArcadeProgress.key)
+        }
+        return defaults
     }
 }
 #endif
