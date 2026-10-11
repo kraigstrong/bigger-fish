@@ -63,7 +63,8 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
 - **Audio:** every sound's source and license goes in its app's credits file:
   `MathReef/Sounds/CREDITS.md` or `BiggerFish/Sounds/CREDITS.md`. Mixkit's
   *sound effects* license covers games; Mixkit's *music* license does not, so no Mixkit music in
-  the apps.
+  the apps. Bigger Fish's credits game also names the music's creators and the sound library in
+  `BiggerFish/Credits.json` (with its play-testers); a test fails until the two files agree.
 - **Privacy:** Math Reef is a kids' app. Don't add third-party analytics, ads, or tracking SDKs.
 - **Analytics are first-party, anonymous counts only** (`MathReef/ReefAnalytics.swift`): no
   identifiers, timestamps, or device details. Any new event field must be added to the payload

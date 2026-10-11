@@ -892,6 +892,55 @@ enum GameTuning {
     /// After the last catch: when its closing line fades in, and when it leaves for the map (seconds, real time).
     static let tutorialFinaleDelay: CGFloat = 0.5
     static let tutorialFinaleSeconds: CGFloat = 2.8
+
+    // MARK: Credits (`CreditsScene`)
+
+    /// A calm swim: you cross a screen every `creditsCrossSeconds` (a level's is about 3.2), and the camera eases out as you
+    /// grow, as in a level. Its water is `creditsWorldScreens` wide, so names ahead and behind never meet round the wrap
+    /// however far it zooms out. The map's calm track, Tidal Groove, plays on from Settings.
+    static let creditsCrossSeconds: CGFloat = 6
+    static let creditsWorldScreens: CGFloat = 8
+    static let creditsMusic: ArcadeAudio.Music = .menu
+    /// Each name is a fish this share of your size when it comes in, every one the same, and eating one adds this share of
+    /// its area to you: about 8% bigger a name, so you grow a little each time.
+    static let creditsNameSize: CGFloat = 0.62
+    static let creditsGrowth: CGFloat = 0.45
+    /// Names come in this many screens ahead of you (just off screen), the next once you've swum `creditsSpacing` screens
+    /// since the last came in: one at a time, about six seconds apart, the next soon after you meet the last. At most
+    /// `creditsInWater` are in the water at once. One more than `creditsMissedBehind` screens behind you was missed: it
+    /// comes round again, next in line (no other comes in while it's behind you).
+    static let creditsEnterAhead: CGFloat = 0.85
+    static let creditsSpacing: CGFloat = 1.05
+    static let creditsInWater = 3
+    static let creditsMissedBehind: CGFloat = 0.5
+    /// How names swim, like the tutorial's free swimmers: on at a speed from `creditsSwimSpeed` (points a second, a little
+    /// faster and slower as they go), most of them at you (`creditsAtYouShare`), wandering up and down `creditsWander` of
+    /// the water from a height at up to `creditsWanderSpeed`, and turning round every so often (`creditsTurnSeconds`).
+    /// They keep above `creditsLowest` of the water, and low enough that their tag fits under the top of the screen.
+    /// With Reduce Motion they don't turn, and wander half as far and as fast.
+    static let creditsSwimSpeed: ClosedRange<CGFloat> = 22...34
+    static let creditsAtYouShare: Double = 0.65
+    static let creditsWander: CGFloat = 0.1
+    static let creditsWanderSpeed: CGFloat = 24
+    static let creditsTurnSeconds: ClosedRange<CGFloat> = 1.5...5
+    static let creditsLowest: CGFloat = 0.1
+    /// The tag over each name, in points on screen at any zoom: the name, the role line over it, and the gap between the
+    /// tag's point and the fish. It stays this far below the top of the screen.
+    static let creditsNameFont: CGFloat = 21
+    static let creditsRoleFont: CGFloat = 11
+    static let creditsTagGap: CGFloat = 3
+    static let creditsTagTopMargin: CGFloat = 8
+    /// Eaten, a name's tag pops (bursts, or with Reduce Motion fades) over `creditsPopSeconds`, and then "Thanks, Chad H!"
+    /// floats up from it this many points as it fades, over this many seconds (in place, with Reduce Motion).
+    static let creditsPopSeconds: CGFloat = 0.12
+    static let creditsThanksFont: CGFloat = 22
+    static let creditsThanksRise: CGFloat = 44
+    static let creditsThanksSeconds: CGFloat = 1.7
+    /// The opening line, at the top for its first few seconds, and the end card after the last name.
+    static let creditsIntroSeconds: CGFloat = 4.5
+    static let creditsCardDelay: CGFloat = 1.0
+    /// Where each name comes in, which way it swims, and how it looks: the same every time.
+    static let creditsSeed: UInt64 = 104
 }
 
 struct Level {

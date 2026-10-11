@@ -8,13 +8,14 @@ enum ArcadeLinks {
 }
 
 /// Settings, from the gear on the world map: sound, music, and vibration; replaying the tutorial; restoring the
-/// unlock; the privacy policy and support; credits; and the version.
+/// unlock; the privacy policy and support; the credits, played as a little game (`CreditsScene`); and the version.
 struct SettingsView: View {
     @ObservedObject var settings = ArcadeSettings.shared
     @ObservedObject var purchases: ArcadePurchases
     /// Counts how a restore here goes (the paywall funnel).
     var analytics: ArcadeAnalytics? = nil
     let onReplayTutorial: () -> Void
+    let onPlayCredits: () -> Void
     let onClose: () -> Void
     @Environment(\.openURL) private var openURL
     @State private var restoring: RestoreState = .idle
@@ -51,9 +52,7 @@ struct SettingsView: View {
                             row("Privacy policy", symbol: "hand.raised.fill", trailing: "arrow.up.right") { openURL(ArcadeLinks.privacy) }
                             row("Support", symbol: "questionmark.circle.fill", trailing: "arrow.up.right") { openURL(ArcadeLinks.support) }
                             heading("Credits").padding(.top, 6)
-                            Text("Music: “Tidal Groove” by tideblue and “Aquarium Fish” by Magiksolo, from Pixabay. Sound effects from Mixkit.")
-                                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.75)
-                                .fixedSize(horizontal: false, vertical: true)
+                            row("Play the credits", symbol: "fish.fill", action: onPlayCredits)
                             Text(Self.versionLine(Bundle.main.infoDictionary ?? [:]))
                                 .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.55)
                         }
