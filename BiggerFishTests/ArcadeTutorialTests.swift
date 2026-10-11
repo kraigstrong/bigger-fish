@@ -254,6 +254,18 @@ struct ArcadeTutorialTests {
         }
     }
 
+    /// A fish whose scripted path ends mid-meal finishes eating before it leaves; and a fish taken out mid-swallow lets
+    /// the other go. Before, the swallow was orphaned: its prey waited forever, and if that was you, the run never ended.
+    @Test func aFishLeavingMidSwallowLeavesNothingStuck() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        scene.debugStartTutorial(at: .holdToRise)
+        let left = scene.debugLeavingMidSwallow()
+        #expect(left.stayedToEat && left.leftAfter && left.youSwimOn, "\(left)")
+        withExtendedLifetime(view) {}
+    }
+
     @Test func pathsAreMeasuredFromYou() {
         let path = TutorialPath.headOn(share: 0.6, crossing: 1.6)
         #expect(path.at(0) == (0.78, 0.6))
