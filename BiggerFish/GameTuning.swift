@@ -384,7 +384,7 @@ enum GameTuning {
             encounterDifficulty: difficulty, freeEncounterMovement: true, ecosystemSeedIndex: index)
     }
 
-    // MARK: Meeting planner (prototype, fish-only)
+    // MARK: Meeting planner
 
     // Meeting layout shared by every planned level; each MeetingSpec sets its own spacing and sizes.
     /// The first meeting comes this many screen widths into the run.
@@ -789,19 +789,16 @@ enum GameTuning {
     /// Kelp Forest's levels as the game plays them: from `KelpPlans.json` for the frozen ones, otherwise planned
     /// in code at launch. See "Level design: iterate in code, freeze before publishing" in AGENTS.md.
     static let kelpLevels: [Level] = {
-        let bundled = Bundle.main.url(forResource: "KelpPlans", withExtension: "json")
-            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
+        let saved = savedPlans("KelpPlans")
         return kelpSpecs.enumerated().map { index, spec in
-            let frozen = kelpFrozen.contains(spec.name) ? bundled.first { $0.spec == spec } : nil
-            var level = (frozen ?? kelpPlan(index)).level
-            level.ecosystemSeedIndex = index
-            return level
+            savedLevel(spec, index: index, saved: saved, usesSaved: kelpFrozen.contains(spec.name), planner: .kelp)
         }
     }()
     /// Played and approved, so shipped exactly as saved in `KelpPlans.json`: a planner change can't alter them.
     /// Take a level out of this set (with Kraig's OK) to tune it in code again, then regenerate the file.
     static let kelpFrozen: Set<String> = Set(kelpSpecs.map(\.name))
 
+    #if DEBUG
     /// A Kelp Forest level planned in code: its re-roll if it has one, otherwise the first layout (the Deep End
     /// searching for one with no planner complaints and no wall of giants), with its hand tweaks applied.
     static func kelpPlan(_ index: Int) -> MeetingPlan {
@@ -811,6 +808,7 @@ enum GameTuning {
         return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
             ?? MeetingPlanner.kelpPlan(spec)
     }
+    #endif
     /// A wall of giants: threats this big alongside you at the same time, leaving no gap this tall (screen
     /// points: room for you at the size you'd be) anywhere in the water.
     static let giantRadius: CGFloat = 60
@@ -871,13 +869,9 @@ enum GameTuning {
     /// Midnight Zone's levels as the game plays them: from `MidnightPlans.json` for the frozen ones, otherwise
     /// planned in code (`midnightPlan`).
     static let midnightLevels: [Level] = {
-        let bundled = Bundle.main.url(forResource: "MidnightPlans", withExtension: "json")
-            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
+        let saved = savedPlans("MidnightPlans")
         return midnightSpecs.enumerated().map { index, spec in
-            let frozen = midnightFrozen.contains(spec.name) ? bundled.first { $0.spec == spec } : nil
-            var level = (frozen ?? midnightPlan(index)).level
-            level.ecosystemSeedIndex = index
-            return level
+            savedLevel(spec, index: index, saved: saved, usesSaved: midnightFrozen.contains(spec.name), planner: .midnight)
         }
     }()
     /// Levels re-rolled to another layout of the same settings. Midnight Zone 8's first walled gate needed six
@@ -895,6 +889,7 @@ enum GameTuning {
     /// Played and approved, so shipped exactly as saved in `MidnightPlans.json`: a planner change can't alter them.
     /// All fifteen (Kraig, 2026-10-09: "lock in the midnight levels", then "I played 14 and 15 and approve").
     static let midnightFrozen: Set<String> = Set(midnightSpecs.map(\.name))
+    #if DEBUG
     /// A Midnight Zone level planned in code: its re-roll if it has one, otherwise the first layout with no planner
     /// issues and no wall of giants.
     static func midnightPlan(_ index: Int) -> MeetingPlan {
@@ -903,6 +898,7 @@ enum GameTuning {
         return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
             .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
     }
+    #endif
     /// The dark multiplies everything outside your headlamp by this color: dim, not pitch black. Kraig's plays:
     /// a bit darker than 0.12, 0.15, 0.26, then with the lures, even darker than 0.07, 0.09, 0.17.
     static let midnightDark = SKColor(red: 0.035, green: 0.045, blue: 0.09, alpha: 1)
@@ -925,16 +921,52 @@ enum GameTuning {
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")
 
-    /// Planned levels from a bundled plan file; a spec newer than the file is planned on first use instead.
+    /// Planned levels from a bundled plan file, which holds every level's current plan (whichever variation was
+    /// shipped for a spec; a level replanned as another layout ships that one). In Xcode builds a spec newer than
+    /// the file is planned on first use instead.
     private static func plannedLevels(_ specs: [MeetingSpec], file: String) -> [Level] {
-        let bundled = Bundle.main.url(forResource: file, withExtension: "json")
-            .flatMap { try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: $0)) } ?? []
+        let saved = savedPlans(file)
         return specs.enumerated().map { index, spec in
-            // Whichever variation was shipped for a spec; a level replanned as another layout ships that one.
-            var level = (bundled.first { $0.spec == spec } ?? MeetingPlanner.plan(spec)).level
-            level.ecosystemSeedIndex = index
-            return level
+            savedLevel(spec, index: index, saved: saved, usesSaved: true, planner: .meetings)
         }
+    }
+
+    /// A world's saved plans: `<file>.json` in the app. A file that's missing or won't load is a broken build, so
+    /// this stops right there, loudly, rather than quietly planning every level again into layouts nobody played.
+    static func savedPlans(_ file: String) -> [MeetingPlan] {
+        guard let url = Bundle.main.url(forResource: file, withExtension: "json") else { fatalError("\(file).json isn't in the app") }
+        do {
+            return try JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: url))
+        } catch {
+            fatalError("\(file).json didn't load: \(error)")
+        }
+    }
+
+    /// How Xcode builds plan a level in code: Reef Lab and Jelly Bloom 2 straight from the planner, Kelp Forest and
+    /// Midnight Zone with their re-rolls and hand tweaks (`kelpPlan`, `midnightPlan`).
+    private enum Planner { case meetings, kelp, midnight }
+
+    /// The level `spec` plays, `index` in its world. The shipped game plays its saved plan and never plans on the
+    /// device: the planner is in Xcode builds only, so a level with no saved plan stops a Release build at launch
+    /// (freeze every level before publishing, AGENTS.md). Xcode builds plan it in code instead when it isn't saved,
+    /// or when `usesSaved` is false (a level being tuned in code).
+    private static func savedLevel(_ spec: MeetingSpec, index: Int, saved: [MeetingPlan], usesSaved: Bool,
+                                   planner: Planner) -> Level {
+        let savedPlan = saved.first { $0.spec == spec }
+        #if DEBUG
+        let plan = (usesSaved ? savedPlan : nil) ?? {
+            switch planner {
+            case .meetings: MeetingPlanner.plan(spec)
+            case .kelp: kelpPlan(index)
+            case .midnight: midnightPlan(index)
+            }
+        }()
+        #else
+        guard let plan = savedPlan else { fatalError("\(spec.name) has no saved plan: freeze every level before publishing") }
+        #endif
+        var level = plan.level
+        level.ecosystemSeedIndex = index
+        return level
     }
 
     /// Reef Lab's levels, planned on the Mac and shipped as data so no device plans them while you play.

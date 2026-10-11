@@ -2,15 +2,15 @@
 
 There's always a bigger fish.
 
-Arcade prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
+Arcade game: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
-The world map opens **Shallow Reef** and **Jelly Bloom**, each with ten planned levels and then five bonus
-levels at its hardest difficulty (see Meeting planner below), and three locked worlds marked coming soon.
-Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
-adds safe dome bounces and lethal tentacles, with protected first encounters followed by AI food races.
-A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
-a fish-only environment. Both worlds use protected first opportunities, food-race budgets, and the same lower meal-growth rate. Both worlds use numbered levels.
+A new player starts with the tutorial (`ArcadeTutorial.swift`), which teaches the rules by playing them. The world
+map then has four worlds, each with ten levels to conquer and then The Deep End, five more at its hardest:
+**Shallow Reef** (fish only), **Jelly Bloom** (drifting jellyfish: bounce off their domes, dodge their tentacles),
+**Kelp Forest** (kelp slows you, and fish in it are shadows), and **Midnight Zone** (dark water lit by your
+headlamp, and anglerfish lures). A fifth stop, Riptide Reef, is marked coming soon. Every level is planned (see
+Meeting planner below), and each world opens its levels in order; clears and fastest times stay on the device.
 
 Free to try: all of Shallow Reef, plus two levels of each other world; a one-time purchase opens every world
 from the start and every Deep End (`ArcadeUnlock.swift`). No endless mode, pearls, or shop yet. See
@@ -119,13 +119,21 @@ python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-
 
 ## Tuning
 
-Every feel constant — movement, growth, swallow timing, AI behavior, spawn distribution,
-and the `aiFishCanEatEachOther` flag — lives in `BiggerFish/GameTuning.swift`.
-Shallow Reef's ten levels are defined in `GameTuning.levels`; Jelly Bloom's ten are in
-`GameTuning.bloomLevels`. Both use encounter difficulty targets; their original five
-profiles remain in `GameTuning.shallowReferenceLevels` and `GameTuning.bloomReferenceLevels` for comparison. Each sets fish speeds, player speed, and meal growth;
-Bloom also sets jelly count, tentacle length, sway, and its night palette. See
-[`docs/shallow-reef-ten-level-campaign.md`](docs/shallow-reef-ten-level-campaign.md) for the new fish-only campaign targets.
+Every feel constant — movement, growth, swallow timing, AI behavior, and the `aiFishCanEatEachOther`
+flag — lives in `BiggerFish/GameTuning.swift`. So do each world's levels: specs the meeting planner lays out,
+shipped as saved plans in the app.
+
+| World | Specs in `GameTuning` | Saved plans | Frozen set |
+|---|---|---|---|
+| Shallow Reef | `reefLabSpecs`, played in `shallowReefOrder` | `ReefLabPlans.json` | `reefLabFrozen` |
+| Jelly Bloom | `jellyLabSpecs` | `JellyLabPlans.json` | `jellyLabFrozen` |
+| Kelp Forest | `kelpSpecs` | `KelpPlans.json` | `kelpFrozen` |
+| Midnight Zone | `midnightSpecs` | `MidnightPlans.json` | `midnightFrozen` |
+
+The shipped game plays the saved plans and never plans on the device: the planner is in Xcode builds only, and a
+Release build with a level missing from its plans file stops at launch. `FrozenLevelTests` pins every frozen
+level, so changing one is never a side effect. AGENTS.md has the workflow: iterate in code, freeze before
+publishing.
 
 For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4` in Xcode (world ID
 plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save.
@@ -178,10 +186,11 @@ These tools and overrides are absent in Release/TestFlight.
 
 ### Meeting planner
 
-Both worlds play planned levels: each gate's slack and routes are designed, and every fish still swims
-freely into its meeting. They won an A/B test as Shallow Reef 2 and Jelly Bloom 2 (internally Reef Lab
-and Jelly Lab) and replaced the seeded campaigns under the original `shallow-reef` and `jelly-bloom` IDs.
-Jelly Bloom's jellyfish drift, to bounce off and dodge. In Debug builds, **Tuning > Players** resets a
+Every world plays planned levels: each gate's slack and routes are designed, and every fish still swims
+freely into its meeting. Shallow Reef's and Jelly Bloom's won an A/B test as Shallow Reef 2 and Jelly Bloom 2
+(internally Reef Lab and Jelly Lab) and replaced the seeded campaigns under the original `shallow-reef` and
+`jelly-bloom` IDs. Jelly Bloom's jellyfish drift, to bounce off and dodge. Kelp Forest and Midnight Zone were
+planned from the start, with each fish appearing just off screen right before you meet it. In Debug builds, **Tuning > Players** resets a
 world for a new player, **Tuning > Shallow Reef variations** plays other layouts, and the rest of the
 tuner still edits the retired seeded levels. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
 
@@ -208,32 +217,11 @@ Player encounters within the 1% near-equal radius band favor the player, includi
 fractionally larger opponent. NPC ties still bump apart. New run headers include
 `playerWinsTies`; the offline analyzer preserves the old rule for older recordings.
 
-### Simulate food races locally (Debug only)
+### The retired seeded campaigns
 
-The freely moving ten-level campaign and its 1,488 seed-search/validation runs are described in
-[the campaign report](docs/jelly-bloom-free-campaign.md). The debug tuner exposes difficulty,
-seed re-rolls, copyable full seeds, effective growth, and an advisory three-size winning-route check.
-
-The original five-level profiles remain in the debug tuner for comparison; their studies are in
-git history.
-
-To repeat the final validation:
-
-```sh
-python3 scripts/study-arcade-balance.py \
-  --profiles docs/jelly-bloom-free-campaign-profiles.json --seeds 0 --passes 0 \
-  --sizes 874x402,852x393,667x375 --limit 90 --run \
-  --output build/arcade-development/studies/validation
-```
-
-Use `--passes 0,1,2` to test skipped circuits or `--meal-limits=-1,0,1,2,3,4,5,6`
-for first-pass meal caps. Requests, raw results, summaries, and logs stay under ignored `build/`.
-The study uses simulator tests, does not render or record runs, and cannot write campaign
-progress. Its activation marker is removed by the command afterward. Normal test runs skip
-large studies unless that marker was explicitly prepared. Shut down the simulator after a batch
-if you are done testing.
-
-Current Jelly Bloom playtest: [free-moving ten-level campaign](docs/jelly-bloom-free-campaign.md), with globally reduced meal growth.
+Before the meeting planner, levels were seeded campaigns tuned by seed searches and balance studies (the
+[Shallow Reef](docs/shallow-reef-ten-level-campaign.md) and [Jelly Bloom](docs/jelly-bloom-free-campaign.md)
+reports). None of them ship; the debug tuner can still play them for comparison.
 
 ## Anonymous arcade diagnostics
 
