@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Local playtest diagnostics. Measures tension and progression, not a universal fun score."""
+"""Local playtest diagnostics. Measures tension and progression, not a universal fun score, and lists slow frames."""
 import argparse
 import collections
 import hashlib
 import json
 import math
 from pathlib import Path
+import statistics
 
 NEAR_EQUAL = 0.01
 CLOSE_MEAL = 0.80
@@ -160,22 +161,102 @@ def report(results):
     return '\n'.join(lines) + '\n'
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--input', type=Path, default=Path(__file__).resolve().parents[1] / 'build/arcade-runs')
-    parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parents[1] / 'build/arcade-runs/analysis')
-    args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
-    results = []
-    for path in sorted(args.input.rglob('run-*.jsonl')):
+# A hitch's "event just before" is the latest thing that happened up to this long before it.
+EVENT_BEFORE_MS = 1000
+
+
+def read_hitches(path, rows):
+    """Slow frames (HitchLog, Debug builds): a run's own, or the hitch log's file for everywhere else."""
+    hitches = []
+    for row in rows:
+        if row.get('type') == 'hitch':
+            hitch = dict(row)
+            hitch['file'] = path.name
+            hitches.append(hitch)
+    return hitches
+
+
+def screen_and_phase(hitch):
+    screen = hitch.get('screen', '?')
+    return screen, hitch.get('phase') or '-'
+
+
+def event_before(hitch):
+    events = hitch.get('events') or []
+    if events and events[0].get('agoMs', 0) <= EVENT_BEFORE_MS:
+        return f"{events[0].get('event', '?')} {events[0].get('detail', '')}".strip()
+    return '(nothing in the last second)'
+
+
+def hitch_report(hitches):
+    """The report's Hitches section: by screen and phase, then by the event just before, each worst first."""
+    lines = ['## Hitches', '']
+    if not hitches:
+        return lines + ['No slow frames recorded.', '']
+
+    def ms(hitch):
+        return hitch.get('elapsedMs', 0)
+
+    def grouped(key):
+        groups = collections.defaultdict(list)
+        for hitch in hitches:
+            groups[key(hitch)].append(hitch)
+        return sorted(groups.items(), key=lambda item: (-max(map(ms, item[1])), -len(item[1]), str(item[0])))
+
+    capped = sum(h.get('suppressed', 0) for h in hitches)
+    worst = max(hitches, key=ms)
+    lines += [f"{len(hitches)} slow frames" + (f" (and {capped} more past the log's cap of 20 a second)" if capped else '')
+              + f"; the worst took {ms(worst):.1f} ms.",
+              '', 'A slow frame took at least 1.5 display intervals: it missed a refresh or more. Work is the main '
+              "thread's longest stretch without a break in that frame; a long frame with little work came late rather "
+              'than busy. Update is the scene\'s own update before it.', '',
+              '### By screen and phase', '',
+              '| Screen | Phase | Slow frames | Worst ms | Median ms | Worst work ms |', '|---|---|---:|---:|---:|---:|']
+    for (screen, phase), group in grouped(screen_and_phase):
+        lines.append(f"| {screen} | {phase} | {len(group)} | {max(map(ms, group)):.1f} | "
+                     f"{statistics.median(map(ms, group)):.1f} | {max(h.get('workMs', 0) for h in group):.1f} |")
+    lines += ['', '### By the event just before', '',
+              '| Event just before | Slow frames | Worst ms | Median ms | Where |', '|---|---:|---:|---:|---|']
+    for event, group in grouped(event_before):
+        where = collections.Counter('/'.join(p for p in screen_and_phase(h) if p != '-') for h in group)
+        lines.append(f"| {event} | {len(group)} | {max(map(ms, group)):.1f} | {statistics.median(map(ms, group)):.1f} | "
+                     f"{', '.join(name for name, _ in where.most_common(3))} |")
+    lines += ['', '### Worst slow frames', '']
+    for hitch in sorted(hitches, key=ms, reverse=True)[:10]:
+        place = '/'.join(p for p in (hitch.get('screen', '?'), hitch.get('detail'), hitch.get('phase')) if p)
+        timing = f"work {hitch.get('workMs', 0):.1f} ms" + (
+            f", update {hitch['updateMs']:.1f} ms" if 'updateMs' in hitch else '')
+        before = '; '.join(f"{e.get('event', '?')} {e.get('detail', '')}".strip() + f" {e.get('agoMs', 0):.0f} ms before"
+                           for e in (hitch.get('events') or [])[:4]) or 'nothing'
+        lines.append(f"- {ms(hitch):.1f} ms ({timing}) on {place}, {hitch['file']} at {hitch.get('time', 0):.1f} s: {before}.")
+    return lines + ['']
+
+
+def write_reports(input_folder, output_folder):
+    output_folder.mkdir(parents=True, exist_ok=True)
+    results, hitches = [], []
+    for path in sorted(input_folder.rglob('run-*.jsonl')):
         rows = read_records(path)
         if rows:
             result = analyze(rows)
             result['file'] = path.name
             results.append(result)
-    (args.output / 'report.md').write_text(report(results))
-    (args.output / 'metrics.json').write_text(json.dumps(results, indent=2) + '\n')
-    print(f"Analyzed {len(results)} runs: {args.output / 'report.md'}")
+            hitches += read_hitches(path, rows)
+    for path in sorted(input_folder.rglob('hitches-*.jsonl')):
+        hitches += read_hitches(path, read_records(path))
+    (output_folder / 'report.md').write_text(report(results) + '\n' + '\n'.join(hitch_report(hitches)))
+    (output_folder / 'metrics.json').write_text(json.dumps(results, indent=2) + '\n')
+    (output_folder / 'hitches.json').write_text(json.dumps(hitches, indent=2) + '\n')
+    return results, hitches
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--input', type=Path, default=Path(__file__).resolve().parents[1] / 'build/arcade-runs')
+    parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parents[1] / 'build/arcade-runs/analysis')
+    args = parser.parse_args()
+    results, hitches = write_reports(args.input, args.output)
+    print(f"Analyzed {len(results)} runs and {len(hitches)} slow frames: {args.output / 'report.md'}")
 
 
 if __name__ == '__main__':

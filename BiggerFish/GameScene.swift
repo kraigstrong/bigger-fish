@@ -38,7 +38,22 @@ private struct Speck {
 }
 
 final class GameScene: SKScene {
-    enum Phase { case ready, playing, paused, won, lost }
+    enum Phase {
+        case ready, playing, paused, won, lost
+
+        #if DEBUG
+        /// As the hitch log and run recordings name it.
+        var name: String {
+            switch self {
+            case .ready: "ready"
+            case .playing: "playing"
+            case .paused: "paused"
+            case .won: "won"
+            case .lost: "lost"
+            }
+        }
+        #endif
+    }
     private typealias T = GameTuning
 
     private var phase: Phase = .ready
@@ -175,6 +190,8 @@ final class GameScene: SKScene {
     private var runRecorder: ArcadeRunRecorder?
     private var recordingStartedAt: CGFloat = 0
     private var recordedEncounterReleases: Set<Int> = []
+    /// Where slow frames go (`HitchLog`); a test's own, or none.
+    var hitchLog = HitchLog.shared
     #endif
     private var audio: ArcadeAudio { .shared }
     private var settings: ArcadeSettings { .shared }
@@ -268,12 +285,32 @@ final class GameScene: SKScene {
     /// and again as each run starts, since a prepared generator only stays ready a few seconds.
     private func prepareHaptics() {
         guard vibrates, view != nil else { return }
+        #if DEBUG
+        noteHitch(.hapticPrepare, "all five generators")
+        #endif
         let generators: [UIFeedbackGenerator] = [mealHaptic, closeCallHaptic, eatenHaptic, eatenNotification, winNotification]
         for generator in generators { generator.prepare() }
     }
 
     /// Every haptic the game plays.
-    enum Haptic: String { case meal, closeCall, bounce, sting, eaten, win, conquer }
+    enum Haptic: String {
+        case meal, closeCall, bounce, sting, eaten, win, conquer
+
+        #if DEBUG
+        /// The haptic and the generators it fires, for the hitch log.
+        var hitchDetail: String {
+            switch self {
+            case .meal: "meal: light impact"
+            case .closeCall: "closeCall: rigid impact"
+            case .bounce: "bounce: rigid impact"
+            case .sting: "sting: error notification"
+            case .eaten: "eaten: heavy impact + error notification"
+            case .win: "win: success notification"
+            case .conquer: "conquer: success notification"
+            }
+        }
+        #endif
+    }
 
     /// Plays a haptic, if Vibration is on: a light tap for a meal (a sharper one for a close call), a bump off a
     /// jellyfish, an error buzz for a sting or being eaten, a success for a win, and a success then a thump for
@@ -282,6 +319,7 @@ final class GameScene: SKScene {
         guard vibrates else { return }
         #if DEBUG
         debugHaptics.append(haptic)
+        noteHitch(.haptic, haptic.hitchDetail)
         #endif
         switch haptic {
         case .meal: mealHaptic.impactOccurred(intensity: T.mealHapticIntensity)
@@ -294,8 +332,12 @@ final class GameScene: SKScene {
         case .win: winNotification.notificationOccurred(.success)
         case .conquer:
             winNotification.notificationOccurred(.success)
-            run(.sequence([.wait(forDuration: TimeInterval(T.conquerThumpDelay)),
-                           .run { [weak self] in self?.eatenHaptic.impactOccurred(intensity: T.conquerThumpIntensity) }]))
+            run(.sequence([.wait(forDuration: TimeInterval(T.conquerThumpDelay)), .run { [weak self] in
+                #if DEBUG
+                self?.noteHitch(.haptic, "conquer: heavy impact")
+                #endif
+                self?.eatenHaptic.impactOccurred(intensity: T.conquerThumpIntensity)
+            }]))
         }
     }
 
@@ -352,6 +394,9 @@ final class GameScene: SKScene {
                 name: UIApplication.willResignActiveNotification, object: nil
             )
         }
+        #if DEBUG
+        hitchLog?.enterScene(self, hitchContext, view: view)
+        #endif
         _ = audio // Warm normal gameplay audio; headless studies never create the player pool.
         prepareHaptics()
         if !isBuilt { build() }
@@ -364,6 +409,7 @@ final class GameScene: SKScene {
         UIApplication.shared.isIdleTimerDisabled = false
         #if DEBUG
         finishRunRecording("scene_closed")
+        hitchLog?.leaveScene(self)
         #endif
         super.willMove(from: view)
     }
@@ -522,7 +568,17 @@ final class GameScene: SKScene {
             if newPhase == .ready || newPhase == .paused || phase == .paused { lastUpdate = nil }
             capturePresentation()
         }
+        #if DEBUG
+        switch (phase, newPhase) {
+        case (_, .paused): noteHitch(.pause)
+        case (.paused, .playing): noteHitch(.resume)
+        default: noteHitch(.phase, newPhase.name)
+        }
+        #endif
         phase = newPhase
+        #if DEBUG
+        if view != nil { hitchLog?.updateScene(self, hitchContext) }
+        #endif
         pauseButton.isHidden = newPhase != .playing
         pauseMenu.isHidden = newPhase != .paused
         // The pause menu names the level itself.
@@ -614,6 +670,9 @@ final class GameScene: SKScene {
             if !clearedBeforeRun { strip?.playEarned(levelIndex, after: 0.85) }
         }
         // In the tutorial, being eaten offers one thing: try again, at once (its Skip button leaves).
+        #if DEBUG
+        noteHitch(.result, passed ? "won" : "lost")
+        #endif
         let panel = ArcadeResultPanel(size: size, passed: passed, hasNext: !isFinalLevel && !isWorldFinale, detail: detail,
                                       progress: strip, retryOnly: isTutorial)
         panel.onSelect = { [weak self] action in self?.selectResult(action) }
@@ -724,6 +783,7 @@ final class GameScene: SKScene {
         observeMetrics(); finishMetrics("win")
         #if DEBUG
         finishRunRecording("won")
+        if !isTutorial && onClear != nil { noteHitch(.save, "level cleared") }
         #endif
         if !isTutorial { onClear?(levelIndex, Double(simClock)) }
         playSound(.clear)
@@ -754,6 +814,7 @@ final class GameScene: SKScene {
         finishMetrics("death")
         #if DEBUG
         finishRunRecording("lost", fields: ["reason": lossReason])
+        noteHitch(.death, resultDelay > 0 ? "stung" : "eaten")
         #endif
         // A delayed result (a sting) sounds the loss when the result appears, after the zap.
         if resultDelay == 0 { playSound(.lose) }
@@ -832,6 +893,9 @@ final class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         guard isBuilt else { return }
         #if DEBUG
+        // Every frame in every phase, timed from SpriteKit's own clock (the game's `lastUpdate` restarts at each pause).
+        hitchLog?.frameBegan(self, timestamp: currentTime)
+        defer { hitchLog?.frameEnded(self) }
         if let previewResult, !didPreviewResult {
             didPreviewResult = true
             setPhase(previewResult ? .won : .lost)
@@ -839,9 +903,6 @@ final class GameScene: SKScene {
         }
         #endif
         let frameElapsed = max(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 0)
-        #if DEBUG
-        let frameWorkStarted = ProcessInfo.processInfo.systemUptime
-        #endif
         let realDt = min(frameElapsed, T.maximumFrameElapsed)
         lastUpdate = currentTime
         advanceFrame(realDt)
@@ -850,14 +911,6 @@ final class GameScene: SKScene {
         let cameraDelta = world.delta(from: lastCameraX, to: presentation.cameraX) * presentation.zoom
         lastCameraX = presentation.cameraX
         updateSpecks(realDt: phase == .paused ? 0 : realDt, cameraDelta: cameraDelta)
-        #if DEBUG
-        let workSeconds = ProcessInfo.processInfo.systemUptime - frameWorkStarted
-        if phase == .playing && (frameElapsed > T.debugFrameHitchSeconds || workSeconds > Double(T.debugFrameHitchSeconds)) {
-            recordRunEvent("frame_hitch", fields: ["elapsedSeconds": frameElapsed,
-                "workSeconds": workSeconds, "playerMeals": mealsEaten,
-                "fishCount": fish.count, "timeScale": timeScale])
-        }
-        #endif
     }
 
     /// Display frames only contribute elapsed time. Both real-time slow motion and
@@ -1293,6 +1346,9 @@ final class GameScene: SKScene {
         tutorialCheckpoint = beat.checkpoint
         tutorialBeatStart = simClock
         tutorialNextBeatAt = nil
+        #if DEBUG
+        if view != nil { hitchLog?.updateScene(self, hitchContext) }
+        #endif
         let lane = waterShare(player.position.y).clamped(0.25, 0.75)
         switch beat {
         case .holdToRise:
@@ -1600,6 +1656,9 @@ final class GameScene: SKScene {
     }
 
     private func showTutorialCaption(_ text: String) {
+        #if DEBUG
+        noteHitch(.card, "tutorial caption")
+        #endif
         tutorialCaption.text = text
         let pill = CGSize(width: tutorialCaption.frame.width + T.tutorialCaptionSize * 1.4, height: T.tutorialCaptionSize * 1.9)
         tutorialCaptionPill.path = CGPath(roundedRect: CGRect(x: -pill.width / 2, y: -pill.height / 2, width: pill.width, height: pill.height),
@@ -1614,6 +1673,9 @@ final class GameScene: SKScene {
     }
 
     private func showTutorialFinale() {
+        #if DEBUG
+        noteHitch(.card, "tutorial finale")
+        #endif
         messageNode.removeAllActions()
         messageNode.removeAllChildren()
         let line = label(ArcadeTutorial.finale, fontSize: 34, heavy: true)
@@ -1969,6 +2031,7 @@ final class GameScene: SKScene {
         #if DEBUG
         recordRunEvent("swallow_start", fields: ["predatorID": predator.id, "preyID": prey.id,
                                                 "predatorRadius": predator.radius, "preyRadius": prey.radius])
+        noteHitch(.swallow, prey.isPlayer ? "you're eaten" : predator.isPlayer ? "you eat" : "fish eats fish")
         #endif
         predator.state = .swallowing(preyID: prey.id)
         prey.state = .beingSwallowed(predatorID: predator.id)
@@ -2386,6 +2449,9 @@ final class GameScene: SKScene {
 
     /// `progress`: the world's pips and crown, under the title.
     private func showMessage(_ title: String, lines: [String], delay: TimeInterval = 0, progress: WorldProgressStrip? = nil) {
+        #if DEBUG
+        noteHitch(.card, "ready card")
+        #endif
         messageNode.removeAllActions()
         messageNode.removeAllChildren()
 
@@ -2434,6 +2500,9 @@ final class GameScene: SKScene {
 
     /// Before playing a level again: just the prompt, small, on its own.
     private func showStartPrompt() {
+        #if DEBUG
+        noteHitch(.card, "tap to start")
+        #endif
         messageNode.removeAllActions()
         messageNode.removeAllChildren()
         let start = label("Tap to start", fontSize: 22, heavy: true)
@@ -2465,6 +2534,27 @@ final class GameScene: SKScene {
         return label
     }
     #if DEBUG
+    /// Where the hitch log says a slow frame happened: the level (or the tutorial's beat) and its phase.
+    var hitchContext: HitchContext {
+        isTutorial ? HitchContext(.tutorial, detail: String(describing: tutorialBeat), phase: phase.name)
+            : HitchContext(.level, detail: "\(arcadeWorld.rawValue).\(levelIndex + 1)", phase: phase.name)
+    }
+
+    /// Notes what just happened, for the hitch log: from a scene on screen, not a headless study.
+    private func noteHitch(_ kind: HitchEvent.Kind, _ detail: String = "") {
+        guard view != nil, !simulationHeadless else { return }
+        hitchLog?.note(kind, detail)
+    }
+
+    /// A slow frame during a recorded run goes into its recording, with the run's state.
+    private func recordRunHitch(_ fields: [String: Any]) {
+        var fields = fields
+        fields["playerMeals"] = mealsEaten
+        fields["fishCount"] = fish.count
+        fields["timeScale"] = timeScale
+        recordRunEvent("hitch", fields: fields)
+    }
+
     // JSONL uses world coordinates; screen projection is defined by the snapshot's camera.
     private func recordRunEvent(_ name: String, fields: [String: Any] = [:]) {
         runRecorder?.event(name, time: Double(realClock - recordingStartedAt), simulationTime: Double(simClock), fields: fields)
@@ -2474,6 +2564,7 @@ final class GameScene: SKScene {
     private func startRunRecording() {
         recordingStartedAt = realClock
         runRecorder = ArcadeRunRecorder.makeDefault()
+        if runRecorder != nil, view != nil { hitchLog?.runRecording = { [weak self] in self?.recordRunHitch($0) } }
         recordRunEvent("start", fields: ["schema": 1, "world": arcadeWorld.rawValue, "level": levelIndex + 1,
             "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
@@ -2527,6 +2618,7 @@ final class GameScene: SKScene {
 
     private func finishRunRecording(_ outcome: String, fields: [String: Any] = [:]) {
         guard let runRecorder else { return }
+        hitchLog?.runRecording = nil
         recordRunSnapshot(force: true)
         var summary = fields
         summary["playerMeals"] = mealsEaten

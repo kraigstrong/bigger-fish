@@ -45,13 +45,34 @@ struct ArcadeRunRecorderTests {
         }
         let note = directory.appendingPathComponent("keep.txt")
         try Data("keep".utf8).write(to: note)
+        // The hitch log's files keep their own count.
+        let hitches = directory.appendingPathComponent("hitches-1999-0.jsonl")
+        try Data().write(to: hitches)
         let recorder = ArcadeRunRecorder(directory: directory)
         recorder.finish(outcome: "won", time: 1, simulationTime: 1)
         recorder.waitForWrites()
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-        #expect(files.filter { $0.pathExtension == "jsonl" }.count == ArcadeRunRecorder.retainedRuns)
+        #expect(files.filter { $0.lastPathComponent.hasPrefix("run-") }.count == ArcadeRunRecorder.retainedRuns)
         #expect(FileManager.default.fileExists(atPath: note.path))
+        #expect(FileManager.default.fileExists(atPath: hitches.path))
         #expect(try records(recorder.fileURL).last?["outcome"] as? String == "won")
+    }
+
+    /// The hitch log's file: its own prefix and count, and records with no simulation clock.
+    @Test func hitchFilesKeepTheirOwnPrefixAndCount() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for i in 0..<5 { try Data().write(to: directory.appendingPathComponent("hitches-2000-\(i).jsonl")) }
+        try Data().write(to: directory.appendingPathComponent("run-2000-0.jsonl"))
+        let recorder = ArcadeRunRecorder(directory: directory, prefix: "hitches", retained: 3)
+        recorder.event("hitch", time: 2.5, fields: ["screen": "settings", "elapsedMs": 40.0])
+        recorder.waitForWrites()
+        let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        #expect(recorder.fileURL.lastPathComponent.hasPrefix("hitches-"))
+        #expect(names.filter { $0.hasPrefix("hitches-") }.count == 3 && names.contains("run-2000-0.jsonl"))
+        let hitch = try #require(try records(recorder.fileURL).first)
+        #expect(hitch["type"] as? String == "hitch" && hitch["time"] as? Double == 2.5 && hitch["simTime"] == nil)
     }
 }
 #endif
