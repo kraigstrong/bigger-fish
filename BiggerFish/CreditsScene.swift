@@ -564,6 +564,8 @@ final class CreditsScene: SKScene, ObservableObject {
         backing.fillColor = SKColor(red: 0.10, green: 0.52, blue: 0.30, alpha: 0.92)
         backing.strokeColor = SKColor(white: 1, alpha: 0.6)
         backing.lineWidth = 2
+        // Backing, then the button, then the words (the scene ignores sibling order).
+        backing.zPosition = -2
         card.addChild(backing)
         let heading = Self.label(Self.cardTitle, size: 32, heavy: true)
         heading.position = CGPoint(x: 0, y: 62)
@@ -575,6 +577,7 @@ final class CreditsScene: SKScene, ObservableObject {
         let pill = SKShapeNode(rect: button, cornerRadius: button.height / 2)
         pill.fillColor = .white
         pill.strokeColor = .clear
+        pill.zPosition = -1
         card.addChild(pill)
         let caption = Self.label(Self.doneTitle, size: 23, heavy: true)
         caption.fontColor = SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1)
@@ -878,6 +881,8 @@ final class CreditTag: SKNode {
         bubble.fillColor = SKColor(red: 0.02, green: 0.09, blue: 0.23, alpha: 0.55)
         bubble.strokeColor = SKColor(white: 1, alpha: 0.5)
         bubble.lineWidth = 1.5
+        // Under the name: the scene ignores sibling order.
+        bubble.zPosition = -1
         addChild(bubble)
         role.position = CGPoint(x: 0, y: p + h - 14)
         name.position = CGPoint(x: 0, y: p + 19)
