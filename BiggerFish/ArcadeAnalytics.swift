@@ -1,7 +1,8 @@
 import Foundation
 
 struct ArcadeMetricEvent: Codable, Equatable {
-    enum Kind: String, Codable { case milestone, run, decision }
+    /// `offer`, `purchase`, and `restore` are the paywall funnel's (sent only with `sendsPaywallEvents` on).
+    enum Kind: String, Codable { case milestone, run, decision, offer, purchase, restore }
     let kind: Kind
     var name: String?
     var context: ArcadeMetricContext?
@@ -10,6 +11,13 @@ struct ArcadeMetricEvent: Codable, Equatable {
     var replay: Bool?
     var attempt: Int?
     var summary: ArcadeRunMetrics?
+    // The paywall funnel's fields. Left nil, they're left out of the JSON, so other events encode as they always have.
+    /// Where the unlock's screen was opened from (`ArcadeAnalytics.OfferSource`), or "settings" for a restore there.
+    var source: String?
+    /// On an offer: the first this install has been shown, from anywhere.
+    var first: Bool?
+    /// On a run, while the unlock is on sale: whether this player had it.
+    var unlocked: Bool?
 }
 
 struct ArcadeMetricBatch: Codable {
@@ -46,6 +54,8 @@ final class ArcadeAnalytics {
     private let defaults: UserDefaults
     private let sender: ArcadeMetricSender
     let enabled: Bool
+    /// `sendsPaywallEvents`, or a test's choice.
+    private let sendsPaywall: Bool
     private let prefix = "biggerFish.metrics.v1."
     private struct Queued: Codable {
         var event: ArcadeMetricEvent
@@ -57,8 +67,9 @@ final class ArcadeAnalytics {
     private var result: Queued?
     private var expectedWorldLevels: Int?
 
-    init(defaults: UserDefaults = .standard, sender: ArcadeMetricSender = ArcadeURLMetricSender(), enabled: Bool = ArcadeAnalytics.defaultEnabled) {
-        self.defaults = defaults; self.sender = sender; self.enabled = enabled
+    init(defaults: UserDefaults = .standard, sender: ArcadeMetricSender = ArcadeURLMetricSender(), enabled: Bool = ArcadeAnalytics.defaultEnabled,
+         paywallEvents: Bool = ArcadeAnalytics.sendsPaywallEvents) {
+        self.defaults = defaults; self.sender = sender; self.enabled = enabled; self.sendsPaywall = paywallEvents
     }
     private var storedQueue: [Queued] {
         defaults.data(forKey: prefix + "queue").flatMap { try? JSONDecoder().decode([Queued].self, from: $0) } ?? []
@@ -88,6 +99,67 @@ final class ArcadeAnalytics {
         milestone(event.rawValue, context: nil)
     }
 
+    /// The paywall funnel (#123): where the unlock's screen was shown from, how buying or restoring it went, each
+    /// world's "conquered" milestone (its tenth level beaten for the first time), and whether a run was played with the
+    /// unlock. Off until brightbench.app accepts these (it rejects a whole batch over one event, field, or value it
+    /// doesn't know) and the Bigger Fish privacy page describes them; then turn on `sendsPaywallEvents`. While it's
+    /// off, none of them is sent or saved, and every other event encodes exactly as it did before. Turn it on no later
+    /// than the release that turns on `ArcadeUnlock.isSelling`: an offer shown before it's on isn't remembered, so a
+    /// later one would be reported as the install's first.
+    static let sendsPaywallEvents = false
+
+    /// Where the unlock's screen was opened from.
+    enum OfferSource: String, CaseIterable {
+        /// A padlocked level, tapped on its world's level map.
+        case padlockedLevel = "padlocked_level"
+        /// Next level, on a win's card, onto a padlocked level.
+        case nextLevel = "next_level"
+        /// The Unlock all button on the world map.
+        case unlockAll = "unlock_all"
+        /// A world with no free levels, tapped on the world map. None today: every world has some.
+        case lockedWorld = "locked_world"
+        /// A world conquered without the unlock: its conquered screen is the offer. Shallow Reef, in practice, though a
+        /// world beaten for free before the unlock went on sale shows it once too.
+        case conquered
+    }
+
+    /// Whether the player has the unlock, while it's on sale; nil when it isn't, since then everything is open to
+    /// everyone. Each run carries it, so results can be split by it.
+    var hasUnlock: Bool?
+
+    /// The unlock's screen was shown. Counted every time it shows; `first` marks the first this install has seen.
+    func offerShown(_ source: OfferSource) {
+        guard enabled, sendsPaywall else { return }
+        let key = prefix + "offerShown"
+        let first = !defaults.bool(forKey: key)
+        defaults.set(true, forKey: key)
+        enqueue(ArcadeMetricEvent(kind: .offer, source: source.rawValue, first: first))
+    }
+
+    /// How a tap on the unlock's buy button ended, and on which screen.
+    func purchase(_ outcome: ArcadePurchases.PurchaseOutcome, from source: OfferSource) {
+        guard enabled, sendsPaywall else { return }
+        enqueue(ArcadeMetricEvent(kind: .purchase, outcome: outcome.rawValue, source: source.rawValue))
+    }
+
+    /// How Restore purchase ended on the unlock's screen, and what opened it.
+    func restore(found: Bool, from source: OfferSource) { restore(found: found, place: source.rawValue) }
+    /// How Restore purchase ended in Settings.
+    func restoreInSettings(found: Bool) { restore(found: found, place: "settings") }
+    /// Not reaching the App Store counts as "not_found", as it does on screen.
+    private func restore(found: Bool, place: String) {
+        guard enabled, sendsPaywall else { return }
+        enqueue(ArcadeMetricEvent(kind: .restore, outcome: found ? "restored" : "not_found", source: place))
+    }
+
+    /// The app went to the background. Offers, purchases, and restores happen on the maps, where no run's end sends
+    /// them, so they go now rather than wait for the next run or launch (a player who leaves for good would never send
+    /// them). Only with the paywall funnel on, so nothing else changes until then.
+    func backgrounded() {
+        guard enabled, sendsPaywall else { return }
+        flush()
+    }
+
     func launched() {
         guard enabled else { return }
         milestone("first_launch", context: nil)
@@ -110,7 +182,8 @@ final class ArcadeAnalytics {
         let replay = alreadyCleared || defaults.bool(forKey: prefix + "cleared." + key)
         let attempt = min(1000, defaults.integer(forKey: prefix + "attempt." + key) + 1)
         if !replay { defaults.set(attempt, forKey: prefix + "attempt." + key) }
-        pending = stamp(ArcadeMetricEvent(kind: .run, context: context, outcome: "abandoned", cause: "none", replay: replay, attempt: replay ? 0 : attempt, summary: ArcadeRunMetrics()))
+        pending = stamp(ArcadeMetricEvent(kind: .run, context: context, outcome: "abandoned", cause: "none", replay: replay, attempt: replay ? 0 : attempt, summary: ArcadeRunMetrics(),
+            unlocked: sendsPaywall ? hasUnlock : nil))
         checkpoint(ArcadeRunMetrics())
     }
     func checkpoint(_ summary: ArcadeRunMetrics) {
@@ -132,6 +205,11 @@ final class ArcadeAnalytics {
             defaults.set(Array(cleared), forKey: prefix + "world." + context.revision + "." + context.mode + "." + context.world)
             if let expectedWorldLevels, expectedWorldLevels > 0, cleared.count >= expectedWorldLevels {
                 milestone("world_cleared", context: context, worldLevels: expectedWorldLevels)
+            }
+            // Conquered: the world's tenth level beaten for the first time. Its levels open in order, so that's every
+            // main level beaten, the moment its conquered screen shows. (`world_cleared` waits for the Deep End too.)
+            if sendsPaywall, context.mode == "campaign", context.level == ArcadeWorld.mainLevelCount, event.event.replay == false {
+                milestone("world_conquered", context: context)
             }
         }
         if outcome == "win" || outcome == "death" {

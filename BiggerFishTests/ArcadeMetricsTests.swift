@@ -176,6 +176,44 @@ struct ArcadeMetricsTests {
         let shot = try #require(s["snapshot"] as? [String: Any])
         #expect(Set(shot.keys) == ["path", "playerRadius", "remaining", "edible", "largestRatio"])
         try encoded.write(to: URL(fileURLWithPath: "/private/tmp/arcade-real-contract.json"))
+
+        // The paywall funnel (#123), sent only once `sendsPaywallEvents` is on: these keys and values and no others.
+        // Runs gain `unlocked`; offers, purchases, and restores are new kinds; conquering is a milestone like the
+        // others. Every value is sent once here, so brightbench.app's fixture (bigger-fish-swift-paywall.json, copied
+        // from the file written below) proves its allowlist takes them all.
+        let paywallSender = Sender()
+        let paywall = ArcadeAnalytics(defaults: defaults(), sender: paywallSender, enabled: true, paywallEvents: true)
+        let sources = ArcadeAnalytics.OfferSource.allCases
+        paywall.hasUnlock = false
+        for source in sources { paywall.offerShown(source) }
+        for (i, outcome) in ArcadePurchases.PurchaseOutcome.allCases.enumerated() { paywall.purchase(outcome, from: sources[i]) }
+        for (i, source) in sources.enumerated() { paywall.restore(found: i.isMultiple(of: 2), from: source) }
+        paywall.restoreInSettings(found: false)
+        paywall.start(ArcadeMetricContext(world: "shallow-reef", level: 10, setup: 10, seed: "20261477", revision: "future.1"), worldLevelCount: 15)
+        paywall.finish("win", summary: ArcadeRunMetrics())
+        paywall.flush()
+        #expect(paywallSender.batches.count == 1)
+        let paywallEncoded = try JSONEncoder().encode(try #require(paywallSender.batches.first))
+        let paywallRoot = try #require(JSONSerialization.jsonObject(with: paywallEncoded) as? [String: Any])
+        #expect(Set(paywallRoot.keys) == ["schema", "appVersion", "build", "channel", "events"])
+        let paywallEvents = try #require(paywallRoot["events"] as? [[String: Any]])
+        func sent(_ kind: String, _ name: String? = nil) -> [[String: Any]] {
+            paywallEvents.filter { $0["kind"] as? String == kind && (name == nil || $0["name"] as? String == name) }
+        }
+        func keys(_ kind: String, _ name: String? = nil) -> Set<Set<String>> { Set(sent(kind, name).map { Set($0.keys) }) }
+        func values(_ kind: String, _ key: String) -> Set<String> { Set(sent(kind).compactMap { $0[key] as? String }) }
+        #expect(keys("offer") == [["kind", "source", "first"]])
+        #expect(keys("purchase") == [["kind", "outcome", "source"]])
+        #expect(keys("restore") == [["kind", "outcome", "source"]])
+        #expect(keys("milestone", "world_conquered") == [["kind", "name", "context"]])
+        #expect(keys("run") == [["kind", "context", "outcome", "cause", "replay", "attempt", "summary", "unlocked"]])
+        let offerSources: Set = ["padlocked_level", "next_level", "unlock_all", "locked_world", "conquered"]
+        #expect(values("offer", "source") == offerSources)
+        #expect(values("purchase", "outcome") == ["unlocked", "pending", "cancelled", "failed"])
+        #expect(values("purchase", "source").isSubset(of: offerSources))
+        #expect(values("restore", "outcome") == ["restored", "not_found"])
+        #expect(values("restore", "source") == offerSources.union(["settings"]))
+        try paywallEncoded.write(to: URL(fileURLWithPath: "/private/tmp/arcade-paywall-contract.json"))
     }
 
     @Test func progressFromBeforeMetricsActivationIsAReplay() {
