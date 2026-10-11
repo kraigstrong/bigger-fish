@@ -156,8 +156,10 @@ struct ArcadeCreditsTests {
         let view = present(scene)
         var left = 0
         scene.onExit = { left += 1 }
-        #expect(UIApplication.shared.isIdleTimerDisabled)
+        // The start card lets the phone sleep, as a level's does; the swim keeps it awake.
+        #expect(!UIApplication.shared.isIdleTimerDisabled)
         scene.debugPlay(limit: 10)
+        #expect(UIApplication.shared.isIdleTimerDisabled)
         #expect(!scene.finished && scene.eaten.count < names.count)
         scene.leave()
         scene.leave()
@@ -196,7 +198,11 @@ struct ArcadeCreditsTests {
         let scene = CreditsScene(settings: settings())
         let view = present(scene)
         func elements() -> [UIAccessibilityElement] { (scene.accessibilityElements ?? []).compactMap { $0 as? UIAccessibilityElement } }
-        #expect(elements().map(\.accessibilityLabel) == [credits.spokenList])
+        // Before the swim, a Start button (VoiceOver's double tap doesn't reach the scene as a tap), then the list.
+        #expect(elements().map(\.accessibilityLabel) == ["Start the credits", credits.spokenList])
+        let start = elements().first as? ArcadeResultAccessibilityElement
+        #expect(start?.accessibilityTraits.contains(.button) == true && start?.accessibilityActivate() == true)
+        #expect(!scene.debugWaitingToStart && elements().map(\.accessibilityLabel) == [credits.spokenList])
         #expect(scene.debugPlay().finished)
         let done = elements().compactMap { $0 as? ArcadeResultAccessibilityElement }.first
         #expect(elements().compactMap(\.accessibilityLabel).contains(credits.spokenList))

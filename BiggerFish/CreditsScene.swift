@@ -156,8 +156,8 @@ final class CreditsScene: SKScene, ObservableObject {
         view.isMultipleTouchEnabled = true
         if !isBuilt { build() }
         mealHaptic.prepare()
-        // Awake while you swim, as in a level; the card lets the phone sleep.
-        UIApplication.shared.isIdleTimerDisabled = !finished && !hasLeft
+        // Awake while you swim, as in a level; the start card and the end card let the phone sleep.
+        UIApplication.shared.isIdleTimerDisabled = started && !finished && !hasLeft
         configureAccessibility()
         if UIAccessibility.isVoiceOverRunning {
             UIAccessibility.post(notification: .screenChanged, argument: accessibilityElements?.first)
@@ -254,6 +254,8 @@ final class CreditsScene: SKScene, ObservableObject {
         started = true
         startCard?.run(.sequence([.fadeOut(withDuration: 0.15), .removeFromParent()]))
         startCard = nil
+        if view != nil { UIApplication.shared.isIdleTimerDisabled = true }
+        configureAccessibility()
     }
 
     // MARK: - Frame loop
@@ -680,6 +682,20 @@ final class CreditsScene: SKScene, ObservableObject {
         list.accessibilityLabel = credits.spokenList
         list.accessibilityTraits = .staticText
         list.accessibilityFrame = screen(CGRect(origin: .zero, size: size))
+        // Before the swim, VoiceOver's double tap reaches the card as a Start button (a tap on the scene doesn't).
+        if !started, let startCard {
+            let start = ArcadeResultAccessibilityElement(accessibilityContainer: self)
+            start.accessibilityLabel = "Start the credits"
+            start.accessibilityHint = Self.introLine
+            start.accessibilityTraits = .button
+            start.accessibilityFrame = screen(startCard.calculateAccumulatedFrame())
+            start.activate = { [weak self] in
+                self?.start()
+                return self != nil
+            }
+            accessibilityElements = [start, list]
+            return
+        }
         guard finished, let card else {
             accessibilityElements = [list]
             return
