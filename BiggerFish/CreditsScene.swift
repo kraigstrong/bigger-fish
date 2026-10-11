@@ -12,6 +12,7 @@ import UIKit
 final class CreditsScene: SKScene, ObservableObject {
     private typealias T = GameTuning
 
+    static let startTitle = "Credits"
     static let introLine = "Eat the names to say thanks"
     static let cardTitle = "Thanks for playing!"
     static let cardLine = "You thanked everyone."
@@ -101,6 +102,9 @@ final class CreditsScene: SKScene, ObservableObject {
     private var holdTouches = Set<UITouch>()
     /// Until your first touch you glide on at your height, rather than sinking before you've done anything.
     private var touched = false
+    /// The card before the swim, as a level has: nothing moves until your first tap.
+    private var started = false
+    private var startCard: SKNode?
     private var finishAt: CGFloat?
     private var finishedAt: CGFloat = 0
     private var hasLeft = false
@@ -152,8 +156,8 @@ final class CreditsScene: SKScene, ObservableObject {
         view.isMultipleTouchEnabled = true
         if !isBuilt { build() }
         mealHaptic.prepare()
-        // Awake while you swim, as in a level; the card lets the phone sleep.
-        UIApplication.shared.isIdleTimerDisabled = !finished && !hasLeft
+        // Awake while you swim, as in a level; the start card and the end card let the phone sleep.
+        UIApplication.shared.isIdleTimerDisabled = started && !finished && !hasLeft
         configureAccessibility()
         if UIAccessibility.isVoiceOverRunning {
             UIAccessibility.post(notification: .screenChanged, argument: accessibilityElements?.first)
@@ -184,7 +188,7 @@ final class CreditsScene: SKScene, ObservableObject {
         fishLayer.addChild(playerNode)
         waiting = Array(names.indices)
         releaseNext()
-        showIntro()
+        showStartCard()
         lastCameraX = player.position.x
         capture()
         render()
@@ -220,25 +224,38 @@ final class CreditsScene: SKScene, ObservableObject {
         dimNode.alpha = 0
     }
 
-    /// The one line it opens with, at the top for its first few seconds.
-    private func showIntro() {
-        let line = SKLabelNode(fontNamed: "AvenirNext-Heavy")
-        line.text = Self.introLine
-        line.fontSize = 22
-        line.fontColor = .white
-        line.verticalAlignmentMode = .center
-        let pill = SKShapeNode(rectOf: CGSize(width: line.frame.width + 34, height: 42), cornerRadius: 21)
-        pill.fillColor = SKColor(white: 0, alpha: 0.3)
-        pill.strokeColor = .clear
-        pill.zPosition = -1
-        line.addChild(pill)
-        line.position = CGPoint(x: size.width / 2, y: size.height - 36)
-        uiLayer.addChild(line)
-        let shown = T.creditsIntroSeconds
-        animate(line, over: shown + 0.9, removing: true) { node, t in
-            let s = t * (shown + 0.9)
-            node.alpha = 0.95 * min(1, s / 0.4) * min(1, max(0, (shown + 0.9 - s) / 0.5))
-        }
+    /// The card before the swim, drawn as a level's: the title, the one line, and "Tap to start", beside your fish.
+    private func showStartCard() {
+        let card = SKNode()
+        let title = Self.label(Self.startTitle, size: 40, heavy: true)
+        let line = Self.label(Self.introLine, size: 19, heavy: false)
+        let start = Self.label("Tap to start", size: 22, heavy: true)
+        let height: CGFloat = 180, width = max(title.frame.width, line.frame.width, start.frame.width) + 70
+        let panel = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
+        panel.fillColor = SKColor(white: 0, alpha: 0.3)
+        panel.strokeColor = .clear
+        // Under its text: the scene ignores sibling order, so the same depth could draw it over them.
+        panel.zPosition = -1
+        card.addChild(panel)
+        title.position = CGPoint(x: 0, y: height / 2 - 45)
+        line.position = CGPoint(x: 0, y: height / 2 - 90)
+        start.position = CGPoint(x: 0, y: -height / 2 + 30)
+        for text in [title, line, start] { card.addChild(text) }
+        card.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
+        card.alpha = 0
+        card.run(.fadeIn(withDuration: 0.25))
+        uiLayer.addChild(card)
+        startCard = card
+    }
+
+    /// Your first tap: the card goes and the swim begins.
+    private func start() {
+        guard !started else { return }
+        started = true
+        startCard?.run(.sequence([.fadeOut(withDuration: 0.15), .removeFromParent()]))
+        startCard = nil
+        if view != nil { UIApplication.shared.isIdleTimerDisabled = true }
+        configureAccessibility()
     }
 
     // MARK: - Frame loop
@@ -252,6 +269,8 @@ final class CreditsScene: SKScene, ObservableObject {
     }
 
     private func advance(_ elapsed: CGFloat) {
+        // Still on the start card: nothing swims yet.
+        guard started else { return }
         accumulator += elapsed
         while accumulator + 1e-10 >= T.simulationStep {
             accumulator = max(0, accumulator - T.simulationStep)
@@ -610,6 +629,7 @@ final class CreditsScene: SKScene, ObservableObject {
                 tapCard(at: touch.location(in: self))
                 continue
             }
+            start()
             touched = true
             holdTouches.insert(touch)
         }
@@ -665,6 +685,20 @@ final class CreditsScene: SKScene, ObservableObject {
         list.accessibilityLabel = credits.spokenList
         list.accessibilityTraits = .staticText
         list.accessibilityFrame = screen(CGRect(origin: .zero, size: size))
+        // Before the swim, VoiceOver's double tap reaches the card as a Start button (a tap on the scene doesn't).
+        if !started, let startCard {
+            let start = ArcadeResultAccessibilityElement(accessibilityContainer: self)
+            start.accessibilityLabel = "Start the credits"
+            start.accessibilityHint = Self.introLine
+            start.accessibilityTraits = .button
+            start.accessibilityFrame = screen(startCard.calculateAccumulatedFrame())
+            start.activate = { [weak self] in
+                self?.start()
+                return self != nil
+            }
+            accessibilityElements = [start, list]
+            return
+        }
         guard finished, let card else {
             accessibilityElements = [list]
             return
@@ -793,7 +827,11 @@ final class CreditsScene: SKScene, ObservableObject {
     var debugThanks: [SKNode] { uiLayer.children.filter { $0.name == "thanks" } }
     var debugCardShowing: Bool { card?.parent != nil }
 
+    /// Whether the start card is still up, waiting for the first tap.
+    var debugWaitingToStart: Bool { !started }
+    /// Moves time on, the swim started as a first tap would.
     func debugAdvance(seconds: CGFloat) {
+        start()
         for _ in 0..<Int((seconds / T.simulationStep).rounded(.up)) { advance(T.simulationStep) }
     }
     func debugRender() { render() }
@@ -811,6 +849,7 @@ final class CreditsScene: SKScene, ObservableObject {
     /// ahead of it. Returns whether it reached the card, and when.
     @discardableResult
     func debugPlay(_ style: DebugPlayer = .eater, limit: CGFloat = 300, onFrame: (() -> Void)? = nil) -> (finished: Bool, seconds: CGFloat) {
+        start()
         touched = true
         var flail = SeededGenerator(seed: 9), flipAt: CGFloat = 0, holding = false
         while clock < limit && !finished {
