@@ -180,16 +180,15 @@ struct ArcadeCampaignTests {
         #expect(ArcadeProgress(defaults: defaults).save.hasSeenJellyLesson)
     }
 
-    @Test func levelIDsAreUniqueAndOriginalWorldHasNoHazards() {
+    @Test func levelIDsAreUniqueAndOnlyJellyBloomHasJellies() {
         let ids = ArcadeWorld.campaign.flatMap { world in world.levels.indices.map { world.levelID($0) } }
         #expect(Set(ids).count == 60)
         #expect(ids.first == "shallow-reef.1")
         #expect(ids.contains("shallow-reef.15") && ids.contains("jelly-bloom.15") && ids.contains("kelp-forest.15")
             && ids.last == "midnight-zone.15")
-        #expect(GameTuning.levels.allSatisfy { $0.jellies == nil })
-        #expect(GameTuning.bloomLevels.allSatisfy { $0.jellies != nil })
-        #expect(GameTuning.bloomLevels.allSatisfy { $0.aiCanEat })
-        #expect(GameTuning.bloomLevels.allSatisfy { $0.encounterDifficulty != nil })
+        for world in ArcadeWorld.campaign {
+            #expect(world.levels.allSatisfy { ($0.jellies != nil) == world.hasJellies }, "\(world.title)")
+        }
     }
 }
 
@@ -236,58 +235,23 @@ struct JellyRulesTests {
     }
 }
 
+/// The scene's rules, on planned levels: Jelly Bloom's (jellyfish) unless a test says otherwise.
 @MainActor
 struct ArcadeSceneTests {
-    private func scene(level: Int = 0) -> (GameScene, SKView) {
-        let scene = GameScene(world: .jellyBloom, levelIndex: level, seeded: true)
-        scene.debugUseReferenceLevel()
+    private func scene(_ world: ArcadeWorld = .jellyBloom, level: Int = 0) -> (GameScene, SKView) {
+        let scene = GameScene(world: world, levelIndex: level)
         let view = SKView(frame: CGRect(x: 0, y: 0, width: 852, height: 393))
         view.presentScene(scene)
         scene.debugStart()
         return (scene, view)
     }
 
-    @Test func onlyLevelTwoHasTheFarShoulderMealExperiment() {
-        #expect(GameTuning.bloomReferenceLevels.enumerated().filter { $0.element.sidePocketExperiment }.map(\.offset) == [1])
-        let (scene, view) = scene(level: 1)
-        let pocket = scene.debugSidePocketPlacement
-        #expect(!pocket.food.isEmpty)
-        #expect(pocket.predators.count == 1)
-        #expect(pocket.safe)
-        #expect(pocket.food.allSatisfy { $0.x > 44 && $0.y < 10 })
-        #expect(pocket.predators.allSatisfy { $0.x > 150 && abs($0.y + 16) <= 24 })
-        withExtendedLifetime(view) {}
-    }
-
-    @Test func foodLeavesItsOpeningPocketToJoinTheFoodChain() {
-        for index in 1..<5 {
-            let (scene, view) = scene(level: index)
-            #expect(scene.debugFoodLeavesPocket())
-            withExtendedLifetime(view) {}
-        }
-    }
-
-    @Test func aiMealsCanTurnEdibleFishIntoThreatsInEveryBloomLevel() {
+    @Test func aiMealsCanTurnEdibleFishIntoThreats() {
         for index in 0..<5 {
             let (scene, view) = scene(level: index)
             let result = scene.debugAICompetition()
             #expect(result.respectedGrace)
             #expect(result.becameThreat)
-            withExtendedLifetime(view) {}
-        }
-    }
-
-    @Test func bounceRoutesKeepFoodPocketsLargerFishAndGrownFishPassages() {
-        for index in 1..<5 {
-            let (scene, view) = scene(level: index)
-            let level = GameTuning.bloomReferenceLevels[index]
-            #expect(scene.debugFoodPocketCount >= 8)
-            #expect(scene.debugFishCount == level.spawnGroups.reduce(1) { $0 + $1.count })
-            #expect(scene.debugAllPredatorsInitiallyLarger)
-            #expect(scene.debugUrchinCount == 0)
-            for radius: CGFloat in [16, 40, 80] {
-                #expect(scene.debugFloorLane(radius: radius) >= GameRules.bloomFloorLaneClearance(fishRadius: radius) - 0.000001)
-            }
             withExtendedLifetime(view) {}
         }
     }
@@ -299,11 +263,10 @@ struct ArcadeSceneTests {
         withExtendedLifetime((firstView, secondView)) {}
     }
 
-    @Test func campaignWinsWithoutMealQuotaOrReplenishment() {
-        let (scene, view) = scene(level: 4)
+    @Test func campaignWinsWhenTheLastOtherFishIsGoneWithoutAMeal() {
+        let (scene, view) = scene(level: 14)
         var clears = 0
         scene.onClear = { _, _ in clears += 1 }
-        #expect(!scene.debugMealHUDVisible)
         scene.debugHazardWipeout()
         #expect(clears == 1)
         #expect(scene.debugMealsEaten == 0)
@@ -338,11 +301,10 @@ struct ArcadeSceneTests {
         withExtendedLifetime(jellyView) {}
     }
 
-    @Test func allBloomLevelsHaveNoUrchinsAndUseNumberedTitles() {
+    @Test func everyWorldUsesNumberedTitles() {
         for world in ArcadeWorld.campaign {
             #expect(world.levelTitles == world.levels.indices.map { "Level \($0 + 1)" })
         }
-        #expect(GameTuning.bloomLevels.allSatisfy { $0.jellies?.urchinBeds == 0 })
     }
 
     @Test func winOffersExplicitChoicesAndOutsideTapDoesNotAdvance() {
@@ -358,13 +320,13 @@ struct ArcadeSceneTests {
     }
 
     @Test func finalLevelHasReplayAndLevelsWithoutRestartingCampaign() {
-        let (scene, view) = scene(level: 4)
+        let (scene, view) = scene(level: 14)
         var exits = 0
         scene.onExit = { exits += 1 }
         scene.debugClearLevel()
         #expect(scene.debugResultTitles == ["Back to world", "Play again"])
         scene.debugTapResult(.playAgain)
-        #expect(scene.debugLevelIndex == 4)
+        #expect(scene.debugLevelIndex == 14)
         scene.debugStart()
         scene.debugClearLevel()
         scene.debugTapResult(.world)
@@ -397,29 +359,49 @@ struct ArcadeSceneTests {
         #expect(clears == [0])
         withExtendedLifetime(view) {}
     }
-}
 
-struct JellyPlacementTests {
-    @Test func layoutsAreRepeatableUnevenAndKeepSafeSpacing() {
-        for width: CGFloat in [667, 874] {
-            for index in 1..<5 {
-                let layout = GameTuning.bloomReferenceLevels[index].jellies!
-                let seed = GameTuning.spawnSeed + UInt64(index + 1_000)
-                let points = JellyPlacement.origins(layout: layout, screenWidth: width,
-                    waterBottom: 10, waterTop: 390, seed: seed)
-                #expect(points == JellyPlacement.origins(layout: layout, screenWidth: width,
-                    waterBottom: 10, waterTop: 390, seed: seed))
-                #expect(points.count == layout.count)
-                #expect(points.first!.x >= width * 0.8)
-                #expect(points.last!.x <= width * 3.6 + 0.000001)
-                let gaps = zip(points, points.dropFirst()).map { $1.x - $0.x }
-                #expect(gaps.min()! >= layout.radius * 2 + layout.sway * 2
-                        + GameTuning.bloomJellySpacingPadding - 0.000001)
-                #expect(gaps.max()! - gaps.min()! > 40)
-                #expect(Set(points.map(\.y)).count > 1)
-                #expect(points.allSatisfy { $0.y - layout.tentacleLength - 10 >=
-                    GameRules.bloomFloorLaneClearance(fishRadius: GameTuning.baseRadius) - 0.000001 })
+    @Test func sceneCollisionGivesEqualFishToThePlayerInBothOrders() {
+        for ratio: CGFloat in [1, 0.995, 1.005] {
+            for second in [false, true] {
+                let scene = GameScene(world: .jellyBloom)
+                #expect(scene.debugResolvePlayerTie(otherRatio: ratio, playerSecond: second))
             }
         }
+    }
+
+    @Test func noninteractingFishKeepTheirMovementWhenOtherFishAreSkippedOrRemoved() {
+        let frames = Array(repeating: CGFloat(1) / 60, count: 480)
+        for world: ArcadeWorld in [.shallowReef, .jellyBloom] {
+            for index in [0, 4, 9, 14] {
+                func run(omitted: Set<Int> = [], remove: Bool = false) -> ArcadeSimulation.Audit {
+                    let scene = GameScene(world: world, levelIndex: index)
+                    return scene.debugAuditRepeatability(frames: frames, omittedIDs: omitted, removeOmittedFish: remove)
+                }
+                let control = run()
+                for omitted: Set<Int> in [[1], [1, 2, 3]] {
+                    let expected = control.fish.filter { !omitted.contains($0.id) }
+                    #expect(run(omitted: omitted).fish == expected)
+                    #expect(run(omitted: omitted, remove: true).fish == expected)
+                }
+            }
+        }
+    }
+
+    @Test func removedFishReleaseTheirStreamsAndRetriesRecreateThem() {
+        let (scene, view) = scene()
+        scene.debugHazardWipeout()
+        #expect(scene.debugAIMovementStreamIDs.isEmpty)
+        scene.debugTapResult(.playAgain)
+        #expect(scene.debugAIMovementStreamIDs == Set(scene.debugMeetingPlan!.fish.map(\.id)))
+        withExtendedLifetime(view) {}
+    }
+
+    /// The planner measures planned fish with your fish untouchable (`debugEncounterCrossings`).
+    @Test func anUntouchablePlayerCannotDieOrFeed() {
+        let scene = GameScene(world: .jellyBloom, levelIndex: 1)
+        #expect(!scene.debugEncounterCrossings().isEmpty)
+        #expect(scene.debugMealsEaten == 0)
+        #expect(scene.debugPlayerRadius == GameTuning.baseRadius)
+        #expect(scene.debugResultTitles.isEmpty)
     }
 }

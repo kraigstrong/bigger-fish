@@ -84,4 +84,28 @@ struct GamePresentationTests {
         let scene = GameScene(world: .jellyBloom)
         #expect(scene.debugCheckPresentationIsolation())
     }
+
+    @MainActor @Test func fixedGameplayRepeatsAcrossDisplaySchedulesIncludingSlowMotion() {
+        let schedules = [
+            Array(repeating: CGFloat(1) / 60, count: 480),
+            Array(repeating: CGFloat(1) / 30, count: 240),
+            Array(repeating: CGFloat(1) / 120, count: 960),
+            (0..<480).map { CGFloat($0.isMultiple(of: 2) ? 1 : 3) / 120 },
+            Array(repeating: CGFloat(1) / 10, count: 80),
+        ]
+        for slow in [false, true] {
+            func run(_ frames: [CGFloat]) -> ArcadeSimulation.Audit {
+                let scene = GameScene(world: .jellyBloom, levelIndex: 4)
+                return scene.debugAuditRepeatability(frames: frames, fixedStep: true,
+                    slowMotion: slow, scriptedInput: true)
+            }
+            let control = run(schedules[0])
+            for schedule in schedules.dropFirst() { #expect(control == run(schedule)) }
+        }
+    }
+
+    @MainActor @Test func fixedTimingBoundsHitchesAndDropsPausedDebt() {
+        let scene = GameScene(world: .jellyBloom)
+        #expect(scene.debugCheckFixedTimingLifecycle())
+    }
 }

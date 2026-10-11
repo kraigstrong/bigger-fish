@@ -55,19 +55,6 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         }
     }
     func level(_ index: Int) -> Level { levels[index] }
-    /// Shallow Reef and Jelly Bloom replaced original seeded campaigns, kept for the debug tuner; later worlds
-    /// were planned from the start.
-    var hasSeededOriginal: Bool { self == .shallowReef || self == .jellyBloom }
-    /// The original seeded campaigns the planned levels replaced, kept for the debug tuner and the
-    /// generator's tests.
-    var seededLevels: [Level] {
-        switch self {
-        case .shallowReef: GameTuning.levels
-        case .jellyBloom: GameTuning.bloomLevels
-        case .kelpForest: GameTuning.kelpLevels
-        case .midnightZone: GameTuning.midnightLevels
-        }
-    }
     /// Counting a world's levels doesn't load them.
     var levelCount: Int {
         switch self {

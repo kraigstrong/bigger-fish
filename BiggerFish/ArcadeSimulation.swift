@@ -6,7 +6,7 @@ import FishKit
 /// Offline diagnostics use different player policies, not a claim to measure human enjoyment.
 enum ArcadeSimulation {
     enum Policy: String, CaseIterable, Codable { case collector, opportunist, cautious }
-    struct Swimmer { var canEat = true; let x: CGFloat; let y: CGFloat; let vx: CGFloat; let vy: CGFloat; let radius: CGFloat }
+    struct Swimmer { let x: CGFloat; let y: CGFloat; let vx: CGFloat; let vy: CGFloat; let radius: CGFloat }
     struct Bell { let x: CGFloat; let y: CGFloat; let radius: CGFloat; let tentacles: CGFloat }
     struct Observation {
         let player: Swimmer
@@ -42,71 +42,27 @@ enum ArcadeSimulation {
         let fish: [AuditFish]
     }
 
-    struct Stats: Codable {
-        var playerMeals = 0
-        var aiMeals = 0
-        var closeMeals = 0
-        var contestedMeals = 0
-        var bounces = 0
-        var aiHazardDeaths = 0
-        var threatSeconds: Double = 0
-        var nearbyThreatSeconds: Double = 0
-        var stalledSeconds: Double = 0
-        var lastThreat: Double = 0
-        var firstStallLap: Double?
-        var lastStallLap: Double?
-        var recoveredPaths = 0
-        var mealLaps: [Double] = []
-        var mealRatios: [Double] = []
-        var mealFishIDs: [Int] = []
-        var mealStartLaps: [Double] = []
-        var mealStartFishIDs: [Int] = []
-        var minimumThreatClearance: Double = 100_000
-    }
-    struct Result: Codable {
-        let candidate: String
-        let level: Int
-        let policy: Policy
-        var decisionIntervalSeconds: Double? = nil
-        var predictionSeconds: Double? = nil
-        var foodPriority: Double? = nil
-        var dangerWeight: Double? = nil
-        let seed: Int
-        let width: Double
-        let skippedFirstPassFishIDs: [Int]
-        let firstPassMealLimit: Int?
-        let delayedPasses: Double
-        let ecologyProbe: Bool
-        let laps: Double
+    /// How a bot's run ended (`GameScene.debugSimulate`).
+    struct Result {
         let outcome: String
         let reason: String
         let seconds: Double
-        let remaining: Int
-        let playerRadius: Double
-        let spawned: Int
-        let configured: Int
-        let initialGrowthPath: Bool
-        let stats: Stats
-        let tuning: ArcadeTuning
-    }
-
-    static func hasGrowthPath(player: CGFloat, radii: [CGFloat], efficiency: CGFloat) -> Bool {
-        ArcadeGrowthBudget.hasPath(player: player, radii: radii, efficiency: efficiency)
+        let playerMeals: Int
     }
 
     /// Predict short local trajectories for both inputs. Only visible fish enter the observation.
     /// Prediction is approximate; the rollout itself always advances the actual scene physics.
-    static func holding(_ observation: Observation, policy: Policy, feeding: Bool = true, predictionSeconds: CGFloat = 0.6, foodPriority: CGFloat? = nil, dangerWeight: CGFloat? = nil) -> Bool {
+    static func holding(_ observation: Observation, policy: Policy) -> Bool {
         let p = observation.player
         let wrapped = WrappedWorld(width: observation.width)
-        let food = observation.fish.filter { feeding && $0.canEat && GameRules.playerEncounter(p.radius, $0.radius) == .firstEatsSecond }
+        let food = observation.fish.filter { GameRules.playerEncounter(p.radius, $0.radius) == .firstEatsSecond }
         let target = food.min { a, b in
             func value(_ f: Swimmer) -> CGFloat {
                 var dx = wrapped.delta(from: p.x, to: f.x)
                 if dx < -(p.radius + f.radius) { dx += observation.width }
                 let intercept = min(2, max(0, dx / max(60, observation.speed - f.vx)))
                 let vertical = abs(f.y + f.vy * intercept - p.y)
-                let mealValue = f.radius * (foodPriority ?? (policy == .opportunist ? 4 : 0))
+                let mealValue = f.radius * (policy == .opportunist ? 4 : 0)
                 return dx + vertical * 1.6 - mealValue
             }
             return value(a) < value(b)
@@ -119,7 +75,7 @@ enum ArcadeSimulation {
         var best = CGFloat.greatestFiniteMagnitude
         var choice = false
         // Four input sequences let the bot brake a fall or start a descent instead of holding forever.
-        let predictionSteps = max(2, Int((predictionSeconds * 30).rounded()))
+        let predictionSteps = 18
         for sequence in 0..<4 {
             var y = p.y, vy = p.vy, x = p.x
             var cost: CGFloat = 0
@@ -152,11 +108,11 @@ enum ArcadeSimulation {
                     let dy = f.y + f.vy * time - y
                     let gap = hypot(dx, dy) - (p.radius + f.radius) * GameTuning.collisionScale
                     if GameRules.playerEncounter(p.radius, f.radius) == .secondEatsFirst {
-                        let threatCost: CGFloat = dangerWeight ?? (policy == .cautious ? 140 : (policy == .opportunist ? 45 : 80))
+                        let threatCost: CGFloat = policy == .cautious ? 140 : (policy == .opportunist ? 45 : 80)
                         if gap < 0 { cost += 100_000 }
                         else { cost += max(0, 75 - gap) * threatCost / CGFloat(predictionSteps) }
                     } else if GameRules.playerEncounter(p.radius, f.radius) == .firstEatsSecond && gap < 0 {
-                        cost += feeding && f.canEat ? (policy == .opportunist ? -300 : -150) : 100_000
+                        cost += policy == .opportunist ? -300 : -150
                     }
                 }
             }

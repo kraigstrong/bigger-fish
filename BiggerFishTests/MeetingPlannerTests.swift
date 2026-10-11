@@ -456,9 +456,8 @@ struct MeetingPlannerTests {
                 eaten: Set(plan.fish.filter(\.referenceMeal).map(\.id)))
             lines.append(Self.table(plan: plan, actual: actual))
             for policy in ArcadeSimulation.Policy.allCases {
-                let result = GameScene.plannerScene(spec).debugSimulate(candidate: spec.name, tuning: ArcadeTuning(level: plan.level),
-                    policy: policy, seed: 0, limit: 90)
-                lines.append("\nbot \(policy.rawValue): \(result.outcome) in \(String(format: "%.1f", result.seconds)) s, \(result.stats.playerMeals) meals, \(result.reason)")
+                let result = GameScene.plannerScene(spec).debugSimulate(policy: policy, limit: 90)
+                lines.append("\nbot \(policy.rawValue): \(result.outcome) in \(String(format: "%.1f", result.seconds)) s, \(result.playerMeals) meals, \(result.reason)")
             }
             // How close each gate and returning threat is for a player who eats everything on lap one.
             let full = plan.radii(eating: plan.fullestRoute)
