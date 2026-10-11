@@ -10,8 +10,6 @@ struct ArcadeSave: Codable {
     var hasSeenJellyLesson = false
     /// Worlds whose "conquered" unlock screen has been shown.
     var seenUnlocks: Set<String>? = nil
-    /// Worlds an unlock screen has announced as open (the next world on a world's "conquered" screen).
-    var announcedWorlds: Set<String>? = nil
     /// The first-launch tutorial has been shown (finished, skipped, or left).
     var hasSeenTutorial: Bool? = nil
 
@@ -23,7 +21,6 @@ struct ArcadeSave: Codable {
         bestTimes = (try? values.decodeIfPresent([String: Double].self, forKey: .bestTimes)) ?? [:]
         hasSeenJellyLesson = (try? values.decodeIfPresent(Bool.self, forKey: .hasSeenJellyLesson)) ?? false
         seenUnlocks = try? values.decodeIfPresent(Set<String>.self, forKey: .seenUnlocks)
-        announcedWorlds = try? values.decodeIfPresent(Set<String>.self, forKey: .announcedWorlds)
         hasSeenTutorial = try? values.decodeIfPresent(Bool.self, forKey: .hasSeenTutorial)
     }
 }
@@ -42,20 +39,10 @@ final class ArcadeProgress: ObservableObject {
         if let loaded = try? JSONDecoder().decode(ArcadeSave.self, from: data) {
             save = loaded
         } else {
-            // Not even a JSON object: keep the original, then start from whatever can be salvaged.
+            // Not even a JSON object (any object loads, field by field): keep the original, and start afresh.
             defaults.set(data, forKey: Self.unreadableKey)
-            save = Self.salvage(data)
+            save = ArcadeSave()
         }
-    }
-
-    /// Cleared levels and best times from a save the decoder rejected, read as loosely as possible.
-    private static func salvage(_ data: Data) -> ArcadeSave {
-        var save = ArcadeSave()
-        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return save }
-        save.clearedLevels = Set((object["clearedLevels"] as? [Any] ?? []).compactMap { $0 as? String })
-        save.bestTimes = (object["bestTimes"] as? [String: Any] ?? [:]).compactMapValues { ($0 as? NSNumber)?.doubleValue }
-        save.hasSeenJellyLesson = object["hasSeenJellyLesson"] as? Bool ?? false
-        return save
     }
 
     func isCleared(_ world: ArcadeWorld, _ index: Int) -> Bool {
@@ -106,27 +93,18 @@ final class ArcadeProgress: ObservableObject {
         persist()
     }
 
-    /// A world whose tenth level is beaten but whose unlock screen the player hasn't had, shown once at launch:
-    /// players who beat it before that screen existed, and players who beat it before the world after it joined
-    /// the campaign (`ArcadeWorld.lateArrivals`) and haven't been told or tried that world since. With several, the
-    /// furthest along, since it announces the newest things.
+    /// A world whose tenth level is beaten but whose "conquered" screen (opening its Deep End) the player hasn't had,
+    /// shown at launch: players who beat it before that screen existed. With several, the furthest along first.
     var unseenUnlock: ArcadeWorld? {
         ArcadeWorld.campaign.last { world in
-            guard isCleared(world, ArcadeWorld.mainLevelCount - 1) else { return false }
-            if !(save.seenUnlocks ?? []).contains(world.rawValue) { return true }
-            guard let next = world.nextWorld, ArcadeWorld.lateArrivals.contains(next),
-                  !(save.announcedWorlds ?? []).contains(next.rawValue) else { return false }
-            let tried = clearedCounts(in: next)
-            return tried.main + tried.deepEnd == 0
+            isCleared(world, ArcadeWorld.mainLevelCount - 1) && !(save.seenUnlocks ?? []).contains(world.rawValue)
         }
     }
 
-    /// Marks this world's unlock screen, and every earlier world's, as shown, and the worlds they announce.
+    /// Marks this world's "conquered" screen as shown. Each world's opens its own Deep End, and worlds can be played
+    /// in any order, so it says nothing about other worlds'.
     func sawUnlock(_ world: ArcadeWorld) {
-        guard let index = ArcadeWorld.campaign.firstIndex(of: world) else { return }
-        let shown = ArcadeWorld.campaign.prefix(index + 1)
-        save.seenUnlocks = (save.seenUnlocks ?? []).union(shown.map(\.rawValue))
-        save.announcedWorlds = (save.announcedWorlds ?? []).union(shown.compactMap { $0.nextWorld?.rawValue })
+        save.seenUnlocks = (save.seenUnlocks ?? []).union([world.rawValue])
         persist()
     }
 

@@ -12,6 +12,8 @@ enum ArcadeLinks {
 struct SettingsView: View {
     @ObservedObject var settings = ArcadeSettings.shared
     @ObservedObject var purchases: ArcadePurchases
+    /// Counts how a restore here goes (the paywall funnel).
+    var analytics: ArcadeAnalytics? = nil
     let onReplayTutorial: () -> Void
     let onClose: () -> Void
     @Environment(\.openURL) private var openURL
@@ -98,7 +100,11 @@ struct SettingsView: View {
 
     private func restore() {
         restoring = .working
-        Task { restoring = await purchases.restore() ? .restored : .nothing }
+        Task {
+            let found = await purchases.restore()
+            analytics?.restoreInSettings(found: found)
+            restoring = found ? .restored : .nothing
+        }
     }
 
     private func heading(_ title: String) -> some View {

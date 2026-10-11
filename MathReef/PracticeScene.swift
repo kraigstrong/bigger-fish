@@ -196,7 +196,6 @@ final class PracticeScene: SKScene {
     private var swallow: LabSwallow?
     private var lastCorrect = true
     private var feedbackRemaining: CGFloat = 0
-    private var sessionStart: CGFloat = 0
     private var nextID = 1
 
     private let backgroundLayer = SKNode()
@@ -920,7 +919,6 @@ final class PracticeScene: SKScene {
         audio.playMusic(.game)
         hidePanel()
         closeButton.isHidden = false
-        sessionStart = realClock
         analytics.roundStarted(level: level, target: session.targetCorrect)
         spawnWave()
     }

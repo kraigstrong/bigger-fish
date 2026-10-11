@@ -1567,8 +1567,9 @@ final class GameScene: SKScene {
             break
         }
         let t = tutorialTime(since: scripted.start)
-        if scripted.leaves && t > scripted.path.duration {
-            removeTutorialFish(f.id)
+        // A fish mid-bite finishes its meal first.
+        if scripted.leaves && t > scripted.path.duration && f.state == .swimming {
+            removeFish(f)
             return
         }
         let at = scripted.path.at(t)
@@ -1584,16 +1585,6 @@ final class GameScene: SKScene {
         // Every tutorial fish swims at you, as fish you meet in a level do.
         f.heading = -1
         f.facing = -1
-    }
-
-    private func removeTutorialFish(_ id: Int) {
-        tutorialPaths[id] = nil
-        tutorialSwims[id] = nil
-        fish.removeAll { $0.id == id }
-        fishByID[id] = nil
-        aiMovementRNGs[id] = nil
-        nodes[id]?.removeFromParent()
-        nodes[id] = nil
     }
 
     private func showTutorialCaption(_ text: String) {
@@ -1722,10 +1713,11 @@ final class GameScene: SKScene {
         }
     }
 
-    private func removeByTentacles(_ victim: Fish, reason: String = "Caught in the tentacles.") {
+    private func removeByTentacles(_ victim: Fish) {
+        let reason = "Caught in the tentacles."
         if victim.isPlayer && metricAccumulator != nil {
             observeMetrics()
-            metricDeathCause = reason == "Caught in the tentacles." ? "tentacles" : "urchin"
+            metricDeathCause = "tentacles"
             fatalMetrics = metricAccumulator?.summary
         }
         #if DEBUG
@@ -1733,17 +1725,7 @@ final class GameScene: SKScene {
                                                "x": victim.position.x, "y": victim.position.y, "radius": victim.radius])
         #endif
         // If a predator hits a curtain mid-swallow, its prey escapes rather than getting stuck.
-        for swallow in swallows where swallow.predatorID == victim.id || swallow.preyID == victim.id {
-            let otherID = swallow.predatorID == victim.id ? swallow.preyID : swallow.predatorID
-            if let survivor = fishByID[otherID], survivor.state != .removed {
-                survivor.state = .swimming
-                survivor.shrink = 1
-                survivor.struggle = 0
-                survivor.chew = 0
-                survivor.squash = 0
-            }
-        }
-        swallows.removeAll { $0.predatorID == victim.id || $0.preyID == victim.id }
+        releaseSwallows(of: victim)
         victim.state = .removed
         if let node = nodes[victim.id] {
             let zap = ZapNode(seed: UInt64(victim.id) &+ UInt64(simClock * 60))
@@ -1758,12 +1740,44 @@ final class GameScene: SKScene {
             playSound(.sting)
             lose(resultDelay: T.stingResultDelay)
         } else {
-            fish.removeAll { $0.id == victim.id }
-            fishByID[victim.id] = nil
-            aiMovementRNGs[victim.id] = nil
-            encounterLeases[victim.id] = nil
-            nodes[victim.id] = nil
+            // Its node stays on screen for the sting (`stungFish`).
+            removeFish(victim, keepingNode: true)
         }
+    }
+
+    /// Takes a fish out of the game, and everything kept about it. A swallow it was part of ends, so its partner swims
+    /// on rather than waiting forever on a meal that's gone. `keepingNode`: its node stays on screen (a sting's death).
+    private func removeFish(_ victim: Fish, keepingNode: Bool = false) {
+        releaseSwallows(of: victim)
+        victim.state = .removed
+        if !keepingNode { nodes[victim.id]?.removeFromParent() }
+        let id = victim.id
+        nodes[id] = nil
+        fish.removeAll { $0.id == id }
+        fishByID[id] = nil
+        aiMovementRNGs[id] = nil
+        movementVariants[id] = nil
+        encounterLeases[id] = nil
+        approachEnds[id] = nil
+        silhouetteShade[id] = nil
+        previousPresentation[id] = nil
+        tutorialPaths[id] = nil
+        tutorialSwims[id] = nil
+    }
+
+    /// Ends any swallow `victim` is part of, letting the other fish go.
+    private func releaseSwallows(of victim: Fish) {
+        for swallow in swallows where swallow.predatorID == victim.id || swallow.preyID == victim.id {
+            let otherID = swallow.predatorID == victim.id ? swallow.preyID : swallow.predatorID
+            if let survivor = fishByID[otherID], survivor.state != .removed {
+                survivor.state = .swimming
+                survivor.shrink = 1
+                survivor.struggle = 0
+                survivor.chew = 0
+                survivor.squash = 0
+            }
+        }
+        swallows.removeAll { $0.predatorID == victim.id || $0.preyID == victim.id }
     }
 
     private func renderJellies(cameraX: CGFloat, zoom: CGFloat, fraction: CGFloat, time: CGFloat) {
@@ -2011,13 +2025,7 @@ final class GameScene: SKScene {
         }
         #endif
 
-        prey.state = .removed
-        nodes[prey.id]?.removeFromParent()
-        nodes[prey.id] = nil
-        fish.removeAll { $0.id == prey.id }
-        fishByID[prey.id] = nil
-        aiMovementRNGs[prey.id] = nil
-        encounterLeases[prey.id] = nil
+        removeFish(prey)
 
         predator.state = .swimming
         predator.squash = 0
@@ -2571,13 +2579,7 @@ final class GameScene: SKScene {
         player.radius = playerRadius
         player.targetRadius = playerRadius
         if removeOmittedFish {
-            for id in omittedIDs {
-                fish.removeAll { $0.id == id }
-                fishByID[id] = nil
-                nodes[id]?.removeFromParent()
-                nodes[id] = nil
-                aiMovementRNGs[id] = nil
-            }
+            for id in omittedIDs { if let omitted = fishByID[id] { removeFish(omitted) } }
         }
         if slowMotion {
             slowMoRemaining = T.closeCallSlowDuration
@@ -2784,6 +2786,30 @@ final class GameScene: SKScene {
     }
     /// Draws the scene as it stands, for frames rendered in tests.
     func debugRender() { _ = render() }
+    /// A scripted fish whose path ends while it's eating, and a meal taken out of your mouth: whether the fish finished
+    /// its meal before leaving, then left with nothing of it or its meal still swimming or swallowing, and you swam on.
+    func debugLeavingMidSwallow() -> (stayedToEat: Bool, leftAfter: Bool, youSwimOn: Bool) {
+        func spawn(_ radius: CGFloat, ahead: CGFloat) -> Fish {
+            let f = Fish(id: nextFishID, isPlayer: false,
+                         position: CGPoint(x: world.wrap(player.position.x + ahead * size.width / zoom), y: player.position.y), radius: radius)
+            nextFishID += 1
+            add(f, style: .player)
+            return f
+        }
+        let eater = spawn(player.radius * 2, ahead: 0.5), meal = spawn(player.radius * 0.6, ahead: 0.5)
+        // Its path ended long ago, so it would leave on its next move.
+        tutorialPaths[eater.id] = (TutorialPath(points: [(0, 0.5, 0.5), (0.1, 0.5, 0.5)]), simClock - 10, true)
+        beginSwallow(predator: eater, prey: meal)
+        simulate(1.0 / 30)
+        let stayed = fishByID[eater.id] != nil && fishByID[meal.id] != nil
+        for _ in 0..<300 where fishByID[eater.id] != nil { simulate(1.0 / 30) }
+        let left = fishByID[eater.id] == nil && fishByID[meal.id] == nil && nodes[eater.id] == nil && tutorialPaths.isEmpty
+            && swallows.isEmpty
+        let snack = spawn(player.radius * 0.5, ahead: 0)
+        beginSwallow(predator: player, prey: snack)
+        removeFish(snack)
+        return (stayed, left, player.state == .swimming && swallows.isEmpty && fishByID[snack.id] == nil)
+    }
     /// Before the scene is shown: the tutorial starts at `beat` (the size the beats before it make you), as a retry
     /// would, for playtesting one beat.
     func debugSetTutorialStart(_ beat: ArcadeTutorial.Beat) { tutorialCheckpoint = beat }
@@ -3099,18 +3125,63 @@ final class GameScene: SKScene {
                     y: Double(last.y + (f.position.y - last.y) * fraction), radius: Double(f.radius),
                     headOn: f.velocity.dx < 0, zoom: Double(zoom)))
             }
-            for id in eaten where crossed.contains(id) && fishByID[id] != nil {
-                fishByID[id]?.state = .removed
-                fish.removeAll { $0.id == id }
-                fishByID[id] = nil
-                aiMovementRNGs[id] = nil
-                encounterLeases[id] = nil
-                nodes[id]?.removeFromParent()
-                nodes[id] = nil
-            }
+            for id in eaten where crossed.contains(id) { if let gone = fishByID[id] { removeFish(gone) } }
         }
         return crossings
     }
     #endif
 
 }
+
+#if DEBUG
+// MARK: - App Store captures (StoreCapture.swift)
+
+extension GameScene {
+    /// The scene as a capture sees it: every fish and jellyfish where it's drawn, in screen points.
+    var debugCaptureView: StoreCapture.SceneView {
+        func screen(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: size.width * T.playerScreenX + world.delta(from: player.position.x, to: point.x) * zoom,
+                    y: waterCenter + (point.y - waterCenter) * zoom)
+        }
+        func swimmer(_ f: Fish) -> StoreCapture.Swimmer {
+            var prey: Int?
+            if case .swallowing(let id) = f.state { prey = id }
+            var eaten = false
+            if case .beingSwallowed = f.state { eaten = true }
+            return StoreCapture.Swimmer(id: f.id, center: screen(f.position), radius: f.radius * zoom, prey: prey,
+                                        isEaten: eaten, shrink: f.shrink,
+                                        shade: kelpBeds.isEmpty || f.isPlayer ? 0 : kelpShade(f.position, radius: f.radius))
+        }
+        return StoreCapture.SceneView(size: size, time: simClock, playing: phase == .playing, won: phase == .won,
+                                      player: swimmer(player), rising: player.velocity.dy * zoom,
+                                      fish: fish.filter { !$0.isPlayer && $0.state != .removed }.map(swimmer),
+                                      jellies: jellies.map { screen($0.position) }, jellyRadius: (level.jellies?.radius ?? 0) * zoom,
+                                      lastBounce: debugBounces.last { $0.fishID == player.id }?.time)
+    }
+
+    /// The diagnostics bot's call on the scene as it stands, seeing what it sees in `debugSimulate`.
+    func debugBotHolds(_ policy: ArcadeSimulation.Policy) -> Bool {
+        let visible = fish.filter { !$0.isPlayer && $0.state == .swimming &&
+            abs(world.delta(from: player.position.x, to: $0.position.x)) < size.width * 0.80 / zoom }
+        func swimmer(_ f: Fish) -> ArcadeSimulation.Swimmer {
+            .init(x: f.position.x, y: f.position.y, vx: f.velocity.dx, vy: f.velocity.dy, radius: f.radius)
+        }
+        let bells = level.jellies.map { layout in
+            jellies.filter { abs(world.delta(from: player.position.x, to: $0.position.x)) < size.width / zoom }
+                .map { ArcadeSimulation.Bell(x: $0.position.x, y: $0.position.y, radius: layout.radius, tentacles: layout.tentacleLength) }
+        } ?? []
+        return ArcadeSimulation.holding(.init(player: swimmer(player), fish: visible.map(swimmer), bells: bells,
+            width: world.width, screenWidth: size.width, zoom: zoom, bottom: waterBottom, top: waterTop, speed: playerSpeed,
+            bouncing: bounceRemaining > 0, bounceSpeed: T.jellyBounceSpeed), policy: policy)
+    }
+
+    /// The level from the start, playing at once, as a first touch starts it.
+    func debugCaptureRestart() {
+        resetGame(startPlaying: false)
+        startRun()
+    }
+
+    /// No pause button, level name, or card over the frame.
+    func debugHideInterface() { uiLayer.isHidden = true }
+}
+#endif

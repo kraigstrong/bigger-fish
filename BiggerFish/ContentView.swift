@@ -22,7 +22,7 @@ struct ContentView: View {
     @State private var celebrating: ArcadeWorld?
     /// The conquered screen is the unlock's offer (beating Shallow Reef without it), decided as it opens so a purchase
     /// made on it shows its thanks rather than switching screens.
-    @State private var celebrationOffersUnlock = false
+    @State private var celebrationOffer: UnlockOffer?
     /// Asking for an App Store review after a high point (see `ArcadeReview`), and whether the last level played was won.
     @State private var review = ArcadeReview()
     @State private var lastPlayWon = true
@@ -62,13 +62,15 @@ struct ContentView: View {
                                onPlay: { play(world, index: $0) })
             } else {
                 ArcadeWorldMap(progress: progress, unlocked: unlocked, onSelect: { selectedWorld = $0; returnedFrom = nil },
-                               onUnlock: { world in withAnimation { offer = UnlockOffer(featured: world) } },
+                               onUnlock: { world in
+                                   withAnimation { offer = UnlockOffer(featured: world, source: world == nil ? .unlockAll : .lockedWorld) }
+                               },
                                onSettings: { withAnimation { showsSettings = true } })
             }
         }
         .overlay {
             if scene == nil && showsSettings {
-                SettingsView(purchases: purchases,
+                SettingsView(purchases: purchases, analytics: analytics,
                              onReplayTutorial: { showsSettings = false; playTutorial() },
                              onClose: { withAnimation { showsSettings = false } })
                     .transition(.opacity)
@@ -76,8 +78,9 @@ struct ContentView: View {
         }
         .overlay {
             if scene == nil, let world = celebrating {
-                if celebrationOffersUnlock {
-                    UnlockView(purchases: purchases, conquered: world, onClose: { withAnimation { celebrating = nil } })
+                if let celebrationOffer {
+                    UnlockView(purchases: purchases, conquered: world, source: celebrationOffer.source, analytics: analytics,
+                               onClose: { withAnimation { celebrating = nil } })
                         .transition(.opacity)
                 } else {
                     WorldConqueredView(world: world,
@@ -89,7 +92,8 @@ struct ContentView: View {
         }
         .overlay {
             if scene == nil, let offer {
-                UnlockView(purchases: purchases, featured: offer.featured, onClose: { withAnimation { self.offer = nil } })
+                UnlockView(purchases: purchases, featured: offer.featured, source: offer.source, analytics: analytics,
+                           onClose: { withAnimation { self.offer = nil } })
                     .transition(.opacity)
             }
         }
@@ -113,6 +117,7 @@ struct ContentView: View {
             }
             .font(.caption.bold()).buttonStyle(.borderedProminent)
             .padding(.trailing, 12).padding(.bottom, 4)
+            .opacity(StoreCapture.moment == nil ? 1 : 0)
         }
         .sheet(isPresented: $showsTuning) {
             ArcadeTuningPanel(onPlanner: playPlanner, onResetProgress: { progress.reset($0) })
@@ -120,18 +125,25 @@ struct ContentView: View {
                 scene = nil
                 offer = nil
                 selectedWorld = world
-                celebrate(world)
+                celebrate(world, preview: true)
             }
             .replayingTutorial { playTutorial() }
             .replayingTutorialWall { playTutorial(from: .eatEnough) }
             .previewingUnlock {
                 scene = nil
-                withAnimation { offer = UnlockOffer(featured: nil) }
+                withAnimation { offer = UnlockOffer(featured: nil, source: nil) }
             }
         }
         #endif
         .onChange(of: quietOnMap) { _, quiet in if quiet { askForReviewIfDue() } }
-        .onChange(of: offer == nil) { _, closed in if !closed { review.sawOffer() } }
+        .onChange(of: offer == nil) { _, closed in
+            guard !closed else { return }
+            review.sawOffer()
+            if let source = offer?.source { analytics.offerShown(source) }
+        }
+        // Each run says whether it was played with the unlock, while the unlock is on sale.
+        .onChange(of: purchases.isUnlocked, initial: true) { _, owned in analytics.hasUnlock = ArcadeUnlock.isSelling ? owned : nil }
+        .onChange(of: scenePhase) { _, phase in if phase == .background { analytics.backgrounded() } }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .task { await warmUp() }
@@ -140,6 +152,7 @@ struct ContentView: View {
             purchases.start()
             if !metricsLaunched { analytics.launched(); analytics.flush(); metricsLaunched = true }
             #if DEBUG
+            StoreCapture.begin()
             if scene == nil, let world = ArcadePlaytest.mapSelection {
                 selectedWorld = world
             }
@@ -155,10 +168,12 @@ struct ContentView: View {
     }
 
     /// Shows a world's conquered screen. Without the unlock, beating Shallow Reef is the moment to show what it opens,
-    /// its Deep End included.
-    private func celebrate(_ world: ArcadeWorld) {
-        celebrationOffersUnlock = ArcadeUnlock.needsUnlock(world, ArcadeWorld.mainLevelCount, unlocked: purchases.isUnlocked)
-        if celebrationOffersUnlock { review.sawOffer() }
+    /// its Deep End included. `preview` (Xcode builds, from the tuner) shows it without counting it.
+    private func celebrate(_ world: ArcadeWorld, preview: Bool = false) {
+        let offersUnlock = ArcadeUnlock.needsUnlock(world, ArcadeWorld.mainLevelCount, unlocked: purchases.isUnlocked)
+        celebrationOffer = offersUnlock ? UnlockOffer(featured: nil, source: preview ? nil : .conquered) : nil
+        if offersUnlock { review.sawOffer() }
+        if let source = celebrationOffer?.source { analytics.offerShown(source) }
         withAnimation { celebrating = world }
     }
 
@@ -264,7 +279,7 @@ struct ContentView: View {
         offersUnlock = ArcadePlaytest.selection == nil
         #endif
         if offersUnlock && ArcadeUnlock.needsUnlock(world, index, unlocked: purchases.isUnlocked) {
-            withAnimation { offer = UnlockOffer(featured: world) }
+            withAnimation { offer = UnlockOffer(featured: world, source: .padlockedLevel) }
             return
         }
         #if DEBUG
@@ -273,6 +288,9 @@ struct ContentView: View {
         guard progress.isOpen(world, index) else { return }
         #endif
         let game = GameScene(world: world, levelIndex: index, showsJellyLesson: !progress.save.hasSeenJellyLesson)
+        #if DEBUG
+        StoreCapture.attach(game)
+        #endif
         game.analytics = analytics
         game.hasCleared = { index in progress.isCleared(world, index) }
         if offersUnlock {
@@ -320,7 +338,7 @@ struct ContentView: View {
             if game?.leftForUnlock == true {
                 // Next level was past the free ones: the map waits on it, under what the unlock opens.
                 returnedFrom = game.map { $0.currentLevelIndex + 1 }
-                withAnimation { offer = UnlockOffer(featured: world) }
+                withAnimation { offer = UnlockOffer(featured: world, source: .nextLevel) }
             }
             if let world = conquered {
                 conquered = nil
@@ -337,4 +355,7 @@ struct ContentView: View {
 private struct UnlockOffer {
     /// The world the player was trying to get into, if any.
     var featured: ArcadeWorld?
+    /// Where it was opened from, for the paywall funnel (`ArcadeAnalytics.offerShown`); nil for a tuner preview, which
+    /// isn't counted.
+    var source: ArcadeAnalytics.OfferSource?
 }

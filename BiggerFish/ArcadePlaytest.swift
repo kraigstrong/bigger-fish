@@ -5,14 +5,18 @@ import Foundation
 /// -arcadePlaytest jelly-bloom.4 (world ID + one-based level number).
 enum ArcadePlaytest {
     static var mapSelection: ArcadeWorld? {
+        if let capture = StoreCapture.moment { return capture.map }
         let args = ProcessInfo.processInfo.arguments
         guard let flag = args.firstIndex(of: "-arcadeMap"), args.indices.contains(flag + 1) else { return nil }
         return ArcadeWorld(rawValue: args[flag + 1])
     }
 
+    /// An App Store capture (`StoreCapture`) plays its moment's level, unless this picks another.
     static var selection: (world: ArcadeWorld, index: Int)? {
         let args = ProcessInfo.processInfo.arguments
-        guard let flag = args.firstIndex(of: "-arcadePlaytest"), args.indices.contains(flag + 1) else { return nil }
+        guard let flag = args.firstIndex(of: "-arcadePlaytest"), args.indices.contains(flag + 1) else {
+            return StoreCapture.moment?.level
+        }
         let parts = args[flag + 1].split(separator: ".")
         guard parts.count == 2, let world = ArcadeWorld(rawValue: String(parts[0])),
               let number = Int(parts[1]), (0..<world.levelCount).contains(number - 1) else { return nil }
@@ -46,13 +50,15 @@ enum ArcadePlaytest {
 
     /// Play with or without the unlock, ignoring StoreKit: -arcadeUnlocked YES (or NO).
     static var unlockOverride: Bool? {
+        // App Store captures show every world open, with no price anywhere.
+        if StoreCapture.moment != nil { return true }
         let args = ProcessInfo.processInfo.arguments
         guard let flag = args.firstIndex(of: "-arcadeUnlocked"), args.indices.contains(flag + 1) else { return nil }
         return args[flag + 1] == "YES"
     }
 
     static var defaults: UserDefaults {
-        selection == nil ? .standard : UserDefaults(suiteName: "biggerFish.playtest")!
+        StoreCapture.defaults ?? (selection == nil ? .standard : UserDefaults(suiteName: "biggerFish.playtest")!)
     }
 }
 #endif

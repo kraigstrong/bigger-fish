@@ -4,7 +4,12 @@ import UIKit
 
 /// The player's sound and vibration choices, saved on the device.
 final class ArcadeSettings: ObservableObject {
+    #if DEBUG
+    /// App Store captures (`StoreCapture`) play silently, leaving the player's own settings alone.
+    static let shared = StoreCapture.silentSettings ?? ArcadeSettings()
+    #else
     static let shared = ArcadeSettings()
+    #endif
     private static let effectsKey = "biggerFish.soundEffectsOn"
     private static let musicKey = "biggerFish.musicOn"
     private static let vibrationKey = "biggerFish.vibrationOn"

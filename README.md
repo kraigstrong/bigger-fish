@@ -2,15 +2,15 @@
 
 There's always a bigger fish.
 
-Arcade prototype: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
+Arcade game: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
-The world map opens **Shallow Reef** and **Jelly Bloom**, each with ten planned levels and then five bonus
-levels at its hardest difficulty (see Meeting planner below), and three locked worlds marked coming soon.
-Each world unlocks its levels sequentially; clears and fastest times stay on the device. Jelly Bloom
-adds safe dome bounces and lethal tentacles, with protected first encounters followed by AI food races.
-A few larger fish become edible through growth; no chasing, fleeing, or urchins. Shallow Reef keeps
-a fish-only environment. Both worlds use protected first opportunities, food-race budgets, and the same lower meal-growth rate. Both worlds use numbered levels.
+A new player starts with the tutorial (`ArcadeTutorial.swift`), which teaches the rules by playing them. The world
+map then has four worlds, each with ten levels to conquer and then The Deep End, five more at its hardest:
+**Shallow Reef** (fish only), **Jelly Bloom** (drifting jellyfish: bounce off their domes, dodge their tentacles),
+**Kelp Forest** (kelp slows you, and fish in it are shadows), and **Midnight Zone** (dark water lit by your
+headlamp, and anglerfish lures). A fifth stop, Riptide Reef, is marked coming soon. Every level is planned (see
+Meeting planner below), and each world opens its levels in order; clears and fastest times stay on the device.
 
 Free to try: all of Shallow Reef, plus two levels of each other world; a one-time purchase opens every world
 from the start and every Deep End (`ArcadeUnlock.swift`). No endless mode, pearls, or shop yet. See
@@ -44,6 +44,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     level, a bar on the level map, and a ring on the world map
   - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them
   - `ArcadePlaytest.swift` — debug-only isolated level launches for playtesting
+  - `StoreCapture.swift` — debug-only App Store screenshots: the bot plays each moment's level to its best frame
 - `MathReef/` — **Math Reef** (`com.kraigstrong.mathreef`), the education app for grades 1–5. Pick a
   world (Addition, Subtraction, Multiplication, Division, Exponents), then a level,
   and swim into the right answer. Addition and subtraction climb in small strategy steps (+1/+2, make 10,
@@ -117,11 +118,45 @@ python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-
 - **Autopilot:** it drifts around mid-water, sometimes eyes a wrong answer first, and heads for
   the right one as the wave gets close, so it plays like a kid rather than a bot.
 
+### Bigger Fish screenshots
+
+`scripts/bigger-fish-store-capture.sh` builds Bigger Fish in Debug and launches it on the iPhone 17 Pro Max
+simulator once per moment with `-storeCapture <moment>` (`BiggerFish/StoreCapture.swift`). For a moment in
+play, the diagnostics bot plays a real level as shipped; runs are deterministic, so the app plays it once with
+each bot policy to score every frame, then again to stop on the best one. The other two moments are the game's
+own screens. The app saves what it draws with the interface hidden (no Dynamic Island either), in staged
+progress of its own, silently, leaving real progress, purchases, and analytics alone. It needs only Xcode.
+
+```bash
+scripts/bigger-fish-store-capture.sh                 # every moment, about a minute
+scripts/bigger-fish-store-capture.sh dodge missed    # just these
+```
+
+Output goes to `build/store-capture/bigger-fish/` (ignored by git): `screenshots/NN-<moment>.png` at
+2868×1320 (6.9", no alpha) in the listing's order, and `screenshots-6.5/` scaled and trimmed to 2778×1284.
+The moments: `eat` (Shallow Reef 5), `dodge` (Shallow Reef 9), `missed` (Shallow Reef 10: a fish that kept
+eating), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp Forest 8), `midnight-light` (Midnight Zone 5),
+`conquered` (Shallow Reef's map, conquered), and `deep-end` (the screen that opens its Deep End). The levels
+are `StoreCapture.Moment.level`; to try another in Xcode, add `-arcadePlaytest world.N` beside
+`-storeCapture <moment>`.
+
 ## Tuning
 
-Every feel constant — movement, growth, swallow timing, AI behavior, spawn distribution,
-and the `aiFishCanEatEachOther` flag — lives in `BiggerFish/GameTuning.swift`, along with each
-world's level specs (see Meeting planner below).
+Every feel constant — movement, growth, swallow timing, AI behavior, and the `aiFishCanEatEachOther`
+flag — lives in `BiggerFish/GameTuning.swift`. So do each world's levels: specs the meeting planner lays out,
+shipped as saved plans in the app.
+
+| World | Specs in `GameTuning` | Saved plans | Frozen set |
+|---|---|---|---|
+| Shallow Reef | `reefLabSpecs`, played in `shallowReefOrder` | `ReefLabPlans.json` | `reefLabFrozen` |
+| Jelly Bloom | `jellyLabSpecs` | `JellyLabPlans.json` | `jellyLabFrozen` |
+| Kelp Forest | `kelpSpecs` | `KelpPlans.json` | `kelpFrozen` |
+| Midnight Zone | `midnightSpecs` | `MidnightPlans.json` | `midnightFrozen` |
+
+The shipped game plays the saved plans and never plans on the device: the planner is in Xcode builds only, and a
+Release build with a level missing from its plans file stops at launch. `FrozenLevelTests` pins every frozen
+level, so changing one is never a side effect. AGENTS.md has the workflow: iterate in code, freeze before
+publishing.
 
 For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4` in Xcode (world ID
 plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save.
@@ -156,12 +191,13 @@ Add `-arcadeDisableRunRecording` to Xcode's launch arguments to disable recordin
 
 ### Meeting planner
 
-Both worlds play planned levels: each gate's slack and routes are designed, and every fish still swims
-freely into its meeting. They won an A/B test as Shallow Reef 2 and Jelly Bloom 2 (internally Reef Lab
-and Jelly Lab) and replaced the seeded campaigns under the original `shallow-reef` and `jelly-bloom` IDs.
-Jelly Bloom's jellyfish drift, to bounce off and dodge. In Debug builds, **Tuning** (on a map or during
-a run) has **Players**, to reset a world for a new player, and **Shallow Reef variations**, to play other
-layouts. The seeded campaigns are retired; git history has them. See
+Every world plays planned levels: each gate's slack and routes are designed, and every fish still swims
+freely into its meeting. Shallow Reef's and Jelly Bloom's won an A/B test as Shallow Reef 2 and Jelly Bloom 2
+(internally Reef Lab and Jelly Lab) and replaced the seeded campaigns under the original `shallow-reef` and
+`jelly-bloom` IDs; those seeded campaigns are retired, and git history has them. Jelly Bloom's jellyfish drift,
+to bounce off and dodge. Kelp Forest and Midnight Zone were planned from the start, with each fish appearing
+just off screen right before you meet it. In Debug builds, **Tuning** (on a map or during a run) has
+**Players**, to reset a world for a new player, and **Shallow Reef variations**, to play other layouts. See
 [`docs/meeting-planner.md`](docs/meeting-planner.md).
 
 ### Automatic run diagnostics
@@ -193,6 +229,9 @@ fractionally larger opponent. NPC ties still bump apart. New run headers include
 Bigger Fish, separate from Math Reef. `ArcadeAnalytics.isEnabled` controls collection; it is
 on for the beta, with the endpoint, policy, and report live on brightbench.app.
 No player/install/session IDs, exact play timestamps, device information, or trajectories are sent.
+The paywall funnel (where the unlock's screen was shown from, purchase and restore outcomes, a milestone when a
+world's ten main levels are beaten, and whether each run had the unlock) is built but stays off behind
+`ArcadeAnalytics.sendsPaywallEvents` until brightbench.app accepts it and the privacy policy describes it.
 
 The schema records content identity (world, campaign/endless mode, displayed slot, original setup,
 seed, content revision, app version/build/channel), outcomes, local attempts-to-first-clear,
