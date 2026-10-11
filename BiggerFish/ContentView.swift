@@ -32,6 +32,8 @@ struct ContentView: View {
     @State private var offer: UnlockOffer?
     /// Settings, from the gear on the world map.
     @State private var showsSettings = false
+    /// The credits game, from Settings (`CreditsScene`). Settings stays open underneath, so leaving goes back to it.
+    @State private var credits: CreditsScene?
     /// The loading screen shows until every world's levels are ready.
     @State private var loaded = false
     #if DEBUG
@@ -42,6 +44,8 @@ struct ContentView: View {
         Group {
             if !loaded {
                 LaunchView().transition(.opacity)
+            } else if let credits {
+                CreditsView(scene: credits).transition(.opacity)
             } else if let scene {
                 GeometryReader { geometry in
                     let fitted = GameTuning.fittedPlayfieldSize(in: geometry.size)
@@ -69,9 +73,10 @@ struct ContentView: View {
             }
         }
         .overlay {
-            if scene == nil && showsSettings {
+            if scene == nil && credits == nil && showsSettings {
                 SettingsView(purchases: purchases, analytics: analytics,
                              onReplayTutorial: { showsSettings = false; playTutorial() },
+                             onPlayCredits: playCredits,
                              onClose: { withAnimation { showsSettings = false } })
                     .transition(.opacity)
             }
@@ -117,7 +122,7 @@ struct ContentView: View {
             }
             .font(.caption.bold()).buttonStyle(.borderedProminent)
             .padding(.trailing, 12).padding(.bottom, 4)
-            .opacity(StoreCapture.moment == nil ? 1 : 0)
+            .opacity(StoreCapture.moment == nil && credits == nil ? 1 : 0)
         }
         .sheet(isPresented: $showsTuning) {
             ArcadeTuningPanel(onPlanner: playPlanner, onResetProgress: { progress.reset($0) })
@@ -197,9 +202,11 @@ struct ContentView: View {
     /// The unlock is bought, or isn't on sale yet: nothing past the free levels is locked.
     private var unlocked: Bool { !ArcadeUnlock.isSelling || purchases.isUnlocked }
 
-    /// Menu music under the maps, game music under a level, quiet while loading.
+    /// Menu music under the maps, game music under a level, the credits' own calm pick under the credits, quiet while
+    /// loading.
     private var music: ArcadeAudio.Music? {
         guard loaded else { return nil }
+        if credits != nil { return GameTuning.creditsMusic }
         return scene == nil ? .menu : .game
     }
 
@@ -270,6 +277,14 @@ struct ContentView: View {
             }
         }
         scene = game
+    }
+
+    /// The credits game: given nothing of the player's (no progress, purchases, or analytics), so it can't record
+    /// anything. Skip or its last card goes back to Settings.
+    private func playCredits() {
+        let game = CreditsScene()
+        game.onExit = { withAnimation(.easeInOut(duration: 0.5)) { credits = nil } }
+        withAnimation(.easeInOut(duration: 0.5)) { credits = game }
     }
 
     private func play(_ world: ArcadeWorld, index: Int) {

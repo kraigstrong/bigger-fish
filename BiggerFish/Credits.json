@@ -1,0 +1,30 @@
+{
+  "groups": [
+    {
+      "heading": "Play-testers",
+      "role": "Play-tester",
+      "credits": [
+        { "name": "Chad H" },
+        { "name": "Adam A" },
+        { "name": "Andy W" },
+        { "name": "Riley S" },
+        { "name": "Reagan S" }
+      ]
+    },
+    {
+      "heading": "Music",
+      "role": "Music",
+      "credits": [
+        { "name": "tideblue", "work": "Tidal Groove", "via": "Pixabay" },
+        { "name": "Magiksolo", "work": "Aquarium Fish", "via": "Pixabay" }
+      ]
+    },
+    {
+      "heading": "Sound effects",
+      "role": "Sound effects",
+      "credits": [
+        { "name": "Mixkit" }
+      ]
+    }
+  ]
+}

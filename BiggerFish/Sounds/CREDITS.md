@@ -9,6 +9,10 @@ license obligation.
 Mixkit's **stock music** license is different: it does not allow use in video games. Don't add Mixkit
 music tracks to this app.
 
+The game's credits (`BiggerFish/Credits.json`, eaten in the credits game from Settings) name the music's creators and
+the sound effects library below. Keep them in step when a sound is added or swapped: `ArcadeCreditsTests` fails until
+they match.
+
 ## Sound effects
 
 Each file is trimmed to just past its audible end (measured at a -45 dB floor) with any leading
