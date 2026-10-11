@@ -48,6 +48,16 @@ enum GameTuning {
     static let launchBarThickness: CGFloat = 4
     static let launchBarSweepSeconds: Double = 0.55
 
+    // MARK: Haptics (`GameScene.buzz`)
+
+    /// Strengths (0–1): an ordinary meal's light tap, and a jellyfish bounce's bump. Close calls, stings, and being
+    /// eaten use their generator's full strength.
+    static let mealHapticIntensity: CGFloat = 0.5
+    static let bounceHapticIntensity: CGFloat = 0.55
+    /// Conquering a world: the success buzz, then this long after, a thump this strong.
+    static let conquerThumpDelay: CGFloat = 0.25
+    static let conquerThumpIntensity: CGFloat = 1
+
     // MARK: Sound
 
     static let effectVolume: Float = 0.7

@@ -309,6 +309,7 @@ final class GameScene: SKScene {
     private var restartButton = SKShapeNode()
     private var effectsButton = SKShapeNode()
     private var musicButton = SKShapeNode()
+    private var vibrationButton = SKShapeNode()
 
     private var holdTouches = Set<UITouch>()
     private var lastUpdate: TimeInterval?
@@ -347,8 +348,37 @@ final class GameScene: SKScene {
     private let closeCallHaptic = UIImpactFeedbackGenerator(style: .rigid)
     private let eatenHaptic = UIImpactFeedbackGenerator(style: .heavy)
     private let eatenNotification = UINotificationFeedbackGenerator()
-    /// The Vibration setting (Settings on the world map): off, the game plays no haptics.
+    private let mealHaptic = UIImpactFeedbackGenerator(style: .light)
+    private let winNotification = UINotificationFeedbackGenerator()
+    /// The Vibration setting (Settings, and the pause menu): off, the game plays no haptics.
     private var vibrates: Bool { ArcadeSettings.shared.vibrationOn }
+
+    /// Every haptic the game plays.
+    enum Haptic: String { case meal, closeCall, bounce, sting, eaten, win, conquer }
+
+    /// Plays a haptic, if Vibration is on: a light tap for a meal (a sharper one for a close call), a bump off a
+    /// jellyfish, an error buzz for a sting or being eaten, a success for a win, and a success then a thump for
+    /// conquering a world.
+    private func buzz(_ haptic: Haptic) {
+        guard vibrates else { return }
+        #if DEBUG
+        debugHaptics.append(haptic)
+        #endif
+        switch haptic {
+        case .meal: mealHaptic.impactOccurred(intensity: T.mealHapticIntensity)
+        case .closeCall: closeCallHaptic.impactOccurred()
+        case .bounce: closeCallHaptic.impactOccurred(intensity: T.bounceHapticIntensity)
+        case .sting: eatenNotification.notificationOccurred(.error)
+        case .eaten:
+            eatenHaptic.impactOccurred(intensity: 1)
+            eatenNotification.notificationOccurred(.error)
+        case .win: winNotification.notificationOccurred(.success)
+        case .conquer:
+            winNotification.notificationOccurred(.success)
+            run(.sequence([.wait(forDuration: TimeInterval(T.conquerThumpDelay)),
+                           .run { [weak self] in self?.eatenHaptic.impactOccurred(intensity: T.conquerThumpIntensity) }]))
+        }
+    }
 
     /// Camera scale: 1 at the start of a run, easing toward `minZoom` as the player grows.
     /// World y equals screen y at zoom 1; zooming out makes the water taller in world units.
@@ -991,6 +1021,8 @@ final class GameScene: SKScene {
         #endif
         if !isTutorial { onClear?(levelIndex, Double(simClock)) }
         playSound(.clear)
+        // Conquering a world (its first level-10 win) is felt a little more than any other win.
+        buzz(leavesForConqueredScreen ? .conquer : .win)
         setPhase(.won)
         endedAt = realClock
         slowMoFactor = T.winSlowFactor
@@ -1056,6 +1088,8 @@ final class GameScene: SKScene {
                     toggleSound(effects: true)
                 } else if musicButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
                     toggleSound(effects: false)
+                } else if vibrationButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
+                    toggleVibration()
                 } else if mapButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     #if DEBUG
                     finishRunRecording("level_map")
@@ -2144,7 +2178,7 @@ final class GameScene: SKScene {
                         bounceRemaining = T.jellyBounceSeconds
                         bounceCooldown = T.jellyBounceCooldown
                         f.pulse = T.pulseDuration
-                        if vibrates { closeCallHaptic.impactOccurred(intensity: 0.55) }
+                        buzz(.bounce)
                         playSound(.bounce)
                     }
                 case .tentacles:
@@ -2191,7 +2225,7 @@ final class GameScene: SKScene {
         }
         if victim.isPlayer {
             lossReason = reason
-            if vibrates { eatenNotification.notificationOccurred(.error) }
+            buzz(.sting)
             playSound(.sting)
             lose(resultDelay: T.stingResultDelay)
         } else {
@@ -2422,10 +2456,7 @@ final class GameScene: SKScene {
             slowMoFactor = T.closeCallSlowFactor
             slowMoRemaining = T.closeCallSlowDuration
         }
-        if prey.isPlayer && vibrates {
-            eatenHaptic.impactOccurred(intensity: 1)
-            eatenNotification.notificationOccurred(.error)
-        }
+        if prey.isPlayer { buzz(.eaten) }
     }
 
     private func advanceSwallows(_ dt: CGFloat) {
@@ -2514,9 +2545,8 @@ final class GameScene: SKScene {
             updateMealIndicator()
             playSound(.eat)
         }
-        if predator.isPlayer && s.ratio >= T.closeCallRatio && vibrates {
-            closeCallHaptic.impactOccurred()
-        }
+        // Every meal is felt: a light tap, or a sharper one for a close call.
+        if predator.isPlayer { buzz(s.ratio >= T.closeCallRatio ? .closeCall : .meal) }
         if prey.isPlayer {
             #if DEBUG
             recordRunEvent("player_eaten", fields: ["predatorID": predator.id, "radius": predator.radius])
@@ -2774,15 +2804,24 @@ final class GameScene: SKScene {
         buildSoundToggles()
     }
 
-    /// Sound effects and music switches beside the pause menu's actions.
+    /// Sound effects, music, and vibration switches beside the pause menu's actions.
     private func buildSoundToggles() {
         effectsButton.removeFromParent()
         musicButton.removeFromParent()
+        vibrationButton.removeFromParent()
         let x = size.width / 2 + 230
         effectsButton = toggleButton("Effects", isOn: settings.soundEffectsOn, at: CGPoint(x: x, y: size.height / 2 + 5))
         musicButton = toggleButton("Music", isOn: settings.musicOn, at: CGPoint(x: x, y: size.height / 2 - 60))
+        vibrationButton = toggleButton("Vibration", isOn: settings.vibrationOn, at: CGPoint(x: x, y: size.height / 2 - 120))
         pauseMenu.addChild(effectsButton)
         pauseMenu.addChild(musicButton)
+        pauseMenu.addChild(vibrationButton)
+    }
+
+    private func toggleVibration() {
+        settings.vibrationOn.toggle()
+        buildSoundToggles()
+        configurePauseAccessibility()
     }
 
     private func toggleSound(effects: Bool) {
@@ -2826,11 +2865,12 @@ final class GameScene: SKScene {
             },
             element(effectsButton, "Sound effects", value: settings.soundEffectsOn ? "On" : "Off") { $0.toggleSound(effects: true) },
             element(musicButton, "Music", value: settings.musicOn ? "On" : "Off") { $0.toggleSound(effects: false) },
+            element(vibrationButton, "Vibration", value: settings.vibrationOn ? "On" : "Off") { $0.toggleVibration() },
         ]
     }
 
     private func toggleButton(_ title: String, isOn: Bool, at position: CGPoint) -> SKShapeNode {
-        let button = SKShapeNode(rectOf: CGSize(width: 150, height: 44), cornerRadius: 22)
+        let button = SKShapeNode(rectOf: CGSize(width: 176, height: 44), cornerRadius: 22)
         button.fillColor = isOn ? SKColor(white: 1, alpha: 0.92) : SKColor(white: 1, alpha: 0.08)
         button.strokeColor = isOn ? .clear : SKColor(white: 1, alpha: 0.6)
         button.lineWidth = 2
@@ -3364,6 +3404,8 @@ final class GameScene: SKScene {
         return phase == .playing
     }
     var debugLevelIndex: Int { levelIndex }
+    /// Every haptic played, in order (only those Vibration let through).
+    private(set) var debugHaptics: [Haptic] = []
     /// The world's pips on the card showing (the ready card or a win's), by their caption ("" for pips alone).
     var debugProgressCaption: String? {
         let strip = messageNode.children.lazy.compactMap { $0 as? WorldProgressStrip }.first
