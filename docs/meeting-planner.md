@@ -1,9 +1,9 @@
-# Meeting planner (prototype)
+# Meeting planner
 
 Plans when and where you meet each fish, so a level's slack is designed rather than inherited from a
 seed. Fish still swim freely: each one spawns wherever its own normal swim brings it across your path
-at its planned moment. Fish-only (Shallow Reef rules) for now; Jelly Bloom's jellyfish steering isn't
-modeled yet.
+at its planned moment. It plans every world: Shallow Reef's fish, Jelly Bloom's drifting jellies, and Kelp
+Forest's kelp, where (as in Midnight Zone) each fish appears just off screen right before you meet it.
 
 ## What we keep from today's game
 
@@ -209,11 +209,15 @@ Gauntlet's six full-size big fish steered around bells into about 130 bumps.
 
 ## Shipped as data
 
-Plans are deterministic, so Reef Lab's are made on the Mac and shipped in `BiggerFish/ReefLabPlans.json`:
-no device plans while you play, and every device plays the same level. After changing `reefLabSpecs` or
-the planner, regenerate the file by creating `build/arcade-development/reef-lab-plans.request` and running
-`MeetingPlannerTests`; `bundledReefLabPlansMatchThePlanner` fails until you do. Frozen levels are kept. The tuner's other
-variations still plan on the device.
+Plans are deterministic, so every world's are made on the Mac and shipped as data: `ReefLabPlans.json`,
+`JellyLabPlans.json`, `KelpPlans.json`, and `MidnightPlans.json` in `BiggerFish/`. Every device plays the same
+level, and no device plans: the planner is in Xcode builds only (the tuner's other variations plan there), and a
+Release build with a level missing from its file stops at launch. To regenerate a file, create its marker
+(`build/arcade-development/reef-lab-plans.request`, `jelly-lab-plans.request`, `kelp-plans.request`, or
+`midnight-plans.request`) and run `MeetingPlannerTests`; the writer deletes the marker once it's done.
+`bundledReefLabPlansMatchThePlanner` fails until Reef Lab's file is current. Frozen levels are kept as they
+are, and `FrozenLevelTests` pins each one's fingerprint, so changing a frozen level means editing its line there.
+The files are written one field to a line, keys sorted, so a change to one fish reads as a small diff.
 
 ## Playing them
 

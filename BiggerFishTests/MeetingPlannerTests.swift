@@ -226,9 +226,7 @@ struct MeetingPlannerTests {
             return GameTuning.midnightFrozen.contains(spec.name) ? existing.first { $0.spec == spec } ?? GameTuning.midnightPlan(index)
                 : GameTuning.midnightPlan(index)
         }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        try encoder.encode(plans).write(to: file)
+        try Self.save(plans, to: file, marker: marker)
     }
 
     /// Kelp Forest's fish appear just off screen and follow their approach in, so every one meets the reference
@@ -327,9 +325,7 @@ struct MeetingPlannerTests {
                             predicted: frozen.predicted, analysis: frozen.analysis, issues: frozen.issues)
             } ?? MeetingPlanner.plan(spec) : MeetingPlanner.plan(spec)
         }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        try encoder.encode(plans).write(to: file)
+        try Self.save(plans, to: file, marker: marker)
     }
 
     /// Jelly Bloom 2 ships its plans too. Replanning ten jelly levels is slow, so this checks they're
@@ -364,9 +360,7 @@ struct MeetingPlannerTests {
             GameTuning.jellyLabFrozen.contains(spec.name) ? existing.first { $0.spec == spec } ?? MeetingPlanner.plan(spec)
                 : MeetingPlanner.plan(spec, variation: variation, attempts: attempts)
         }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        try encoder.encode(plans).write(to: file)
+        try Self.save(plans, to: file, marker: marker)
     }
 
     /// Kelp Forest ships its played levels as data, so a planner change can't alter them. A test that fails here
@@ -395,9 +389,7 @@ struct MeetingPlannerTests {
             return GameTuning.kelpFrozen.contains(spec.name) ? existing.first { $0.spec == spec } ?? GameTuning.kelpPlan(index)
                 : GameTuning.kelpPlan(index)
         }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        try encoder.encode(plans).write(to: file)
+        try Self.save(plans, to: file, marker: marker)
     }
 
     @MainActor @Test func jellyLabFishMeetThePlayerWherePlannedAroundDriftingJellies() {
@@ -434,6 +426,15 @@ struct MeetingPlannerTests {
     }
 
     private static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+
+    /// Writes a world's plans one field to a line, keys sorted, so a change to one fish is a readable diff; then
+    /// deletes the marker, so the next test run doesn't write them again.
+    private static func save(_ plans: [MeetingPlan], to file: URL, marker: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        try encoder.encode(plans).write(to: file)
+        try FileManager.default.removeItem(at: marker)
+    }
 
     /// Local-only report on the presets and the shipped campaign, activated by a marker under ignored build/.
     @MainActor @Test func manualMeetingStudy() throws {
