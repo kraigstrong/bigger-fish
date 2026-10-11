@@ -3807,3 +3807,56 @@ final class GameScene: SKScene {
     #endif
 
 }
+
+#if DEBUG
+// MARK: - App Store captures (StoreCapture.swift)
+
+extension GameScene {
+    /// The scene as a capture sees it: every fish and jellyfish where it's drawn, in screen points.
+    var debugCaptureView: StoreCapture.SceneView {
+        func screen(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: size.width * T.playerScreenX + world.delta(from: player.position.x, to: point.x) * zoom,
+                    y: waterCenter + (point.y - waterCenter) * zoom)
+        }
+        func swimmer(_ f: Fish) -> StoreCapture.Swimmer {
+            var prey: Int?
+            if case .swallowing(let id) = f.state { prey = id }
+            var eaten = false
+            if case .beingSwallowed = f.state { eaten = true }
+            return StoreCapture.Swimmer(id: f.id, center: screen(f.position), radius: f.radius * zoom, prey: prey,
+                                        isEaten: eaten, shrink: f.shrink,
+                                        shade: kelpBeds.isEmpty || f.isPlayer ? 0 : kelpShade(f.position, radius: f.radius))
+        }
+        return StoreCapture.SceneView(size: size, time: simClock, playing: phase == .playing, won: phase == .won,
+                                      player: swimmer(player), rising: player.velocity.dy * zoom,
+                                      fish: fish.filter { !$0.isPlayer && $0.state != .removed }.map(swimmer),
+                                      jellies: jellies.map { screen($0.position) }, jellyRadius: (level.jellies?.radius ?? 0) * zoom,
+                                      lastBounce: debugBounces.last { $0.fishID == player.id }?.time)
+    }
+
+    /// The diagnostics bot's call on the scene as it stands, seeing what it sees in `debugSimulate`.
+    func debugBotHolds(_ policy: ArcadeSimulation.Policy) -> Bool {
+        let visible = fish.filter { !$0.isPlayer && $0.state == .swimming &&
+            abs(world.delta(from: player.position.x, to: $0.position.x)) < size.width * 0.80 / zoom }
+        func swimmer(_ f: Fish) -> ArcadeSimulation.Swimmer {
+            .init(x: f.position.x, y: f.position.y, vx: f.velocity.dx, vy: f.velocity.dy, radius: f.radius)
+        }
+        let bells = level.jellies.map { layout in
+            jellies.filter { abs(world.delta(from: player.position.x, to: $0.position.x)) < size.width / zoom }
+                .map { ArcadeSimulation.Bell(x: $0.position.x, y: $0.position.y, radius: layout.radius, tentacles: layout.tentacleLength) }
+        } ?? []
+        return ArcadeSimulation.holding(.init(player: swimmer(player), fish: visible.map(swimmer), bells: bells,
+            width: world.width, screenWidth: size.width, zoom: zoom, bottom: waterBottom, top: waterTop, speed: playerSpeed,
+            bouncing: bounceRemaining > 0, bounceSpeed: bounceSpeed), policy: policy)
+    }
+
+    /// The level from the start, playing at once, as a first touch starts it.
+    func debugCaptureRestart() {
+        resetGame(startPlaying: false)
+        startRun()
+    }
+
+    /// No pause button, level name, or card over the frame.
+    func debugHideInterface() { uiLayer.isHidden = true }
+}
+#endif

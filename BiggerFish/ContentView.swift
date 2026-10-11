@@ -118,6 +118,7 @@ struct ContentView: View {
             }
             .font(.caption.bold()).buttonStyle(.borderedProminent)
             .padding(.trailing, 12).padding(.bottom, 4)
+            .opacity(StoreCapture.moment == nil ? 1 : 0)
         }
         .sheet(isPresented: $showsTuning) {
             // Planned levels ignore the tuner's seeded settings; its Players and variations sections still apply.
@@ -162,6 +163,7 @@ struct ContentView: View {
             purchases.start()
             if !metricsLaunched { analytics.launched(); analytics.flush(); metricsLaunched = true }
             #if DEBUG
+            StoreCapture.begin()
             if scene == nil, let world = ArcadePlaytest.mapSelection {
                 selectedWorld = world
             }
@@ -301,6 +303,7 @@ struct ContentView: View {
                              showsJellyLesson: !progress.save.hasSeenJellyLesson, seeded: seeded)
         #if DEBUG
         game.debugPracticeRun = practice
+        StoreCapture.attach(game)
         #endif
         game.analytics = analytics
         game.hasCleared = { index in progress.isCleared(world, index) }

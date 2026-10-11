@@ -44,6 +44,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     level, a bar on the level map, and a ring on the world map
   - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them
   - `ArcadePlaytest.swift` — debug-only isolated level launches for playtesting
+  - `StoreCapture.swift` — debug-only App Store screenshots: the bot plays each moment's level to its best frame
 - `MathReef/` — **Math Reef** (`com.kraigstrong.mathreef`), the education app for grades 1–5. Pick a
   world (Addition, Subtraction, Multiplication, Division, Exponents), then a level,
   and swim into the right answer. Addition and subtraction climb in small strategy steps (+1/+2, make 10,
@@ -116,6 +117,28 @@ python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-
   surrounding water and slides the level path so no stop sits under it.
 - **Autopilot:** it drifts around mid-water, sometimes eyes a wrong answer first, and heads for
   the right one as the wave gets close, so it plays like a kid rather than a bot.
+
+### Bigger Fish screenshots
+
+`scripts/bigger-fish-store-capture.sh` builds Bigger Fish in Debug and launches it on the iPhone 17 Pro Max
+simulator once per moment with `-storeCapture <moment>` (`BiggerFish/StoreCapture.swift`). For a moment in
+play, the diagnostics bot plays a real level as shipped; runs are deterministic, so the app plays it once with
+each bot policy to score every frame, then again to stop on the best one. The other two moments are the game's
+own screens. The app saves what it draws with the interface hidden (no Dynamic Island either), in staged
+progress of its own, silently, leaving real progress, purchases, and analytics alone. It needs only Xcode.
+
+```bash
+scripts/bigger-fish-store-capture.sh                 # every moment, about a minute
+scripts/bigger-fish-store-capture.sh dodge missed    # just these
+```
+
+Output goes to `build/store-capture/bigger-fish/` (ignored by git): `screenshots/NN-<moment>.png` at
+2868×1320 (6.9", no alpha) in the listing's order, and `screenshots-6.5/` scaled and trimmed to 2778×1284.
+The moments: `eat` (Shallow Reef 5), `dodge` (Shallow Reef 9), `missed` (Shallow Reef 10: a fish that kept
+eating), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp Forest 8), `midnight-light` (Midnight Zone 5),
+`conquered` (Shallow Reef's map, conquered), and `deep-end` (the screen that opens its Deep End). The levels
+are `StoreCapture.Moment.level`; to try another in Xcode, add `-arcadePlaytest world.N` beside
+`-storeCapture <moment>`.
 
 ## Tuning
 
