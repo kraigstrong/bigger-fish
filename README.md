@@ -10,7 +10,9 @@ map then has four worlds, each with ten levels to conquer and then The Deep End,
 **Shallow Reef** (fish only), **Jelly Bloom** (drifting jellyfish: bounce off their domes, dodge their tentacles),
 **Kelp Forest** (kelp slows you, and fish in it are shadows), and **Midnight Zone** (dark water lit by your
 headlamp, and anglerfish lures). A fifth stop, Riptide Reef, is marked coming soon. Every level is planned (see
-Meeting planner below), and each world opens its levels in order; clears and fastest times stay on the device.
+Meeting planner below), and each world opens its levels in order. Clears and fastest times are saved on the device
+and backed up to the player's own iCloud, so they come back after a reinstall and follow the player to another
+device; the two copies merge so that syncing never un-clears a level.
 
 Free to try: all of Shallow Reef, plus two levels of each other world; a one-time purchase opens every world
 from the start and every Deep End (`ArcadeUnlock.swift`). No endless mode, pearls, or shop yet. See
@@ -19,7 +21,8 @@ from the start and every Deep End (`ArcadeUnlock.swift`). No endless mode, pearl
 ## Running
 
 Open `BiggerFish.xcodeproj` in Xcode, pick your iPhone or a simulator, and Run.
-Signing uses automatic signing with team `MKACSCQ588`.
+Signing uses automatic signing with team `MKACSCQ588`. The Bigger Fish target has the iCloud key-value storage
+capability (`BiggerFish/BiggerFish.entitlements`), which automatic signing adds to the App ID.
 
 Unit tests (wrapping, size rules, growth, win detection):
 
@@ -38,7 +41,11 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   - `CreditsScene.swift` / `ArcadeCredits.swift` / `Credits.json` — the credits, played: from Settings, a calm swim
     where every name is a fish to eat (the play-testers, then the music and sound credits), with a thank-you for each
     and a card at the end. Nothing can eat you, and it saves nothing. Add a name by editing `Credits.json`
-  - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and local campaign saves
+  - `ArcadeCampaign.swift` / `ArcadeProgress.swift` — stable level IDs and campaign saves, kept on the device and
+    backed up to iCloud key-value storage. At launch and whenever iCloud's copy changes (another device, a reinstall's
+    first download, a new Apple ID), the two merge so progress only ever grows: cleared levels and seen screens are
+    united, the faster best time wins, and fields from a later version are kept. Without iCloud it plays exactly as
+    before. Debug playtest and store-capture saves never sync
   - `ArcadeUnlock.swift` / `UnlockView.swift` / `WorldClips/` — free to try (all of Shallow Reef, two levels of
     each other world) and the one-time unlock that opens every world and Deep End; its screen loops a clip of each
     world. `BiggerFish.storekit` is the scheme's StoreKit test file
@@ -162,7 +169,8 @@ level, so changing one is never a side effect. AGENTS.md has the workflow: itera
 publishing.
 
 For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4` in Xcode (world ID
-plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save.
+plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save, which never
+syncs to iCloud.
 Add `-arcadeResult passed` or `-arcadeResult failed` to preview its result panel without recording a
 clear. Remove the arguments to return to the normal world map and real campaign progress.
 
@@ -200,7 +208,7 @@ freely into its meeting. Shallow Reef's and Jelly Bloom's won an A/B test as Sha
 `jelly-bloom` IDs; those seeded campaigns are retired, and git history has them. Jelly Bloom's jellyfish drift,
 to bounce off and dodge. Kelp Forest and Midnight Zone were planned from the start, with each fish appearing
 just off screen right before you meet it. In Debug builds, **Tuning** (on a map or during a run) has
-**Players**, to reset a world for a new player, and **Shallow Reef variations**, to play other layouts. See
+**Players**, to reset a world for a new player (on the device and in iCloud), and **Shallow Reef variations**, to play other layouts. See
 [`docs/meeting-planner.md`](docs/meeting-planner.md).
 
 ### Automatic run diagnostics

@@ -37,12 +37,13 @@ struct ArcadeTuningPanel: View {
         NavigationStack {
             Form {
                 Section("Players") {
-                    Text("Start a world over from level 1 for a new player, for A/B testing.").font(.footnote)
+                    Text("Start a world over from level 1 for a new player, for A/B testing. Its iCloud copy is reset too, but another device on this Apple ID that still has its clears brings them back.")
+                        .font(.footnote)
                     Picker("World", selection: $resetWorld) {
                         ForEach(ArcadeWorld.mapWorlds) { Text($0.title).tag($0) }
                     }
                     Button("Reset \(resetWorld.title) progress", role: .destructive) { confirmsReset = true }
-                        .confirmationDialog("Clear every \(resetWorld.title) clear and best time on this device?",
+                        .confirmationDialog("Clear every \(resetWorld.title) clear and best time on this device and in iCloud?",
                                             isPresented: $confirmsReset, titleVisibility: .visible) {
                             Button("Reset \(resetWorld.title)", role: .destructive) { onResetProgress(resetWorld) }
                         }

@@ -64,11 +64,13 @@ enum StoreCapture {
 
     // MARK: Staged progress
 
+    /// The capture's own saved state, apart from real progress and never backed up to iCloud (`ArcadeProgress.backup`).
+    static let suiteName = "biggerFish.storeCapture"
+
     /// The capture's own saved state, wiped and staged at launch (nil when not capturing).
     static let defaults: UserDefaults? = moment.map { moment in
-        let name = "biggerFish.storeCapture"
-        let defaults = UserDefaults(suiteName: name)!
-        defaults.removePersistentDomain(forName: name)
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
         if let data = try? JSONEncoder().encode(stagedSave(for: moment)) { defaults.set(data, forKey: ArcadeProgress.key) }
         return defaults
     }

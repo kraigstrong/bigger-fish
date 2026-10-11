@@ -57,8 +57,11 @@ enum ArcadePlaytest {
         return args[flag + 1] == "YES"
     }
 
+    /// A playtest's own saved state, apart from real progress and never backed up to iCloud (`ArcadeProgress.backup`).
+    static let suiteName = "biggerFish.playtest"
+
     static var defaults: UserDefaults {
-        StoreCapture.defaults ?? (selection == nil ? .standard : UserDefaults(suiteName: "biggerFish.playtest")!)
+        StoreCapture.defaults ?? (selection == nil ? .standard : UserDefaults(suiteName: suiteName)!)
     }
 }
 #endif

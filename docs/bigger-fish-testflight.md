@@ -14,6 +14,12 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
 - Privacy manifest (`BiggerFish/PrivacyInfo.xcprivacy`): UserDefaults for saved progress and
   settings, and anonymous gameplay counts (product interaction, not linked to the player, not
   tracking).
+- iCloud key-value storage (`BiggerFish/BiggerFish.entitlements`): progress is backed up to the player's own
+  iCloud, which we can't read, so it isn't collected data and the privacy label doesn't change. Automatic signing
+  adds the capability to the App ID on the first device build or archive after it was added. **Before the first
+  build with it goes to testers:** the privacy policy says deleting the app removes the player's information, which
+  is no longer true of progress. Publish a sentence about the iCloud copy on both pages (biggerfish.app/privacy and
+  brightbench.app/bigger-fish/privacy, kept word for word the same) with Kraig's OK. PR #154 has suggested wording.
 - Anonymous gameplay counts are on (`ArcadeAnalytics.isEnabled`), sent to
   `brightbench.app/api/bigger-fish/events` and tagged `testflight` for beta installs.
 - Privacy policy: https://brightbench.app/bigger-fish/privacy
@@ -64,6 +70,28 @@ Since 0.3:
   too), Replay tutorial, Privacy Policy and Support (biggerfish.app), Credits, and the version.
 - Meals, close calls, bounces, stings, being eaten, and wins are felt (with Vibration on). Vibration off stops them.
 - The screen sleeps on the maps, cards, and pause menu as it normally would, but not while you play.
+
+### Progress in iCloud
+
+Progress is backed up to iCloud key-value storage (#96). Sync usually takes seconds and sometimes minutes, so
+give each step a minute before calling it a failure. Use a phone signed in to iCloud. Note what you've cleared
+and one or two best times before each step.
+
+- **Update over the last build:** progress, best times, and Deep End rings are kept, as before.
+- **Delete and reinstall:** clear a level or two, wait a minute, then force-quit and delete the app. Reinstall it
+  from TestFlight and open it: the cleared levels, best times, and seen conquered screens come back, with no
+  tutorial. If the world map first shows a fresh game (the download hadn't arrived), stay on it: the levels fill in
+  without relaunching. If the tutorial starts, skip it; the progress still arrives.
+- **A second device** on the same Apple ID (an iPad or another iPhone): install and open it, and the first device's
+  progress appears. Clear a different level on each: within a minute or two (or on reopening), both show both.
+  Clear the same level on both with different times: both keep the faster one. Nothing cleared on either device is
+  ever un-cleared.
+- **Offline:** in Airplane Mode, clear a level, then go back online: it reaches the other device.
+- **iCloud turned off:** turn Bigger Fish off under Settings > [your name] > iCloud (Saved to iCloud, See All), or
+  sign out of iCloud on a test device. The game plays and saves exactly as before, and progress survives a
+  force-quit. Turn it back on (or sign back in): the device keeps its progress and merges with iCloud's.
+- **Different Apple ID** (a test device only): signing in to another account never removes the device's progress;
+  it merges into that account's.
 
 ## Turning on the unlock
 
