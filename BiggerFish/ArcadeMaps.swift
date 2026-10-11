@@ -52,12 +52,14 @@ struct ArcadeWorldMap: View {
                         // A ring around the world fills in an arc per level beaten; once it's conquered, the ring turns
                         // gold for its Deep End.
                         let deepEnd = complete && world.deepEndCount > 0 ? (cleared: cleared.deepEnd, count: world.deepEndCount) : nil
+                        let crown = WorldCrown.earned(conquered: complete,
+                                                      deepEndCleared: deepEnd.map { $0.cleared >= $0.count } ?? false)
                         let deepEndLabel = deepEnd.map { ", Deep End \($0.cleared) of \($0.count) cleared" } ?? ""
                         Button { open ? onSelect(world) : onUnlock(world) } label: {
                             WorldMapStop(title: world.title, detail: detail, world: world,
                                          color: world.color, placeholder: false, locked: !open, deepEnd: deepEnd,
                                          progress: open && !complete ? (cleared: cleared.main, count: main) : nil,
-                                         conquered: complete)
+                                         crown: crown)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(open ? "\(world.title), \(detail)\(deepEndLabel)" : "\(world.title), locked. \(detail)")
@@ -137,6 +139,12 @@ struct ArcadeLevelMap: View {
     let onBack: () -> Void
     let onPlay: (Int) -> Void
 
+    /// Where your fish sits over a level: just above it, or higher over a crowned level so the crown shows.
+    private func fishSpot(_ index: Int, _ centers: [CGPoint]) -> CGPoint {
+        let lift: CGFloat = MapLevelStop.crown(for: index, in: world) == .none ? 58 : 82
+        return CGPoint(x: centers[index].x, y: centers[index].y + lift)
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
@@ -166,8 +174,8 @@ struct ArcadeLevelMap: View {
                                     .offset(x: dropX)
                             }
                             MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
-                                        fishHome: centers.indices.contains(focus) ? CGPoint(x: centers[focus].x, y: centers[focus].y + 58) : nil,
-                                        fishFrom: advanced.map { CGPoint(x: centers[$0].x, y: centers[$0].y + 58) },
+                                        fishHome: centers.indices.contains(focus) ? fishSpot(focus, centers) : nil,
+                                        fishFrom: advanced.map { fishSpot($0, centers) },
                                         pulsingStops: centers.indices.contains(focus) ? [centers[focus]] : [])
                                 .frame(width: width, height: size.height)
                             ForEach(0..<world.levelCount, id: \.self) { index in
@@ -180,7 +188,7 @@ struct ArcadeLevelMap: View {
                                                  open: open, cleared: cleared,
                                                  best: progress.save.bestTimes[world.levelID(index)],
                                                  deep: ArcadeWorld.isDeepEnd(index), needsUnlock: needsUnlock,
-                                                 conquers: index == ArcadeWorld.mainLevelCount - 1)
+                                                 conquers: MapLevelStop.crown(for: index, in: world))
                                 }
                                 .buttonStyle(.plain).disabled(!open && !needsUnlock)
                                 .accessibilityLabel("\(world.levelTitles[index]), \(needsUnlock ? "part of the unlock" : open ? (cleared ? "cleared, replay" : "play") : "locked")")
@@ -238,8 +246,8 @@ private struct WorldMapStop: View {
     var deepEnd: (cleared: Int, count: Int)? = nil
     /// The world's ten levels, as a ring in its color, until it's conquered.
     var progress: (cleared: Int, count: Int)? = nil
-    /// Beaten its tenth level: a gold crown on top.
-    var conquered = false
+    /// A crown on top: silver once its tenth level is beaten, gold once its Deep End is too.
+    var crown: WorldCrown = .none
 
     var body: some View {
         ZStack {
@@ -263,9 +271,9 @@ private struct WorldMapStop: View {
             } else {
                 Image(systemName: "lock.fill").font(.system(size: 24, weight: .bold))
             }
-            if conquered {
+            if let color = crown.color {
                 Image(systemName: "crown.fill").font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(DeepEndColors.gold)
+                    .foregroundStyle(color)
                     .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
                     .offset(y: -50)
             }
@@ -291,8 +299,15 @@ private struct MapLevelStop: View {
     var deep = false
     /// Past the free levels without the unlock: a gold padlock, and tapping it shows the unlock.
     var needsUnlock = false
-    /// The world's tenth level, which conquers it: a crown over it, gold once it's beaten.
-    var conquers = false
+    /// The level that earns a crown: the tenth (silver, for the world) or the Deep End's last (gold). The crown over it
+    /// takes its color once the level is beaten.
+    var conquers: WorldCrown = .none
+
+    /// The crown a level earns: silver for the world's tenth, gold for its Deep End's last, none for the rest.
+    static func crown(for index: Int, in world: ArcadeWorld) -> WorldCrown {
+        if index == ArcadeWorld.mainLevelCount - 1 { return .silver }
+        return index == world.levelCount - 1 && ArcadeWorld.isDeepEnd(index) ? .gold : .none
+    }
 
     private static let gold = Color(red: 1, green: 0.8, blue: 0.32)
 
@@ -312,10 +327,11 @@ private struct MapLevelStop: View {
                     .frame(width: 24, height: 24).background(Self.gold, in: Circle())
                     .offset(x: 21, y: 21)
             }
-            if conquers {
-                Image(systemName: "crown.fill").font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(cleared ? Self.gold : .white.opacity(open ? 0.9 : 0.5))
-                    .shadow(color: cleared ? Self.gold.opacity(0.6) : .clear, radius: 6)
+            if let earned = conquers.color {
+                // Still to earn, an outline; beaten, filled in its color.
+                Image(systemName: cleared ? "crown.fill" : "crown").font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(cleared ? earned : .white.opacity(open ? 0.9 : 0.5))
+                    .shadow(color: cleared ? earned.opacity(0.6) : .clear, radius: 6)
                     .offset(y: -45)
             } else if cleared {
                 Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).offset(y: -43)

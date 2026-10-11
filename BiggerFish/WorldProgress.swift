@@ -6,6 +6,24 @@ import UIKit
 // it. A playtester didn't know beating all ten levels was the goal, so the card before each level, the card after
 // each win, and both maps all show the run and what's left of it.
 
+/// The crowns a world earns, as Math Reef's do: silver for conquering its ten levels, then gold for its Deep End too.
+enum WorldCrown {
+    case none, silver, gold
+
+    /// A world's crown from how much of it is beaten: its ten main levels, and then its whole Deep End.
+    static func earned(conquered: Bool, deepEndCleared: Bool) -> WorldCrown {
+        conquered ? (deepEndCleared ? .gold : .silver) : .none
+    }
+
+    var color: Color? {
+        switch self {
+        case .none: nil
+        case .silver: DeepEndColors.silver
+        case .gold: DeepEndColors.gold
+        }
+    }
+}
+
 /// A level's run (its world's ten main levels, or its Deep End) and which of them are cleared.
 struct WorldProgress: Equatable {
     let world: ArcadeWorld
@@ -27,6 +45,8 @@ struct WorldProgress: Equatable {
     var isConquered: Bool { remaining == 0 }
     /// What clearing the run conquers.
     var goal: String { isDeepEnd ? "The Deep End" : world.title }
+    /// The crown clearing the run earns: silver for the world's ten levels, gold for its Deep End.
+    var crown: WorldCrown { isDeepEnd ? .gold : .silver }
 
     /// The line under the pips: the goal, and how far off it is.
     var caption: String {
@@ -56,8 +76,9 @@ final class WorldProgressStrip: SKNode {
     init(progress: WorldProgress, next: Int?, earned: Int? = nil, captioned: Bool = true) {
         self.progress = progress
         color = progress.isDeepEnd ? Self.gold : progress.world.mapColor
-        crown = SKSpriteNode.symbol("crown.fill", pointSize: 20, weight: .bold,
-                                    color: progress.isConquered ? Self.gold : UIColor(white: 1, alpha: 0.4))
+        // Earned, a filled crown in its color; still to earn, an outline, so it never reads as silver.
+        crown = SKSpriteNode.symbol(progress.isConquered ? "crown.fill" : "crown", pointSize: 20, weight: .bold,
+                                    color: progress.isConquered ? UIColor(progress.crown.color ?? .white) : UIColor(white: 1, alpha: 0.5))
         let count = progress.run.count
         rowWidth = CGFloat(count - 1) * Self.pipSpacing + Self.pipRadius * 2 + 34
         caption = SKLabelNode(fontNamed: "AvenirNext-DemiBold")
@@ -143,8 +164,8 @@ struct WorldProgressBar: View {
                     .overlay(Capsule().stroke(.white.opacity(cleared ? 0.7 : 0.3), lineWidth: 1))
                     .frame(width: 13, height: 9)
             }
-            Image(systemName: "crown.fill").font(.system(size: 15, weight: .bold))
-                .foregroundStyle(progress.isConquered ? DeepEndColors.gold : .white.opacity(0.4))
+            Image(systemName: progress.isConquered ? "crown.fill" : "crown").font(.system(size: 15, weight: .bold))
+                .foregroundStyle(progress.isConquered ? progress.crown.color ?? .white : .white.opacity(0.5))
                 .padding(.leading, 3)
             Text("\(progress.clearedCount)/\(progress.run.count)").font(.custom("AvenirNext-DemiBold", size: 14))
                 .padding(.leading, 4)
