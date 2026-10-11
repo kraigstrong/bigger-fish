@@ -35,7 +35,6 @@ struct ContentView: View {
     /// The loading screen shows until every world's levels are ready.
     @State private var loaded = false
     #if DEBUG
-    @StateObject private var tuningStore = ArcadeTuningStore()
     @State private var showsTuning = false
     #endif
 
@@ -121,17 +120,7 @@ struct ContentView: View {
             .opacity(StoreCapture.moment == nil ? 1 : 0)
         }
         .sheet(isPresented: $showsTuning) {
-            // Planned levels ignore the tuner's seeded settings; its Players and variations sections still apply.
-            let current = scene?.arcadeWorld ?? selectedWorld ?? .jellyBloom
-            let campaign = ArcadeWorld.campaign.contains(current) && current.hasSeededOriginal
-            // Bonus levels have no seeded original to tune; the tuner opens on the last one.
-            let seededIndex = min(scene?.debugLevelIndex ?? 1, current.seededLevels.count - 1)
-            ArcadeTuningPanel(store: tuningStore, world: campaign ? current : .shallowReef,
-                              index: campaign ? seededIndex : 0, onPlanner: playPlanner,
-                              onResetProgress: { progress.reset($0) }) { world, index in
-                selectedWorld = world
-                play(world, index: index, practice: true, seeded: true)
-            }
+            ArcadeTuningPanel(onPlanner: playPlanner, onResetProgress: { progress.reset($0) })
             .previewingConquered { world in
                 scene = nil
                 offer = nil
@@ -283,26 +272,23 @@ struct ContentView: View {
         scene = game
     }
 
-    /// `seeded` (Debug, from the tuner) plays the world's original seeded level instead of its planned one.
-    private func play(_ world: ArcadeWorld, index: Int, practice: Bool = false, seeded: Bool = false) {
+    private func play(_ world: ArcadeWorld, index: Int) {
         // Past the free levels: show what the unlock opens instead.
-        var offersUnlock = !practice
+        var offersUnlock = true
         #if DEBUG
-        offersUnlock = offersUnlock && ArcadePlaytest.selection == nil
+        offersUnlock = ArcadePlaytest.selection == nil
         #endif
         if offersUnlock && ArcadeUnlock.needsUnlock(world, index, unlocked: purchases.isUnlocked) {
             withAnimation { offer = UnlockOffer(featured: world, source: .padlockedLevel) }
             return
         }
         #if DEBUG
-        guard practice || progress.isOpen(world, index) || ArcadePlaytest.selection != nil else { return }
+        guard progress.isOpen(world, index) || ArcadePlaytest.selection != nil else { return }
         #else
         guard progress.isOpen(world, index) else { return }
         #endif
-        let game = GameScene(world: world, levelIndex: index,
-                             showsJellyLesson: !progress.save.hasSeenJellyLesson, seeded: seeded)
+        let game = GameScene(world: world, levelIndex: index, showsJellyLesson: !progress.save.hasSeenJellyLesson)
         #if DEBUG
-        game.debugPracticeRun = practice
         StoreCapture.attach(game)
         #endif
         game.analytics = analytics
@@ -318,7 +304,7 @@ struct ContentView: View {
         lastPlayWon = false
         game.onClear = { [weak game] index, seconds in
             #if DEBUG
-            guard let scene = game, !scene.debugPracticeRun, !scene.debugHasTuningOverride else { return }
+            guard let scene = game, !scene.debugPracticeRun else { return }
             #endif
             firstClear = progress.isCleared(world, index) ? nil : index
             lastPlayWon = true
@@ -333,7 +319,7 @@ struct ContentView: View {
         }
         game.onJellyLesson = { [weak game] in
             #if DEBUG
-            guard let game, !game.debugPracticeRun, !game.debugHasTuningOverride else { return }
+            guard let game, !game.debugPracticeRun else { return }
             #endif
             progress.sawJellyLesson()
         }

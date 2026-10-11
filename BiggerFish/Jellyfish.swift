@@ -2,56 +2,12 @@ import CoreGraphics
 import SpriteKit
 import FishKit
 
+/// A level's jellyfish: how many, their size, and whether it's night. Each bell drifts (`JellyDrift`).
 struct JellyLayout {
     let count: Int
     let radius: CGFloat
     let tentacleLength: CGFloat
-    let sway: CGFloat
-    let urchinBeds: Int
     let night: Bool
-    let maintainsFloorLane: Bool
-    let heights: [CGFloat]
-    /// Wander slowly around each bell's home (Jelly Bloom 2) instead of the small fixed sway.
-    var drifts = false
-
-    init(count: Int, radius: CGFloat = 38, tentacleLength: CGFloat = 90,
-         sway: CGFloat = 12, urchinBeds: Int = 0, night: Bool = false, maintainsFloorLane: Bool = false, heights: [CGFloat] = []) {
-        self.count = count
-        self.radius = radius
-        self.tentacleLength = tentacleLength
-        self.sway = sway
-        self.urchinBeds = urchinBeds
-        self.night = night
-        self.maintainsFloorLane = maintainsFloorLane
-        self.heights = heights
-    }
-}
-
-/// Stable per-level obstacles, with room between bells and a clear opening.
-enum JellyPlacement {
-    static func origins(layout: JellyLayout, screenWidth: CGFloat, waterBottom: CGFloat,
-                        waterTop: CGFloat, seed: UInt64, variation: CGFloat = 1) -> [CGPoint] {
-        guard layout.count > 0 else { return [] }
-        var rng = SeededGenerator(seed: seed)
-        let first = screenWidth * CGFloat.random(in: GameTuning.bloomJellyOpeningScreens, using: &rng)
-        let last = screenWidth * CGFloat.random(in: GameTuning.bloomJellyLastScreens, using: &rng)
-        let gaps = max(0, layout.count - 1)
-        let minimum = layout.radius * 2 + layout.sway * 2 + GameTuning.bloomJellySpacingPadding
-        let strength = min(1, max(0, variation))
-        let weights = (0..<gaps).map { _ in
-            1 + (CGFloat.random(in: GameTuning.bloomJellyGapWeight, using: &rng) - 1) * strength
-        }
-        let weightSum = weights.reduce(0, +)
-        let extra = max(0, last - first - CGFloat(gaps) * minimum)
-        var x = first
-        return (0..<layout.count).map { i in
-            if i > 0 { x += minimum + extra * weights[i - 1] / weightSum }
-            let fraction = 0.52 + (CGFloat.random(in: GameTuning.bloomJellyHeightRange, using: &rng) - 0.52) * strength
-            let floor = waterBottom + layout.tentacleLength
-                + GameRules.bloomFloorLaneClearance(fishRadius: GameTuning.baseRadius)
-            return CGPoint(x: x, y: max(floor, waterBottom + (waterTop - waterBottom) * fraction))
-        }
-    }
 }
 
 /// Jelly Bloom 2's slow wander: each bell floats side to side and bobs around its home, on its own phase,
@@ -124,11 +80,11 @@ enum JellySwim {
         return jellyY + layout.radius * 0.65 * sqrt(max(0, 1 - x * x)) + f.radius * GameTuning.hazardHitboxScale + 2
     }
 
-    /// Drifting bells (Jelly Bloom 2) can come close to the surface. A fish with no room to rise there
-    /// slides over the dome instead of rattling between it and the surface. Returns whether it slid.
+    /// Drifting bells can come close to the surface. A fish with no room to rise there slides over the dome
+    /// instead of rattling between it and the surface. Returns whether it slid.
     static func slideIfCramped(_ f: Fish, at p: CGPoint, jellyY: CGFloat, layout: JellyLayout, ceiling: CGFloat) -> Bool {
         let resting = restingY(f, at: p, jellyY: jellyY, layout: layout)
-        guard layout.drifts, resting + f.radius > ceiling else { return false }
+        guard resting + f.radius > ceiling else { return false }
         f.position.y = min(ceiling, resting)
         f.velocity.dy = max(0, f.velocity.dy)
         return true

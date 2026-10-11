@@ -37,7 +37,8 @@ Pausing offers Resume, Restart, and Level map. Cleared levels remain replayable.
 returns to its map with the final level focused rather than restarting the campaign.
 
 A clear means becoming the last fish swimming, with no meal quota or replenishment. All tuning lives in
-`GameTuning`. Beating a world's level 10 conquers it and opens its Deep End.
+`GameTuning`. Beating a world's level 10 conquers it and opens its Deep End. The original seeded campaigns, with
+their spawner, food refills, and meal counter, are retired; an endless mode could start from them in git history.
 
 Settings (the world map's gear) has sound, music, and vibration switches, replaying the tutorial, restoring the
 unlock, and the privacy policy and support pages on biggerfish.app.

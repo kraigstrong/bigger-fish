@@ -189,33 +189,16 @@ periodically and on pause, and keep the latest 100 files. An interrupted run rem
 an abrupt process kill may lose the most recent queued records. Nothing is uploaded automatically.
 Add `-arcadeDisableRunRecording` to Xcode's launch arguments to disable recording temporarily.
 
-
-### Tune on your phone (Debug only)
-
-Tap **Tuning** on a map or during a run. During play this pauses and flushes the recording.
-Choose a world/level, edit fish counts and size ranges, growth, AI/player speed, food-pocket
-release, jelly count/radius/tentacles, bounce strength, or layout/seed variation. **Apply & Play**
-saves a per-level override and starts a fresh practice run immediately, without rebuilding.
-Practice runs and overridden levels do not write campaign progress. Closing the panel leaves
-an existing run paused. Overrides persist across launches and restarts.
-
-Save named presets for comparisons. **Load shipped settings** loads the checked-in configuration;
-**Load before-roaming experiment** restores the prior slow AI, bounded food pockets, and authored
-jelly layout. Those buttons edit the draft; Apply saves it. **Remove override for this level**
-clears its saved settings and starts a practice run with the checked-in configuration.
-Presets are local, hold at most ten names, and can be applied to another level. Level geometry and
-starting fish cannot always fit extreme combinations; the run analysis flags spawn shortfalls.
-These tools and overrides are absent in Release/TestFlight.
-
 ### Meeting planner
 
 Every world plays planned levels: each gate's slack and routes are designed, and every fish still swims
 freely into its meeting. Shallow Reef's and Jelly Bloom's won an A/B test as Shallow Reef 2 and Jelly Bloom 2
 (internally Reef Lab and Jelly Lab) and replaced the seeded campaigns under the original `shallow-reef` and
-`jelly-bloom` IDs. Jelly Bloom's jellyfish drift, to bounce off and dodge. Kelp Forest and Midnight Zone were
-planned from the start, with each fish appearing just off screen right before you meet it. In Debug builds, **Tuning > Players** resets a
-world for a new player, **Tuning > Shallow Reef variations** plays other layouts, and the rest of the
-tuner still edits the retired seeded levels. See [`docs/meeting-planner.md`](docs/meeting-planner.md).
+`jelly-bloom` IDs; those seeded campaigns are retired, and git history has them. Jelly Bloom's jellyfish drift,
+to bounce off and dodge. Kelp Forest and Midnight Zone were planned from the start, with each fish appearing
+just off screen right before you meet it. In Debug builds, **Tuning** (on a map or during a run) has
+**Players**, to reset a world for a new player, and **Shallow Reef variations**, to play other layouts. See
+[`docs/meeting-planner.md`](docs/meeting-planner.md).
 
 ### Automatic run diagnostics
 
@@ -233,18 +216,12 @@ food chain. Jellyfish no longer kill AI fish. Threat/cleanup metrics concern fis
 early deaths are descriptive; fast deaths can be desirable opening tension. Cleanup tails are
 review signals, not a validated universal fun score.
 Compare them with player feedback, especially the favorite Shallow Reef level 4 recordings.
-Diagnostics are offline and do not alter gameplay. New recordings include the effective tuning
-and both seeds, so changes on the phone remain attributable.
+Diagnostics are offline and do not alter gameplay. New recordings include the level's settings
+and its seed.
 
 Player encounters within the 1% near-equal radius band favor the player, including a
 fractionally larger opponent. NPC ties still bump apart. New run headers include
 `playerWinsTies`; the offline analyzer preserves the old rule for older recordings.
-
-### The retired seeded campaigns
-
-Before the meeting planner, levels were seeded campaigns tuned by seed searches and balance studies (the
-[Shallow Reef](docs/shallow-reef-ten-level-campaign.md) and [Jelly Bloom](docs/jelly-bloom-free-campaign.md)
-reports). None of them ship; the debug tuner can still play them for comparison.
 
 ## Anonymous arcade diagnostics
 

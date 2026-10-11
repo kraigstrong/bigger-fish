@@ -2,46 +2,12 @@ import CoreGraphics
 import Foundation
 import FishKit
 
-/// A design target, not a measured human win probability.
-struct EncounterDifficulty: Codable, Equatable {
-    var value: Double
-    var bounded: Double { value.isFinite ? min(1, max(0, value)) : 0 }
-    /// A fractional meal budget makes target size continuous between integer catch requirements.
-    var catchBudget: Double { GameTuning.encounterCatchBudget.lowerBound + (GameTuning.encounterCatchBudget.upperBound - GameTuning.encounterCatchBudget.lowerBound) * bounded }
-    var minimumCatches: Int { minimumCatches(efficiency: GameTuning.encounterAbsorption * GameTuning.mealGrowthScale) }
-    func minimumCatches(efficiency: CGFloat) -> Int {
-        let food = GameTuning.encounterFoodRadius
-        let target = returnRadius(food: food, efficiency: efficiency)
-        var player: CGFloat = 1
-        for catches in 0...(GameTuning.encounterCount * GameTuning.encounterFoodCount) {
-            if GameRules.playerEncounter(player, target) == .firstEatsSecond { return catches }
-            player = GameRules.grownRadius(predator: player, prey: food, efficiency: efficiency)
-        }
-        return GameTuning.encounterCount * GameTuning.encounterFoodCount + 1
-    }
-    var spareCatches: Int { GameTuning.encounterCount * GameTuning.encounterFoodCount - minimumCatches }
-    /// Easy areas survive one extra circuit; the hardest release immediately behind the player.
-    var recoveryPasses: Double { 1 - bounded }
-    var clearance: CGFloat { GameTuning.encounterClearance.upperBound - (GameTuning.encounterClearance.upperBound - GameTuning.encounterClearance.lowerBound) * CGFloat(bounded) }
-
-    func returnRadius(food: CGFloat, efficiency: CGFloat) -> CGFloat {
-        sqrt(1 + CGFloat(catchBudget) * efficiency * food * food)
-    }
-}
-
 /// Protection follows forward world distance, independent of camera zoom or wall-clock time.
 struct EncounterLease {
     let home: CGPoint
     let releaseDistance: CGFloat
     var index: Int = 0
     func isProtected(distance: CGFloat) -> Bool { distance < releaseDistance }
-}
-
-struct EncounterFormation {
-    let name: String
-    /// x is in screen widths; y is a world-point lift above the safe food baseline.
-    let foodOffsets: [CGPoint]
-    let threatOffset: CGFloat
 }
 
 enum EncounterSteering {

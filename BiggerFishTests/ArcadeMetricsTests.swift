@@ -16,6 +16,11 @@ struct ArcadeMetricsTests {
         #expect(ArcadeGrowthSnapshot.measure(player: 10, opponents: [9, 11], efficiency: 0.495).path == .available)
         #expect(ArcadeGrowthSnapshot.measure(player: 10, opponents: [9, 11], efficiency: 0).path == .noPath)
     }
+    @Test func growthPathMatchesTheNearEqualAndAreaRules() {
+        #expect(ArcadeGrowthBudget.hasPath(player: 16, radii: [12, 18, 24], efficiency: 0.78))
+        #expect(!ArcadeGrowthBudget.hasPath(player: 43.4, radii: [47.7, 50], efficiency: 0.78))
+        #expect(ArcadeGrowthBudget.hasPath(player: 16, radii: [15.99], efficiency: 0.78))
+    }
     @Test func summariesSeparateGrowthDeadEndsCleanupAndNearEqualMeals() {
         var a = ArcadeMetricAccumulator()
         a.observe(.measure(player: 10, opponents: [20], efficiency: 0.495))

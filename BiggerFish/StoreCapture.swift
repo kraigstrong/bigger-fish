@@ -96,7 +96,6 @@ enum StoreCapture {
         save.hasSeenJellyLesson = true
         let seen = ArcadeWorld.campaign.filter { moment != .deepEnd || $0 != .shallowReef }
         save.seenUnlocks = Set(seen.map(\.rawValue))
-        save.announcedWorlds = Set(seen.compactMap { $0.nextWorld?.rawValue })
         return save
     }
 

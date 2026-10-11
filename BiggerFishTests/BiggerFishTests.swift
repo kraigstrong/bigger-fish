@@ -67,33 +67,6 @@ struct WinStateTests {
     }
 }
 
-struct BloomMealTests {
-    private func fish(_ id: Int, radius: CGFloat, player: Bool = false) -> Fish {
-        Fish(id: id, isPlayer: player, position: .zero, radius: radius)
-    }
-
-    @Test func wipedOutReefRequiresCompletedMeals() {
-        let player = fish(0, radius: 16, player: true)
-        #expect(!GameRules.isWin([player], mealsEaten: 0, requiredMeals: 8))
-        #expect(!GameRules.isWin([player], mealsEaten: 7, requiredMeals: 8))
-        #expect(GameRules.isWin([player], mealsEaten: 8, requiredMeals: 8))
-        #expect(!GameRules.isWin([player, fish(1, radius: 8)], mealsEaten: 8, requiredMeals: 8))
-    }
-
-    @Test func refillsOnlyStalledEcosystems() {
-        let player = fish(0, radius: 16, player: true)
-        #expect(GameRules.needsFood([player], mealsEaten: 0, requiredMeals: 8))
-        #expect(!GameRules.needsFood([player], mealsEaten: 8, requiredMeals: 8))
-        #expect(!GameRules.needsFood([player], mealsEaten: 0, requiredMeals: 0))
-        #expect(!GameRules.needsFood([player, fish(1, radius: 8)], mealsEaten: 0, requiredMeals: 8))
-        #expect(GameRules.needsFood([player, fish(1, radius: 32)], mealsEaten: 8, requiredMeals: 8))
-        player.state = .swallowing(preyID: 1)
-        #expect(!GameRules.needsFood([player], mealsEaten: 7, requiredMeals: 8))
-        player.state = .removed
-        #expect(!GameRules.needsFood([player], mealsEaten: 0, requiredMeals: 8))
-    }
-}
-
 struct BloomAvoidanceTests {
     private func avoid(_ position: CGPoint, _ velocity: CGVector, radius: CGFloat = 16) -> CGVector? {
         JellyRules.avoidance(at: position, velocity: velocity, fishRadius: radius,
@@ -124,26 +97,5 @@ struct BloomAvoidanceTests {
         #expect((below?.dy ?? 0) < 0)
         let giant = avoid(CGPoint(x: -100, y: -40), CGVector(dx: 100, dy: 0), radius: 50)
         #expect((giant?.dx ?? 0) < 0)
-    }
-}
-
-struct BounceCampaignBalanceTests {
-    @Test func foodChainAllowsProgressFromSmallMealsThroughMediumFishToGiants() {
-        for level in GameTuning.bloomReferenceLevels.dropFirst() {
-            let foodArea = level.spawnGroups.filter { $0.radii.upperBound < 1 }
-                .reduce(CGFloat.zero) { $0 + CGFloat($1.count) * $1.radii.lowerBound * $1.radii.lowerBound }
-            let grown = sqrt(1 + foodArea * level.effectiveAbsorptionEfficiency)
-            // Easy food opens up the medium fish, but cannot erase the giants immediately.
-            #expect(GameRules.encounter(grown, 1.60) == .firstEatsSecond)
-            #expect(GameRules.encounter(grown, level.spawnGroups.last!.radii.upperBound) == .secondEatsFirst)
-            var radius = grown
-            for group in level.spawnGroups where group.radii.upperBound >= 1 {
-                #expect(GameRules.encounter(radius, group.radii.upperBound) == .firstEatsSecond)
-                for _ in 0..<group.count {
-                    radius = GameRules.grownRadius(predator: radius, prey: group.radii.lowerBound,
-                                                  efficiency: level.effectiveAbsorptionEfficiency)
-                }
-            }
-        }
     }
 }

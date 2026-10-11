@@ -30,22 +30,4 @@ enum ArcadeArt {
         }
         return SKTexture(image: image)
     }
-
-    static func urchin(radius: CGFloat) -> SKNode {
-        let node = SKNode()
-        let spikes = CGMutablePath()
-        for i in 0..<24 {
-            let angle = CGFloat(i) * .pi / 12
-            let r = radius * (i.isMultiple(of: 2) ? 1 : 0.6)
-            let p = CGPoint(x: cos(angle) * r, y: sin(angle) * r)
-            if i == 0 { spikes.move(to: p) } else { spikes.addLine(to: p) }
-        }
-        spikes.closeSubpath()
-        let body = SKShapeNode(path: spikes)
-        body.fillColor = SKColor(red: 0.44, green: 0.18, blue: 0.46, alpha: 1)
-        body.strokeColor = SKColor(red: 1, green: 0.53, blue: 0.7, alpha: 1)
-        body.lineWidth = 1.5
-        node.addChild(body)
-        return node
-    }
 }
