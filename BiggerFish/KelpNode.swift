@@ -24,6 +24,9 @@ final class KelpNode: SKNode {
             plant.size = CGSize(width: texture.size().width, height: tall)
             plant.xScale = Bool.random(using: &rng) ? 1 : -1
             plant.position = CGPoint(x: x, y: 0)
+            // Neighbors overlap, each over the one before: the scenes ignore sibling order. The widest bed's 32 plants
+            // stay within 0.32 of the bed's depth, so the back bed is still under every fish and the front over the rest.
+            plant.zPosition = CGFloat(index) * 0.01
             addChild(plant)
             plants.append((plant, CGFloat.random(in: 0..<(2 * .pi), using: &rng), CGFloat.random(in: 0.7...1.1, using: &rng)))
         }

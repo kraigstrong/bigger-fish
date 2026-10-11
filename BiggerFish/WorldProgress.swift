@@ -90,11 +90,15 @@ final class WorldProgressStrip: SKNode {
             pip.position = CGPoint(x: left + CGFloat(offset) * Self.pipSpacing, y: 0)
             let done = progress.cleared[offset] && index != earned
             style(pip, cleared: done, isNext: index == next)
+            // The scenes ignore sibling order: each pip over the one before, as they were added, where a popping pip
+            // grows into its neighbors; the crown, the caption, and a pop's ring over them all.
+            pip.zPosition = CGFloat(offset) * 0.01
             addChild(pip)
             pips.append(pip)
         }
         if let crown {
             crown.position = CGPoint(x: rowWidth / 2 - 13, y: 1)
+            crown.zPosition = 0.2
             addChild(crown)
         }
         caption.text = progress.caption
@@ -103,6 +107,7 @@ final class WorldProgressStrip: SKNode {
         caption.verticalAlignmentMode = .center
         caption.position = CGPoint(x: 0, y: -27)
         caption.isHidden = !captioned
+        caption.zPosition = 0.3
         addChild(caption)
         if let next { pulse(next) }
     }
@@ -119,21 +124,28 @@ final class WorldProgressStrip: SKNode {
         guard let offset = progress.run.firstIndex(of: index).map({ progress.run.distance(from: progress.run.lowerBound, to: $0) }),
               pips.indices.contains(offset) else { return }
         let pip = pips[offset]
-        run(.sequence([.wait(forDuration: delay), .run { [weak self] in
-            guard let self else { return }
-            style(pip, cleared: true, isNext: false)
-            pip.setScale(1.7)
-            let settle = SKAction.scale(to: 1, duration: 0.3)
-            settle.timingMode = .easeOut
-            pip.run(settle)
-            let ring = SKShapeNode(circleOfRadius: Self.pipRadius)
-            ring.strokeColor = .white
-            ring.lineWidth = 2
-            ring.position = pip.position
-            addChild(ring)
-            ring.run(.sequence([.group([.scale(to: 2.6, duration: 0.45), .fadeOut(withDuration: 0.45)]), .removeFromParent()]))
-        }]))
+        run(.sequence([.wait(forDuration: delay), .run { [weak self] in self?.fillEarned(pip) }]))
     }
+
+    private func fillEarned(_ pip: SKShapeNode) {
+        style(pip, cleared: true, isNext: false)
+        pip.setScale(1.7)
+        let settle = SKAction.scale(to: 1, duration: 0.3)
+        settle.timingMode = .easeOut
+        pip.run(settle)
+        let ring = SKShapeNode(circleOfRadius: Self.pipRadius)
+        ring.strokeColor = .white
+        ring.lineWidth = 2
+        ring.position = pip.position
+        ring.zPosition = 0.4
+        addChild(ring)
+        ring.run(.sequence([.group([.scale(to: 2.6, duration: 0.45), .fadeOut(withDuration: 0.45)]), .removeFromParent()]))
+    }
+
+    #if DEBUG
+    /// Fills in the `offset`th pip at once, ring and all, as `playEarned` does after its delay (tests don't run actions).
+    func debugFillEarned(_ offset: Int) { fillEarned(pips[offset]) }
+    #endif
 
     private func style(_ pip: SKShapeNode, cleared: Bool, isNext: Bool) {
         pip.fillColor = cleared ? color : .clear

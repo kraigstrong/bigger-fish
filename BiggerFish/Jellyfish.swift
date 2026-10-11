@@ -262,8 +262,11 @@ final class JellyfishNode: SKNode {
                 wave: CGFloat(i) * 1.9, sway: 5, speed: 2.6 + CGFloat(i % 3) * 0.3))
         }
         for (i, side) in [CGFloat(-1), 1].enumerated() {
-            strands.append(makeStrand(baseX: side * r * 0.13, length: tentacleLength * 0.55,
-                width: 7, core: 2.4, color: Self.armColor, wave: CGFloat(i) * 2.4 + 0.7, sway: 7, speed: 1.7))
+            let arm = makeStrand(baseX: side * r * 0.13, length: tentacleLength * 0.55,
+                width: 7, core: 2.4, color: Self.armColor, wave: CGFloat(i) * 2.4 + 0.7, sway: 7, speed: 1.7)
+            // Over the tentacles where they cross (the scenes ignore sibling order), under every strand's pale core.
+            arm.outer.zPosition = 0.05
+            strands.append(arm)
         }
 
         let dome = SKShapeNode(path: Self.bellPath(r))
@@ -279,12 +282,14 @@ final class JellyfishNode: SKNode {
             node.fillColor = SKColor(white: 1, alpha: 0.17)
             node.strokeColor = .clear
             node.position = CGPoint(x: 0, y: r * 0.04)
+            node.zPosition = 0.1
             bell.addChild(node)
         }
 
         // A moon jelly's four-leaf clover, then a glossy highlight like the fish have.
-        for angle in stride(from: CGFloat.pi / 4, to: 2 * .pi, by: .pi / 2) {
+        for (leaf, angle) in stride(from: CGFloat.pi / 4, to: 2 * .pi, by: .pi / 2).enumerated() {
             let ring = SKShapeNode(ellipseOf: CGSize(width: r * 0.2, height: r * 0.15))
+            ring.zPosition = 0.2 + CGFloat(leaf) * 0.01
             ring.position = CGPoint(x: cos(angle) * r * 0.15, y: r * 0.27 + sin(angle) * r * 0.1)
             ring.strokeColor = SKColor(red: 1, green: 0.6, blue: 0.86, alpha: 0.6)
             ring.fillColor = SKColor(red: 1, green: 0.75, blue: 0.92, alpha: 0.18)
@@ -298,14 +303,21 @@ final class JellyfishNode: SKNode {
         highlight.strokeColor = SKColor(white: 1, alpha: 0.75)
         highlight.lineWidth = 3.5
         highlight.lineCap = .round
+        highlight.zPosition = 0.3
         bell.addChild(highlight)
         let glint = SKShapeNode(circleOfRadius: r * 0.05)
         glint.position = CGPoint(x: -r * 0.04, y: r * 0.55)
         glint.fillColor = SKColor(white: 1, alpha: 0.8)
         glint.strokeColor = .clear
+        glint.zPosition = 0.35
         bell.addChild(glint)
 
-        bell.zPosition = 2
+        // The bell's parts each have their own depth, in the order they're drawn: dome, inner shine, the clover's four
+        // rings (which overlap), the highlight, its glint. The scenes ignore sibling order, so at one depth the dome
+        // could cover its own shine on a phone. All of it sits over the tentacles, and in a level (the hazard layer at
+        // 8, the fish layer at 10) over the first fish's tail (9.5) and under the second's (10), as the simulator drew
+        // it when the whole bell shared that tail's depth.
+        bell.zPosition = 1.6
         addChild(bell)
         animate(time: 0)
     }
