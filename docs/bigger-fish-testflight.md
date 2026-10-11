@@ -6,7 +6,7 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
 ## What the build already has
 
 - Bundle ID `com.kraigstrong.biggerfish`, team `MKACSCQ588`, automatic signing.
-- Version 0.2 (0.1 was the first build). iPhone only, landscape.
+- Version 0.3 (see the build log at the end). iPhone only, landscape.
 - App icon (no alpha), loading screen, and launch color.
 - `ITSAppUsesNonExemptEncryption = NO`: the only encryption is the system's HTTPS, so App Store
   Connect won't ask the export-compliance question on each upload.
@@ -48,30 +48,22 @@ On a physical iPhone, with a fresh install and again as an update over the last 
 - Background the app mid-level: the game pauses and the music stops, then resumes on return.
 - A phone call or alarm during a level doesn't break the game or its sound.
 
-New in 0.2, worlds unlock in order:
+Since 0.3:
 
-- **Fresh install:** only Shallow Reef is open. Jelly Bloom and Kelp Forest show a lock and "Beat ...
-  to unlock". Beating Shallow Reef's level 10 shows the "Shallow Reef conquered!" screen once, with
-  Jelly Bloom and The Deep End; Swim there, Dive in, and Maybe later each go where they say.
-- **Update over 0.1** (with Shallow Reef's level 10 beaten): every world played before stays open.
-  On first launch the unlock screen for the furthest beaten world shows once, then never again.
-- Each world's level map shows The Deep End past level 10, locked until level 10 is beaten.
-- Kelp Forest: kelp slows you, fish inside it are silhouettes, and your whole fish stays in front of
-  the kelp.
-
-New in 0.3, Midnight Zone and a reordered Shallow Reef:
-
-- **Update over 0.2 with Kelp Forest's level 10 beaten:** your progress, Deep End rings, and best times
-  are all still there. On first launch, Kelp Forest's conquered screen shows once more, now with the
-  "Midnight Zone is open" card, then never again. It doesn't show if you've already played Midnight Zone.
-- **Fresh install:** Midnight Zone shows a lock and "Beat Kelp Forest to unlock". Beating Kelp Forest's
-  level 10 opens it, and its conquered screen points to it.
-- Midnight Zone: the water is dark except your headlamp's beam, which tilts as you rise or dive; every
-  other fish carries the same small lure light, and its body only shows in your beam. Your whole fish
-  stays bright.
-- Beating any world's level 10 for the first time goes straight to its conquered screen, with no
-  result card first. Replaying it shows the card.
-- Shallow Reef plays its levels in the new order; levels cleared before stay cleared by number.
+- **Fresh install:** the tutorial plays first: hold to rise, let go to fall, eat a smaller fish, dodge a bigger
+  one, watch a missed fish grow and catch it back, then eat through the wall to be the last fish swimming. Missing
+  a wall meal gets you eaten, and Retry starts the wall again. It ends on the world map. Settings > Replay
+  tutorial plays it again.
+- **Update over 0.3:** no tutorial (you have cleared levels); progress, Deep End rings, and best times are kept.
+- Every world is open from the start (the unlock isn't sold yet, so everyone plays as if they'd bought it).
+- Each level starts on a short card: its name, the world's progress pips, and "Tap to start". A world's rules
+  show only on its first level, until it's cleared. Retry skips the card.
+- The world map rings and the level map's bar fill in as you clear levels; the card after a win shows the pips
+  filling. Beating a world's level 10 shows its conquered screen with The Deep End.
+- The world map's gear opens Settings: Sound effects, Music, and Vibration (remembered, and in the pause menu
+  too), Replay tutorial, Privacy Policy and Support (biggerfish.app), Credits, and the version.
+- Meals, close calls, bounces, stings, being eaten, and wins are felt (with Vibration on). Vibration off stops them.
+- The screen sleeps on the maps, cards, and pause menu as it normally would, but not while you play.
 
 ## Turning on the unlock
 
@@ -111,8 +103,8 @@ Smoke check, without the unlock:
 > jellyfish domes bounce you and their tentacles sting; Kelp Forest, where kelp slows you down and
 > hides what's inside it; and Midnight Zone, where it's dark but for your headlamp, and every other
 > fish carries the same little light, so you can't tell how big one is until your beam lands on it.
-> Beat a world's tenth level to open the next, and The Deep End: five extra-hard levels for when you
-> can't get enough.
+> Play the worlds in any order, and beat a world's tenth level to open its Deep End: five extra-hard
+> levels for when you can't get enough.
 
 **What to Test**
 

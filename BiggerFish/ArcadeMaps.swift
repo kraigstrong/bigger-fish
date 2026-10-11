@@ -29,8 +29,8 @@ struct ArcadeWorldMap: View {
             let size = geometry.size
             let centers = OceanMapLayout.worldCenters(count: 5, size: size)
             let worlds = ArcadeWorld.mapWorlds
-            let comingSoon = [("Kelp Forest", Color.blue), ("Midnight Zone", .orange), ("Riptide Reef", .pink)]
-                .filter { soon in !worlds.contains { $0.title == soon.0 } }
+            // The fifth stop, until a fifth world is on the map (as a prototype in Xcode builds).
+            let comingSoon = [("Riptide Reef", Color.pink)]
             // The first open world with main levels left, else the last open one.
             let isOpen = { (world: ArcadeWorld) in ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) }
             let focus = ArcadeWorld.campaign.firstIndex { world in

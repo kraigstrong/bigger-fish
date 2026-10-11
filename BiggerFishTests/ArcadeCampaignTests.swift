@@ -80,9 +80,11 @@ struct ArcadeCampaignTests {
         defaults.set(Data(old.utf8), forKey: ArcadeProgress.key)
         let progress = ArcadeProgress(defaults: defaults)
         #expect(progress.isCleared(.jellyBloom, 9) && progress.save.hasSeenJellyLesson)
-        // The furthest one announces the newest things; once shown, neither it nor earlier ones come back.
+        // Each world's screen opens its own Deep End: the furthest along first, then the other, then neither again.
         #expect(progress.unseenUnlock == .jellyBloom)
         progress.sawUnlock(.jellyBloom)
+        #expect(ArcadeProgress(defaults: defaults).unseenUnlock == .shallowReef)
+        progress.sawUnlock(.shallowReef)
         #expect(ArcadeProgress(defaults: defaults).unseenUnlock == nil)
 
         let (fresh, _) = fresh()
@@ -91,35 +93,16 @@ struct ArcadeCampaignTests {
         #expect(fresh.unseenUnlock == .shallowReef)
     }
 
-    /// Midnight Zone joined after 0.2, whose Kelp Forest "conquered" screen said more worlds were coming. Players
-    /// who'd beaten Kelp Forest see that screen once more, now announcing Midnight Zone; nobody else does.
-    @Test func playersWhoBeatKelpForestBeforeMidnightZoneAreToldOnce() throws {
-        func load(_ json: String) -> (ArcadeProgress, UserDefaults) {
-            let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
-            defaults.set(Data(json.utf8), forKey: ArcadeProgress.key)
-            return (ArcadeProgress(defaults: defaults), defaults)
-        }
-        #expect(ArcadeWorld.kelpForest.nextWorld == .midnightZone && ArcadeWorld.lateArrivals == [.midnightZone])
-        // Exactly what 0.2 wrote after beating Kelp Forest and seeing its screen.
-        let saved02 = #"{"clearedLevels":["shallow-reef.10","jelly-bloom.10","kelp-forest.10"],"bestTimes":{"kelp-forest.10":41.2},"hasSeenJellyLesson":true,"seenUnlocks":["shallow-reef","jelly-bloom","kelp-forest"]}"#
-        let (beaten, defaults) = load(saved02)
-        #expect(beaten.save.announcedWorlds == nil)
-        #expect(beaten.unseenUnlock == .kelpForest)
-        beaten.sawUnlock(.kelpForest)
-        #expect(ArcadeProgress(defaults: defaults).unseenUnlock == nil)
-        #expect(ArcadeProgress(defaults: defaults).save.announcedWorlds?.contains("midnight-zone") == true)
-        // Already played Midnight Zone: nothing to announce.
-        let (played, _) = load(#"{"clearedLevels":["kelp-forest.10","midnight-zone.1"],"seenUnlocks":["shallow-reef","jelly-bloom","kelp-forest"]}"#)
-        #expect(played.unseenUnlock == nil)
-        // Only up to Jelly Bloom's screen, which already announced Kelp Forest: nothing new either.
-        let (earlier, _) = load(#"{"clearedLevels":["shallow-reef.10","jelly-bloom.10"],"seenUnlocks":["shallow-reef","jelly-bloom"]}"#)
-        #expect(earlier.unseenUnlock == nil)
-        // Beating Kelp Forest from now on shows the screen with Midnight Zone on it once, as usual.
-        let (fresh, _) = fresh()
-        fresh.clear(.kelpForest, 9, seconds: 40)
-        #expect(fresh.unseenUnlock == .kelpForest)
-        fresh.sawUnlock(.kelpForest)
-        #expect(fresh.unseenUnlock == nil)
+    /// 0.2 saved which worlds a "conquered" screen had announced (`announcedWorlds`), from when that screen named the
+    /// next world. It no longer does: such a save still loads, everything it records kept, and nothing reappears.
+    @Test func aSaveThatRecordedAnnouncedWorldsStillLoads() throws {
+        let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+        let saved = #"{"clearedLevels":["shallow-reef.10","jelly-bloom.10","kelp-forest.10"],"bestTimes":{"kelp-forest.10":41.2},"hasSeenJellyLesson":true,"seenUnlocks":["shallow-reef","jelly-bloom","kelp-forest"],"announcedWorlds":["jelly-bloom","kelp-forest","midnight-zone"]}"#
+        defaults.set(Data(saved.utf8), forKey: ArcadeProgress.key)
+        let progress = ArcadeProgress(defaults: defaults)
+        #expect(progress.isCleared(.kelpForest, 9) && progress.save.bestTimes["kelp-forest.10"] == 41.2)
+        #expect(progress.save.seenUnlocks == ["shallow-reef", "jelly-bloom", "kelp-forest"] && progress.unseenUnlock == nil)
+        #expect(defaults.data(forKey: ArcadeProgress.unreadableKey) == nil)
     }
 
     /// Everything that ships plays saved plans, never plans on the device (AGENTS.md: freeze before publishing).
