@@ -63,6 +63,18 @@ struct ArcadeCreditsTests {
 
     // MARK: Playing it
 
+    /// Like a level, it opens on a card and nothing swims until the first tap.
+    @Test func itWaitsForATapToStart() {
+        let scene = CreditsScene(settings: settings())
+        let view = present(scene)
+        defer { withExtendedLifetime(view) {} }
+        let start = scene.debugPlayer.position
+        for frame in 0..<120 { scene.update(TimeInterval(frame) / 60) }
+        #expect(scene.debugWaitingToStart && scene.debugClock == 0 && scene.debugPlayer.position == start)
+        scene.debugAdvance(seconds: 1)
+        #expect(!scene.debugWaitingToStart && scene.debugClock > 0.9 && scene.debugPlayer.position.x != start.x)
+    }
+
     /// A player who goes for each name eats them all, in the file's order, and reaches the card in about a minute: each
     /// with the eat sound and a tap, growing a little (the camera easing out), then the clear chime.
     @Test func aPlayerEatsEveryNameInOrderInAboutAMinute() {
@@ -144,8 +156,10 @@ struct ArcadeCreditsTests {
         let view = present(scene)
         var left = 0
         scene.onExit = { left += 1 }
-        #expect(UIApplication.shared.isIdleTimerDisabled)
+        // The start card lets the phone sleep, as a level's does; the swim keeps it awake.
+        #expect(!UIApplication.shared.isIdleTimerDisabled)
         scene.debugPlay(limit: 10)
+        #expect(UIApplication.shared.isIdleTimerDisabled)
         #expect(!scene.finished && scene.eaten.count < names.count)
         scene.leave()
         scene.leave()
@@ -184,7 +198,11 @@ struct ArcadeCreditsTests {
         let scene = CreditsScene(settings: settings())
         let view = present(scene)
         func elements() -> [UIAccessibilityElement] { (scene.accessibilityElements ?? []).compactMap { $0 as? UIAccessibilityElement } }
-        #expect(elements().map(\.accessibilityLabel) == [credits.spokenList])
+        // Before the swim, a Start button (VoiceOver's double tap doesn't reach the scene as a tap), then the list.
+        #expect(elements().map(\.accessibilityLabel) == ["Start the credits", credits.spokenList])
+        let start = elements().first as? ArcadeResultAccessibilityElement
+        #expect(start?.accessibilityTraits.contains(.button) == true && start?.accessibilityActivate() == true)
+        #expect(!scene.debugWaitingToStart && elements().map(\.accessibilityLabel) == [credits.spokenList])
         #expect(scene.debugPlay().finished)
         let done = elements().compactMap { $0 as? ArcadeResultAccessibilityElement }.first
         #expect(elements().compactMap(\.accessibilityLabel).contains(credits.spokenList))

@@ -2407,6 +2407,8 @@ final class GameScene: SKScene {
         panel.fillColor = SKColor(white: 0, alpha: 0.3)
         panel.strokeColor = .clear
         panel.name = "readyCard"
+        // Under its text: the scene ignores sibling order, so the same depth could draw it over them.
+        panel.zPosition = -1
         messageNode.addChild(panel)
 
         var y = height / 2 - 45
@@ -2440,6 +2442,7 @@ final class GameScene: SKScene {
         pill.fillColor = SKColor(white: 0, alpha: 0.3)
         pill.strokeColor = .clear
         pill.name = "startPrompt"
+        pill.zPosition = -1
         messageNode.addChild(pill)
         messageNode.addChild(start)
         messageNode.alpha = 0
@@ -3015,6 +3018,7 @@ final class GameScene: SKScene {
     var debugSoundSwitches: [Bool] { [effectsButton.isOn, musicButton.isOn, vibrationButton.isOn] }
     /// How many backdrops the pause menu has drawn (one, however often it's paused).
     var debugPauseBackdrops: Int { pauseMenu.children.filter { $0.name == "pauseBackdrop" }.count }
+    var debugPauseMenu: SKNode { pauseMenu }
     var debugMealsEaten: Int { mealsEaten }
     var debugEdibleCount: Int {
         fish.filter { !$0.isPlayer && $0.isAlive && GameRules.playerEncounter(player.radius, $0.radius) == .firstEatsSecond }.count
