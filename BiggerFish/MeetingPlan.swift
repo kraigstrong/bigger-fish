@@ -317,30 +317,17 @@ enum MeetingPlanner {
     static let quickDesignAttempts = 6
     private static let lock = NSLock()
     private static var cache: [String: MeetingPlan] = [:]
-    private static var inFlight: [String: DispatchGroup] = [:]
 
     /// Deterministic for a spec and variation; the first design that passes every check, else the best one.
     /// Cached in memory. Reef Lab's own levels ship pre-planned (`ReefLabPlans.json`); this plans the tuner's
     /// other variations and regenerates that file.
     /// `attempts` overrides how many layouts it tries (`quickDesignAttempts` for a playtest).
+    /// The lock guards only the cache, never the planning: two callers planning the same spec at once each plan
+    /// it (and get the same plan), rather than one parking its thread (one of Swift concurrency's few shared
+    /// threads, or the main thread) until the other finishes.
     static func plan(_ spec: MeetingSpec, variation: Int = 0, attempts: Int? = nil) -> MeetingPlan {
         let key = cacheKey(spec, variation: variation) + (attempts.map { "/\($0)" } ?? "")
-        lock.lock()
-        if let cached = cache[key] { lock.unlock(); return cached }
-        // Another thread is already planning this one (the launch-time background pass): wait for it.
-        if let pending = inFlight[key] {
-            lock.unlock()
-            pending.wait()
-            return plan(spec, variation: variation, attempts: attempts)
-        }
-        let done = DispatchGroup()
-        done.enter()
-        inFlight[key] = done
-        lock.unlock()
-        defer {
-            lock.lock(); inFlight[key] = nil; lock.unlock()
-            done.leave()
-        }
+        if let cached = lock.withLock({ cache[key] }) { return cached }
         let base = GameTuning.spawnSeed &+ 7_000 &+ stableHash(spec.name) &+ UInt64(variation) &* 1_000_003
         var best: MeetingPlan?
         for attempt in 0..<(attempts ?? (spec.jellies == nil ? designAttempts : jellyDesignAttempts)) {
@@ -350,9 +337,7 @@ enum MeetingPlanner {
                 best = plan
             }
         }
-        lock.lock()
-        cache[key] = best!
-        lock.unlock()
+        lock.withLock { cache[key] = best! }
         return best!
     }
 

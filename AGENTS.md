@@ -21,7 +21,14 @@ cd Packages/FishKit && xcodebuild test -scheme FishKit -destination 'platform=iO
 ```
 
 The FishKit scheme inside the Xcode project can't run tests; run the package's tests from its own
-folder as shown. CI runs all three on every pull request (`.github/workflows/ci.yml`).
+folder as shown.
+
+CI (`.github/workflows/ci.yml`) tests only the app a pull request changes: FishKit, the project, or CI
+changes test all three, and docs alone test nothing. A push to main tests all three. CI uses the Xcode in
+`.xcode-version` and treats warnings as errors, so keep the build warning-free.
+
+The Bigger Fish planner tests re-plan a sample of Shallow Reef specs; CI re-plans every spec nightly. To
+re-plan them all locally, put `TEST_RUNNER_BIGGER_FISH_FULL_PLANNER_TESTS=1` in xcodebuild's environment.
 
 Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit-test the game logic
 (curriculum, facts, sessions, progress, rules); the SpriteKit scenes are checked by running the app.
