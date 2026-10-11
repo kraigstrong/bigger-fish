@@ -98,8 +98,12 @@ struct ArcadeSettingsTests {
         #expect(elements.compactMap(\.accessibilityLabel) == ["Resume", "Restart", "Level map", "Sound effects", "Music", "Vibration"])
         let effects = elements.first { $0.accessibilityLabel == "Sound effects" }
         let was = ArcadeSettings.shared.soundEffectsOn
+        let shown = scene.debugSoundSwitches
+        #expect(shown == [ArcadeSettings.shared.soundEffectsOn, ArcadeSettings.shared.musicOn, ArcadeSettings.shared.vibrationOn])
         #expect(effects?.accessibilityActivate() == true)
         #expect(ArcadeSettings.shared.soundEffectsOn == !was)
+        // Its switch flips with it; the others stay as they were.
+        #expect(scene.debugSoundSwitches == [!was, shown[1], shown[2]])
         ArcadeSettings.shared.soundEffectsOn = was
         withExtendedLifetime(view) {}
     }

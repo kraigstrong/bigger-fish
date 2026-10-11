@@ -216,9 +216,9 @@ final class GameScene: SKScene {
     private let levelIndicator = SKNode()
     private var resumeButton = SKShapeNode()
     private var restartButton = SKShapeNode()
-    private var effectsButton = SKShapeNode()
-    private var musicButton = SKShapeNode()
-    private var vibrationButton = SKShapeNode()
+    private var effectsButton = MenuSwitchRow(title: "Sound effects", symbol: "speaker.wave.2.fill", isOn: true)
+    private var musicButton = MenuSwitchRow(title: "Music", symbol: "music.note", isOn: true)
+    private var vibrationButton = MenuSwitchRow(title: "Vibration", symbol: "iphone.radiowaves.left.and.right", isOn: true)
 
     private var holdTouches = Set<UITouch>()
     private var lastUpdate: TimeInterval?
@@ -778,11 +778,11 @@ final class GameScene: SKScene {
                     #endif
                 } else if restartButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     replayLevel()
-                } else if effectsButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
+                } else if effectsButton.hitFrame.insetBy(dx: -8, dy: -4).contains(p) {
                     toggleSound(effects: true)
-                } else if musicButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
+                } else if musicButton.hitFrame.insetBy(dx: -8, dy: -4).contains(p) {
                     toggleSound(effects: false)
-                } else if vibrationButton.frame.insetBy(dx: -8, dy: -8).contains(p) {
+                } else if vibrationButton.hitFrame.insetBy(dx: -8, dy: -4).contains(p) {
                     toggleVibration()
                 } else if mapButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
                     #if DEBUG
@@ -2290,29 +2290,39 @@ final class GameScene: SKScene {
         buildSoundToggles()
     }
 
-    /// Sound effects, music, and vibration switches beside the pause menu's actions.
+    /// Sound effects, music, and vibration beside the pause menu's actions, as switches like Settings', on a dark panel
+    /// so they read over the game.
     private func buildSoundToggles() {
-        effectsButton.removeFromParent()
-        musicButton.removeFromParent()
-        vibrationButton.removeFromParent()
-        let x = size.width / 2 + 230
-        effectsButton = toggleButton("Effects", isOn: settings.soundEffectsOn, at: CGPoint(x: x, y: size.height / 2 + 5))
-        musicButton = toggleButton("Music", isOn: settings.musicOn, at: CGPoint(x: x, y: size.height / 2 - 60))
-        vibrationButton = toggleButton("Vibration", isOn: settings.vibrationOn, at: CGPoint(x: x, y: size.height / 2 - 120))
-        pauseMenu.addChild(effectsButton)
-        pauseMenu.addChild(musicButton)
-        pauseMenu.addChild(vibrationButton)
+        let x = size.width / 2 + 236
+        let rows = [(effectsButton, settings.soundEffectsOn, CGFloat(5)), (musicButton, settings.musicOn, -60),
+                    (vibrationButton, settings.vibrationOn, -120)]
+        let panel = SKShapeNode(rectOf: CGSize(width: MenuSwitchRow.size.width + 32, height: 222), cornerRadius: 20)
+        panel.fillColor = UIColor(DeepEndColors.night).withAlphaComponent(0.82)
+        panel.strokeColor = UIColor(white: 1, alpha: 0.14)
+        panel.lineWidth = 1
+        panel.position = CGPoint(x: x, y: size.height / 2 - 42)
+        pauseMenu.addChild(panel)
+        let heading = menuHeading("Sound")
+        heading.position = CGPoint(x: x - MenuSwitchRow.size.width / 2, y: size.height / 2 + 47)
+        pauseMenu.addChild(heading)
+        for (row, isOn, y) in rows {
+            row.removeFromParent()
+            row.setOn(isOn, animated: false)
+            row.position = CGPoint(x: x, y: size.height / 2 + y)
+            pauseMenu.addChild(row)
+        }
     }
 
     private func toggleVibration() {
         settings.vibrationOn.toggle()
-        buildSoundToggles()
+        vibrationButton.setOn(settings.vibrationOn, animated: true)
         configurePauseAccessibility()
     }
 
     private func toggleSound(effects: Bool) {
         if effects { settings.soundEffectsOn.toggle() } else { settings.musicOn.toggle() }
-        buildSoundToggles()
+        effectsButton.setOn(settings.soundEffectsOn, animated: true)
+        musicButton.setOn(settings.musicOn, animated: true)
         configurePauseAccessibility()
     }
 
@@ -2353,18 +2363,6 @@ final class GameScene: SKScene {
             element(musicButton, "Music", value: settings.musicOn ? "On" : "Off") { $0.toggleSound(effects: false) },
             element(vibrationButton, "Vibration", value: settings.vibrationOn ? "On" : "Off") { $0.toggleVibration() },
         ]
-    }
-
-    private func toggleButton(_ title: String, isOn: Bool, at position: CGPoint) -> SKShapeNode {
-        let button = SKShapeNode(rectOf: CGSize(width: 176, height: 44), cornerRadius: 22)
-        button.fillColor = isOn ? SKColor(white: 1, alpha: 0.92) : SKColor(white: 1, alpha: 0.08)
-        button.strokeColor = isOn ? .clear : SKColor(white: 1, alpha: 0.6)
-        button.lineWidth = 2
-        button.position = position
-        let text = label("\(title): \(isOn ? "On" : "Off")", fontSize: 18, heavy: true)
-        text.fontColor = isOn ? SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1) : .white
-        button.addChild(text)
-        return button
     }
 
     private func addMapButton(to parent: SKNode, y: CGFloat, x: CGFloat = 0) {
@@ -3012,6 +3010,8 @@ final class GameScene: SKScene {
     }
 
     var debugFishCount: Int { fish.count }
+    /// The pause menu's switches: sound effects, music, and vibration.
+    var debugSoundSwitches: [Bool] { [effectsButton.isOn, musicButton.isOn, vibrationButton.isOn] }
     var debugMealsEaten: Int { mealsEaten }
     var debugEdibleCount: Int {
         fish.filter { !$0.isPlayer && $0.isAlive && GameRules.playerEncounter(player.radius, $0.radius) == .firstEatsSecond }.count
