@@ -80,7 +80,9 @@ public final class FishNode: SKNode {
         mouthLine.strokeColor = SKColor(white: 0.05, alpha: 0.8)
         mouthLine.lineWidth = 2.5
         mouthLine.lineCap = .round
-        mouthLine.zPosition = 3
+        // Over the eye (3), and under the open mouth, where they meet: the apps draw with `ignoresSiblingOrder`, so
+        // parts at one depth come out in any order on a phone.
+        mouthLine.zPosition = 3.1
 
         // An open mouth is a jaw-like wedge cut into the nose, hinged at its inner point and
         // scaled vertically by how open it is.
@@ -94,7 +96,8 @@ public final class FishNode: SKNode {
         mouthGape.fillColor = SKColor(red: 0.18, green: 0.03, blue: 0.08, alpha: 1)
         mouthGape.strokeColor = outline
         mouthGape.lineWidth = lineWidth
-        mouthGape.zPosition = 3
+        // Over the eye and the mouth line: a mouth opening a little shows both.
+        mouthGape.zPosition = 3.2
         mouthGape.isHidden = true
         let throat = SKShapeNode(ellipseOf: CGSize(width: 0.3 * R, height: 0.2 * R))
         throat.position = CGPoint(x: 0.42 * R, y: -0.08 * R)
