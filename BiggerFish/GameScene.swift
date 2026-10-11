@@ -153,7 +153,7 @@ final class GameScene: SKScene {
     private var encounterNeighbors: [EncounterNeighbor] = []
     private var bounceRemaining: CGFloat = 0
     private var bounceCooldown: CGFloat = 0
-    private var mapButton = SKShapeNode()
+    private var mapButton = MenuButtonRow(title: "Level map", symbol: "map.fill", style: .secondary)
     private var resultPanel: ArcadeResultPanel?
     #if DEBUG
     /// A test's or a bot's touch: holding or not, in place of real touches.
@@ -215,8 +215,8 @@ final class GameScene: SKScene {
     private let pauseButton = SKNode()
     private let pauseMenu = SKNode()
     private let levelIndicator = SKNode()
-    private var resumeButton = SKShapeNode()
-    private var restartButton = SKShapeNode()
+    private var resumeButton = MenuButtonRow(title: "Resume", symbol: "play.fill", style: .primary)
+    private var restartButton = MenuButtonRow(title: "Restart level", symbol: "arrow.counterclockwise", style: .secondary)
     private var effectsButton = MenuSwitchRow(title: "Sound effects", symbol: "speaker.wave.2.fill", isOn: true)
     private var musicButton = MenuSwitchRow(title: "Music", symbol: "music.note", isOn: true)
     private var vibrationButton = MenuSwitchRow(title: "Vibration", symbol: "iphone.radiowaves.left.and.right", isOn: true)
@@ -517,6 +517,8 @@ final class GameScene: SKScene {
         phase = newPhase
         pauseButton.isHidden = newPhase != .playing
         pauseMenu.isHidden = newPhase != .paused
+        // The pause menu names the level itself.
+        levelIndicator.isHidden = newPhase == .paused
         if newPhase == .paused {
             refreshSoundToggles()
             configurePauseAccessibility()
@@ -772,12 +774,12 @@ final class GameScene: SKScene {
                     holdTouches.insert(touch)
                 }
             case .paused:
-                if resumeButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
+                if resumeButton.hitFrame.insetBy(dx: -8, dy: -4).contains(p) {
                     setPhase(.playing)
                     #if DEBUG
                     recordRunEvent("resume")
                     #endif
-                } else if restartButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
+                } else if restartButton.hitFrame.insetBy(dx: -8, dy: -4).contains(p) {
                     replayLevel()
                 } else if effectsButton.hitFrame.insetBy(dx: -8, dy: -4).contains(p) {
                     toggleSound(effects: true)
@@ -785,7 +787,7 @@ final class GameScene: SKScene {
                     toggleSound(effects: false)
                 } else if vibrationButton.hitFrame.insetBy(dx: -8, dy: -4).contains(p) {
                     toggleVibration()
-                } else if mapButton.frame.insetBy(dx: -10, dy: -10).contains(p) {
+                } else if mapButton.hitFrame.insetBy(dx: -8, dy: -4).contains(p) {
                     #if DEBUG
                     finishRunRecording("level_map")
                     #endif
@@ -2273,43 +2275,43 @@ final class GameScene: SKScene {
         pauseButton.position = CGPoint(x: size.width - 64, y: size.height - 36)
     }
 
+    /// The pause menu, in Settings' language: its deep-blue backdrop over the paused game, "Paused" and the level, then
+    /// two columns: Play (Resume as the game's gold button, then Restart level and Level map) and Sound (the switches).
+    /// Built with the scene and on each pause; pausing sets the switches to the current settings.
     private func buildPauseMenu() {
         pauseMenu.removeAllChildren()
-        let shade = SKSpriteNode(color: SKColor(white: 0, alpha: 0.4), size: size)
-        shade.anchorPoint = .zero
-        pauseMenu.addChild(shade)
+        let backdrop = MenuBackdrop.node(size: size)
+        backdrop.name = "pauseBackdrop"
+        pauseMenu.addChild(backdrop)
 
-        let title = label("Paused", fontSize: 36, heavy: true)
-        title.position = CGPoint(x: size.width / 2, y: size.height / 2 + 90)
+        let title = label("Paused", fontSize: 28, heavy: true)
+        title.position = CGPoint(x: size.width / 2, y: size.height - 80)
         pauseMenu.addChild(title)
+        if !isTutorial {
+            let subtitle = label(plannerName ?? "\(arcadeWorld.title) \(levelIndex + 1)", fontSize: 14, heavy: false)
+            subtitle.alpha = 0.65
+            subtitle.position = CGPoint(x: size.width / 2, y: size.height - 106)
+            pauseMenu.addChild(subtitle)
+        }
 
-        resumeButton = menuButton("Resume", at: CGPoint(x: size.width / 2, y: size.height / 2 + 5))
-        restartButton = menuButton("Restart", at: CGPoint(x: size.width / 2, y: size.height / 2 - 60))
-        pauseMenu.addChild(resumeButton)
-        pauseMenu.addChild(restartButton)
-        addMapButton(to: pauseMenu, y: size.height / 2 - 120, x: size.width / 2)
-        buildSoundToggles()
-    }
-
-    /// Sound effects, music, and vibration beside the pause menu's actions, as switches like Settings', on a dark panel
-    /// so they read over the game. Built with the menu, once (`buildPauseMenu` clears it first).
-    private func buildSoundToggles() {
-        let x = size.width / 2 + 236
-        let rows = [(effectsButton, CGFloat(5)), (musicButton, -60), (vibrationButton, -120)]
-        let panel = SKShapeNode(rectOf: CGSize(width: MenuSwitchRow.size.width + 32, height: 222), cornerRadius: 20)
-        panel.fillColor = UIColor(DeepEndColors.night).withAlphaComponent(0.82)
-        panel.strokeColor = UIColor(white: 1, alpha: 0.14)
-        panel.lineWidth = 1
-        panel.position = CGPoint(x: x, y: size.height / 2 - 42)
-        panel.name = "soundPanel"
-        pauseMenu.addChild(panel)
-        let heading = menuHeading("Sound")
-        heading.position = CGPoint(x: x - MenuSwitchRow.size.width / 2, y: size.height / 2 + 47)
-        pauseMenu.addChild(heading)
-        for (row, y) in rows {
-            row.removeFromParent()
-            row.position = CGPoint(x: x, y: size.height / 2 + y)
-            pauseMenu.addChild(row)
+        let width = MenuSwitchRow.size.width, gap: CGFloat = 40
+        let left = size.width / 2 - (width + gap) / 2, right = size.width / 2 + (width + gap) / 2
+        let headingY = size.height - 158
+        func rowY(_ row: Int) -> CGFloat { headingY - 34 - CGFloat(row) * 54 }
+        for (text, x) in [("Play", left), ("Sound", right)] {
+            let heading = menuHeading(text)
+            heading.position = CGPoint(x: x - width / 2, y: headingY)
+            pauseMenu.addChild(heading)
+        }
+        for (row, button) in [resumeButton, restartButton, mapButton].enumerated() {
+            button.removeFromParent()
+            button.position = CGPoint(x: left, y: rowY(row))
+            pauseMenu.addChild(button)
+        }
+        for (row, toggle) in [effectsButton, musicButton, vibrationButton].enumerated() {
+            toggle.removeFromParent()
+            toggle.position = CGPoint(x: right, y: rowY(row))
+            pauseMenu.addChild(toggle)
         }
         refreshSoundToggles()
     }
@@ -2360,7 +2362,7 @@ final class GameScene: SKScene {
         }
         accessibilityElements = [
             element(resumeButton, "Resume") { $0.setPhase(.playing) },
-            element(restartButton, "Restart") { $0.replayLevel() },
+            element(restartButton, "Restart level") { $0.replayLevel() },
             element(mapButton, "Level map") { scene in
                 #if DEBUG
                 scene.finishRunRecording("level_map")
@@ -2371,24 +2373,6 @@ final class GameScene: SKScene {
             element(musicButton, "Music", value: settings.musicOn ? "On" : "Off") { $0.toggleSound(effects: false) },
             element(vibrationButton, "Vibration", value: settings.vibrationOn ? "On" : "Off") { $0.toggleVibration() },
         ]
-    }
-
-    private func addMapButton(to parent: SKNode, y: CGFloat, x: CGFloat = 0) {
-        mapButton.removeFromParent()
-        mapButton = menuButton("Level map", at: CGPoint(x: x, y: y))
-        mapButton.setScale(0.8)
-        parent.addChild(mapButton)
-    }
-
-    private func menuButton(_ text: String, at position: CGPoint) -> SKShapeNode {
-        let button = SKShapeNode(rectOf: CGSize(width: 170, height: 48), cornerRadius: 24)
-        button.fillColor = SKColor(white: 1, alpha: 0.92)
-        button.strokeColor = .clear
-        button.position = position
-        let text = label(text, fontSize: 20, heavy: true)
-        text.fontColor = SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1)
-        button.addChild(text)
-        return button
     }
 
     /// `progress`: the world's pips and crown, under the title.
@@ -3020,8 +3004,8 @@ final class GameScene: SKScene {
     var debugFishCount: Int { fish.count }
     /// The pause menu's switches: sound effects, music, and vibration.
     var debugSoundSwitches: [Bool] { [effectsButton.isOn, musicButton.isOn, vibrationButton.isOn] }
-    /// How many sound panels the pause menu has drawn (one, however often it's paused).
-    var debugSoundPanels: Int { pauseMenu.children.filter { $0.name == "soundPanel" }.count }
+    /// How many backdrops the pause menu has drawn (one, however often it's paused).
+    var debugPauseBackdrops: Int { pauseMenu.children.filter { $0.name == "pauseBackdrop" }.count }
     var debugMealsEaten: Int { mealsEaten }
     var debugEdibleCount: Int {
         fish.filter { !$0.isPlayer && $0.isAlive && GameRules.playerEncounter(player.radius, $0.radius) == .firstEatsSecond }.count

@@ -89,7 +89,7 @@ struct WorldProgressTests {
         view.presentScene(scene)
         scene.debugStart()
         scene.debugPauseForTuning()
-        let restart = (scene.accessibilityElements as? [UIAccessibilityElement])?.first { $0.accessibilityLabel == "Restart" }
+        let restart = (scene.accessibilityElements as? [UIAccessibilityElement])?.first { $0.accessibilityLabel == "Restart level" }
         #expect(restart?.accessibilityActivate() == true)
         #expect(scene.debugCardTexts == ["Tap to start"])
         withExtendedLifetime(view) {}

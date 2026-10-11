@@ -88,8 +88,8 @@ struct ArcadeSettingsTests {
         #expect(play().isEmpty)
     }
 
-    /// Pausing again and again draws one sound panel, with switches that follow Settings' changes in between.
-    @MainActor @Test func pausingDrawsOneSoundPanel() {
+    /// Pausing again and again draws the menu once, with switches that follow Settings' changes in between.
+    @MainActor @Test func pausingDrawsTheMenuOnce() {
         let was = ArcadeSettings.shared.musicOn
         defer { ArcadeSettings.shared.musicOn = was }
         let scene = GameScene(world: .shallowReef, levelIndex: 0)
@@ -100,7 +100,7 @@ struct ArcadeSettingsTests {
         for round in 0..<3 {
             ArcadeSettings.shared.musicOn = round.isMultiple(of: 2)
             scene.debugPauseForTuning()
-            #expect(scene.debugSoundPanels == 1)
+            #expect(scene.debugPauseBackdrops == 1)
             #expect(scene.debugSoundSwitches[1] == ArcadeSettings.shared.musicOn)
             scene.debugResume()
         }
@@ -113,7 +113,7 @@ struct ArcadeSettingsTests {
         scene.debugStart()
         scene.debugPauseForTuning()
         let elements = (scene.accessibilityElements as? [UIAccessibilityElement]) ?? []
-        #expect(elements.compactMap(\.accessibilityLabel) == ["Resume", "Restart", "Level map", "Sound effects", "Music", "Vibration"])
+        #expect(elements.compactMap(\.accessibilityLabel) == ["Resume", "Restart level", "Level map", "Sound effects", "Music", "Vibration"])
         let effects = elements.first { $0.accessibilityLabel == "Sound effects" }
         let was = ArcadeSettings.shared.soundEffectsOn
         let shown = scene.debugSoundSwitches
