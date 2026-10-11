@@ -68,6 +68,26 @@ struct ArcadeSettingsTests {
         #expect(!UIApplication.shared.isIdleTimerDisabled)
     }
 
+    /// Every meal is felt, and a win; the Vibration switch silences them all.
+    @MainActor @Test func hapticsFollowTheVibrationSwitch() {
+        let was = ArcadeSettings.shared.vibrationOn
+        defer { ArcadeSettings.shared.vibrationOn = was }
+        func play() -> [GameScene.Haptic] {
+            let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+            let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+            view.presentScene(scene)
+            defer { withExtendedLifetime(view) {} }
+            _ = scene.debugPlayTutorial(from: .eatEnough)
+            return scene.debugHaptics
+        }
+        ArcadeSettings.shared.vibrationOn = true
+        let felt = play()
+        #expect(felt.filter { $0 == .meal || $0 == .closeCall }.count >= 4, "felt: \(felt)")
+        #expect(felt.last == .win)
+        ArcadeSettings.shared.vibrationOn = false
+        #expect(play().isEmpty)
+    }
+
     @MainActor @Test func voiceOverReachesThePauseMenuAndItsSoundSwitches() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
@@ -75,7 +95,7 @@ struct ArcadeSettingsTests {
         scene.debugStart()
         scene.debugPauseForTuning()
         let elements = (scene.accessibilityElements as? [UIAccessibilityElement]) ?? []
-        #expect(elements.compactMap(\.accessibilityLabel) == ["Resume", "Restart", "Level map", "Sound effects", "Music"])
+        #expect(elements.compactMap(\.accessibilityLabel) == ["Resume", "Restart", "Level map", "Sound effects", "Music", "Vibration"])
         let effects = elements.first { $0.accessibilityLabel == "Sound effects" }
         let was = ArcadeSettings.shared.soundEffectsOn
         #expect(effects?.accessibilityActivate() == true)
