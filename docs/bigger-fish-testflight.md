@@ -16,7 +16,10 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
   tracking).
 - iCloud key-value storage (`BiggerFish/BiggerFish.entitlements`): progress is backed up to the player's own
   iCloud, which we can't read, so it isn't collected data and the privacy label doesn't change. Automatic signing
-  adds the capability to the App ID on the first device build or archive after it was added.
+  adds the capability to the App ID on the first device build or archive after it was added. **Before the first
+  build with it goes to testers:** the privacy policy says deleting the app removes the player's information, which
+  is no longer true of progress. Publish a sentence about the iCloud copy on both pages (biggerfish.app/privacy and
+  brightbench.app/bigger-fish/privacy, kept word for word the same) with Kraig's OK. PR #154 has suggested wording.
 - Anonymous gameplay counts are on (`ArcadeAnalytics.isEnabled`), sent to
   `brightbench.app/api/bigger-fish/events` and tagged `testflight` for beta installs.
 - Privacy policy: https://brightbench.app/bigger-fish/privacy
