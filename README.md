@@ -145,10 +145,13 @@ progress of its own, silently, leaving real progress, purchases, and analytics a
 ```bash
 scripts/bigger-fish-store-capture.sh                 # every moment, about a minute
 scripts/bigger-fish-store-capture.sh dodge missed    # just these
+scripts/bigger-fish-store-capture.sh --ipad          # every moment on the iPad Pro 13-inch (M5) simulator
 ```
 
 Output goes to `build/store-capture/bigger-fish/` (ignored by git): `screenshots/NN-<moment>.png` at
 2868×1320 (6.9", no alpha) in the listing's order, and `screenshots-6.5/` scaled and trimmed to 2778×1284.
+With `--ipad`, `screenshots-ipad-13/NN-<moment>.png` at 2752×2064, App Store Connect's 13-inch iPad size,
+bands of water above and below the playfield included, as an iPad shows them.
 The moments: `eat` (Shallow Reef 5), `dodge` (Shallow Reef 9), `missed` (Shallow Reef 10: a fish that kept
 eating), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp Forest 8), `midnight-light` (Midnight Zone 5),
 `conquered` (Shallow Reef's map, conquered), and `deep-end` (the screen that opens its Deep End). The levels
