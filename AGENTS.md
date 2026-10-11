@@ -43,7 +43,16 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   numbers (`shallow-reef.8`) are the keys for saved progress: never rename them or renumber a released
   world's levels. Which layout plays in a numbered slot can change with Kraig's OK, since a cleared level
   stays cleared by its number (Shallow Reef's play order is `GameTuning.shallowReefOrder`). A new field in `ArcadeSave` must load when a save doesn't have it (decode it with a
-  default), and `ArcadeCampaignTests` loads a real 0.1 save to prove old saves still work.
+  default), and `ArcadeCampaignTests` loads a real 0.1 save to prove old saves still work. Never change a
+  field's type; add a new key instead.
+  - **Progress is backed up to the player's iCloud** (key-value storage, `ArcadeProgress`) and merged at launch
+    and on every iCloud change, so syncing only ever adds: cleared levels and seen screens are united, the faster
+    best time wins, and a lesson or tutorial seen anywhere stays seen. A new `ArcadeSave` field needs a key in
+    `ArcadeSave.CodingKeys` and a merge rule in `merged(withCloud:)` (the compiler asks for both), and fields a
+    version doesn't know are kept as they were. Only the real save (standard defaults) syncs: never a save of
+    its own, like the Debug playtest's or a store capture's. Anything that removes progress (Tuning > Players)
+    must replace iCloud's copy, not merge with it. `ArcadeCloudSaveTests` covers all of this with a fake iCloud;
+    tests never touch the real one.
 - **Bigger Fish level design: iterate in code, freeze before publishing.** While a world's levels are being
   playtested, plan them in code at launch (Kelp Forest: `MeetingPlanner.kelpPlan`, milliseconds per level),
   so a fix is a one-line change Kraig can rebuild and play: a re-roll to another variation
