@@ -4,6 +4,8 @@ import SwiftUI
 
 enum DeepEndColors {
     static let gold = Color(red: 1, green: 0.8, blue: 0.32)
+    /// A world's first crown, for its ten levels (`WorldCrown.silver`); the same silver as Math Reef's crowns.
+    static let silver = Color(red: 0.85, green: 0.88, blue: 0.93)
     static let surface = Color(red: 0.13, green: 0.52, blue: 0.66)
     static let abyss = Color(red: 0.02, green: 0.05, blue: 0.14)
     static let night = Color(red: 0.03, green: 0.07, blue: 0.2)

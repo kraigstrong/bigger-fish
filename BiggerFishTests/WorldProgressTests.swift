@@ -24,6 +24,17 @@ struct WorldProgressTests {
         #expect(deep.caption == "4 more to conquer The Deep End")
     }
 
+    /// Crowns go silver, then gold, as Math Reef's do: silver for a world's ten levels, gold once its Deep End is beaten.
+    @Test func aWorldsCrownIsSilverThenGold() {
+        #expect(WorldCrown.earned(conquered: false, deepEndCleared: false) == .none)
+        #expect(WorldCrown.earned(conquered: true, deepEndCleared: false) == .silver)
+        #expect(WorldCrown.earned(conquered: true, deepEndCleared: true) == .gold)
+        #expect(WorldCrown.none.color == nil && WorldCrown.silver.color == DeepEndColors.silver && WorldCrown.gold.color == DeepEndColors.gold)
+        // Each run's own crown: the main levels earn silver, the Deep End gold.
+        #expect(WorldProgress(world: .jellyBloom, level: 4) { _ in true }.crown == .silver)
+        #expect(WorldProgress(world: .jellyBloom, level: 12) { _ in true }.crown == .gold)
+    }
+
     /// The card before a level shows the run's pips; after a first win, its pip counts and the caption says what's left.
     @Test func theReadyAndWinCardsShowTheWorldsProgress() {
         var cleared: Set<Int> = [0, 1]
