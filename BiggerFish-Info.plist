@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Lets the scenes run at up to 120 frames a second on ProMotion iPhones, as their SpriteViews ask. Without it, iOS
+	     caps an iPhone app's frame rate and leaves the refresh rate to itself: the credits, which scroll before your
+	     first touch, stuttered until you touched the screen. -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<!-- The system launch screen is the ocean's color, so launch never shows black before the loading screen. -->
 	<key>UILaunchScreen</key>
 	<dict>

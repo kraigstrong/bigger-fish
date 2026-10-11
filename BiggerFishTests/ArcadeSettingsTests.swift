@@ -39,6 +39,12 @@ struct ArcadeSettingsTests {
         #expect(SettingsView.versionLine(Bundle.main.infoDictionary ?? [:]).hasPrefix("Version 0."))
     }
 
+    /// The scenes ask for 120 frames a second; on a ProMotion iPhone, iOS only allows more than 60 with this key, and
+    /// without it the credits stuttered until you touched the screen.
+    @Test func theAppMayRunAt120FramesASecond() {
+        #expect(Bundle.main.object(forInfoDictionaryKey: "CADisableMinimumFrameDurationOnPhone") as? Bool == true)
+    }
+
     @Test func everySoundShipsInTheApp() {
         for effect in ArcadeAudio.Effect.allCases {
             #expect(Bundle.main.url(forResource: effect.rawValue, withExtension: "caf") != nil, "\(effect) is missing")
