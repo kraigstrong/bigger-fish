@@ -4,24 +4,22 @@ import FishKit
 /// The free-swimming steering every roaming arcade fish uses. Gameplay and the meeting planner share it,
 /// so a planned fish follows exactly the path the planner predicted until something touches it.
 enum FreeSwim {
-    /// Each fish's own movement stream. Variant 0 is the stream every unplanned fish has always used.
+    /// Each fish's own movement stream. Planned fish pick a variant; the tutorial's fish use 0.
     static func movementGenerator(ecosystemSeed: UInt64, id: Int, variant: UInt64 = 0) -> SeededGenerator {
         var seedMixer = SeededGenerator(seed: ecosystemSeed &+ 0xA0761D6478BD642F
             &+ UInt64(id) &* 0x9E3779B97F4A7C15 &+ variant &* 0xD6E8FEB86659FD93)
         return SeededGenerator(seed: seedMixer.next())
     }
 
-    /// Turns, the optional linger leash, cruising, and vertical wandering. Returns the velocity
-    /// before neighbor separation or hazard avoidance adjust it.
+    /// Turns, cruising, and vertical wandering. Returns the velocity before neighbor separation or hazard
+    /// avoidance adjust it.
     static func steer(_ f: Fish, dt: CGFloat, clock: CGFloat, minY: CGFloat, maxY: CGFloat,
-                      verticalSpeed: CGFloat, leash: (offset: CGFloat, halfWidth: CGFloat)?,
-                      rng: inout SeededGenerator) -> CGVector {
+                      verticalSpeed: CGFloat, rng: inout SeededGenerator) -> CGVector {
         f.turnTimer -= dt
         if f.turnTimer <= 0 {
             f.heading *= -1
             f.turnTimer = CGFloat.random(in: GameTuning.aiTurnIntervalRange, using: &rng)
         }
-        if let leash, abs(leash.offset) > leash.halfWidth { f.heading = leash.offset > 0 ? -1 : 1 }
         let targetVX = f.heading * f.cruiseSpeed * (1 + 0.15 * sin(clock * 0.7 + f.phase))
         let vx = f.velocity.dx + (targetVX - f.velocity.dx) * min(1, dt * 1.5)
 

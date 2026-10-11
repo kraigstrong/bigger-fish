@@ -226,10 +226,7 @@ struct JellyTrack {
 
 extension JellySpec {
     static func layout(_ spec: JellySpec, count: Int) -> JellyLayout {
-        var layout = JellyLayout(count: count, radius: CGFloat(spec.radius), tentacleLength: CGFloat(spec.tentacleLength),
-                                 sway: 0, night: spec.night)
-        layout.drifts = true
-        return layout
+        JellyLayout(count: count, radius: CGFloat(spec.radius), tentacleLength: CGFloat(spec.tentacleLength), night: spec.night)
     }
 }
 
@@ -250,12 +247,9 @@ struct MeetingPlan: Codable {
     var kelp: [PlannedKelp]? = nil
 
     var level: Level {
-        let radii = fish.map { $0.radius / GameTuning.baseRadius }
-        var level = Level(spawnGroups: [(fish.count, (radii.min() ?? 1)...(radii.max() ?? 1))],
-            aiSpeedRange: CGFloat(spec.aiSpeed.lowerBound)...CGFloat(spec.aiSpeed.upperBound),
+        var level = Level(aiSpeedRange: CGFloat(spec.aiSpeed.lowerBound)...CGFloat(spec.aiSpeed.upperBound),
             aiVerticalSpeed: CGFloat(spec.aiVertical), screenCrossSeconds: CGFloat(spec.crossSeconds),
-            absorptionEfficiency: GameTuning.freeEncounterAbsorption, roamingFoodChain: true)
-        level.freeEncounterMovement = true
+            absorptionEfficiency: GameTuning.freeEncounterAbsorption)
         level.worldScreens = CGFloat(spec.worldScreens)
         if let jellySpec = spec.jellies, let jellies, !jellies.isEmpty {
             level.jellies = JellySpec.layout(jellySpec, count: jellies.count)
@@ -1559,7 +1553,7 @@ enum MeetingSolver {
             let minY = bounds.bottom + fish.radius
             let maxY = max(minY, bounds.top - fish.radius)
             let velocity = FreeSwim.steer(f, dt: T.simulationStep, clock: CGFloat(step) * T.simulationStep,
-                minY: minY, maxY: maxY, verticalSpeed: vertical, leash: nil, rng: &rng)
+                minY: minY, maxY: maxY, verticalSpeed: vertical, rng: &rng)
             FreeSwim.integrate(f, velocity: velocity, dt: T.simulationStep, minY: minY, maxY: maxY, world: unwrapped)
             let x = f.position.x > unwrapped.width / 2 ? f.position.x - unwrapped.width : f.position.x
             points.append(CGPoint(x: x, y: f.position.y))
@@ -1593,7 +1587,7 @@ enum MeetingSolver {
             let maxY = max(minY, bounds.top - fish.radius)
             let old = f.position
             var velocity = FreeSwim.steer(f, dt: dt, clock: CGFloat(step) * dt, minY: minY, maxY: maxY,
-                                          verticalSpeed: vertical, leash: nil, rng: &rng)
+                                          verticalSpeed: vertical, rng: &rng)
             let before = jellies.positions[step - 1], now = jellies.positions[step]
             let player = WrappedWorld(width: world.width).wrap(timeline.distance[step])
             func meetsJellies() -> Bool {

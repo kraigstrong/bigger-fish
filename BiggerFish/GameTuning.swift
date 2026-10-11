@@ -137,7 +137,6 @@ enum GameTuning {
     /// Fish at or above `spawnDangerRatio` start further away.
     static let spawnClearAheadDanger: CGFloat = 1.3
     static let spawnDangerRatio: CGFloat = 0.9
-    static let spawnPadding: CGFloat = 20
 
     // MARK: Win
 
@@ -151,7 +150,6 @@ enum GameTuning {
     // MARK: Jelly Bloom
 
     static let hazardHitboxScale: CGFloat = 0.8
-    static let urchinRadius: CGFloat = 15
     static let jellyDomeForgiveness: CGFloat = 10
     static let jellyBounceSpeed: CGFloat = 460
     static let jellyBounceSeconds: CGFloat = 0.28
@@ -168,35 +166,12 @@ enum GameTuning {
     static let stingSeconds: CGFloat = 1.5
     static let stingResultDelay: CGFloat = 1.1
     static let jellyAvoidancePredictionSteps = 8
-    static let bloomFloorLanePadding: CGFloat = 20
-    /// Alternating bell heights for authored layouts without per-level heights.
-    static let bloomAuthoredJellyHeights: [CGFloat] = [0.37, 0.68]
-    static let bloomJellyFallbackFloorGap: CGFloat = 12
 
     /// Swimmers anticipate curtains; no chasing or fleeing.
     static let bloomAvoidanceLookAhead: CGFloat = 1.2
     static let bloomAvoidancePadding: CGFloat = 16
     static let bloomAvoidanceRiseSpeed: CGFloat = 140
     static let bloomAvoidanceTurnRate: CGFloat = 8
-
-    static let bloomFoodPocketHalfWidth: CGFloat = 76
-    static let bloomFoodPocketHalfHeight: CGFloat = 24
-    static let bloomFoodPocketLift: CGFloat = 40
-    static let bloomFoodPocketReleaseSeconds: CGFloat = 4
-    static let bloomJellyOpeningScreens: ClosedRange<CGFloat> = 0.80...1.00
-    static let bloomJellyLastScreens: ClosedRange<CGFloat> = 3.40...3.60
-    static let bloomJellyGapWeight: ClosedRange<CGFloat> = 0.10...1.80
-    static let bloomJellySpacingPadding: CGFloat = 40
-    static let bloomJellyHeightRange: ClosedRange<CGFloat> = 0.28...0.76
-    static let bloomFoodPatrolScreens: CGFloat = 0.16
-
-    // Level 2 only: a meal beyond the far shoulder, where an early bounce sends you away.
-    static let bloomSidePocketJellyIndex = 1
-    static let bloomSidePocketOffset: CGFloat = 112
-    static let bloomSidePocketDrop: CGFloat = 16
-    static let bloomSidePocketSpawnHalfWidth: CGFloat = 30
-    static let bloomSidePocketPatrolHalfWidth: CGFloat = 44
-    static let bloomSidePredatorOffset: CGFloat = 200
 
     /// Jelly Bloom 2: each bell wanders this far side to side (screen widths each way) and bobs this many
     /// points, over these periods.
@@ -205,153 +180,22 @@ enum GameTuning {
     static let jellyBobPoints: CGFloat = 22
     static let jellyBobSeconds: CGFloat = 7
 
-    static let bloomFoodRefillSeconds: CGFloat = 3
-    static let bloomFoodRefillCount = 2
-    static let bloomFoodRadiusFraction: ClosedRange<CGFloat> = 0.45...0.65
+    // MARK: Planned fish
 
-    /// World 1 remains intact. Bloom's curve varies the food-race window, not chase AI.
-    /// The original five profiles, kept for comparison in the debug tuner.
-    static let bloomReferenceLevels: [Level] = [
-        Level(spawnGroups: [(9, 0.30...0.65), (5, 0.65...0.85)],
-              aiSpeedRange: 30...80, aiVerticalSpeed: 35, screenCrossSeconds: 3.1,
-              absorptionEfficiency: 0.90,
-              jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6)),
-        bloomRaceLevel(foodCount: 7, giants: 1, speed: 30...80, vertical: 35,
-                       efficiency: 0.88, jellyCount: 5, jellyRadius: 44, tentacles: 70,
-                       sidePocket: true, compactSpeedScale: 0.65),
-        bloomRaceLevel(foodCount: 3, giants: 2, speed: 45...110, vertical: 55,
-                       efficiency: 0.78, jellyCount: 6, jellyRadius: 46, tentacles: 75,
-                       seedOffset: 1, compactSpeedScale: 0.65),
-        bloomRaceLevel(foodCount: 3, giants: 2, speed: 65...155, vertical: 80,
-                       efficiency: 0.78, jellyCount: 6, jellyRadius: 46, tentacles: 75,
-                       night: true, compactSpeedScale: 0.50),
-        bloomRaceLevel(foodCount: 7, giants: 2, speed: 65...155, vertical: 80,
-                       efficiency: 0.82, jellyCount: 7, jellyRadius: 48, tentacles: 75,
-                       seedOffset: 1, compactSpeedScale: 0.763, mediumSpeedMultiplier: 0.85),
-    ]
-
-    /// Original authoring targets; campaign order follows human playtesting.
-    static let bloomSetupSeedOffsets: [UInt64] = [1, 0, 4, 4, 6, 1, 444, 12, 26, 38]
-    /// Original setup identities keep their seeds and difficulty when campaign slots move.
-    static let bloomCampaignOrder = [0, 1, 5, 3, 4, 6, 2, 7, 8, 9]
-    static let bloomLevels: [Level] = bloomCampaignOrder.map { bloomLevelSetups[$0] }
-    static let bloomLevelSetups: [Level] = (0..<10).map { index in
-        let difficulty = EncounterDifficulty(value: Double(index) / 9)
-        let speed: ClosedRange<CGFloat> = index == 1 ? 40...175
-            : (35 + CGFloat(difficulty.bounded) * 35)...(150 + CGFloat(difficulty.bounded) * 50)
-        return Level(spawnGroups: [(16, 0.65...3)],
-            aiSpeedRange: speed, aiVerticalSpeed: index == 1 ? 85 : 65 + CGFloat(difficulty.bounded) * 35,
-            screenCrossSeconds: 3.1, absorptionEfficiency: freeEncounterAbsorption,
-            jellies: JellyLayout(count: 4, radius: 40, tentacleLength: 70, sway: 6,
-                night: index >= 7, maintainsFloorLane: true),
-            roamingFoodChain: true, ecosystemSeedOffset: bloomSetupSeedOffsets[index],
-            encounterDifficulty: difficulty, freeEncounterMovement: true, ecosystemSeedIndex: index)
-    }
-
-    // Encounter groups are authoring budgets, never movement cages. Level 2 retains its accepted layout.
+    /// Planned levels: a meal adds this share of its area to the eater (before `mealGrowthScale`). Each planned fish
+    /// is protected until you're this many screens past its meeting, and turns to face the way it swims at this rate.
     static let freeEncounterAbsorption: CGFloat = 0.55
-    static let freeEncounterCatchFraction: ClosedRange<CGFloat> = 0.55...0.90
-    static let freeEncounterCounts = [4, 3, 5, 4]
-    static let freeEncounterEdibleCounts = [3, 2, 3, 3]
-    static let freeEncounterEdibleSizes: ClosedRange<CGFloat> = 0.65...1.0
-    static let freeEncounterThreatSizes: ClosedRange<CGFloat> = 1.15...1.35
-    static let freeEncounterHeights: [CGFloat] = [0.32, 0.67, 0.40, 0.56]
     static let freeEncounterReleaseScreens: CGFloat = 0.18
-    static let freeEncounterLingerScreens: CGFloat = 0.30
-    static let freeEncounterSpawnSpreadScreens: CGFloat = 0.28
     static let freeEncounterFacingRate: CGFloat = 14
-    static let freeEncounterEdibleShare: ClosedRange<CGFloat> = 0.62...0.85
-    static let freeEncounterHeightVariation: CGFloat = 0.07
-    static let freeEncounterHorizontalVariation: CGFloat = 0.16
 
-    static let shallowEncounterCounts = [5, 4, 6, 5]
-    static let shallowExpectedCatchFraction: ClosedRange<CGFloat> = 0.45...0.90
-    static let shallowEdibleShare: ClosedRange<CGFloat> = 0.64...0.88
-    static let shallowSetupSeedOffsets: [UInt64] = [2, 7, 13, 23, 31, 47, 60, 71, 92, 101]
-
-    static func freeEncounterExpectedCatchFraction(_ difficulty: Double, shallow: Bool = false) -> CGFloat {
-        let value = CGFloat(min(1, max(0, difficulty)))
-        if shallow {
-            return shallowExpectedCatchFraction.lowerBound
-                + value * (shallowExpectedCatchFraction.upperBound - shallowExpectedCatchFraction.lowerBound)
-        }
-        let anchor: CGFloat = 1.0 / 9
-        let accepted: CGFloat = freeEncounterCatchFraction.lowerBound
-            + anchor * (freeEncounterCatchFraction.upperBound - freeEncounterCatchFraction.lowerBound)
-        return value <= anchor ? 0.45 + (accepted - 0.45) * value / anchor
-            : accepted + (freeEncounterCatchFraction.upperBound - accepted) * (value - anchor) / (1 - anchor)
-    }
-
-    static func freeEncounterWaveBudgets(seed: UInt64, difficulty: Double, preserveLevelTwo: Bool, shallow: Bool = false) -> [(count: Int, edible: Int)] {
-        if preserveLevelTwo {
-            return zip(freeEncounterCounts, freeEncounterEdibleCounts).map { (count: $0.0, edible: $0.1) }
-        }
-        var generator = SeededGenerator(seed: seed &+ 0x94D049BB133111EB)
-        let counts = (shallow ? shallowEncounterCounts : freeEncounterCounts).shuffled(using: &generator)
-        let shares = shallow ? shallowEdibleShare : freeEncounterEdibleShare
-        let share = shares.upperBound - CGFloat(min(1, max(0, difficulty)))
-            * (shares.upperBound - shares.lowerBound)
-        return counts.map { count in
-            let varied = share + CGFloat.random(in: -0.06...0.06, using: &generator)
-            return (count: count, edible: min(count - 1, max(2, Int((CGFloat(count) * varied).rounded()))))
-        }
-    }
-
-
-    static let encounterCatchBudget: ClosedRange<Double> = 3.5...10.5
-    static let encounterClearance: ClosedRange<CGFloat> = 10...32
-    static let encounterFoodSpacingScreens: CGFloat = 0.15
-    static let encounterThreatOffsetScreens: CGFloat = 0.18
-    static let encounterFormations: [EncounterFormation] = [
-        EncounterFormation(name: "opening", foodOffsets: [
-            CGPoint(x: -encounterFoodSpacingScreens, y: 0), .zero, CGPoint(x: encounterFoodSpacingScreens, y: 0)], threatOffset: encounterThreatOffsetScreens),
-        EncounterFormation(name: "descending", foodOffsets: [
-            CGPoint(x: -0.17, y: 24), CGPoint(x: -0.015, y: 12), CGPoint(x: 0.17, y: 0)], threatOffset: 0.20),
-        EncounterFormation(name: "ascending", foodOffsets: [
-            CGPoint(x: -0.17, y: 0), CGPoint(x: 0.015, y: 12), CGPoint(x: 0.17, y: 24)], threatOffset: -0.20),
-        EncounterFormation(name: "crest", foodOffsets: [
-            CGPoint(x: -0.19, y: 0), CGPoint(x: 0, y: 24), CGPoint(x: 0.19, y: 0)], threatOffset: 0.25),
-    ]
-
-    static func encounterFormationOrder(seed: UInt64) -> [EncounterFormation] {
-        var generator = SeededGenerator(seed: seed &+ 0xD1B54A32D192ED03)
-        return [encounterFormations[0]] + encounterFormations.dropFirst().shuffled(using: &generator)
-    }
-    static let encounterBellHeight: ClosedRange<CGFloat> = 0.30...0.43
-    static let encounterFoodRadius: CGFloat = 0.85
-    static let encounterAbsorption: CGFloat = 0.82
-    static let encounterCount = 4
-    static let encounterFoodCount = 3
-    static let encounterPatrolWidth: CGFloat = 42
-    static let encounterPatrolHeight: CGFloat = 12
-    static let encounterPatrolSpeedScale: CGFloat = 0.75
-    static let encounterTurnLead: CGFloat = 16
-    static let encounterFacingRate: CGFloat = 14
+    /// Planned fish you haven't met steer apart (`EncounterSteering`) within this padding, looking this many seconds
+    /// ahead, at up to this speed; touching anyway, they part by this many points and the one turned away holds
+    /// its new heading this long.
     static let encounterSeparationPadding: CGFloat = 12
     static let encounterSeparationLookAhead: CGFloat = 0.6
     static let encounterSeparationSpeed: CGFloat = 65
     static let protectedFishContactPadding: CGFloat = 1
     static let protectedFishTurnHoldSeconds: CGFloat = 2
-    static let encounterExitScreens: CGFloat = 0.45
-    static let encounterFirstScreens: CGFloat = 0.75
-    static let encounterSpacingScreens: CGFloat = 0.78
-    static let encounterJitterScreens: CGFloat = 0.04
-
-    private static func bloomRaceLevel(foodCount: Int, giants: Int, speed: ClosedRange<CGFloat>,
-                                       vertical: CGFloat, efficiency: CGFloat, jellyCount: Int,
-                                       jellyRadius: CGFloat, tentacles: CGFloat, sidePocket: Bool = false,
-                                       night: Bool = false, seedOffset: UInt64 = 0, compactSpeedScale: CGFloat = 1,
-                                       mediumSpeedMultiplier: CGFloat = 1) -> Level {
-        Level(spawnGroups: [(foodCount, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08),
-                            (4, 1.20...1.60), (giants, 2.00...2.60)],
-              aiSpeedRange: speed, aiVerticalSpeed: vertical, screenCrossSeconds: 3.1,
-              absorptionEfficiency: efficiency,
-              jellies: JellyLayout(count: jellyCount, radius: jellyRadius, tentacleLength: tentacles,
-                                  sway: 6, night: night, maintainsFloorLane: true),
-              bounceFoodPockets: true, sidePocketExperiment: sidePocket, roamingFoodChain: true,
-              ecosystemSeedOffset: seedOffset, compactAISpeedScale: compactSpeedScale,
-              mediumAISpeedMultiplier: mediumSpeedMultiplier)
-    }
 
     // MARK: Asking for a review (`ArcadeReview`)
 
@@ -366,23 +210,6 @@ enum GameTuning {
     /// Levels free without the unlock in each world after Shallow Reef (all ten of whose are free): a taste of what the
     /// unlock opens. 0 locks those worlds whole.
     static let freeLevelsPerWorld = 2
-
-    // MARK: Levels
-
-    /// Fish-only encounters use the same first-opportunity protection and growth as Jelly Bloom.
-    static let shallowCampaignOrder = [0, 1, 3, 4, 5, 6, 7, 2, 8, 9]
-    static let levels: [Level] = shallowCampaignOrder.map { shallowLevelSetups[$0] }
-    static let shallowLevelSetups: [Level] = (0..<10).map { index in
-        let value = Double(index) / 9
-        let difficulty = EncounterDifficulty(value: value)
-        return Level(spawnGroups: [(20, 0.65...3)],
-            aiSpeedRange: (45 + CGFloat(value) * 25)...(120 + CGFloat(value) * 80),
-            aiVerticalSpeed: 60 + CGFloat(value) * 40,
-            screenCrossSeconds: 2.9 - CGFloat(value) * 0.4,
-            absorptionEfficiency: freeEncounterAbsorption,
-            roamingFoodChain: true, ecosystemSeedOffset: shallowSetupSeedOffsets[index],
-            encounterDifficulty: difficulty, freeEncounterMovement: true, ecosystemSeedIndex: index)
-    }
 
     // MARK: Meeting planner (prototype, fish-only)
 
@@ -951,30 +778,6 @@ enum GameTuning {
     static let shallowReefOrder = [0, 1, 4, 5, 2, 3, 6, 9, 8, 7, 10, 11, 12, 13, 14]
     static let shallowReefLevels: [Level] = shallowReefOrder.map { reefLabLevels[$0] }
 
-    /// Preserve the original campaign, including the favorite fourth level, for debug comparison.
-    static let shallowReferenceLevels: [Level] = [
-        Level(
-            spawnGroups: [(6, 0.30...0.55), (5, 0.55...0.80), (3, 0.90...1.15), (2, 1.35...1.70), (1, 2.10...2.50)],
-            aiSpeedRange: 35...95, aiVerticalSpeed: 45, screenCrossSeconds: 2.75, absorptionEfficiency: 0.90
-        ),
-        Level(
-            spawnGroups: [(5, 0.35...0.58), (5, 0.58...0.82), (4, 0.88...1.12), (3, 1.30...1.70), (1, 2.10...2.50)],
-            aiSpeedRange: 45...115, aiVerticalSpeed: 55, screenCrossSeconds: 2.6, absorptionEfficiency: 0.86
-        ),
-        Level(
-            spawnGroups: [(4, 0.40...0.60), (5, 0.62...0.86), (5, 0.90...1.10), (3, 1.25...1.60), (2, 1.90...2.40)],
-            aiSpeedRange: 55...135, aiVerticalSpeed: 68, screenCrossSeconds: 2.45, absorptionEfficiency: 0.82
-        ),
-        Level(
-            spawnGroups: [(3, 0.42...0.62), (5, 0.66...0.90), (5, 0.92...1.08), (4, 1.20...1.60), (2, 2.00...2.60)],
-            aiSpeedRange: 65...155, aiVerticalSpeed: 80, screenCrossSeconds: 2.3, absorptionEfficiency: 0.78
-        ),
-        Level(
-            spawnGroups: [(3, 0.45...0.65), (4, 0.70...0.92), (6, 0.94...1.06), (4, 1.15...1.50), (3, 1.90...2.80)],
-            aiSpeedRange: 80...175, aiVerticalSpeed: 95, screenCrossSeconds: 2.15, absorptionEfficiency: 0.75
-        ),
-    ]
-
     // MARK: First-launch tutorial (`ArcadeTutorial`)
 
     /// Its fish (radius; you start at `baseRadius`, 16). The first meal takes you to 18.4; the fish you miss (14)
@@ -989,7 +792,7 @@ enum GameTuning {
     /// timings below (rising and falling are as fast as ever). Lower is slower.
     static let tutorialPace: CGFloat = 0.75
     /// A slow, roomy level whose fish can eat each other, with no fish of its own: the beats bring theirs.
-    static let tutorialLevel = Level(spawnGroups: [], aiSpeedRange: 40...90, aiVerticalSpeed: 50,
+    static let tutorialLevel = Level(aiSpeedRange: 40...90, aiVerticalSpeed: 50,
                                      screenCrossSeconds: 3.2 / tutorialPace, absorptionEfficiency: 0.9)
     /// At a pace of 1: seconds a fish swimming straight at you takes to reach you, the glowing meals and the big fish.
     static let tutorialMealCrossing: CGFloat = 1.7
@@ -1060,8 +863,6 @@ enum GameTuning {
 }
 
 struct Level {
-    /// Normalized radii (player starts at 1.0).
-    let spawnGroups: [(count: Int, radii: ClosedRange<CGFloat>)]
     let aiSpeedRange: ClosedRange<CGFloat>
     let aiVerticalSpeed: CGFloat
     /// Seconds for the player to cross one screen width.
@@ -1070,24 +871,9 @@ struct Level {
     var effectiveAbsorptionEfficiency: CGFloat { absorptionEfficiency * GameTuning.mealGrowthScale }
     var jellies: JellyLayout? = nil
     var aiCanEat: Bool = true
-    var requiredMeals: Int = 0
-    var predatorSpawnSeparationScreens: CGFloat = 0
-    var bounceFoodPockets: Bool = false
-    var sidePocketExperiment: Bool = false
-    var roamingFoodChain: Bool = false
-    /// Fixed per-level seed selection keeps retries consistent. Debug studies perturb this seed.
-    var ecosystemSeedOffset: UInt64 = 0
-    var compactAISpeedScale: CGFloat = 1
-    var mediumAISpeedMultiplier: CGFloat = 1
-    var encounterDifficulty: EncounterDifficulty? = nil
-    var freeEncounterMovement: Bool = false
-    /// Seed identity is independent of the displayed campaign number.
+    /// The layout's own number in its world's list of specs, independent of the slot it plays in (analytics' setup).
     var ecosystemSeedIndex: Int? = nil
     var worldScreens: CGFloat = GameTuning.worldScreens
-    /// Planned meetings replace seeded spawning; see docs/meeting-planner.md.
+    /// The planned meetings every fish swims to; see docs/meeting-planner.md. Only the tutorial has none.
     var meetingPlan: MeetingPlan? = nil
-    func spawnSeed(index: Int, bloom: Bool, offset: UInt64? = nil) -> UInt64 {
-        GameTuning.spawnSeed &+ UInt64((ecosystemSeedIndex ?? index) + (bloom ? 100 : 0))
-            &+ (offset ?? ecosystemSeedOffset)
-    }
 }
