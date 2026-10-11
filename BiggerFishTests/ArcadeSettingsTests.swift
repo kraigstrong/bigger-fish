@@ -88,6 +88,24 @@ struct ArcadeSettingsTests {
         #expect(play().isEmpty)
     }
 
+    /// Pausing again and again draws one sound panel, with switches that follow Settings' changes in between.
+    @MainActor @Test func pausingDrawsOneSoundPanel() {
+        let was = ArcadeSettings.shared.musicOn
+        defer { ArcadeSettings.shared.musicOn = was }
+        let scene = GameScene(world: .shallowReef, levelIndex: 0)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        defer { withExtendedLifetime(view) {} }
+        scene.debugStart()
+        for round in 0..<3 {
+            ArcadeSettings.shared.musicOn = round.isMultiple(of: 2)
+            scene.debugPauseForTuning()
+            #expect(scene.debugSoundPanels == 1)
+            #expect(scene.debugSoundSwitches[1] == ArcadeSettings.shared.musicOn)
+            scene.debugResume()
+        }
+    }
+
     @MainActor @Test func voiceOverReachesThePauseMenuAndItsSoundSwitches() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))

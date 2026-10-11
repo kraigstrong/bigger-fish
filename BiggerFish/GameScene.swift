@@ -169,6 +169,7 @@ final class GameScene: SKScene {
     private(set) var debugVisibleUnmetContacts = 0
     var debugPracticeRun = false
     func debugPauseForTuning() { if phase == .playing { pauseRun() } }
+    func debugResume() { if phase == .paused { setPhase(.playing) } }
     private let previewResult = ArcadePlaytest.resultPreview
     private var didPreviewResult = false
     private var runRecorder: ArcadeRunRecorder?
@@ -517,7 +518,7 @@ final class GameScene: SKScene {
         pauseButton.isHidden = newPhase != .playing
         pauseMenu.isHidden = newPhase != .paused
         if newPhase == .paused {
-            buildSoundToggles()
+            refreshSoundToggles()
             configurePauseAccessibility()
         }
         switch newPhase {
@@ -2291,26 +2292,33 @@ final class GameScene: SKScene {
     }
 
     /// Sound effects, music, and vibration beside the pause menu's actions, as switches like Settings', on a dark panel
-    /// so they read over the game.
+    /// so they read over the game. Built with the menu, once (`buildPauseMenu` clears it first).
     private func buildSoundToggles() {
         let x = size.width / 2 + 236
-        let rows = [(effectsButton, settings.soundEffectsOn, CGFloat(5)), (musicButton, settings.musicOn, -60),
-                    (vibrationButton, settings.vibrationOn, -120)]
+        let rows = [(effectsButton, CGFloat(5)), (musicButton, -60), (vibrationButton, -120)]
         let panel = SKShapeNode(rectOf: CGSize(width: MenuSwitchRow.size.width + 32, height: 222), cornerRadius: 20)
         panel.fillColor = UIColor(DeepEndColors.night).withAlphaComponent(0.82)
         panel.strokeColor = UIColor(white: 1, alpha: 0.14)
         panel.lineWidth = 1
         panel.position = CGPoint(x: x, y: size.height / 2 - 42)
+        panel.name = "soundPanel"
         pauseMenu.addChild(panel)
         let heading = menuHeading("Sound")
         heading.position = CGPoint(x: x - MenuSwitchRow.size.width / 2, y: size.height / 2 + 47)
         pauseMenu.addChild(heading)
-        for (row, isOn, y) in rows {
+        for (row, y) in rows {
             row.removeFromParent()
-            row.setOn(isOn, animated: false)
             row.position = CGPoint(x: x, y: size.height / 2 + y)
             pauseMenu.addChild(row)
         }
+        refreshSoundToggles()
+    }
+
+    /// The switches as the settings stand, each time the game pauses (Settings may have changed them since).
+    private func refreshSoundToggles() {
+        effectsButton.setOn(settings.soundEffectsOn, animated: false)
+        musicButton.setOn(settings.musicOn, animated: false)
+        vibrationButton.setOn(settings.vibrationOn, animated: false)
     }
 
     private func toggleVibration() {
@@ -3012,6 +3020,8 @@ final class GameScene: SKScene {
     var debugFishCount: Int { fish.count }
     /// The pause menu's switches: sound effects, music, and vibration.
     var debugSoundSwitches: [Bool] { [effectsButton.isOn, musicButton.isOn, vibrationButton.isOn] }
+    /// How many sound panels the pause menu has drawn (one, however often it's paused).
+    var debugSoundPanels: Int { pauseMenu.children.filter { $0.name == "soundPanel" }.count }
     var debugMealsEaten: Int { mealsEaten }
     var debugEdibleCount: Int {
         fish.filter { !$0.isPlayer && $0.isAlive && GameRules.playerEncounter(player.radius, $0.radius) == .firstEatsSecond }.count
