@@ -268,13 +268,20 @@ struct ArcadeURLMetricSender: ArcadeMetricSender {
         config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         return URLSession(configuration: config)
     }()
+    /// Encoding a batch and starting its request happen here, off the main thread: the first send of a session sets up
+    /// the network, which held up a frame (a level's first death, its first send, stuttered).
+    private static let queue = DispatchQueue(label: "biggerFish.metrics.send", qos: .utility)
+    /// Sets up the session ahead of the first send, off the main thread (at launch).
+    static func warmUp() { queue.async { _ = session } }
     func send(_ batch: ArcadeMetricBatch) {
-        guard let data = try? JSONEncoder().encode(batch) else { return }
-        var request = URLRequest(url: ArcadeAnalytics.endpoint)
-        request.httpMethod = "POST"; request.httpBody = data
-        request.timeoutInterval = 15
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(ArcadeAnalytics.appKey, forHTTPHeaderField: "X-App-Key")
-        Self.session.dataTask(with: request).resume()
+        Self.queue.async {
+            guard let data = try? JSONEncoder().encode(batch) else { return }
+            var request = URLRequest(url: ArcadeAnalytics.endpoint)
+            request.httpMethod = "POST"; request.httpBody = data
+            request.timeoutInterval = 15
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(ArcadeAnalytics.appKey, forHTTPHeaderField: "X-App-Key")
+            Self.session.dataTask(with: request).resume()
+        }
     }
 }

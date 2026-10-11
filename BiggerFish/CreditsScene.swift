@@ -155,7 +155,9 @@ final class CreditsScene: SKScene, ObservableObject {
     override func didMove(to view: SKView) {
         view.isMultipleTouchEnabled = true
         if !isBuilt { build() }
+        // Ready before they're needed: a first haptic otherwise stalls a frame while iOS sets it up.
         mealHaptic.prepare()
+        finishHaptic.prepare()
         // Awake while you swim, as in a level; the start card and the end card let the phone sleep.
         UIApplication.shared.isIdleTimerDisabled = started && !finished && !hasLeft
         configureAccessibility()

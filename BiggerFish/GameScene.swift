@@ -263,6 +263,15 @@ final class GameScene: SKScene {
     /// The Vibration setting (Settings, and the pause menu): off, the game plays no haptics.
     private var vibrates: Bool { ArcadeSettings.shared.vibrationOn }
 
+    /// Wakes the haptics before they're needed. A session's first haptic otherwise stalls a frame while iOS sets them up:
+    /// the first death (its two buzzes) stuttered. Called as the scene appears, while its card is up and nothing moves,
+    /// and again as each run starts, since a prepared generator only stays ready a few seconds.
+    private func prepareHaptics() {
+        guard vibrates, view != nil else { return }
+        let generators: [UIFeedbackGenerator] = [mealHaptic, closeCallHaptic, eatenHaptic, eatenNotification, winNotification]
+        for generator in generators { generator.prepare() }
+    }
+
     /// Every haptic the game plays.
     enum Haptic: String { case meal, closeCall, bounce, sting, eaten, win, conquer }
 
@@ -344,8 +353,7 @@ final class GameScene: SKScene {
             )
         }
         _ = audio // Warm normal gameplay audio; headless studies never create the player pool.
-        closeCallHaptic.prepare()
-        eatenHaptic.prepare()
+        prepareHaptics()
         if !isBuilt { build() }
     }
 
@@ -673,6 +681,7 @@ final class GameScene: SKScene {
     }
 
     private func startRun() {
+        prepareHaptics()
         if arcadeWorld.hasJellies && showsJellyLesson {
             onJellyLesson?()
             showsJellyLesson = false
