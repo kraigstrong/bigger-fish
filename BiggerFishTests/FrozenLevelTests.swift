@@ -118,5 +118,8 @@ struct FrozenLevelTests {
         // Sunset Cove (fish and hooks both)
         "Sunset Cove 10": "daaab810f4775923",
         "Sunset Cove 11": "5032d7834f8e5a96",
+        "Sunset Cove 12": "d22699c86515c0f0",
+        "Sunset Cove 13": "6c6af9285f941cec",
+        "Sunset Cove 14": "a69c5d5d57d56ded",
     ]
 }

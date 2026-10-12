@@ -901,9 +901,9 @@ enum GameTuning {
     static let sunsetFishRadius: [String: [Int: CGFloat]] = ["Sunset Cove 10": [10: 63, 16: 61.5]]
     /// Played and approved, so they play exactly as saved in `SunsetPlans.json`: a planner change can't alter them.
     /// Sunset Cove 10 (Kraig, 2026-10-12, after its giants were sized to finish edible: "perfect. let's freeze level
-    /// 10") and 11 ("11 is incredible"). Take a level out of this set (with Kraig's OK) to tune it in code again, then
-    /// regenerate the file.
-    static let sunsetFrozen: Set<String> = ["Sunset Cove 10", "Sunset Cove 11"]
+    /// 10"), 11 ("11 is incredible"), and 12 to 14 ("levels 10-14 on sunset cove are great"). Take a level out of this
+    /// set (with Kraig's OK) to tune it in code again, then regenerate the file.
+    static let sunsetFrozen: Set<String> = ["Sunset Cove 10", "Sunset Cove 11", "Sunset Cove 12", "Sunset Cove 13", "Sunset Cove 14"]
     /// Sunset Cove's levels as the game plays them: from `SunsetPlans.json` for the frozen ones, otherwise planned in
     /// code (`sunsetPlan`) in Xcode builds. Release builds play the saved file for every level, so regenerate it after
     /// any change, and freeze every level before publishing.
