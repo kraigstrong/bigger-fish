@@ -960,6 +960,15 @@ enum GameTuning {
     static let sunsetTrollTrail: CGFloat = 60
     static let sunsetTrollSweep: CGFloat = 40
     static let sunsetTrollSweepSeconds: CGFloat = 6
+    /// Once you've passed a hook, its boat reels the line up so the bait hangs just under the surface for the rest of
+    /// the level: every boat stays and still fishes up top, but the water below is yours for the clean-up, when you're
+    /// big. The hooks are planned around your first pass, so later laps only met them by chance (Kraig, Sunset Cove 13:
+    /// "the late game with all the hooks is really hard. You can't really dive in and out because you're so big and the
+    /// hooks are so close"). The reel-up starts this many seconds after the reference route passes the hook, behind
+    /// you and off screen, takes this long, and leaves the bait's middle this many screen points under the surface.
+    static let sunsetReelUpAfter: CGFloat = 2
+    static let sunsetReelUpSeconds: CGFloat = 2
+    static let sunsetReeledDepth: CGFloat = 35
     /// What catches you, as shares of the bait's radius: the bait's body, and the hook's bend under it. Your body counts
     /// at `hazardHitboxScale`, as it does against tentacles. The line never does.
     static let sunsetBaitHitScale: CGFloat = 0.9

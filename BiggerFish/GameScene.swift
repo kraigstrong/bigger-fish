@@ -1936,7 +1936,11 @@ final class GameScene: SKScene {
     /// Where a hook is now, in the wrapped world.
     private func hookPosition(_ hook: PlannedHook, time: CGFloat) -> CGPoint {
         let at = HookMotion.position(hook, time: time)
-        return CGPoint(x: world.wrap(at.x), y: at.y)
+        // Passed: its line is reeled up until the bait hangs just under the surface, wherever the camera has zoomed to.
+        let lift = ((time - hook.passTime - T.sunsetReelUpAfter) / T.sunsetReelUpSeconds).clamped(0, 1)
+        guard lift > 0 else { return CGPoint(x: world.wrap(at.x), y: at.y) }
+        let shallow = max(at.y, waterTop - T.sunsetReeledDepth / zoom)
+        return CGPoint(x: world.wrap(at.x), y: at.y + (shallow - at.y) * lift * lift * (3 - 2 * lift))
     }
 
     /// Your fish touching a bait or a hook is caught. The line is harmless, and other fish pass hooks by: they never
@@ -3713,10 +3717,11 @@ extension GameScene {
     /// as they are now.
     var botHooks: [ArcadeSimulation.Swimmer] {
         hookRigs.compactMap { rig in
-            let now = HookMotion.position(rig.hook, time: simClock), soon = HookMotion.position(rig.hook, time: simClock + 0.05)
-            guard abs(world.delta(from: player.position.x, to: world.wrap(now.x))) < size.width / zoom else { return nil }
+            // Where it really is, reeled up or not.
+            let now = hookPosition(rig.hook, time: simClock), soon = hookPosition(rig.hook, time: simClock + 0.05)
+            guard abs(world.delta(from: player.position.x, to: now.x)) < size.width / zoom else { return nil }
             let bait = rig.hook.baitRadius
-            return .init(x: world.wrap(now.x), y: now.y - 0.1 * bait, vx: (soon.x - now.x) / 0.05, vy: (soon.y - now.y) / 0.05,
+            return .init(x: now.x, y: now.y - 0.1 * bait, vx: world.delta(from: now.x, to: soon.x) / 0.05, vy: (soon.y - now.y) / 0.05,
                          radius: 1.15 * bait)
         }
     }
@@ -3818,6 +3823,8 @@ extension GameScene {
     var debugReeling: Bool { reel != nil }
     /// Where hook `index` is now (wrapped world point).
     func debugHookPosition(_ index: Int) -> CGPoint { hookPosition(hookRigs[index].hook, time: simClock) }
+    /// How far up the water hook `index`'s bait hangs now, as on screen: 0 the bottom, 1 the top.
+    func debugHookDepthShare(_ index: Int) -> CGFloat { waterShare(debugHookPosition(index).y) }
     /// How wide each hook line on show was drawn across the screen (points).
     var debugHookLineWidths: [CGFloat] {
         hookRigs.filter { !$0.line.isHidden }.compactMap { $0.line.path?.boundingBoxOfPath.width }
