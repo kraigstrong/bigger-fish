@@ -39,7 +39,7 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   `MathReef/` or `BiggerFish/` without editing `project.pbxproj`.
 - **Never rename Math Reef level IDs.** They're the keys for saved progress. Generated fact decks use
   fixed seeds so they never change between launches.
-- **Never lose Bigger Fish progress.** World IDs (`shallow-reef`, `jelly-bloom`, `kelp-forest`, `midnight-zone`) and level
+- **Never lose Bigger Fish progress.** World IDs (`shallow-reef`, `jelly-bloom`, `kelp-forest`, `sunset-cove`, `midnight-zone`) and level
   numbers (`shallow-reef.8`) are the keys for saved progress: never rename them or renumber a released
   world's levels. Which layout plays in a numbered slot can change with Kraig's OK, since a cleared level
   stays cleared by its number (Shallow Reef's play order is `GameTuning.shallowReefOrder`). A new field in `ArcadeSave` must load when a save doesn't have it (decode it with a
@@ -58,7 +58,7 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   so a fix is a one-line change Kraig can rebuild and play: a re-roll to another variation
   (`GameTuning.kelpRerolls`), a fish made a different size (`kelpFishRadius`), or turned to swim at you
   (`kelpSwimsAtYou`). Once a level is played and approved, freeze it: add it to the world's frozen set
-  (`kelpFrozen`, `reefLabFrozen`, `jellyLabFrozen`), regenerate the world's plans file with its marker (for Kelp
+  (`kelpFrozen`, `reefLabFrozen`, `jellyLabFrozen`, `midnightFrozen`, `sunsetFrozen`), regenerate the world's plans file with its marker (for Kelp
   Forest, `touch build/arcade-development/kelp-plans.request`, then run
   `MeetingPlannerTests/manualWriteKelpPlans()`), and commit the JSON. **Freeze every level before
   publishing (TestFlight or the App Store):** the shipped game loads saved plans and never plans on the device,

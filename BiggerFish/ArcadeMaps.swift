@@ -10,6 +10,8 @@ extension ArcadeWorld {
         case .jellyBloom: UIColor(red: 0.75, green: 0.52, blue: 1, alpha: 1)
         case .kelpForest: UIColor(red: 0.45, green: 0.78, blue: 0.32, alpha: 1)
         case .midnightZone: UIColor(red: 1, green: 0.66, blue: 0.3, alpha: 1)
+        case .sunsetCove: UIColor(red: 1, green: 0.5, blue: 0.56, alpha: 1)
+        case .riptideReef: UIColor(red: 0.95, green: 0.42, blue: 0.62, alpha: 1)
         }
     }
 }
@@ -28,11 +30,10 @@ struct ArcadeWorldMap: View {
         ScreenScaled { size, _ in
             // On a screen taller than a phone's (an iPad), the stops keep a phone's spread, in the middle.
             let spread = min(size.height, ScreenFit.largestPhone.height)
-            let centers = OceanMapLayout.worldCenters(count: 5, size: CGSize(width: size.width, height: spread))
-                .map { CGPoint(x: $0.x, y: $0.y + (size.height - spread) / 2) }
             let worlds = ArcadeWorld.mapWorlds
-            // The fifth stop, until a fifth world is on the map (as a prototype in Xcode builds).
-            let comingSoon = [("Riptide Reef", Color.pink)]
+            // A stop per world: the campaign's five, and in Xcode builds the prototypes after them.
+            let centers = OceanMapLayout.worldCenters(count: worlds.count, size: CGSize(width: size.width, height: spread))
+                .map { CGPoint(x: $0.x, y: $0.y + (size.height - spread) / 2) }
             // The first open world with main levels left, else the last open one.
             let isOpen = { (world: ArcadeWorld) in ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) }
             let focus = ArcadeWorld.campaign.firstIndex { world in
@@ -42,37 +43,29 @@ struct ArcadeWorldMap: View {
                 // Your fish swims just above the world you're on, clear of its Deep End ring.
                 MapArtLayer(size: size, points: centers,
                             fishHome: CGPoint(x: centers[focus].x, y: centers[focus].y + 72))
-                ForEach(0..<5, id: \.self) { index in
-                    if worlds.indices.contains(index) {
-                        let world = worlds[index]
-                        let open = isOpen(world)
-                        let cleared = progress.clearedCounts(in: world)
-                        let main = min(world.levelCount, ArcadeWorld.mainLevelCount)
-                        let complete = open && cleared.main >= main
-                        let detail = !open ? "Unlock to play"
-                            : complete ? "Conquered!" : cleared.main == 0 ? "\(main) levels to conquer" : "\(main - cleared.main) more to conquer"
-                        // A ring around the world fills in an arc per level beaten; once it's conquered, the ring turns
-                        // gold for its Deep End.
-                        let deepEnd = complete && world.deepEndCount > 0 ? (cleared: cleared.deepEnd, count: world.deepEndCount) : nil
-                        let crown = WorldCrown.earned(conquered: complete,
-                                                      deepEndCleared: deepEnd.map { $0.cleared >= $0.count } ?? false)
-                        let deepEndLabel = deepEnd.map { ", Deep End \($0.cleared) of \($0.count) cleared" } ?? ""
-                        Button { open ? onSelect(world) : onUnlock(world) } label: {
-                            WorldMapStop(title: world.title, detail: detail, world: world,
-                                         color: world.color, placeholder: false, locked: !open, deepEnd: deepEnd,
-                                         progress: open && !complete ? (cleared: cleared.main, count: main) : nil,
-                                         crown: crown)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(open ? "\(world.title), \(detail)\(deepEndLabel)" : "\(world.title), locked. \(detail)")
-                        .position(x: centers[index].x, y: size.height - centers[index].y)
-                    } else {
-                        let (title, color) = comingSoon[index - worlds.count]
-                        WorldMapStop(title: title, detail: "Coming soon", world: nil, color: color, placeholder: true)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("\(title), coming soon")
-                            .position(x: centers[index].x, y: size.height - centers[index].y)
+                ForEach(worlds.indices, id: \.self) { index in
+                    let world = worlds[index]
+                    let open = isOpen(world)
+                    let cleared = progress.clearedCounts(in: world)
+                    let main = min(world.levelCount, ArcadeWorld.mainLevelCount)
+                    let complete = open && cleared.main >= main
+                    let detail = !open ? "Unlock to play"
+                        : complete ? "Conquered!" : cleared.main == 0 ? "\(main) levels to conquer" : "\(main - cleared.main) more to conquer"
+                    // A ring around the world fills in an arc per level beaten; once it's conquered, the ring turns
+                    // gold for its Deep End.
+                    let deepEnd = complete && world.deepEndCount > 0 ? (cleared: cleared.deepEnd, count: world.deepEndCount) : nil
+                    let crown = WorldCrown.earned(conquered: complete,
+                                                  deepEndCleared: deepEnd.map { $0.cleared >= $0.count } ?? false)
+                    let deepEndLabel = deepEnd.map { ", Deep End \($0.cleared) of \($0.count) cleared" } ?? ""
+                    Button { open ? onSelect(world) : onUnlock(world) } label: {
+                        WorldMapStop(title: world.title, detail: detail, world: world,
+                                     color: world.color, placeholder: false, locked: !open, deepEnd: deepEnd,
+                                     progress: open && !complete ? (cleared: cleared.main, count: main) : nil,
+                                     crown: crown)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(open ? "\(world.title), \(detail)\(deepEndLabel)" : "\(world.title), locked. \(detail)")
+                    .position(x: centers[index].x, y: size.height - centers[index].y)
                 }
                 Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
                     .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
@@ -224,7 +217,7 @@ struct ArcadeLevelMap: View {
             }
         }
         .foregroundStyle(.white)
-        .background(OceanBackdrop(bloom: world.hasJellies))
+        .background(OceanBackdrop(bloom: world.hasJellies, sunset: world == .sunsetCove))
     }
 
     /// Along the bottom: the world's goal until it's met, then its Deep End's.
@@ -452,13 +445,18 @@ final class MapDecorationScene: SKScene {
 
 struct OceanBackdrop: View {
     let bloom: Bool
+    /// Sunset Cove's level map: its coral water fading to deep purple.
+    var sunset = false
+    private var colors: [Color] {
+        if sunset { return [Color(red: 0.62, green: 0.25, blue: 0.42), Color(red: 0.14, green: 0.05, blue: 0.24)] }
+        return bloom
+            ? [Color(red: 0.19, green: 0.13, blue: 0.39), Color(red: 0.04, green: 0.07, blue: 0.20)]
+            : [Color(red: 0.06, green: 0.38, blue: 0.49), Color(red: 0.02, green: 0.09, blue: 0.23)]
+    }
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                LinearGradient(colors: bloom
-                               ? [Color(red: 0.19, green: 0.13, blue: 0.39), Color(red: 0.04, green: 0.07, blue: 0.20)]
-                               : [Color(red: 0.06, green: 0.38, blue: 0.49), Color(red: 0.02, green: 0.09, blue: 0.23)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
                 Canvas { context, size in
                     for i in 0..<42 {
                         let x = CGFloat((i * 137 + 19) % 997) / 997 * size.width
@@ -474,7 +472,7 @@ struct OceanBackdrop: View {
                                  control1: CGPoint(x: size.width * 0.3, y: size.height - 45),
                                  control2: CGPoint(x: size.width * 0.7, y: size.height + 15))
                     bed.addLine(to: CGPoint(x: size.width, y: size.height))
-                    context.fill(bed, with: .color((bloom ? Color.purple : Color.teal).opacity(0.2)))
+                    context.fill(bed, with: .color((sunset ? Color.pink : bloom ? Color.purple : Color.teal).opacity(0.2)))
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -491,6 +489,8 @@ extension ArcadeWorld {
         case .jellyBloom: "WorldJellyBloom"
         case .kelpForest: "WorldKelpForest"
         case .midnightZone: "WorldMidnightZone"
+        case .sunsetCove: "WorldSunsetCove"
+        case .riptideReef: "WorldRiptideReef"
         }
     }
 }
@@ -498,9 +498,14 @@ extension ArcadeWorld {
 struct WorldIllustration: View {
     let world: ArcadeWorld
     var body: some View {
-        Image(world.illustration)
-            .resizable()
-            .scaledToFit()
-            .accessibilityHidden(true)
+        Group {
+            if world == .riptideReef {
+                // A stand-in while Riptide Reef is a prototype, until it has a picture of its own.
+                Image(systemName: "water.waves").resizable().scaledToFit().padding(10).foregroundStyle(world.color)
+            } else {
+                Image(world.illustration).resizable().scaledToFit()
+            }
+        }
+        .accessibilityHidden(true)
     }
 }

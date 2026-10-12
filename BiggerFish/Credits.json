@@ -8,13 +8,19 @@
       ]
     },
     {
+      "heading": "Level design",
+      "role": "Level design",
+      "credits": [
+        { "name": "Riley S", "work": "Sunset Cove" }
+      ]
+    },
+    {
       "heading": "Play-testers",
       "role": "Play-tester",
       "credits": [
         { "name": "Chad H" },
         { "name": "Adam A" },
         { "name": "Andy W" },
-        { "name": "Riley S" },
         { "name": "Reagan S" }
       ]
     },

@@ -37,6 +37,27 @@ private struct Speck {
     let rise: CGFloat
 }
 
+/// A Sunset Cove hook on screen: its boat at the surface, its line, the hook, and the bait on it.
+private struct HookRig {
+    let hook: PlannedHook
+    let boat: HookBoatNode
+    let line: SKShapeNode
+    let metal: SKShapeNode
+    let bait: FishNode
+    /// The gate's first line hangs from the second one's boat.
+    let sharesBoat: Bool
+    /// When it went off the left of the screen behind you, boat and all: from then it's reeled up (`hookPosition`).
+    var passedAt: CGFloat? = nil
+}
+
+/// One of Sunset Cove's shafts of sunlight: where it enters the water, drifting a little as you swim.
+private struct SunRay {
+    let node: SKSpriteNode
+    var x: CGFloat
+    let strength: CGFloat
+    let phase: CGFloat
+}
+
 final class GameScene: SKScene {
     enum Phase {
         case ready, playing, paused, won, lost
@@ -182,6 +203,8 @@ final class GameScene: SKScene {
     private var simulationEcologyProbe = false
     /// A planned test level, played outside the campaign.
     private var plannerLevel: Level?
+    /// A bot's fish that no other fish can eat: it passes through a bigger one (`debugPlayReferenceRoute`).
+    private var simulationSafeFromFish = false
     /// On-screen contacts between two planned fish you haven't met, which bend their planned paths.
     private(set) var debugVisibleUnmetContacts = 0
     var debugPracticeRun = false
@@ -250,6 +273,10 @@ final class GameScene: SKScene {
     private var realClock: CGFloat = 0
     /// Simulated seconds since the current run started playing.
     private var simClock: CGFloat = 0
+    /// Your pace through the water: 1 normally, a current's speed while you're in one (eased). Riptide Reef's levels
+    /// are planned with their currents (`MeetingDesigner`), so planned fish keep real time and still meet you where
+    /// planned.
+    private var currentPace: CGFloat = 1
     private var timeScale: CGFloat = 1
     private var slowMoRemaining: CGFloat = 0
     private var slowMoFactor: CGFloat = 1
@@ -260,6 +287,17 @@ final class GameScene: SKScene {
     /// A Kelp Forest fish swims straight at its meeting height until you're this far along, then roams.
     private var approachEnds: [Int: (until: CGFloat, y: CGFloat, start: CGFloat, path: Approach?, heading: CGFloat)] = [:]
     private var kelpBeds: [(bed: PlannedKelp, back: KelpNode, front: KelpNode)] = []
+    /// Sunset Cove's hooks, each with its boat, line, and bait.
+    private var hookRigs: [HookRig] = []
+    /// You, caught on a hook and reeled up its line out of the water: which hook, when (real time), where it caught
+    /// you, and whether you've broken the surface yet.
+    private var reel: (rig: Int, start: CGFloat, from: CGPoint, splashed: Bool)?
+    private var sunRays: [SunRay] = []
+    /// Whether a delayed loss (a sting) sounds when its result shows; a hook's sounds as it catches you.
+    private var lossSoundsAtResult = true
+    #if DEBUG
+    fileprivate var mealLog: [(id: Int, time: CGFloat)] = []
+    #endif
     /// Midnight Zone's dark with your headlamp's beam in it: one sprite that multiplies the scene, centered on your
     /// head and turned with you.
     private var headlamp: SKSpriteNode?
@@ -475,6 +513,7 @@ final class GameScene: SKScene {
         encounterNeighbors.removeAll()
         #if DEBUG
         recordedEncounterReleases.removeAll()
+        mealLog.removeAll()
         debugBounces.removeAll()
         #endif
         nextFishID = 1
@@ -492,6 +531,7 @@ final class GameScene: SKScene {
         timeScale = 1
         slowMoRemaining = 0
         simClock = 0
+        currentPace = 1
         frameAccumulator = 0
         simulationAccumulator = 0
         lastUpdate = nil
@@ -500,6 +540,7 @@ final class GameScene: SKScene {
         world = WrappedWorld(width: size.width * level.worldScreens)
         spawnJellies()
         spawnKelp()
+        spawnHooks()
         spawnEcosystem()
         lastCameraX = player.position.x
         capturePresentation()
@@ -558,8 +599,8 @@ final class GameScene: SKScene {
         encounterLeases[f.id] = EncounterLease(home: planned.spawn,
             releaseDistance: planned.meetingDistance + size.width * T.freeEncounterReleaseScreens, index: planned.segment)
         if planned.appearsAt != nil {
-            approachEnds[f.id] = (planned.meetingDistance + size.width * T.kelpApproachReleaseScreens, planned.spawn.y,
-                                  simClock, planned.approach, planned.headOn ? -1 : 1)
+            approachEnds[f.id] = (planned.meetingDistance + size.width * T.kelpApproachReleaseScreens,
+                                  planned.spawn.y, simClock, planned.approach, planned.headOn ? -1 : 1)
         }
     }
 
@@ -771,9 +812,12 @@ final class GameScene: SKScene {
             showsJellyLesson = false
         }
         simClock = 0
+        currentPace = 1
         replaying = false
         clearedBeforeRun = hasCleared?(levelIndex) ?? false
-        var collects = analytics?.enabled == true && !isTutorial
+        // A world still being prototyped (Xcode builds only) never reports: the stats server knows only the campaign's
+        // worlds and death causes, and drops a whole batch over one it doesn't.
+        var collects = analytics?.enabled == true && !isTutorial && ArcadeWorld.campaign.contains(arcadeWorld)
         #if DEBUG
         collects = collects && !simulationHeadless && !debugPracticeRun && ArcadePlaytest.selection == nil
         #endif
@@ -836,12 +880,14 @@ final class GameScene: SKScene {
         winGlow = glow
     }
 
-    private func lose(resultDelay: CGFloat = 0) {
+    /// `soundsAtResult`: a delayed result (a sting) sounds the loss when it appears; a hook has sounded it already.
+    private func lose(resultDelay: CGFloat = 0, soundsAtResult: Bool = true) {
         if resultDelay > 0 { pendingLossResultAt = realClock + resultDelay }
+        lossSoundsAtResult = soundsAtResult
         finishMetrics("death")
         #if DEBUG
         finishRunRecording("lost", fields: ["reason": lossReason])
-        noteHitch(.death, resultDelay > 0 ? "stung" : "eaten")
+        noteHitch(.death, resultDelay > 0 ? (reel != nil ? "hooked" : "stung") : "eaten")
         #endif
         // A delayed result (a sting) sounds the loss when the result appears, after the zap.
         if resultDelay == 0 { playSound(.lose) }
@@ -939,6 +985,7 @@ final class GameScene: SKScene {
         let cameraDelta = world.delta(from: lastCameraX, to: presentation.cameraX) * presentation.zoom
         lastCameraX = presentation.cameraX
         updateSpecks(realDt: phase == .paused ? 0 : realDt, cameraDelta: cameraDelta)
+        updateSunRays(cameraDelta: cameraDelta, time: realClock)
     }
 
     /// Display frames only contribute elapsed time. Both real-time slow motion and
@@ -952,7 +999,10 @@ final class GameScene: SKScene {
             realClock += step
             if let at = pendingLossResultAt, realClock >= at {
                 pendingLossResultAt = nil
-                if phase == .lost { playSound(.lose); showResult(passed: false) }
+                if phase == .lost {
+                    if lossSoundsAtResult { playSound(.lose) }
+                    showResult(passed: false)
+                }
             }
             if let at = pendingConqueredExitAt, realClock >= at {
                 pendingConqueredExitAt = nil
@@ -977,6 +1027,10 @@ final class GameScene: SKScene {
 
     private func simulate(_ dt: CGFloat) {
         simClock += dt
+        if !currents.isEmpty, player.isAlive {
+            let pace = currentSpeed(atForwardDistance: forwardDistance, share: waterShare(player.position.y))
+            currentPace += (pace - currentPace) * min(1, dt * T.currentEase)
+        }
         updateZoom(dt)
         let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
         // All protected swimmers steer from the same snapshot, not update-order-dependent positions.
@@ -985,7 +1039,7 @@ final class GameScene: SKScene {
                 ? EncounterNeighbor(id: $0.id, position: $0.position, velocity: $0.velocity, radius: $0.radius) : nil
         }
         for f in fish where f.isAlive {
-            if f.isPlayer { movePlayer(f, dt) } else { moveAI(f, dt) }
+            if f.isPlayer { movePlayer(f, dt) } else { moveAI(f, dt); sweep(f, dt) }
         }
         releaseWaitingFish()
         #if DEBUG
@@ -997,6 +1051,7 @@ final class GameScene: SKScene {
         }
         #endif
         if phase == .playing { updateJellies(dt, previousFish: previous) }
+        if phase == .playing { notePassedHooks(); updateHooks() }
         advanceSwallows(dt)
         advanceGrowth(dt)
         advanceTutorial()
@@ -1030,10 +1085,11 @@ final class GameScene: SKScene {
             minY: waterBottom + p.radius * 0.95, maxY: waterTop - p.radius * 0.95,
             zoom: zoom, tuning: motion
         )
-        p.velocity = CGVector(dx: playerSpeed, dy: vy)
-        forwardDistance += max(0, playerSpeed * dt)
+        let speed = playerSpeed * currentPace
+        p.velocity = CGVector(dx: speed, dy: vy)
+        forwardDistance += max(0, speed * dt)
         metricAccumulator?.advance(seconds: Double(simClock), circuits: Double(forwardDistance / world.width))
-        p.position = CGPoint(x: world.wrap(p.position.x + playerSpeed * dt), y: y)
+        p.position = CGPoint(x: world.wrap(p.position.x + speed * dt), y: y)
         p.facing = 1
     }
 
@@ -1046,6 +1102,12 @@ final class GameScene: SKScene {
         let growth = player.radius / (T.baseRadius * T.zoomStartSize)
         let target = growth > 1 ? max(T.minZoom, pow(1 / growth, T.zoomExponent)) : 1
         zoom += (target - zoom) * min(1, dt * T.zoomEase)
+    }
+
+    /// How fast a fish roaming free rises and dives (world points a second): kept the same on screen as the camera zooms
+    /// out where `GameTuning.zoomedRoamingWorlds` says.
+    private var roamingVerticalSpeed: CGFloat {
+        level.aiVerticalSpeed / (T.zoomedRoamingWorlds.contains(arcadeWorld) ? zoom : 1)
     }
 
     private func moveAI(_ f: Fish, _ dt: CGFloat) {
@@ -1083,7 +1145,7 @@ final class GameScene: SKScene {
         let minY = waterBottom + f.radius
         let maxY = max(minY, waterTop - f.radius)
         let steered = FreeSwim.steer(f, dt: dt, clock: simClock, minY: minY, maxY: maxY,
-            verticalSpeed: level.aiVerticalSpeed, rng: &movementRNG)
+            verticalSpeed: roamingVerticalSpeed, rng: &movementRNG)
         var vx = steered.dx, vy = steered.dy
 
         if encounterProtected(f.id) {
@@ -1737,6 +1799,109 @@ final class GameScene: SKScene {
         onExit?()
     }
 
+    /// Where your fish sits across the screen: `playerScreenX`, surging ahead in a fast current and easing back a
+    /// little in a slow one. Presentation only; the game itself always reckons from `playerScreenX`.
+    private var screenAnchorX: CGFloat {
+        size.width * (T.playerScreenX + (currentPace - 1) * (currentPace > 1 ? T.currentSurgeAhead : T.currentSurgeBack))
+    }
+    private var wake: SKEmitterNode?
+
+    /// Riptide Reef's currents, from the level's plan: only where a scenario needs one.
+    private var currents: [PlannedCurrent] { level.meetingPlan?.currents ?? [] }
+
+    /// How fast a current carries you at this point of your run and height: 1 outside them. A current is a place on the
+    /// lap, there every time round.
+    private func currentSpeed(atForwardDistance distance: CGFloat, share: CGFloat) -> CGFloat {
+        let place = world.wrap(distance)
+        return currents.first { $0.contains(distance: place, share: share) }?.speed ?? 1
+    }
+
+    /// A small fish that has met you drifts with any current it's in; big fish and fish on their way to you don't.
+    private func sweep(_ f: Fish, _ dt: CGFloat) {
+        guard !currents.isEmpty, f.state == .swimming, approachEnds[f.id] == nil, f.radius <= T.currentSweepsRadius else { return }
+        guard let current = currents.first(where: { $0.contains(distance: f.position.x, share: waterShare(f.position.y)) }) else { return }
+        f.position.x = world.wrap(f.position.x + (current.speed - 1) * playerSpeed * dt)
+    }
+
+    /// The currents on screen: each a faint patch along its stretch of the lap, with streaks flowing the way it
+    /// pushes you (fast ones cool, slow ones warm). Shown on the first lap, where they are.
+    private var currentPatches: [(current: PlannedCurrent, node: SKNode, band: SKSpriteNode, streaks: [(SKSpriteNode, CGFloat, CGFloat)])] = []
+    private func layoutCurrents() {
+        currentPatches.forEach { $0.node.removeFromParent() }
+        currentPatches.removeAll()
+        wake?.removeFromParent()
+        wake = nil
+        guard !currents.isEmpty else { return }
+        var rng = SeededGenerator(seed: 0x52495054)
+        for current in currents {
+            let (bottom, top) = currentBand(current)
+            let node = SKNode()
+            // Over the water (0) and under the surface line and the specks (1); the scene ignores sibling order, so
+            // depth alone decides.
+            node.zPosition = 0.8
+            let fast = current.speed > 1
+            let band = SKSpriteNode(color: fast ? SKColor(red: 0.55, green: 0.92, blue: 1, alpha: 0.13)
+                                               : SKColor(red: 1, green: 0.78, blue: 0.5, alpha: 0.11),
+                                    size: CGSize(width: 1, height: top - bottom))
+            band.anchorPoint = .zero
+            node.addChild(band)
+            var streaks: [(SKSpriteNode, CGFloat, CGFloat)] = []
+            for _ in 0..<T.currentStreaks {
+                let streak = SKSpriteNode(color: SKColor(white: 1, alpha: 0.35),
+                                          size: CGSize(width: CGFloat.random(in: 18...46, using: &rng), height: 1.5))
+                // Over the band.
+                streak.zPosition = 0.1
+                node.addChild(streak)
+                streaks.append((streak, CGFloat.random(in: 0...1, using: &rng), CGFloat.random(in: 0.1...0.9, using: &rng) * band.size.height))
+            }
+            backgroundLayer.addChild(node)
+            currentPatches.append((current, node, band, streaks))
+        }
+        let bubbles = SKEmitterNode()
+        bubbles.particleTexture = WaterTextures.dot()
+        bubbles.particleBirthRate = 0
+        bubbles.particleLifetime = 0.5
+        bubbles.particleLifetimeRange = 0.2
+        bubbles.particleSize = CGSize(width: 5, height: 5)
+        bubbles.particleScaleRange = 0.6
+        bubbles.particleAlpha = 0.55
+        bubbles.particleAlphaSpeed = -1
+        bubbles.emissionAngle = .pi
+        bubbles.emissionAngleRange = 0.25
+        bubbles.particleSpeed = T.currentBubbleSpeed
+        bubbles.particleSpeedRange = 60
+        bubbles.particlePositionRange = CGVector(dx: 6, dy: 14)
+        bubbles.zPosition = 29
+        fishLayer.addChild(bubbles)
+        bubbles.targetNode = fishLayer
+        wake = bubbles
+    }
+    /// Where a current runs on screen, bottom to top: a full-height one fills the water edge to edge, past the margins
+    /// your fish keeps from the floor and the surface.
+    private func currentBand(_ current: PlannedCurrent) -> (bottom: CGFloat, top: CGFloat) {
+        let span = screenWaterTop - screenWaterBottom
+        return (current.low <= 0 ? 0 : screenWaterBottom + span * current.low,
+                current.high >= 1 ? size.height : screenWaterBottom + span * current.high)
+    }
+
+    private func renderCurrents(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
+        for patch in currentPatches {
+            // A place on the lap, measured from its middle, so the whole of it is placed one way round.
+            let length = (patch.current.end - patch.current.start) * zoom
+            let middle = world.delta(from: cameraX, to: world.wrap((patch.current.start + patch.current.end) / 2))
+            let x = screenAnchorX + middle * zoom - length / 2
+            patch.node.isHidden = x > size.width || x + length < 0
+            if patch.node.isHidden { continue }
+            patch.node.position = CGPoint(x: x, y: currentBand(patch.current).bottom)
+            patch.band.size.width = length
+            let direction: CGFloat = patch.current.speed > 1 ? 1 : -1
+            for (streak, offset, y) in patch.streaks {
+                let travel = (offset * length + direction * T.currentStreakSpeed * time).truncatingRemainder(dividingBy: max(length, 1))
+                streak.position = CGPoint(x: travel < 0 ? travel + length : travel, y: y)
+            }
+        }
+    }
+
     private func inKelp(_ position: CGPoint) -> Bool {
         kelpBeds.contains { abs(world.delta(from: $0.bed.x, to: position.x)) <= $0.bed.halfWidth }
     }
@@ -1744,7 +1909,7 @@ final class GameScene: SKScene {
     /// Columns stay screen-tall at any zoom and narrow as the camera zooms out.
     private func renderKelp(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
         for (bed, back, front) in kelpBeds {
-            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: bed.x) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: bed.x) * zoom
             let half = bed.halfWidth * zoom + 40
             let hidden = x + half < 0 || x - half > size.width
             back.isHidden = hidden
@@ -1755,6 +1920,241 @@ final class GameScene: SKScene {
                 node.xScale = zoom
                 node.sway(time: time)
             }
+        }
+    }
+
+    // MARK: - Sunset Cove
+
+    /// Depths, from the hazard layer's 8. A hook's rig sits behind every fish (whose lowest part, the first fish's
+    /// tail, is at the fish layer's 10, plus 1.5, less 2: 9.5): its line at 5.5, the hook's shank at 5.75 (over the
+    /// bait's tail and fin, under its body), the boat at 6, and the bait's own parts from 4.25 (its tail) to 9.45 (its
+    /// open mouth). Each hook's rig is a hair deeper than the one before, so two overlapping can't swap. A splash, at 7.
+    private static let hookLineDepth: CGFloat = 5.5 - 8, hookMetalDepth: CGFloat = 5.75 - 8
+    private static let hookBoatDepth: CGFloat = 6 - 8, hookBaitDepth: CGFloat = 6.25 - 8, hookSplashDepth: CGFloat = 7 - 8
+
+    private func spawnHooks() {
+        reel = nil
+        let hooks = level.meetingPlan?.hooks ?? []
+        hookRigs = hooks.enumerated().map { index, hook in
+            let offset = CGFloat(index) * 0.002
+            let boat = HookBoatNode(seed: hook.styleSeed)
+            boat.zPosition = Self.hookBoatDepth + offset
+            let line = SKShapeNode()
+            line.strokeColor = T.sunsetLineColor
+            line.lineWidth = 1
+            line.zPosition = Self.hookLineDepth + offset
+            let metal = HookMetal.make()
+            metal.zPosition = Self.hookMetalDepth + offset
+            var style = SeededGenerator(seed: hook.styleSeed)
+            let bait = FishNode(style: FishStyle.random(using: &style), isPlayer: false, tailPhase: CGFloat(index) * 1.3)
+            bait.zPosition = Self.hookBaitDepth + offset
+            for node in [boat, line, metal, bait] as [SKNode] {
+                node.isHidden = true
+                hazardLayer.addChild(node)
+            }
+            // One boat fishes both of the gate's lines: the first's rod is just ahead of the second's, under its hull.
+            let sharesBoat = hook.role == .gate && hooks.indices.contains(index + 1) && hooks[index + 1].role == .gate
+            return HookRig(hook: hook, boat: boat, line: line, metal: metal, bait: bait, sharesBoat: sharesBoat)
+        }
+    }
+
+    /// Where a hook is now, in the wrapped world.
+    private func hookPosition(_ rig: HookRig, time: CGFloat) -> CGPoint {
+        let at = HookMotion.position(rig.hook, time: time)
+        // Passed: its line is reeled up until the bait hangs just under the surface, wherever the camera has zoomed to.
+        guard let passedAt = rig.passedAt else { return CGPoint(x: world.wrap(at.x), y: at.y) }
+        let lift = ((time - passedAt - T.sunsetReelUpAfter) / T.sunsetReelUpSeconds).clamped(0, 1)
+        guard lift > 0 else { return CGPoint(x: world.wrap(at.x), y: at.y) }
+        let shallow = max(at.y, waterTop - T.sunsetReeledDepth / zoom)
+        return CGPoint(x: world.wrap(at.x), y: at.y + (shallow - at.y) * lift * lift * (3 - 2 * lift))
+    }
+
+    /// Notes each hook as you leave it behind: once all of it, boat, line, and bait, is off the left of the screen. By
+    /// how far you've really come, not when the planned route passes it, so a player behind the plan (smaller, so
+    /// slower across the lap) never sees a hook reel up before they've passed it.
+    private func notePassedHooks() {
+        for index in hookRigs.indices where hookRigs[index].passedAt == nil {
+            let hook = hookRigs[index].hook
+            let right = max(HookMotion.position(hook, time: simClock).x, HookMotion.rodX(hook, time: simClock))
+            let screenX = size.width * T.playerScreenX + (right - forwardDistance) * zoom
+            if screenX + 3 * hook.baitRadius * zoom < 0 { hookRigs[index].passedAt = simClock }
+        }
+    }
+
+    /// Your fish touching a bait or a hook is caught. The line is harmless, and other fish pass hooks by: they never
+    /// take the bait.
+    private func updateHooks() {
+        guard !hookRigs.isEmpty, reel == nil, player.isAlive else { return }
+        #if DEBUG
+        if simulationEcologyProbe { return }
+        #endif
+        for (index, rig) in hookRigs.enumerated() {
+            let at = hookPosition(rig, time: simClock)
+            if HookRules.catches(player.position, radius: player.radius, hook: at, bait: rig.hook.baitRadius, world: world) {
+                catchOnHook(index, at: at)
+                return
+            }
+        }
+    }
+
+    /// Caught: you're reeled up the line and out of the water (`renderHooks`), then the result.
+    private func catchOnHook(_ index: Int, at hook: CGPoint) {
+        let reason = "Caught on a hook."
+        if metricAccumulator != nil {
+            // The stats server takes this cause from 1.0 (kraigstrong/BrightBench); before that it dropped a batch with it.
+            observeMetrics()
+            metricDeathCause = "hook"
+            fatalMetrics = metricAccumulator?.summary
+        }
+        #if DEBUG
+        recordRunEvent("hazard_death", fields: ["fishID": player.id, "reason": reason, "hook": index,
+                                               "x": player.position.x, "y": player.position.y, "radius": player.radius])
+        #endif
+        releaseSwallows(of: player)
+        player.state = .removed
+        reel = (index, realClock, hook, false)
+        // You took the bait.
+        hookRigs[index].bait.isHidden = true
+        lossReason = reason
+        buzz(.eaten)
+        playSound(.lose)
+        lose(resultDelay: T.sunsetReelResultDelay, soundsAtResult: false)
+    }
+
+    /// Each boat at the surface over its hook, its line down to the hook, and the bait wriggling on it; you, if caught,
+    /// reeled up the line by your mouth and out of the water.
+    private func renderHooks(cameraX: CGFloat, zoom: CGFloat, fraction: CGFloat, time: CGFloat) {
+        guard !hookRigs.isEmpty else { return }
+        let anchorX = screenAnchorX
+        // Between the last two steps, as the fish are drawn.
+        let hookTime = max(0, simClock - T.simulationStep * (1 - fraction))
+        let waterline = screenWaterTop + 5
+        func screen(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: anchorX + world.delta(from: cameraX, to: point.x) * zoom, y: waterCenter + (point.y - waterCenter) * zoom)
+        }
+        for (index, rig) in hookRigs.enumerated() {
+            let bait = rig.hook.baitRadius * zoom
+            var at = screen(hookPosition(rig, time: hookTime))
+            // Measured from its own hook, not the shorter way round the lap from you: for a hook about half a lap away,
+            // that could put its rod on the far side of the screen, with a line all the way across.
+            let rodX = at.x + (HookMotion.rodX(rig.hook, time: hookTime) - HookMotion.position(rig.hook, time: hookTime).x) * zoom
+            let rod = CGPoint(x: rodX, y: waterline + 4 * zoom)
+            // The boat runs ahead of its rod, to the left, and a caught fish swings out round its hook.
+            let left = min(at.x, rodX - (T.sunsetBoatLength + 40) * zoom) - 3 * max(bait, player.radius * zoom)
+            let right = max(at.x, rodX) + 3 * max(bait, player.radius * zoom)
+            let hidden = right < 0 || left > size.width
+            for node in [rig.line, rig.metal] as [SKNode] { node.isHidden = hidden }
+            rig.boat.isHidden = hidden || rig.sharesBoat
+            rig.bait.isHidden = hidden || reel?.rig == index
+            if hidden { continue }
+            var lineShows = true
+            if let caught = reel, caught.rig == index {
+                // Up the line to the rod, quicker as it goes, then straight up out of the water.
+                let start = screen(caught.from)
+                let u = ((time - caught.start) / T.sunsetReelSeconds).clamped(0, 1)
+                let up = hypot(rod.x - start.x, rod.y - start.y)
+                let travelled = u * u * (up + size.height - rod.y + 4 * player.radius * zoom)
+                at = travelled < up
+                    ? CGPoint(x: start.x + (rod.x - start.x) * travelled / max(up, 1), y: start.y + (rod.y - start.y) * travelled / max(up, 1))
+                    : CGPoint(x: rod.x, y: rod.y + travelled - up)
+                lineShows = travelled < up
+                if !caught.splashed && at.y >= waterline {
+                    reel?.splashed = true
+                    let splash = HookSplash.make(width: player.radius * zoom * 1.6)
+                    splash.position = CGPoint(x: at.x, y: waterline)
+                    splash.zPosition = Self.hookSplashDepth
+                    hazardLayer.addChild(splash)
+                }
+                renderHookedPlayer(mouth: at, zoom: zoom, time: time)
+            }
+            rig.boat.position = CGPoint(x: rodX, y: waterline)
+            rig.boat.setScale(zoom)
+            let eye = CGPoint(x: at.x, y: at.y + HookMetal.eye * bait)
+            let path = CGMutablePath()
+            path.move(to: rod)
+            path.addLine(to: eye)
+            rig.line.path = path
+            rig.line.isHidden = !lineShows
+            let scale = bait / FishNode.referenceRadius
+            rig.metal.position = at
+            rig.metal.setScale(scale)
+            rig.metal.lineWidth = max(1.3, 2.4 * zoom) / max(scale, 0.01)
+            if reel?.rig != index {
+                let phase = CGFloat(index) * 1.7
+                rig.bait.position = at
+                rig.bait.apply(radius: bait, facing: -1,
+                               tilt: T.sunsetBaitWiggle * sin(time * 5.2 + phase) + 0.05 * sin(time * 13.1 + phase * 2),
+                               stretchX: 1, stretchY: 1, mouthOpen: 0.12 + 0.1 * sin(time * 3.3 + phase), time: time, tailRate: 16)
+            }
+        }
+    }
+
+    /// You on the hook by your mouth, nose up and thrashing, as you're reeled in.
+    private func renderHookedPlayer(mouth: CGPoint, zoom: CGFloat, time: CGFloat) {
+        guard let node = nodes[player.id] else { return }
+        let r = player.radius * zoom
+        let tilt = .pi / 2 * 0.88 + 0.22 * sin(time * 26)
+        // Your mouth is 1.32 radii ahead of your center and a tenth below it (`FishNode`), turned with you.
+        let offset = CGPoint(x: 1.32 * r * cos(tilt) + 0.1 * r * sin(tilt), y: 1.32 * r * sin(tilt) - 0.1 * r * cos(tilt))
+        node.isHidden = mouth.y - 2.5 * r > size.height
+        node.position = CGPoint(x: mouth.x - offset.x, y: mouth.y - offset.y)
+        node.apply(radius: r, facing: 1, tilt: tilt, stretchX: 1, stretchY: 1, mouthOpen: 0.55, time: time, tailRate: 42)
+    }
+
+    /// Sunset Cove's low sun, glowing at the surface, with soft shafts of its light slanting down through the water.
+    private func layoutSunset() {
+        sunRays.removeAll()
+        guard arcadeWorld == .sunsetCove else { return }
+        let sunX = size.width * T.sunsetSunX, surface = screenWaterTop + 5
+        func glow(_ color: SKColor, width: CGFloat, height: CGFloat, alpha: CGFloat, y: CGFloat, z: CGFloat) {
+            let node = SKSpriteNode(texture: ArcadeArt.glow, color: color, size: CGSize(width: width, height: height))
+            node.colorBlendFactor = 1
+            node.blendMode = .add
+            node.alpha = alpha
+            node.position = CGPoint(x: sunX, y: y)
+            // Over the water (0) and under the surface line and the specks (1); every glow adds its light.
+            node.zPosition = z
+            backgroundLayer.addChild(node)
+        }
+        // A wide warm haze over the water near the sun, a golden shimmer along the surface, then the sun itself,
+        // half under the surface, with a white-hot heart.
+        glow(SKColor(red: 1, green: 0.6, blue: 0.42, alpha: 1), width: size.width * 1.2, height: size.height * 1.5, alpha: 0.32,
+             y: surface, z: 0.2)
+        glow(SKColor(red: 1, green: 0.82, blue: 0.5, alpha: 1), width: size.width * 0.95, height: 22, alpha: 0.5, y: surface, z: 0.5)
+        glow(SKColor(red: 1, green: 0.86, blue: 0.55, alpha: 1), width: 170, height: 120, alpha: 0.95, y: surface + 2, z: 0.6)
+        glow(.white, width: 70, height: 46, alpha: 0.9, y: surface + 4, z: 0.7)
+        var rng = SeededGenerator(seed: 23)
+        for index in 0..<8 {
+            let ray = SKSpriteNode(texture: ArcadeArt.lightShaft, color: SKColor(red: 1, green: 0.8, blue: 0.58, alpha: 1),
+                                   size: CGSize(width: CGFloat.random(in: 50...110, using: &rng),
+                                                height: size.height * CGFloat.random(in: 0.9...1.3, using: &rng)))
+            ray.anchorPoint = CGPoint(x: 0.5, y: 1)
+            ray.colorBlendFactor = 1
+            ray.blendMode = .add
+            // The sun is low on the right, so its light slants down to the left.
+            ray.zRotation = -CGFloat.random(in: 0.32...0.5, using: &rng)
+            ray.position = CGPoint(x: 0, y: surface + 6)
+            ray.zPosition = 0.3
+            backgroundLayer.addChild(ray)
+            sunRays.append(SunRay(node: ray, x: sunX - 560 + CGFloat(index) * 85 + CGFloat.random(in: -20...20, using: &rng),
+                                  strength: CGFloat.random(in: 0.6...1, using: &rng), phase: CGFloat.random(in: 0...6, using: &rng)))
+        }
+        updateSunRays(cameraDelta: 0, time: 0)
+    }
+
+    /// The shafts drift slowly against your swim (the sun itself, far off, stays put), breathing as they go, and are
+    /// brightest near the sun.
+    private func updateSunRays(cameraDelta: CGFloat, time: CGFloat) {
+        guard !sunRays.isEmpty else { return }
+        let sunX = size.width * T.sunsetSunX, span: (from: CGFloat, to: CGFloat) = (sunX - 620, sunX + 140)
+        for index in sunRays.indices {
+            var x = sunRays[index].x - cameraDelta * T.sunsetRayParallax
+            if x < span.from { x += span.to - span.from } else if x > span.to { x -= span.to - span.from }
+            sunRays[index].x = x
+            let ray = sunRays[index]
+            let near = 1 - min(1, abs(x - sunX) / (span.to - span.from))
+            ray.node.position.x = x
+            ray.node.alpha = (0.05 + 0.11 * near) * ray.strength * (0.75 + 0.25 * sin(time * 0.6 + ray.phase))
         }
     }
 
@@ -1893,7 +2293,7 @@ final class GameScene: SKScene {
             let position = index < previousJellyPositions.count
                 ? PresentationInterpolation.position(from: previousJellyPositions[index], to: jelly.position,
                     fraction: fraction, world: world) : jelly.position
-            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: position.x) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: position.x) * zoom
             jelly.node.isHidden = x < -100 || x > size.width + 100
             jelly.node.position = CGPoint(x: x, y: waterCenter + (position.y - waterCenter) * zoom)
             jelly.node.setScale(zoom)
@@ -1961,7 +2361,13 @@ final class GameScene: SKScene {
                     continue
                 }
 
-                switch GameRules.encounter(a.radius, b.radius, firstIsPlayer: a.isPlayer, secondIsPlayer: b.isPlayer) {
+                let encounter = GameRules.encounter(a.radius, b.radius, firstIsPlayer: a.isPlayer, secondIsPlayer: b.isPlayer)
+                #if DEBUG
+                // A bot safe from fish passes through a bigger one.
+                if simulationSafeFromFish && (encounter == .firstEatsSecond && b.isPlayer || encounter == .secondEatsFirst && a.isPlayer
+                                              || encounter == .tooClose && (a.isPlayer || b.isPlayer)) { continue }
+                #endif
+                switch encounter {
                 case .firstEatsSecond: beginSwallow(predator: a, prey: b)
                 case .secondEatsFirst: beginSwallow(predator: b, prey: a)
                 case .tooClose: bump(a, b, dx: dx, dy: dy, reach: reach)
@@ -2063,6 +2469,7 @@ final class GameScene: SKScene {
             finishMetrics("death") // The fatal interaction is committed; do not reclassify its animation as a quit.
         }
         #if DEBUG
+        if predator.isPlayer { mealLog.append((prey.id, simClock)) }
         recordRunEvent("swallow_start", fields: ["predatorID": predator.id, "preyID": prey.id,
                                                 "predatorRadius": predator.radius, "preyRadius": prey.radius])
         noteHitch(.swallow, prey.isPlayer ? "you're eaten" : predator.isPlayer ? "you eat" : "fish eats fish")
@@ -2191,11 +2598,14 @@ final class GameScene: SKScene {
         let zoom = previousZoom + (self.zoom - previousZoom) * fraction
         let time = realClock + frameAccumulator
         let cameraX = presentationPose(player, fraction: fraction).position.x
-        let anchorX = size.width * T.playerScreenX
+        let anchorX = screenAnchorX
         renderJellies(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
         renderKelp(cameraX: cameraX, zoom: zoom, time: time)
+        renderHooks(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
+        renderCurrents(cameraX: cameraX, zoom: zoom, time: time)
         for f in fish {
-            guard let node = nodes[f.id], !stungFish.contains(where: { $0.id == f.id }) else { continue }
+            // A stung fish, or you on a hook, is drawn by its own animation.
+            guard let node = nodes[f.id], !stungFish.contains(where: { $0.id == f.id }), !(f.isPlayer && reel != nil) else { continue }
             let pose = presentationPose(f, fraction: fraction)
             let screenX = anchorX + world.delta(from: cameraX, to: pose.position.x) * zoom
             let margin = pose.radius * zoom * 3
@@ -2220,7 +2630,7 @@ final class GameScene: SKScene {
 
             let rawTilt = f.isPlayer
                 ? pose.velocity.dy * zoom / T.motion.maxRiseSpeed * T.motion.maxTilt
-                : pose.velocity.dy / level.aiVerticalSpeed * T.aiMaxTilt
+                : pose.velocity.dy / roamingVerticalSpeed * T.aiMaxTilt
             let facingSign: CGFloat = pose.facing >= 0 ? 1 : -1
             let tilt = rawTilt.clamped(-T.motion.maxTilt, T.motion.maxTilt) * facingSign
                 + pose.struggle * sin(time * 45) * 0.35
@@ -2244,6 +2654,12 @@ final class GameScene: SKScene {
                     light.xScale = 1 / lure.xScale
                     light.yScale = 1 / lure.yScale
                 }
+            }
+            if f.isPlayer, let wake {
+                // Off your tail in a fast current, from your face in a slow one, more the stronger it pushes.
+                let r = pose.radius * zoom, push = abs(currentPace - 1) / 0.35
+                wake.position = CGPoint(x: node.position.x + (currentPace > 1 ? -1.3 : 1.2) * r, y: node.position.y)
+                wake.particleBirthRate = push > 0.08 ? T.currentBubbles * min(1, push) : 0
             }
             if f.isPlayer, let headlamp {
                 // Strapped to your head, pointing where you're swimming: rising or falling fast swings it off the
@@ -2272,7 +2688,7 @@ final class GameScene: SKScene {
             let roll = ease(limp / T.stingRollSeconds)
             let shake = jolting ? CGPoint(x: sin(time * 97) * 2.5, y: cos(time * 83) * 2.5) : .zero
             let sink = limp * (22 + 18 * limp)
-            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: stung.position.x) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: stung.position.x) * zoom
             stung.node.position = CGPoint(x: x + shake.x,
                                           y: waterCenter + (stung.position.y - waterCenter) * zoom - sink + shake.y)
             stung.node.alpha = 1 - ease((elapsed - T.stingFadeStart) / (T.stingSeconds - T.stingFadeStart))
@@ -2312,13 +2728,16 @@ final class GameScene: SKScene {
         backgroundLayer.removeAllChildren()
         specks.removeAll()
         layoutHeadlamp()
+        layoutCurrents()
 
         let gradient = SKSpriteNode(texture: arcadeWorld.hasJellies
                                     ? ArcadeArt.bloomWater(night: level.jellies?.night == true)
-                                    : arcadeWorld == .kelpForest ? ArcadeArt.kelpWater() : WaterTextures.gradient())
+                                    : arcadeWorld == .kelpForest ? ArcadeArt.kelpWater()
+                                    : arcadeWorld == .sunsetCove ? ArcadeArt.sunsetWater() : WaterTextures.gradient())
         gradient.anchorPoint = .zero
         gradient.size = size
         backgroundLayer.addChild(gradient)
+        layoutSunset()
 
         let surface = SKSpriteNode(color: SKColor(white: 1, alpha: 0.22), size: CGSize(width: size.width, height: 2))
         surface.anchorPoint = .zero
@@ -2634,7 +3053,12 @@ final class GameScene: SKScene {
                     "minimumMeals": meeting?.minimumMeals ?? -1, "routes": meeting?.routes ?? 0,
                     "robustSlack": meeting?.robustSlack ?? -1, "danger": meeting?.danger ?? false]
         }
-        return ["name": plan.spec.name, "variation": plan.variation, "issues": plan.issues, "fish": fish]
+        var recorded: [String: Any] = ["name": plan.spec.name, "variation": plan.variation, "issues": plan.issues, "fish": fish]
+        if let hooks = plan.hooks {
+            recorded["hooks"] = hooks.map { ["motion": $0.motion.rawValue, "role": $0.role.rawValue, "passTime": $0.passTime,
+                                            "baitRadius": $0.baitRadius] as [String: Any] }
+        }
+        return recorded
     }
 
     private func recordRunSnapshot(force: Bool = false) {
@@ -2645,11 +3069,18 @@ final class GameScene: SKScene {
              "radius": f.radius, "targetRadius": f.targetRadius]
         }
         let jellyStates: [[String: Any]] = jellies.enumerated().map { ["id": $0.offset, "x": $0.element.position.x, "y": $0.element.position.y] }
-        runRecorder.snapshot(time: Double(realClock - recordingStartedAt), simulationTime: Double(simClock), fields: [
+        var fields: [String: Any] = [
             "phase": String(describing: phase), "holding": isHolding, "zoom": zoom, "timeScale": timeScale,
             "worldWidth": world.width, "screenWidth": size.width, "screenHeight": size.height,
             "cameraX": player.position.x, "forwardDistance": forwardDistance, "playerScreenX": T.playerScreenX, "waterCenter": waterCenter,
-            "waterBottom": waterBottom, "waterTop": waterTop, "fish": fishStates, "jellies": jellyStates], force: force)
+            "waterBottom": waterBottom, "waterTop": waterTop, "fish": fishStates, "jellies": jellyStates]
+        if !hookRigs.isEmpty {
+            fields["hooks"] = hookRigs.enumerated().map { index, rig -> [String: Any] in
+                let at = hookPosition(rig, time: simClock)
+                return ["id": index, "x": at.x, "y": at.y, "baitRadius": rig.hook.baitRadius, "motion": rig.hook.motion.rawValue]
+            }
+        }
+        runRecorder.snapshot(time: Double(realClock - recordingStartedAt), simulationTime: Double(simClock), fields: fields, force: force)
     }
 
     private func finishRunRecording(_ outcome: String, fields: [String: Any] = [:]) {
@@ -2685,7 +3116,7 @@ final class GameScene: SKScene {
                 simulationHolding = ArcadeSimulation.holding(.init(player: swimmer(player), fish: visible.map(swimmer),
                     bells: bells, width: world.width, screenWidth: size.width, zoom: zoom,
                     bottom: waterBottom, top: waterTop, speed: playerSpeed, bouncing: bounceRemaining > 0,
-                    bounceSpeed: T.jellyBounceSpeed), policy: policy)
+                    bounceSpeed: T.jellyBounceSpeed, hooks: botHooks), policy: policy)
                 nextDecision = simClock + max(T.simulationStep, policy == .collector ? 0.16 : (policy == .cautious ? 0.10 : 0.08))
             }
             advanceFrame(T.simulationStep)
@@ -2947,6 +3378,13 @@ final class GameScene: SKScene {
     func debugStartTutorial(at beat: ArcadeTutorial.Beat) {
         tutorialCheckpoint = beat
         resetGame(startPlaying: true)
+    }
+
+    /// How fast a current carries you `distance` into your run, at mid-water.
+    func debugCurrentSpeed(atForwardDistance distance: CGFloat) -> CGFloat { currentSpeed(atForwardDistance: distance, share: 0.5) }
+    /// Each current as last drawn: hidden, or where its band is on screen.
+    var debugCurrentBands: [CGRect?] {
+        currentPatches.map { $0.node.isHidden ? nil : CGRect(origin: $0.node.position, size: $0.band.size) }
     }
 
     func debugAdvance(seconds: CGFloat) {
@@ -3312,7 +3750,157 @@ extension GameScene {
         } ?? []
         return ArcadeSimulation.holding(.init(player: swimmer(player), fish: visible.map(swimmer), bells: bells,
             width: world.width, screenWidth: size.width, zoom: zoom, bottom: waterBottom, top: waterTop, speed: playerSpeed,
-            bouncing: bounceRemaining > 0, bounceSpeed: T.jellyBounceSpeed), policy: policy)
+            bouncing: bounceRemaining > 0, bounceSpeed: T.jellyBounceSpeed, hooks: botHooks), policy: policy)
+    }
+
+    /// The hooks within a screen of you, as the bots see them: the circle the bait and its bend catch you in, moving
+    /// as they are now.
+    var botHooks: [ArcadeSimulation.Swimmer] {
+        hookRigs.compactMap { rig in
+            // Where it really is, reeled up or not.
+            let now = hookPosition(rig, time: simClock), soon = hookPosition(rig, time: simClock + 0.05)
+            guard abs(world.delta(from: player.position.x, to: now.x)) < size.width / zoom else { return nil }
+            let bait = rig.hook.baitRadius
+            return .init(x: now.x, y: now.y - 0.1 * bait, vx: world.delta(from: now.x, to: soon.x) / 0.05, vy: (soon.y - now.y) / 0.05,
+                         radius: 1.15 * bait)
+        }
+    }
+
+    /// Plays a Sunset Cove level (or any planned level) along its reference route: it makes for each reference meal's
+    /// planned meeting height in turn, steering round hooks and bigger fish on the way, then, once the route's meals are
+    /// behind it, cleans up like the collector bot. Ends when it's won, lost, or `limit` seconds have passed.
+    /// `safeFromFish`: nothing can eat it (it passes through a bigger fish), so the run tests the hooks, not the bot.
+    func debugPlayReferenceRoute(limit: CGFloat = 90, safeFromFish: Bool = false,
+                                 onFrame: (() -> Void)? = nil) -> ArcadeSimulation.Result {
+        simulationHeadless = true
+        simulationEcologyProbe = false
+        simulationHolding = false
+        simulationSafeFromFish = safeFromFish
+        defer { simulationSafeFromFish = false }
+        resetGame(startPlaying: true)
+        guard let plan = level.meetingPlan else { return .init(outcome: "none", reason: "", seconds: 0, playerMeals: 0) }
+        let reference = Set(plan.fish.filter(\.referenceMeal).map(\.id))
+        let route = plan.predicted.filter { reference.contains($0.fishID) }.sorted { $0.time < $1.time }
+        // A straight swim from each meeting to the next, from where you start, as the planner lays the big fish clear of.
+        let stops = [(time: CGFloat(0), y: player.position.y)] + route.map { (time: CGFloat($0.time), y: CGFloat($0.y)) }
+        func wanted(at time: CGFloat) -> (y: CGFloat, weight: CGFloat) {
+            guard let after = stops.firstIndex(where: { $0.time > time }) else { return (stops.last!.y, 1) }
+            let a = stops[max(0, after - 1)], b = stops[after]
+            let y = a.y + (b.y - a.y) * ((time - a.time) / max(0.01, b.time - a.time)).clamped(0, 1)
+            // Being there at a meeting matters most.
+            return (y, min(time - a.time, b.time - time) < 0.06 ? 25 : 1)
+        }
+        var next = 0, nextDecision: CGFloat = 0
+        while phase == .playing && simClock < limit {
+            // Past a meal's meeting, or it's being eaten or gone: on to the next.
+            while next < route.count, CGFloat(route[next].time) < simClock - 0.2
+                    || (fishByID[route[next].fishID].map { $0.state != .swimming }
+                        ?? !waitingFish.contains { $0.id == route[next].fishID }) {
+                next += 1
+            }
+            if simClock >= nextDecision {
+                var observation = botObservation
+                if next < route.count {
+                    // On the route: its own meals are the way (a gate is edible by the time you reach it), bigger fish are
+                    // dodged only where they'd touch (so it threads a walled gate), and other meals are swum round, so
+                    // it grows exactly as the route was timed.
+                    let visible = fish.filter { !$0.isPlayer && $0.state == .swimming && !reference.contains($0.id)
+                        && abs(world.delta(from: player.position.x, to: $0.position.x)) < size.width * 0.8 / zoom }
+                    func swimmer(_ f: Fish) -> ArcadeSimulation.Swimmer {
+                        .init(x: f.position.x, y: f.position.y, vx: f.velocity.dx, vy: f.velocity.dy, radius: f.radius)
+                    }
+                    let yours = player.targetRadius
+                    let edible = { (f: Fish) in GameRules.playerEncounter(yours, f.radius) == .firstEatsSecond }
+                    // Safe from fish, it just bumps through them.
+                    observation.fish = safeFromFish ? [] : visible.filter { !edible($0) }.map(swimmer)
+                    observation.avoids = visible.filter(edible).map(swimmer)
+                    observation.threatMargin = 10
+                    observation.seeksFood = false
+                } else {
+                    // Cleaning up: after the nearest meal (only meals, safe from fish), giving hooks a wide berth.
+                    if safeFromFish {
+                        let yours = player.radius
+                        observation.fish = observation.fish.filter { GameRules.playerEncounter(yours, $0.radius) == .firstEatsSecond }
+                    }
+                    observation.hookMargin = 40
+                }
+                let now = simClock
+                simulationHolding = ArcadeSimulation.holding(observation, policy: .collector,
+                                                             path: next < route.count ? { wanted(at: now + $0) } : nil)
+                nextDecision = simClock + 0.05
+            }
+            advanceFrame(T.simulationStep)
+            onFrame?()
+        }
+        return .init(outcome: phase == .won ? "won" : (phase == .lost ? "lost" : "timeout"),
+                     reason: phase == .lost ? lossReason : "", seconds: Double(simClock), playerMeals: mealsEaten)
+    }
+
+    /// What the bots see now.
+    private var botObservation: ArcadeSimulation.Observation {
+        let visible = fish.filter { !$0.isPlayer && $0.state == .swimming &&
+            abs(world.delta(from: player.position.x, to: $0.position.x)) < size.width * 0.80 / zoom }
+        func swimmer(_ f: Fish) -> ArcadeSimulation.Swimmer {
+            .init(x: f.position.x, y: f.position.y, vx: f.velocity.dx, vy: f.velocity.dy, radius: f.radius)
+        }
+        return .init(player: swimmer(player), fish: visible.map(swimmer), bells: [], width: world.width,
+                     screenWidth: size.width, zoom: zoom, bottom: waterBottom, top: waterTop, speed: playerSpeed,
+                     bouncing: bounceRemaining > 0, bounceSpeed: T.jellyBounceSpeed, hooks: botHooks)
+    }
+
+    /// The other fish still swimming, and their sizes.
+    var debugRemaining: [(id: Int, radius: CGFloat)] {
+        fish.filter { !$0.isPlayer && $0.state != .removed }.map { ($0.id, $0.radius) }
+    }
+    /// Your meals this run: each fish's id, and when you bit it.
+    var debugMealLog: [(id: Int, time: CGFloat)] { mealLog }
+
+    /// The level's hooks, as planned.
+    var debugHooks: [PlannedHook] { hookRigs.map(\.hook) }
+    /// Why the last run was lost.
+    var debugLossReason: String { lossReason }
+    /// Whether you're being reeled up a hook's line.
+    var debugReeling: Bool { reel != nil }
+    /// Where hook `index` is now (wrapped world point).
+    func debugHookPosition(_ index: Int) -> CGPoint { hookPosition(hookRigs[index], time: simClock) }
+    /// When hook `index` went off the left of the screen behind you, if it has.
+    func debugHookPassedAt(_ index: Int) -> CGFloat? { hookRigs[index].passedAt }
+    /// How far up the water hook `index`'s bait hangs now, as on screen: 0 the bottom, 1 the top.
+    func debugHookDepthShare(_ index: Int) -> CGFloat { waterShare(debugHookPosition(index).y) }
+    /// How wide each hook line on show was drawn across the screen (points).
+    var debugHookLineWidths: [CGFloat] {
+        hookRigs.filter { !$0.line.isHidden }.compactMap { $0.line.path?.boundingBoxOfPath.width }
+    }
+
+    /// Puts your fish on hook `index` (its bait's center, its bend under the bait, or its line well above the hook), as
+    /// big as it is now, and checks the hooks. Returns whether you were caught.
+    func debugTouchHook(_ index: Int, at part: HookPart) -> Bool {
+        let hook = hookRigs[index].hook, at = hookPosition(hookRigs[index], time: simClock), bait = hook.baitRadius
+        player.position = switch part {
+        case .bait: at
+        case .bend: CGPoint(x: world.wrap(at.x + HookRules.bend.x * bait), y: at.y + HookRules.bend.y * bait)
+        case .line: CGPoint(x: at.x, y: at.y + HookMetal.eye * bait + player.radius + 30)
+        }
+        updateHooks()
+        return phase == .lost && reel != nil
+    }
+    enum HookPart { case bait, bend, line }
+
+    /// Holds a fish you haven't eaten on hook `index`'s bait for `seconds` of play (you far off and untouchable), and
+    /// returns whether it's still swimming and the hook still baited.
+    func debugFishPassesHook(_ index: Int, seconds: CGFloat = 1) -> Bool {
+        guard let other = fish.first(where: { !$0.isPlayer && $0.isAlive }) else { return false }
+        let rig = hookRigs[index]
+        player.position.x = world.wrap(hookPosition(rig, time: simClock).x + world.width / 2)
+        simulationEcologyProbe = true
+        defer { simulationEcologyProbe = false }
+        let steps = Int((seconds / T.simulationStep).rounded())
+        for _ in 0..<steps {
+            other.position = hookPosition(rig, time: simClock)
+            simulate(T.simulationStep)
+            guard other.isAlive, fishByID[other.id] != nil else { return false }
+        }
+        return other.isAlive && fishByID[other.id] != nil && phase == .playing && reel == nil
     }
 
     /// The level from the start, playing at once, as a first touch starts it.

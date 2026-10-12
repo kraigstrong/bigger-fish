@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import SpriteKit
 import Testing
 @testable import BiggerFish
 
@@ -197,9 +198,80 @@ struct MeetingPlannerTests {
             let played = (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }!
             #expect(plans[level].fish == played.fish && plans[level].seed == played.seed, "\(trial)")
         }
-        // World four: unlocked by beating Kelp Forest's level 10.
-        #expect(ArcadeWorld.campaign.last == .midnightZone && ArcadeWorld.kelpForest.nextWorld == .midnightZone)
+        // The last of 1.0's five worlds, after Sunset Cove.
+        #expect(ArcadeWorld.campaign.last == .midnightZone && ArcadeWorld.sunsetCove.nextWorld == .midnightZone)
         #expect(GameTuning.midnightFrozen == Set(GameTuning.midnightSpecs.map(\.name)))
+    }
+
+    /// Riptide Reef's currents run the full height of the water, each carrying you forward, over stretches of
+    /// the lap among the level's fish.
+    @MainActor @Test func riptideReefCurrentsRunFullHeightAmongTheFish() {
+        #expect(ArcadeWorld.prototypes.contains(.riptideReef) && !ArcadeWorld.campaign.contains(.riptideReef))
+        for (index, level) in ArcadeWorld.riptideReef.levels.enumerated() {
+            let plan = level.meetingPlan!, currents = plan.currents ?? [], name = plan.spec.name
+            #expect(plan.issues.isEmpty, "\(name): \(plan.issues)")
+            #expect(currents.map(\.speed) == GameTuning.riptideCurrents[index], "\(name)")
+            #expect(currents.allSatisfy { $0.speed > 1 && $0.low == 0 && $0.high == 1 && $0.start < $0.end }, "\(name)")
+            #expect(zip(currents, currents.dropFirst()).allSatisfy { $0.end < $1.start }, "\(name): currents overlap")
+            for (number, current) in currents.enumerated() {
+                let meetings = plan.predicted.filter { (current.start...current.end).contains(CGFloat($0.distance)) }.count
+                #expect(meetings >= 2, "\(name) current \(number + 1) has \(meetings) fish in it")
+            }
+        }
+    }
+
+    /// Riptide Reef's levels are planned with their currents, so every meal on the route is there to eat however fast
+    /// a current carries you to it (planned without them, a route meal could be out of reach in a current, and the fish
+    /// it was to grow you past made a wall, as Kraig found in level 3). A bot on the route, with nothing able to eat
+    /// it, eats every meal on it; the route's timing is when you really get there, currents and all.
+    @MainActor @Test(arguments: [0, 1, 2]) func riptideReefRoutesStayOpenInTheCurrents(_ index: Int) {
+        let scene = GameScene(world: .riptideReef, levelIndex: index, showsJellyLesson: false)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        defer { withExtendedLifetime(view) {} }
+        let plan = scene.debugMeetingPlan!
+        let result = scene.debugPlayReferenceRoute(safeFromFish: true)
+        let route = Set(plan.fish.filter(\.referenceMeal).map(\.id)), eaten = Set(scene.debugMealLog.map(\.id))
+        #expect(route.isSubset(of: eaten), "Riptide Reef \(index + 1) missed \(route.subtracting(eaten).sorted()): \(result)")
+    }
+
+    /// A current is a place on the lap, there every time round: for your pace on any lap, and on screen it moves with the
+    /// water, so it leaves off the left, never vanishing in the middle (once, at the end of the first lap, one peeked in
+    /// and vanished). A full-height one fills the water from the bottom of the screen to the top (it once stopped a few
+    /// points short).
+    @MainActor @Test func riptideReefCurrentsStayPutEveryLapAndFillTheWater() {
+        for index in 0..<ArcadeWorld.riptideReef.levelCount {
+            let scene = GameScene(world: .riptideReef, levelIndex: index, showsJellyLesson: false)
+            let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+            view.ignoresSiblingOrder = true
+            view.presentScene(scene)
+            defer { withExtendedLifetime(view) {} }
+            let name = "Riptide Reef \(index + 1)", plan = scene.debugMeetingPlan!, currents = plan.currents ?? []
+            let lap = GameTuning.playfieldSize.width * CGFloat(plan.spec.worldScreens)
+            for current in currents {
+                for laps in 0..<3 {
+                    let at = current.start + 1 + lap * CGFloat(laps)
+                    #expect(scene.debugCurrentSpeed(atForwardDistance: at) == current.speed, "\(name): no current on lap \(laps + 1)")
+                }
+            }
+            var gone = Array(repeating: false, count: currents.count), vanished: [CGRect] = [], short: [CGRect] = []
+            var last: [CGRect?] = Array(repeating: nil, count: currents.count)
+            _ = scene.debugPlayReferenceRoute(limit: 30, safeFromFish: true) {
+                scene.debugRender()
+                for (number, band) in scene.debugCurrentBands.enumerated() {
+                    if let band {
+                        if band.minY != 0 || band.maxY != scene.size.height { short.append(band) }
+                    } else if let was = last[number] {
+                        // Off the left, or just a sliver at the right edge as your fish surges ahead.
+                        if was.maxX < 30 { gone[number] = true } else if was.minX < scene.size.width - 30 { vanished.append(was) }
+                    }
+                    last[number] = band
+                }
+            }
+            #expect(currents.count >= 2 && gone.allSatisfy { $0 }, "\(name): not every current came and went (\(gone))")
+            #expect(vanished.isEmpty, "\(name): a current vanished on screen at \(vanished.first.map { "\(Int($0.minX))" } ?? "")")
+            #expect(short.isEmpty, "\(name): a band from \(short.first?.minY ?? 0) to \(short.first?.maxY ?? 0)")
+        }
     }
 
     @Test func bundledMidnightPlansMatchTheSpecs() throws {

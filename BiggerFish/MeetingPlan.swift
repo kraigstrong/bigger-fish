@@ -76,6 +76,18 @@ struct MeetingSpec: Codable, Equatable {
     var jellies: JellySpec? = nil
     /// Kelp Forest's kelp: it slows you, so the plan allows for slower rising and falling everywhere.
     var kelp: KelpSpec? = nil
+    /// Sunset Cove's baited hooks, hung from boats around the meetings. Optional so older plans decode.
+    var hooks: HookSpec? = nil
+    /// Riptide Reef's currents, set in seconds among the meetings. The plan reckons with them, so a level keeps its
+    /// rhythm in seconds, you just cover more water in a current. Optional so older specs decode.
+    var currents: CurrentSpec? = nil
+    /// Riptide Reef: calm stretches held open among the meetings for its current scenarios, each after this many
+    /// meals (moved past a fork's lanes) and this many seconds long. Optional so older specs decode.
+    var pauses: [Pause]? = nil
+    struct Pause: Codable, Equatable {
+        var afterMeal: Int
+        var seconds: Double
+    }
     /// You're in kelp for about its share of any swim.
     var reachScale: CGFloat { kelp.map { 1 - CGFloat($0.coverage) * (1 - GameTuning.kelpDrag) } ?? 1 }
 }
@@ -141,42 +153,94 @@ struct PlannedFish: Codable, Equatable {
 /// and settling, or swimming away before turning toward you. Every path ends exactly at the meeting, then
 /// carries straight on.
 struct Approach: Codable, Equatable {
-    enum Style: String, Codable { case straight, glide, weave, turn }
+    enum Style: String, Codable { case straight, glide, weave, turn, flee, dive, shut }
     var style: Style
     /// Where you meet it (world point) and the seconds from appearing to then.
     var meeting: CGPoint
     var seconds: CGFloat
     /// Glide: how far above (+) or below its meeting height it appears. Weave: how far it strays either way.
+    /// Shut: how far above (+) or below its meeting height it waits.
     var height: CGFloat = 0
     /// Weave: how many sways it makes, settling as it reaches you.
     var waves: CGFloat = 0
     var phase: CGFloat = 0
     /// Turn: it swims away from you at this speed, then turns toward you this many seconds before the meeting.
+    /// Flee: the reverse, swimming at you, then turning to flee at `awaySpeed` (`turnBefore` negative: after it).
+    /// Shut: it waits `height` away, then slides steadily to its meeting height over the `turnBefore` seconds before
+    /// the meeting, and stays there.
     var awaySpeed: CGFloat = 0
     var turnBefore: CGFloat = 0
+    /// Dive: how fast it sinks (negative) or rises, passing its meeting height at the meeting. Optional so older
+    /// plans decode.
+    var climb: CGFloat? = nil
 
     /// Its offset from the meeting point `time` seconds after appearing, for a fish meeting you at `speed`
     /// going `heading` (-1: toward you).
     func offset(at time: CGFloat, heading: CGFloat, speed: CGFloat) -> CGVector {
-        CGVector(dx: Self.dx(beforeMeeting: seconds - time, style: style, heading: heading, speed: speed,
-                             awaySpeed: awaySpeed, turnBefore: turnBefore),
-                 dy: dy(progress: min(1, max(0, time / max(seconds, 0.001)))))
+        let dy: CGFloat = switch style {
+        case .dive: (climb ?? 0) * (time - seconds)
+        case .shut: height * min(1, max(0, (seconds - time) / max(turnBefore, 0.001)))
+        default: dy(progress: min(1, max(0, time / max(seconds, 0.001))))
+        }
+        return CGVector(dx: Self.dx(beforeMeeting: seconds - time, style: style, heading: heading, speed: speed,
+                                    awaySpeed: awaySpeed, turnBefore: turnBefore), dy: dy)
     }
 
     /// Horizontal offset `remaining` seconds before the meeting (negative: after it). It depends only on
     /// the time left, so the planner can find where a fish must appear before knowing its whole path.
     static func dx(beforeMeeting remaining: CGFloat, style: Style, heading: CGFloat, speed: CGFloat,
                    awaySpeed: CGFloat, turnBefore: CGFloat) -> CGFloat {
+        if style == .flee, remaining < turnBefore {
+            // Swam at you until `-turnBefore` seconds after the meeting, then away at `awaySpeed`.
+            return -heading * speed * turnBefore + heading * awaySpeed * (remaining - turnBefore)
+        }
         guard style == .turn, remaining > turnBefore else { return -heading * speed * remaining }
         return -heading * speed * turnBefore + heading * awaySpeed * (remaining - turnBefore)
     }
 
     private func dy(progress u: CGFloat) -> CGFloat {
         switch style {
-        case .straight, .turn: 0
+        case .straight, .turn, .flee, .dive, .shut: 0
         case .glide: height * (1 - u * u * (3 - 2 * u))
         case .weave: height * sin(2 * .pi * waves * u + phase) * (1 - u) * (1 - u)
         }
+    }
+}
+
+/// A level's Riptide Reef currents, set in seconds of play: after `calmStart`, the time to your last meeting is split
+/// evenly, a slot per current, each current up to `seconds` long in the middle of its slot with at least `calmBetween`
+/// of calm water between it and the next. `speeds` (times your pace) are in order along the lap. All run the full
+/// height of the water, so where you are in one depends only on how far you've come.
+struct CurrentSpec: Codable, Equatable {
+    var speeds: [Double]
+    var seconds: Double
+    var calmStart: Double
+    var calmBetween: Double
+
+    /// Each current's start and end (seconds into the run) and speed, for meetings until `last`; nil if they don't fit.
+    func windows(meetingsUntil last: CGFloat) -> [(start: CGFloat, end: CGFloat, speed: CGFloat)]? {
+        let slot = (last - CGFloat(calmStart)) / CGFloat(max(1, speeds.count))
+        let length = min(CGFloat(seconds), slot - CGFloat(calmBetween))
+        guard length >= CGFloat(seconds) / 2 else { return nil }
+        return speeds.enumerated().map { index, speed in
+            let middle = CGFloat(calmStart) + slot * (CGFloat(index) + 0.5)
+            return (middle - length / 2, middle + length / 2, CGFloat(speed))
+        }
+    }
+}
+
+/// A Riptide Reef current: a stretch of the lap, `start` to `end` of your forward distance, over a band of the
+/// water (`low` to `high`, 0 its bottom and 1 its top as on screen), where you swim at `speed` times your pace
+/// and small fish are swept along.
+struct PlannedCurrent: Codable, Equatable {
+    var start: CGFloat
+    var end: CGFloat
+    var low: CGFloat
+    var high: CGFloat
+    var speed: CGFloat
+
+    func contains(distance: CGFloat, share: CGFloat) -> Bool {
+        (start...end).contains(distance) && (low...high).contains(share)
     }
 }
 
@@ -245,6 +309,10 @@ struct MeetingPlan: Codable {
     var jellies: [PlannedJelly]? = nil
     /// Kelp Forest's kelp columns.
     var kelp: [PlannedKelp]? = nil
+    /// Sunset Cove's hooks, soonest passed first.
+    var hooks: [PlannedHook]? = nil
+    /// Riptide Reef's currents.
+    var currents: [PlannedCurrent]? = nil
 
     var level: Level {
         var level = Level(aiSpeedRange: CGFloat(spec.aiSpeed.lowerBound)...CGFloat(spec.aiSpeed.upperBound),
@@ -263,7 +331,8 @@ struct MeetingPlan: Codable {
     var jellyPasses: [JellyPass] {
         guard let jellySpec = spec.jellies, let jellies, !jellies.isEmpty else { return [] }
         let timeline = PlayerTimeline.reference(meals: fish.filter(\.referenceMeal).map { ($0.meetingDistance, $0.radius) },
-            crossSeconds: CGFloat(spec.crossSeconds), until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05)
+            crossSeconds: CGFloat(spec.crossSeconds), until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05,
+            currents: currents ?? [], lap: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens))
         return MeetingPlanner.jellyPasses(jellies, spec: jellySpec, crossSeconds: CGFloat(spec.crossSeconds),
             worldWidth: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens), timeline: timeline)
     }
@@ -286,7 +355,8 @@ struct MeetingPlan: Codable {
     func radii(eating meals: Set<Int>) -> [CGFloat] {
         PlayerTimeline.reference(meals: fish.filter { meals.contains($0.id) }.map { ($0.meetingDistance, $0.radius) },
             crossSeconds: CGFloat(spec.crossSeconds),
-            until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05).radius
+            until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05, currents: currents ?? [],
+            lap: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens)).radius
     }
 
     /// Player radius after each simulation step on the route the meetings were timed against, for ghost checks.
@@ -350,7 +420,8 @@ enum MeetingPlanner {
         for id in GameTuning.kelpSwimsAtYou[spec.name] ?? [] where meetings.indices.contains(id - 1) {
             meetings[id - 1].headOn = true
         }
-        for (id, radius) in GameTuning.kelpFishRadius[spec.name] ?? GameTuning.midnightFishRadius[spec.name] ?? [:]
+        for (id, radius) in GameTuning.kelpFishRadius[spec.name] ?? GameTuning.midnightFishRadius[spec.name]
+            ?? GameTuning.sunsetFishRadius[spec.name] ?? [:]
             where meetings.indices.contains(id - 1) {
             meetings[id - 1].size = radius / GameTuning.baseRadius
         }
@@ -362,9 +433,11 @@ enum MeetingPlanner {
         let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: [], reachScale: spec.reachScale)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
             predicted: solved.crossings, analysis: analysis, issues: [])
+        let hooks = spec.hooks.map { HookLayout.place($0, fish: solved.fish, crossings: solved.crossings,
+                                                      timeline: design.timeline, seed: seed) }
         return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
-            analysis: analysis, issues: design.issues + check(unchecked),
-            kelp: KelpLayout.columns(spec, seed: seed))
+            analysis: analysis, issues: design.issues + check(unchecked) + (hooks?.issues ?? []),
+            kelp: KelpLayout.columns(spec, seed: seed), hooks: hooks?.hooks, currents: design.currents.isEmpty ? nil : design.currents)
     }
 
     /// How far off plan a plan's fish are, in total ("fish 4 is off its plan (score 21)" counts 21).
@@ -514,21 +587,28 @@ struct PlayerTimeline {
     }
 
     /// Meals start when the player reaches each fish (sorted by distance) and complete like real swallows.
-    static func reference(meals: [(distance: CGFloat, radius: CGFloat)], crossSeconds: CGFloat, until end: CGFloat) -> PlayerTimeline {
+    /// `currents` (full height) speed you up where they run on each `lap`, eased as GameScene eases them.
+    static func reference(meals: [(distance: CGFloat, radius: CGFloat)], crossSeconds: CGFloat, until end: CGFloat,
+                          currents: [PlannedCurrent] = [], lap: CGFloat = .infinity) -> PlayerTimeline {
         typealias T = GameTuning
         let dt = T.simulationStep
         let meals = meals.sorted { $0.distance < $1.distance }
         var timeline = PlayerTimeline()
-        var zoom: CGFloat = 1, covered: CGFloat = 0
+        var zoom: CGFloat = 1, covered: CGFloat = 0, pace: CGFloat = 1
         var radius = T.baseRadius, target = radius, growFrom = radius
         var growElapsed = CGFloat.greatestFiniteMagnitude
         var swallow: (elapsed: CGFloat, duration: CGFloat, prey: CGFloat)?
         var next = 0
         while covered < end {
+            if !currents.isEmpty {
+                let place = covered.truncatingRemainder(dividingBy: lap)
+                let target = currents.first { ($0.start...$0.end).contains(place) }?.speed ?? 1
+                pace += (target - pace) * min(1, dt * T.currentEase)
+            }
             let growth = radius / (T.baseRadius * T.zoomStartSize)
             let targetZoom = growth > 1 ? max(T.minZoom, pow(1 / growth, T.zoomExponent)) : 1
             zoom += (targetZoom - zoom) * min(1, dt * T.zoomEase)
-            covered += T.playfieldSize.width / crossSeconds / zoom * dt
+            covered += T.playfieldSize.width / crossSeconds / zoom * pace * dt
             if var current = swallow {
                 current.elapsed += dt
                 if min(1, current.elapsed / current.duration) >= 1 {
@@ -610,7 +690,8 @@ enum MeetingDesigner {
     typealias T = GameTuning
 
     static func design(_ spec: MeetingSpec, seed: UInt64)
-        -> (meetings: [DesignedMeeting], timeline: PlayerTimeline, jellies: [PlannedJelly], issues: [String]) {
+        -> (meetings: [DesignedMeeting], timeline: PlayerTimeline, jellies: [PlannedJelly], currents: [PlannedCurrent],
+            issues: [String]) {
         var rng = SeededGenerator(seed: seed)
         var issues: [String] = []
         var meetings = sizedMeetings(spec, rng: &rng, issues: &issues)
@@ -626,6 +707,10 @@ enum MeetingDesigner {
         times = order.map { times[$0] }
         var timeline = PlayerTimeline()
         let lastDistance = (CGFloat(spec.worldScreens) - T.plannerLastMeetingMargin) * T.playfieldSize.width
+        // Riptide Reef's currents are set in seconds; each sits wherever you are by then, which the currents before it
+        // move on. Settled over the passes, with the distances.
+        var currents: [PlannedCurrent] = []
+        var currentsFit = true
         for _ in 0..<6 {
             for i in meetings.indices {
                 let step = Int((times[i] / T.simulationStep).rounded())
@@ -633,9 +718,20 @@ enum MeetingDesigner {
                     ? timeline.distance[min(step, timeline.lastStep)]
                     : times[i] * T.playfieldSize.width / CGFloat(spec.crossSeconds)
             }
+            if let currentSpec = spec.currents, timeline.lastStep > 0 {
+                let windows = currentSpec.windows(meetingsUntil: times.max() ?? 0)
+                currentsFit = windows != nil
+                currents = (windows ?? []).map { window in
+                    func distance(_ time: CGFloat) -> CGFloat {
+                        timeline.distance[min(timeline.lastStep, Int((time / T.simulationStep).rounded()))]
+                    }
+                    return PlannedCurrent(start: distance(window.start), end: distance(window.end), low: 0, high: 1, speed: window.speed)
+                }
+            }
             timeline = PlayerTimeline.reference(
                 meals: meetings.filter(\.onReferenceRoute).map { ($0.distance, $0.size * T.baseRadius) },
-                crossSeconds: CGFloat(spec.crossSeconds), until: T.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05)
+                crossSeconds: CGFloat(spec.crossSeconds), until: T.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05,
+                currents: currents, lap: T.playfieldSize.width * CGFloat(spec.worldScreens))
             // Squeeze the lap's meetings into its first pass if they run long.
             let lastTime = CGFloat(timeline.step(reaching: lastDistance)) * T.simulationStep * 0.99
             if let first = times.first, let last = times.last, last > lastTime {
@@ -644,6 +740,9 @@ enum MeetingDesigner {
         }
         if let last = meetings.last, last.distance > lastDistance + 1 {
             issues.append("meetings overflow the lap")
+        }
+        if let currentSpec = spec.currents, !currentsFit {
+            issues.append("no room for \(currentSpec.speeds.count) currents")
         }
         if let jellies = spec.jellies {
             // A gate that takes a tentacle wall loses its upper wall fish.
@@ -654,7 +753,7 @@ enum MeetingDesigner {
         layHeights(&meetings, times: times, spec: spec, timeline: timeline, rng: &rng, issues: &issues)
         let jellies = spec.jellies.map { placeJellies(meetings, times: times, spec: spec, jellySpec: $0, timeline: timeline,
                                                       rng: &rng, issues: &issues) } ?? []
-        return (meetings, timeline, jellies, issues)
+        return (meetings, timeline, jellies, currents, issues)
     }
 
     /// Sizes on the fewest-meal route: whichever lanes you take, any `needed` meals of a segment make
@@ -936,9 +1035,12 @@ enum MeetingDesigner {
         var times = Array(repeating: CGFloat(0), count: meetings.count)
         var cursor = T.plannerFirstMeetingScreens * screen
         var previous: DesignedMeeting?
+        // Riptide Reef's pauses, held after their meal and taken at the next gap that isn't inside a fork.
+        var placed = 0, pending: CGFloat = 0
+        let pauses = Dictionary((spec.pauses ?? []).map { ($0.afterMeal, CGFloat($0.seconds)) }, uniquingKeysWith: +)
         for i in meetings.indices where meetings[i].role != .threat {
             let meal = meetings[i]
-            defer { previous = meal }
+            defer { previous = meal; pending += pauses[placed] ?? 0; placed += 1 }
             guard let last = previous else { times[i] = cursor; continue }
             // A bounce meal comes a moment after the pocket it climbs from.
             if let from = meal.bounceFrom, let pocket = meetings.firstIndex(where: { $0.key == from }) {
@@ -953,7 +1055,8 @@ enum MeetingDesigner {
             } else {
                 var gap = meal.fork != nil || last.fork != nil ? spacing * T.plannerForkLead : spacing
                 if last.role == .gate { gap = max(gap, T.plannerGateRecoverySeconds) }
-                cursor += gap
+                cursor += gap + pending
+                pending = 0
             }
             times[i] = cursor
         }
@@ -965,6 +1068,9 @@ enum MeetingDesigner {
                 let before = meetings[..<i].lastIndex { $0.role != .threat }
                 let after = meetings[(i + 1)...].firstIndex { $0.role != .threat }
                 times[i] = switch (before, after) {
+                // Not into a pause: beside the meal before it instead.
+                case let (before?, after?) where spec.pauses != nil && times[after] - times[before] > 3 * spacing:
+                    times[before] + spacing / 2
                 case let (before?, after?): (times[before] + times[after]) / 2
                 case let (before?, nil): times[before] + spacing / 2
                 case let (nil, after?): max(0, times[after] - spacing / 2)
@@ -1760,7 +1866,7 @@ extension MeetingSolver {
         let gentle: CGFloat = big ? T.kelpBigFishApproachShare : 1
         var approach = Approach(style: style, meeting: meetingPoint, seconds: 0)
         switch style {
-        case .straight: break
+        case .straight, .flee, .dive, .shut: break
         case .glide:
             approach.height = CGFloat.random(in: T.kelpGlideHeight, using: &rng) * gentle / zoom
                 * (Bool.random(using: &rng) ? 1 : -1)

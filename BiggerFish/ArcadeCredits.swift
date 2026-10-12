@@ -1,7 +1,7 @@
 import Foundation
 
-/// The credits game's names (`Credits.json`), grouped under headings in the order they swim in: design, the
-/// play-testers, then the music, then the sound effects. Adding someone means adding them to the file, not code. The music and sound
+/// The credits game's names (`Credits.json`), grouped under headings in the order they swim in: design, level design,
+/// the play-testers, then the music, then the sound effects. Adding someone means adding them to the file, not code. The music and sound
 /// credits mirror `Sounds/CREDITS.md`, and a test keeps the two in step.
 struct ArcadeCredits: Decodable, Equatable {
     struct Group: Decodable, Equatable {
