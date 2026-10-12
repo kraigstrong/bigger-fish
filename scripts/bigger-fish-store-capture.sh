@@ -38,7 +38,7 @@ else
 fi
 BUNDLE=com.kraigstrong.biggerfish
 # The listing's order: the game, each world's idea, then where it goes (kraigstrong/bigger-fish#142).
-MOMENTS=(eat dodge missed jelly-tops kelp-shadows midnight-light conquered deep-end)
+MOMENTS=(eat dodge missed jelly-tops kelp-shadows sunset-hooks midnight-light conquered deep-end)
 
 usage() { sed -n '2,7p' "$0"; exit 1; }
 

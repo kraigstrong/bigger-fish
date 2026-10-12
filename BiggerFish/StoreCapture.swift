@@ -24,6 +24,8 @@ enum StoreCapture {
         case jellyTops = "jelly-tops"
         /// Fish hiding in the kelp, drawn as dark shapes.
         case kelpShadows = "kelp-shadows"
+        /// A baited hook hanging ahead of you, its boat at the surface above it.
+        case sunsetHooks = "sunset-hooks"
         /// Your headlamp in the dark, lures glowing all around.
         case midnightLight = "midnight-light"
         /// Shallow Reef's map once it's conquered: every level's pip filled in, and the crown.
@@ -40,6 +42,7 @@ enum StoreCapture {
             case .missed: (.shallowReef, 9)
             case .jellyTops: (.jellyBloom, 1)
             case .kelpShadows: (.kelpForest, 7)
+            case .sunsetHooks: (.sunsetCove, 6)
             case .midnightLight: (.midnightZone, 4)
             case .conquered, .deepEnd: nil
             }
@@ -118,6 +121,12 @@ enum StoreCapture {
         var shade: CGFloat = 0
     }
 
+    /// A Sunset Cove hook, in screen points: where its bait hangs, and where its line meets the boat's rod at the surface.
+    struct Hook: Equatable {
+        let bait: CGPoint
+        let rodX: CGFloat
+    }
+
     /// The scene at one step of a run, in screen points.
     struct SceneView {
         var size = GameTuning.playfieldSize
@@ -135,6 +144,8 @@ enum StoreCapture {
         var jellyRadius: CGFloat = 0
         /// When your fish last bounced off a jellyfish's top, in run seconds.
         var lastBounce: CGFloat? = nil
+        /// Sunset Cove's hooks you haven't passed yet.
+        var hooks: [Hook] = []
 
         /// Wholly on screen, `margin` points clear of every edge, tail and all.
         func shows(_ fish: Swimmer, margin: CGFloat = 16) -> Bool {
@@ -229,6 +240,18 @@ enum StoreCapture {
             guard !lit.isEmpty, shown.count >= 3 else { return nil }
             return Double(min(lit.count, 3)) * 25 + Double(min(shown.count, 7)) * 6
                 - Double(abs(tilt)) * 40 - Double(view.playerOffCenter) * 20 - edges
+        case .sunsetHooks:
+            // A hook hanging well below its boat a little way ahead of you, the boat on screen, and fish about.
+            guard player.prey == nil, shown.count >= 2, view.playerOffCenter <= 0.6 else { return nil }
+            return view.hooks.compactMap { hook -> Double? in
+                let width = view.size.width, height = view.size.height
+                guard hook.bait.x > player.center.x + player.radius * 3, hook.bait.x < width * 0.85,
+                      hook.rodX > width * 0.3, hook.rodX < width * 0.95,
+                      hook.bait.y > height * 0.2, hook.bait.y < height * 0.65 else { return nil }
+                let centered = abs(hook.bait.x - width * 0.6) / width
+                return 50 + Double(min(shown.count, 6)) * 6 - Double(centered) * 40
+                    - Double(view.playerOffCenter) * 20 - edges
+            }.max()
         case .conquered, .deepEnd:
             return nil
         }

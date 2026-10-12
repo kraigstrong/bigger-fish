@@ -13,7 +13,8 @@ struct StoreCaptureTests {
 
     @Test func momentsTellTheGameInTheListingsOrder() throws {
         #expect(StoreCapture.Moment.allCases.map(\.rawValue)
-                == ["eat", "dodge", "missed", "jelly-tops", "kelp-shadows", "midnight-light", "conquered", "deep-end"])
+                == ["eat", "dodge", "missed", "jelly-tops", "kelp-shadows", "sunset-hooks", "midnight-light", "conquered",
+                    "deep-end"])
         // The script captures the same moments, in the same order.
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let script = try String(contentsOf: root.appendingPathComponent("scripts/bigger-fish-store-capture.sh"), encoding: .utf8)
@@ -32,7 +33,7 @@ struct StoreCaptureTests {
 
     @Test func eachMomentPlaysAWorldsOwnLevelOrShowsAScreen() throws {
         let worlds: [StoreCapture.Moment: ArcadeWorld] = [.eat: .shallowReef, .dodge: .shallowReef, .missed: .shallowReef,
-            .jellyTops: .jellyBloom, .kelpShadows: .kelpForest, .midnightLight: .midnightZone]
+            .jellyTops: .jellyBloom, .kelpShadows: .kelpForest, .sunsetHooks: .sunsetCove, .midnightLight: .midnightZone]
         for moment in StoreCapture.Moment.allCases {
             if let world = worlds[moment] {
                 let level = try #require(moment.level)
@@ -121,6 +122,22 @@ struct StoreCaptureTests {
         }
         #expect(score(shade: 1) != nil)
         #expect(score(shade: 0) == nil)
+    }
+
+    @Test func sunsetHooksHangAheadUnderTheirBoat() {
+        let around = [Swimmer(id: 1, center: CGPoint(x: 450, y: 90), radius: 12),
+                      Swimmer(id: 2, center: CGPoint(x: 700, y: 300), radius: 25)]
+        func score(bait: CGPoint, rodX: CGFloat = 600) -> Double? {
+            StoreCapture.score(.sunsetHooks, StoreCapture.SceneView(player: player, fish: around,
+                hooks: [StoreCapture.Hook(bait: bait, rodX: rodX)]))
+        }
+        #expect(score(bait: CGPoint(x: 520, y: 200)) != nil)
+        // Behind you, or right at the surface.
+        #expect(score(bait: CGPoint(x: 200, y: 200)) == nil)
+        #expect(score(bait: CGPoint(x: 520, y: 380)) == nil)
+        // Its boat off the edge of the screen.
+        #expect(score(bait: CGPoint(x: 520, y: 200), rodX: 900) == nil)
+        #expect(StoreCapture.score(.sunsetHooks, StoreCapture.SceneView(player: player, fish: around)) == nil)
     }
 
     @Test func midnightLightIsAFishInYourBeam() {

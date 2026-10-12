@@ -3734,7 +3734,13 @@ extension GameScene {
                                       player: swimmer(player), rising: player.velocity.dy * zoom,
                                       fish: fish.filter { !$0.isPlayer && $0.state != .removed }.map(swimmer),
                                       jellies: jellies.map { screen($0.position) }, jellyRadius: (level.jellies?.radius ?? 0) * zoom,
-                                      lastBounce: debugBounces.last { $0.fishID == player.id }?.time)
+                                      lastBounce: debugBounces.last { $0.fishID == player.id }?.time,
+                                      hooks: hookRigs.filter { $0.passedAt == nil }.map { rig in
+                                          // Its rod measured from its own hook, as `renderHooks` draws it.
+                                          let bait = screen(hookPosition(rig, time: simClock))
+                                          let rod = HookMotion.rodX(rig.hook, time: simClock) - HookMotion.position(rig.hook, time: simClock).x
+                                          return StoreCapture.Hook(bait: bait, rodX: bait.x + rod * zoom)
+                                      })
     }
 
     /// The diagnostics bot's call on the scene as it stands, seeing what it sees in `debugSimulate`.
