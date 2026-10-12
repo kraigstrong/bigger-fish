@@ -800,8 +800,15 @@ enum GameTuning {
         HookSpec(still: 1, bobbing: 2, trolling: 3, gate: true, besideMeals: 3, nearLanes: 5, baitSize: 0.78, clearance: 18),
     ]
     /// Levels re-rolled to another layout of the same settings, fish and hooks both (`MeetingPlanner.kelpPlan`'s
-    /// variation): one line to try another.
-    static let sunsetRerolls: [String: Int] = [:]
+    /// variation): one line to try another. Sunset Cove 10 is pinned to the layout Kraig loves ("might be my favorite
+    /// level yet... it's near perfection"), so its fish tweaks below can't pick another.
+    static let sunsetRerolls: [String: Int] = ["Sunset Cove 10": 9]
+    /// Fish made a different size by hand. In Sunset Cove 10 the two giants ate the medium fish meant for your lap
+    /// two in every one of Kraig's 52 runs (10 ate 6 and 11, 16 ate 15), finishing at 76.9 and 75.8, just over the
+    /// 74.5 a run that eats everything reaches; his one run through ate a spare fish. They start smaller, so after
+    /// those meals they're the sizes the level was designed for (70.3, 69): giants all through lap one, edible at the
+    /// end.
+    static let sunsetFishRadius: [String: [Int: CGFloat]] = ["Sunset Cove 10": [10: 63, 16: 61.5]]
     #if DEBUG
     static let sunsetLevels: [Level] = sunsetSpecs.indices.map { index in
         var level = sunsetPlan(index).level
