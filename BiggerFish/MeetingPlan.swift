@@ -420,7 +420,8 @@ enum MeetingPlanner {
         for id in GameTuning.kelpSwimsAtYou[spec.name] ?? [] where meetings.indices.contains(id - 1) {
             meetings[id - 1].headOn = true
         }
-        for (id, radius) in GameTuning.kelpFishRadius[spec.name] ?? GameTuning.midnightFishRadius[spec.name] ?? [:]
+        for (id, radius) in GameTuning.kelpFishRadius[spec.name] ?? GameTuning.midnightFishRadius[spec.name]
+            ?? GameTuning.sunsetFishRadius[spec.name] ?? [:]
             where meetings.indices.contains(id - 1) {
             meetings[id - 1].size = radius / GameTuning.baseRadius
         }
