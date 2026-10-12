@@ -271,6 +271,11 @@ final class GameScene: SKScene {
     private var realClock: CGFloat = 0
     /// Simulated seconds since the current run started playing.
     private var simClock: CGFloat = 0
+    /// Your pace through the water: 1 normally, a current's speed while you're in one (eased). Planned fish follow
+    /// their approach on `paceClock`, which runs at this pace, so they still meet you exactly where planned however a
+    /// current speeds you up or slows you down.
+    private var currentPace: CGFloat = 1
+    private var paceClock: CGFloat = 0
     private var timeScale: CGFloat = 1
     private var slowMoRemaining: CGFloat = 0
     private var slowMoFactor: CGFloat = 1
@@ -279,7 +284,7 @@ final class GameScene: SKScene {
     /// Kelp Forest fish that appear just off screen once you reach `appearsAt`, soonest first.
     private var waitingFish: [PlannedFish] = []
     /// A Kelp Forest fish swims straight at its meeting height until you're this far along, then roams.
-    private var approachEnds: [Int: (until: CGFloat, y: CGFloat, start: CGFloat, path: Approach?, heading: CGFloat)] = [:]
+    private var approachEnds: [Int: (until: CGFloat, y: CGFloat, start: CGFloat, path: Approach?, heading: CGFloat, racer: Bool)] = [:]
     private var kelpBeds: [(bed: PlannedKelp, back: KelpNode, front: KelpNode)] = []
     /// Sunset Cove's hooks, each with its boat, line, and bait.
     private var hookRigs: [HookRig] = []
@@ -503,6 +508,8 @@ final class GameScene: SKScene {
         timeScale = 1
         slowMoRemaining = 0
         simClock = 0
+        paceClock = 0
+        currentPace = 1
         frameAccumulator = 0
         simulationAccumulator = 0
         lastUpdate = nil
@@ -570,8 +577,10 @@ final class GameScene: SKScene {
         encounterLeases[f.id] = EncounterLease(home: planned.spawn,
             releaseDistance: planned.meetingDistance + size.width * T.freeEncounterReleaseScreens, index: planned.segment)
         if planned.appearsAt != nil {
-            approachEnds[f.id] = (planned.meetingDistance + size.width * T.kelpApproachReleaseScreens, planned.spawn.y,
-                                  simClock, planned.approach, planned.headOn ? -1 : 1)
+            // A Riptide Reef scenario fish keeps real time and its path a while longer, so it gets well away.
+            let racer = planned.racer == true
+            approachEnds[f.id] = (planned.meetingDistance + size.width * (racer ? T.riptideRacerReleaseScreens : T.kelpApproachReleaseScreens),
+                                  planned.spawn.y, racer ? simClock : paceClock, planned.approach, planned.headOn ? -1 : 1, racer)
         }
     }
 
@@ -783,6 +792,8 @@ final class GameScene: SKScene {
             showsJellyLesson = false
         }
         simClock = 0
+        paceClock = 0
+        currentPace = 1
         replaying = false
         clearedBeforeRun = hasCleared?(levelIndex) ?? false
         // A world still being prototyped (Xcode builds only) never reports: the stats server knows only the campaign's
@@ -996,6 +1007,12 @@ final class GameScene: SKScene {
 
     private func simulate(_ dt: CGFloat) {
         simClock += dt
+        if !currents.isEmpty, player.isAlive {
+            let share = waterShare(player.position.y)
+            let pace = currents.first { $0.contains(distance: forwardDistance, share: share) }?.speed ?? 1
+            currentPace += (pace - currentPace) * min(1, dt * T.currentEase)
+        }
+        paceClock += dt * currentPace
         updateZoom(dt)
         let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
         // All protected swimmers steer from the same snapshot, not update-order-dependent positions.
@@ -1004,7 +1021,7 @@ final class GameScene: SKScene {
                 ? EncounterNeighbor(id: $0.id, position: $0.position, velocity: $0.velocity, radius: $0.radius) : nil
         }
         for f in fish where f.isAlive {
-            if f.isPlayer { movePlayer(f, dt) } else { moveAI(f, dt) }
+            if f.isPlayer { movePlayer(f, dt) } else { moveAI(f, dt); sweep(f, dt) }
         }
         releaseWaitingFish()
         #if DEBUG
@@ -1050,10 +1067,11 @@ final class GameScene: SKScene {
             minY: waterBottom + p.radius * 0.95, maxY: waterTop - p.radius * 0.95,
             zoom: zoom, tuning: motion
         )
-        p.velocity = CGVector(dx: playerSpeed, dy: vy)
-        forwardDistance += max(0, playerSpeed * dt)
+        let speed = playerSpeed * currentPace
+        p.velocity = CGVector(dx: speed, dy: vy)
+        forwardDistance += max(0, speed * dt)
         metricAccumulator?.advance(seconds: Double(simClock), circuits: Double(forwardDistance / world.width))
-        p.position = CGPoint(x: world.wrap(p.position.x + playerSpeed * dt), y: y)
+        p.position = CGPoint(x: world.wrap(p.position.x + speed * dt), y: y)
         p.facing = 1
     }
 
@@ -1081,12 +1099,12 @@ final class GameScene: SKScene {
             // Held to its line, so nothing it passes on the way can push it off its meeting.
             if forwardDistance < approach.until {
                 guard let path = approach.path else {
-                    f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
+                    f.velocity = CGVector(dx: f.heading * f.cruiseSpeed * (approach.racer ? 1 : currentPace), dy: 0)
                     f.position = CGPoint(x: world.wrap(f.position.x + f.velocity.dx * dt), y: approach.y)
                     f.facing = f.heading
                     return
                 }
-                let offset = path.offset(at: simClock - approach.start, heading: approach.heading, speed: f.cruiseSpeed)
+                let offset = path.offset(at: (approach.racer ? simClock : paceClock) - approach.start, heading: approach.heading, speed: f.cruiseSpeed)
                 let next = CGPoint(x: world.wrap(path.meeting.x + offset.dx), y: path.meeting.y + offset.dy)
                 f.velocity = CGVector(dx: world.delta(from: f.position.x, to: next.x) / dt, dy: (next.y - f.position.y) / dt)
                 f.position = next
@@ -1757,6 +1775,97 @@ final class GameScene: SKScene {
         onExit?()
     }
 
+    /// Where your fish sits across the screen: `playerScreenX`, surging ahead in a fast current and easing back a
+    /// little in a slow one. Presentation only; the game itself always reckons from `playerScreenX`.
+    private var screenAnchorX: CGFloat {
+        size.width * (T.playerScreenX + (currentPace - 1) * (currentPace > 1 ? T.currentSurgeAhead : T.currentSurgeBack))
+    }
+    private var wake: SKEmitterNode?
+
+    /// Riptide Reef's currents, from the level's plan: only where a scenario needs one.
+    private var currents: [PlannedCurrent] { level.meetingPlan?.currents ?? [] }
+
+    /// A small fish that has met you drifts with any current it's in; big fish and fish on their way to you don't.
+    private func sweep(_ f: Fish, _ dt: CGFloat) {
+        guard !currents.isEmpty, f.state == .swimming, approachEnds[f.id] == nil, f.radius <= T.currentSweepsRadius else { return }
+        let share = waterShare(f.position.y)
+        guard let current = currents.first(where: { current in
+            let into = world.delta(from: world.wrap(current.start), to: f.position.x)
+            return (0...(current.end - current.start)).contains(into) && (current.low...current.high).contains(share)
+        }) else { return }
+        f.position.x = world.wrap(f.position.x + (current.speed - 1) * playerSpeed * dt)
+    }
+
+    /// The currents on screen: each a faint patch along its stretch of the lap, with streaks flowing the way it
+    /// pushes you (fast ones cool, slow ones warm). Shown on the first lap, where they are.
+    private var currentPatches: [(current: PlannedCurrent, node: SKNode, band: SKSpriteNode, streaks: [(SKSpriteNode, CGFloat, CGFloat)])] = []
+    private func layoutCurrents() {
+        currentPatches.forEach { $0.node.removeFromParent() }
+        currentPatches.removeAll()
+        wake?.removeFromParent()
+        wake = nil
+        guard !currents.isEmpty else { return }
+        var rng = SeededGenerator(seed: 0x52495054)
+        let span = screenWaterTop - screenWaterBottom
+        for current in currents {
+            let node = SKNode()
+            // Over the water (0) and under the surface line and the specks (1); the scene ignores sibling order, so
+            // depth alone decides.
+            node.zPosition = 0.8
+            let fast = current.speed > 1
+            let band = SKSpriteNode(color: fast ? SKColor(red: 0.55, green: 0.92, blue: 1, alpha: 0.13)
+                                               : SKColor(red: 1, green: 0.78, blue: 0.5, alpha: 0.11),
+                                    size: CGSize(width: 1, height: span * (current.high - current.low)))
+            band.anchorPoint = .zero
+            node.addChild(band)
+            var streaks: [(SKSpriteNode, CGFloat, CGFloat)] = []
+            for _ in 0..<T.currentStreaks {
+                let streak = SKSpriteNode(color: SKColor(white: 1, alpha: 0.35),
+                                          size: CGSize(width: CGFloat.random(in: 18...46, using: &rng), height: 1.5))
+                // Over the band.
+                streak.zPosition = 0.1
+                node.addChild(streak)
+                streaks.append((streak, CGFloat.random(in: 0...1, using: &rng), CGFloat.random(in: 0.1...0.9, using: &rng) * band.size.height))
+            }
+            backgroundLayer.addChild(node)
+            currentPatches.append((current, node, band, streaks))
+        }
+        let bubbles = SKEmitterNode()
+        bubbles.particleTexture = WaterTextures.dot()
+        bubbles.particleBirthRate = 0
+        bubbles.particleLifetime = 0.5
+        bubbles.particleLifetimeRange = 0.2
+        bubbles.particleSize = CGSize(width: 5, height: 5)
+        bubbles.particleScaleRange = 0.6
+        bubbles.particleAlpha = 0.55
+        bubbles.particleAlphaSpeed = -1
+        bubbles.emissionAngle = .pi
+        bubbles.emissionAngleRange = 0.25
+        bubbles.particleSpeed = T.currentBubbleSpeed
+        bubbles.particleSpeedRange = 60
+        bubbles.particlePositionRange = CGVector(dx: 6, dy: 14)
+        bubbles.zPosition = 29
+        fishLayer.addChild(bubbles)
+        bubbles.targetNode = fishLayer
+        wake = bubbles
+    }
+    private func renderCurrents(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
+        let span = screenWaterTop - screenWaterBottom
+        for patch in currentPatches {
+            let length = (patch.current.end - patch.current.start) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: world.wrap(patch.current.start)) * zoom
+            patch.node.isHidden = forwardDistance > world.width || x > size.width || x + length < 0
+            if patch.node.isHidden { continue }
+            patch.node.position = CGPoint(x: x, y: screenWaterBottom + span * patch.current.low)
+            patch.band.size.width = length
+            let direction: CGFloat = patch.current.speed > 1 ? 1 : -1
+            for (streak, offset, y) in patch.streaks {
+                let travel = (offset * length + direction * T.currentStreakSpeed * time).truncatingRemainder(dividingBy: max(length, 1))
+                streak.position = CGPoint(x: travel < 0 ? travel + length : travel, y: y)
+            }
+        }
+    }
+
     private func inKelp(_ position: CGPoint) -> Bool {
         kelpBeds.contains { abs(world.delta(from: $0.bed.x, to: position.x)) <= $0.bed.halfWidth }
     }
@@ -1764,7 +1873,7 @@ final class GameScene: SKScene {
     /// Columns stay screen-tall at any zoom and narrow as the camera zooms out.
     private func renderKelp(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
         for (bed, back, front) in kelpBeds {
-            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: bed.x) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: bed.x) * zoom
             let half = bed.halfWidth * zoom + 40
             let hidden = x + half < 0 || x - half > size.width
             back.isHidden = hidden
@@ -1863,7 +1972,7 @@ final class GameScene: SKScene {
     /// reeled up the line by your mouth and out of the water.
     private func renderHooks(cameraX: CGFloat, zoom: CGFloat, fraction: CGFloat, time: CGFloat) {
         guard !hookRigs.isEmpty else { return }
-        let anchorX = size.width * T.playerScreenX
+        let anchorX = screenAnchorX
         // Between the last two steps, as the fish are drawn.
         let hookTime = max(0, simClock - T.simulationStep * (1 - fraction))
         let waterline = screenWaterTop + 5
@@ -2129,7 +2238,7 @@ final class GameScene: SKScene {
             let position = index < previousJellyPositions.count
                 ? PresentationInterpolation.position(from: previousJellyPositions[index], to: jelly.position,
                     fraction: fraction, world: world) : jelly.position
-            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: position.x) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: position.x) * zoom
             jelly.node.isHidden = x < -100 || x > size.width + 100
             jelly.node.position = CGPoint(x: x, y: waterCenter + (position.y - waterCenter) * zoom)
             jelly.node.setScale(zoom)
@@ -2434,10 +2543,11 @@ final class GameScene: SKScene {
         let zoom = previousZoom + (self.zoom - previousZoom) * fraction
         let time = realClock + frameAccumulator
         let cameraX = presentationPose(player, fraction: fraction).position.x
-        let anchorX = size.width * T.playerScreenX
+        let anchorX = screenAnchorX
         renderJellies(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
         renderKelp(cameraX: cameraX, zoom: zoom, time: time)
         renderHooks(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
+        renderCurrents(cameraX: cameraX, zoom: zoom, time: time)
         for f in fish {
             // A stung fish, or you on a hook, is drawn by its own animation.
             guard let node = nodes[f.id], !stungFish.contains(where: { $0.id == f.id }), !(f.isPlayer && reel != nil) else { continue }
@@ -2490,6 +2600,12 @@ final class GameScene: SKScene {
                     light.yScale = 1 / lure.yScale
                 }
             }
+            if f.isPlayer, let wake {
+                // Off your tail in a fast current, from your face in a slow one, more the stronger it pushes.
+                let r = pose.radius * zoom, push = abs(currentPace - 1) / 0.35
+                wake.position = CGPoint(x: node.position.x + (currentPace > 1 ? -1.3 : 1.2) * r, y: node.position.y)
+                wake.particleBirthRate = push > 0.08 ? T.currentBubbles * min(1, push) : 0
+            }
             if f.isPlayer, let headlamp {
                 // Strapped to your head, pointing where you're swimming: rising or falling fast swings it off the
                 // far right of the screen.
@@ -2517,7 +2633,7 @@ final class GameScene: SKScene {
             let roll = ease(limp / T.stingRollSeconds)
             let shake = jolting ? CGPoint(x: sin(time * 97) * 2.5, y: cos(time * 83) * 2.5) : .zero
             let sink = limp * (22 + 18 * limp)
-            let x = size.width * T.playerScreenX + world.delta(from: cameraX, to: stung.position.x) * zoom
+            let x = screenAnchorX + world.delta(from: cameraX, to: stung.position.x) * zoom
             stung.node.position = CGPoint(x: x + shake.x,
                                           y: waterCenter + (stung.position.y - waterCenter) * zoom - sink + shake.y)
             stung.node.alpha = 1 - ease((elapsed - T.stingFadeStart) / (T.stingSeconds - T.stingFadeStart))
@@ -2557,6 +2673,7 @@ final class GameScene: SKScene {
         backgroundLayer.removeAllChildren()
         specks.removeAll()
         layoutHeadlamp()
+        layoutCurrents()
 
         let gradient = SKSpriteNode(texture: arcadeWorld.hasJellies
                                     ? ArcadeArt.bloomWater(night: level.jellies?.night == true)
@@ -2981,6 +3098,7 @@ final class GameScene: SKScene {
                 }
             } else if isolatedAI {
                 simClock += dt
+                paceClock += dt
                 for f in fish where !f.isPlayer && !omittedIDs.contains(f.id) { moveAI(f, dt) }
             } else {
                 simulate(dt)
@@ -3206,6 +3324,33 @@ final class GameScene: SKScene {
     func debugStartTutorial(at beat: ArcadeTutorial.Beat) {
         tutorialCheckpoint = beat
         resetGame(startPlaying: true)
+    }
+
+    /// Riptide Reef: the closest each fish comes to you over the first lap (negative: touching), with your height
+    /// set from `share` (of the water, as on screen) at each forward distance and your size from `radii`. Nothing
+    /// collides with you, so every fish's path plays out.
+    func debugClosestApproach(share: (CGFloat) -> CGFloat, radii: [CGFloat], within: ClosedRange<CGFloat>? = nil) -> [Int: CGFloat] {
+        simulationHeadless = true
+        simulationEcologyProbe = true
+        simulationHolding = false
+        resetGame(startPlaying: true)
+        var closest: [Int: CGFloat] = [:]
+        var step = 0
+        while phase == .playing && forwardDistance < world.width {
+            player.radius = radii[min(step, radii.count - 1)]
+            player.targetRadius = player.radius
+            player.position.y = waterBottom + share(forwardDistance) * (waterTop - waterBottom)
+            player.velocity.dy = 0
+            advanceFrame(T.simulationStep)
+            step += 1
+            guard within?.contains(forwardDistance) ?? true else { continue }
+            for f in fish where !f.isPlayer && f.state == .swimming {
+                let dx = world.delta(from: player.position.x, to: f.position.x), dy = f.position.y - player.position.y
+                let gap = (dx * dx + dy * dy).squareRoot() - (player.radius + f.radius) * T.collisionScale
+                closest[f.id] = min(closest[f.id] ?? .infinity, gap)
+            }
+        }
+        return closest
     }
 
     func debugAdvance(seconds: CGFloat) {

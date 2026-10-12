@@ -106,6 +106,7 @@ struct PlayfieldWater: Equatable {
         case .kelpForest: .kelp
         case .midnightZone: .midnight
         case .sunsetCove: .sunset
+        case .riptideReef: .reef
         }
     }
 }

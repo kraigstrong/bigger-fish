@@ -712,6 +712,96 @@ enum GameTuning {
     /// big fish 13 swims your way, so you overtake it slowly and it hung in the climb from meal 12 to gate 15;
     /// Kraig reached the gate once in about eight tries. 0.4 s puts it level with meal 12, gone before the climb.
     static let midnightFishEarlier: [String: [Int: CGFloat]] = ["Midnight Zone 14": [13: 0.4]]
+
+    // MARK: Riptide Reef (prototype, Xcode builds only)
+
+    /// Riptide Reef's trial levels: Shallow Reef's levels 1, 5, and 10 planned like Midnight Zone's (fish appear just
+    /// off screen right before you meet them), with pauses held open for current scenarios (`riptideScenarios`),
+    /// evenly through the lap. Currents are only where a scenario needs one, so there's nothing else to surf.
+    static let riptideSpecs: [MeetingSpec] = [0, 4, 9].enumerated().map { index, source in
+        var spec = reefLabSpecs[source]
+        spec.name = "Riptide Reef \(index + 1)"
+        let scenarios = riptideScenarios[index]
+        let meals = spec.segments.reduce(0) { $0 + $1.singles + $1.forks.reduce(0) { $0 + $1.long + $1.short } + 1 }
+        spec.pauses = scenarios.indices.map { MeetingSpec.Pause(afterMeal: (($0 + 1) * meals) / (scenarios.count + 1) - 1,
+            seconds: Double(scenarios[$0] == .closingGap ? riptideGapPauseSeconds : riptideScenarioSeconds)) }
+        // Room on the lap for the pauses, at the zoom a lap is usually played at.
+        spec.worldScreens += (spec.pauses ?? []).reduce(0) { $0 + $1.seconds } / spec.crossSeconds / 0.75
+        return spec
+    }
+    /// Each trial's scenarios, in order along the lap: easy one closing gap, medium two, hard three.
+    static let riptideScenarios: [[RiptideScenario]] = [[.closingGap], [.closingGap, .closingGap],
+                                                         [.closingGap, .closingGap, .closingGap]]
+    #if DEBUG
+    /// Each level is the first layout with no planner issues.
+    static let riptideLevels: [Level] = riptideSpecs.enumerated().map { index, spec in
+        let plan = (0..<16).lazy.map { MeetingPlanner.riptidePlan(spec, scenarios: riptideScenarios[index], variation: $0) }
+            .first { $0.issues.isEmpty } ?? MeetingPlanner.riptidePlan(spec, scenarios: riptideScenarios[index])
+        var level = plan.level
+        level.ecosystemSeedIndex = index
+        return level
+    }
+    static var riptideLevelCount: Int { riptideSpecs.count }
+    #else
+    /// A prototype isn't part of the shipped game.
+    static let riptideLevels: [Level] = []
+    static var riptideLevelCount: Int { 0 }
+    #endif
+    /// A catch's calm pause, at your usual pace: the current starts `riptideBeltLead` in, lasts `riptideBeltSeconds`,
+    /// and its meal comes `riptideAfterBelt` after it, in calm water.
+    static let riptideScenarioSeconds: CGFloat = 2.6
+    static let riptideBeltLead: CGFloat = 0.45
+    static let riptideBeltSeconds: CGFloat = 1.0
+    static let riptideAfterBelt: CGFloat = 0.35
+    /// A scenario's current, times your pace.
+    static let riptideFastCurrent: CGFloat = 1.5
+    /// Where a catch's current runs (share of the water, as on screen), its meal at the same height just past it.
+    static let riptideBandHigh: ClosedRange<CGFloat> = 0.64...0.88
+    static let riptideBandLow: ClosedRange<CGFloat> = 0.12...0.36
+    /// A catch's meal: its size (times your expected radius) and swimming speed (times your pace), then fleeing at
+    /// `riptideFleeSpeed` times your pace, faster than you can follow without the current.
+    static let riptideMealSize: CGFloat = 0.8
+    static let riptideMealSpeed: CGFloat = 0.4
+    static let riptideFleeSpeed: CGFloat = 1.3
+    /// A closing gap, at your usual pace: its current runs `riptideGapBeltSeconds` over the meals before a pause of
+    /// `riptideGapPauseSeconds` (and any just `riptideGapBeltLeadIn` before it), ending `riptideGapBeltPast` after the
+    /// last of them; the wall is `riptideAfterBelt` after that. Riding the current gets you there a third of its
+    /// length sooner.
+    static let riptideGapBeltSeconds: CGFloat = 3.3
+    static let riptideGapBeltLeadIn: CGFloat = 0.2
+    static let riptideGapBeltPast: CGFloat = 0.25
+    static let riptideGapPauseSeconds: CGFloat = 1.8
+    /// Where its current runs (share of the water, as on screen): mid-water, with room to swim beside it either way.
+    static let riptideGapBand: ClosedRange<CGFloat> = 0.38...0.62
+    /// The wall: its fish (times your expected radius), how closely they're stacked (1: just touching), and the gap's
+    /// half height (times your radius; your middle has this less your own reach to spare).
+    static let riptideWallSize: CGFloat = 2.2
+    static let riptideWallSpacing: CGFloat = 0.85
+    static let riptideGapHalf: CGFloat = 2.4
+    /// The door fish slides down into the gap so that riding the current through its middle, up to
+    /// `riptideGapPassSeconds` late, you still have `riptideGapRoom` (times your radius) to spare above you, and it's
+    /// shut `riptideGapShutEarly` before you'd get there at your usual pace.
+    static let riptideGapPassSeconds: CGFloat = 0.25
+    static let riptideGapRoom: CGFloat = 0.5
+    static let riptideGapShutEarly: CGFloat = 0.1
+    /// After meeting you, a scenario fish keeps to its path this many screens more before swimming freely.
+    static let riptideRacerReleaseScreens: CGFloat = 1
+    static let currentEase: CGFloat = 4
+    /// Fish this small or smaller (radius; you start at 16) are swept along by a current once they've met you; bigger
+    /// ones swim straight through.
+    static let currentSweepsRadius: CGFloat = 24
+    /// The streaks that show a current flowing: how many per current and their speed across the screen (points/s).
+    static let currentStreaks = 16
+    static let currentStreakSpeed: CGFloat = 140
+    /// The camera lags a current so the speed reads as yours: your fish slides this share of the screen's width
+    /// ahead per unit of extra pace (1.35 → about an eighth of the screen). Going back it barely moves, so fish
+    /// still appear off screen (`kelpAppearMargin`).
+    static let currentSurgeAhead: CGFloat = 0.35
+    static let currentSurgeBack: CGFloat = 0.08
+    /// Bubbles off your fish in a current: a wake off your tail in a fast one, water rushing past from your face
+    /// in a slow one. Most bubbles per second at a full current, and their speed across the screen.
+    static let currentBubbles: CGFloat = 70
+    static let currentBubbleSpeed: CGFloat = 220
     /// Played and approved, so shipped exactly as saved in `MidnightPlans.json`: a planner change can't alter them.
     /// All fifteen (Kraig, 2026-10-09: "lock in the midnight levels", then "I played 14 and 15 and approve").
     static let midnightFrozen: Set<String> = Set(midnightSpecs.map(\.name))

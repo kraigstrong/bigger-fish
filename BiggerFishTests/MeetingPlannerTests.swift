@@ -202,6 +202,48 @@ struct MeetingPlannerTests {
         #expect(GameTuning.midnightFrozen == Set(GameTuning.midnightSpecs.map(\.name)))
     }
 
+    /// Riptide Reef's scenarios each need their current. A catch's meal is met riding the fast current and gets
+    /// away from a player who swims alongside it; a dodge's giant sinks clear of a player riding the slow current,
+    /// who still eats the meal, and onto one who doesn't. Played out with your height set by forward distance.
+    @MainActor @Test func riptideReefScenariosNeedTheirCurrent() {
+        #expect(ArcadeWorld.prototypes.contains(.riptideReef) && !ArcadeWorld.campaign.contains(.riptideReef))
+        for (index, level) in ArcadeWorld.riptideReef.levels.enumerated() {
+            let plan = level.meetingPlan!, scenarios = GameTuning.riptideScenarios[index]
+            #expect(plan.issues.isEmpty, "\(plan.spec.name): \(plan.issues)")
+            let currents = plan.currents ?? []
+            #expect(currents.count == scenarios.count, "\(plan.spec.name)")
+            let racers = plan.fish.filter { $0.racer == true }
+            let screen = GameTuning.playfieldSize.width
+            for (number, (kind, current)) in zip(scenarios, currents).enumerated() {
+                let next = racers.filter { $0.meetingDistance >= current.end - 1 }.map(\.meetingDistance).min()!
+                let scenario = racers.filter { abs($0.meetingDistance - next) < 1 }
+                let band = (current.low + current.high) / 2
+                let scene = (current.start - screen)...(next + screen)
+                // Riding: in the band through the scene. Alongside: just outside the band until the current ends.
+                let outside = current.low > 0.5 ? current.low - 0.06 : current.high + 0.06
+                let riding: (CGFloat) -> CGFloat = { scene.contains($0) ? band : 0.5 }
+                let alongside: (CGFloat) -> CGFloat = { d in !scene.contains(d) ? 0.5 : d <= current.end ? outside : band }
+                let radii = plan.referenceRadii
+                let rode = GameScene(world: .riptideReef, levelIndex: index).debugClosestApproach(share: riding, radii: radii, within: scene)
+                let swam = GameScene(world: .riptideReef, levelIndex: index).debugClosestApproach(share: alongside, radii: radii, within: scene)
+                let name = "\(plan.spec.name) scenario \(number + 1)"
+                switch kind {
+                case .catchMeal:
+                    let meal = scenario[0]
+                    #expect(rode[meal.id]! <= 0, "\(name): riding the current misses the meal by \(rode[meal.id]!)")
+                    #expect(swam[meal.id]! > 0, "\(name): the meal doesn't get away (\(swam[meal.id]!))")
+                case .closingGap:
+                    #expect(scenario.count >= 3, "\(name): a wall of \(scenario.count)")
+                    let cleared = scenario.map { rode[$0.id] ?? .infinity }.min()!
+                    let hit = scenario.map { swam[$0.id] ?? .infinity }.min()!
+                    print("RIPTIDE \(name): wall \(scenario.count) fish, riding clears by \(Int(cleared)), beside \(Int(hit))")
+                    #expect(cleared > 0, "\(name): riding the current, the wall touches you (\(cleared))")
+                    #expect(hit <= 0, "\(name): beside the current, you still get through the gap (\(hit))")
+                }
+            }
+        }
+    }
+
     @Test func bundledMidnightPlansMatchTheSpecs() throws {
         let url = try #require(Bundle(for: BundleToken.self).url(forResource: "MidnightPlans", withExtension: "json")
             ?? Bundle.main.url(forResource: "MidnightPlans", withExtension: "json"))

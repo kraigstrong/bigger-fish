@@ -78,6 +78,13 @@ struct MeetingSpec: Codable, Equatable {
     var kelp: KelpSpec? = nil
     /// Sunset Cove's baited hooks, hung from boats around the meetings. Optional so older plans decode.
     var hooks: HookSpec? = nil
+    /// Riptide Reef: calm stretches held open among the meetings for its current scenarios, each after this many
+    /// meals (moved past a fork's lanes) and this many seconds long. Optional so older specs decode.
+    var pauses: [Pause]? = nil
+    struct Pause: Codable, Equatable {
+        var afterMeal: Int
+        var seconds: Double
+    }
     /// You're in kelp for about its share of any swim.
     var reachScale: CGFloat { kelp.map { 1 - CGFloat($0.coverage) * (1 - GameTuning.kelpDrag) } ?? 1 }
 }
@@ -137,48 +144,85 @@ struct PlannedFish: Codable, Equatable {
     var appearsAt: CGFloat? = nil
     /// Kelp Forest: the path from `spawn` to the meeting, when it isn't a straight line.
     var approach: Approach? = nil
+    /// Riptide Reef: follows its approach on real time from when it appears, not at your pace, so where you meet
+    /// it depends on when you get there: a current scenario's fish.
+    var racer: Bool? = nil
 }
 
 /// How a Kelp Forest fish gets from where it appears to its meeting: gliding in from another height, weaving
 /// and settling, or swimming away before turning toward you. Every path ends exactly at the meeting, then
 /// carries straight on.
 struct Approach: Codable, Equatable {
-    enum Style: String, Codable { case straight, glide, weave, turn }
+    enum Style: String, Codable { case straight, glide, weave, turn, flee, dive, shut }
     var style: Style
     /// Where you meet it (world point) and the seconds from appearing to then.
     var meeting: CGPoint
     var seconds: CGFloat
     /// Glide: how far above (+) or below its meeting height it appears. Weave: how far it strays either way.
+    /// Shut: how far above (+) or below its meeting height it waits.
     var height: CGFloat = 0
     /// Weave: how many sways it makes, settling as it reaches you.
     var waves: CGFloat = 0
     var phase: CGFloat = 0
     /// Turn: it swims away from you at this speed, then turns toward you this many seconds before the meeting.
+    /// Flee: the reverse, swimming at you, then turning to flee at `awaySpeed` (`turnBefore` negative: after it).
+    /// Shut: it waits `height` away, then slides steadily to its meeting height over the `turnBefore` seconds before
+    /// the meeting, and stays there.
     var awaySpeed: CGFloat = 0
     var turnBefore: CGFloat = 0
+    /// Dive: how fast it sinks (negative) or rises, passing its meeting height at the meeting. Optional so older
+    /// plans decode.
+    var climb: CGFloat? = nil
 
     /// Its offset from the meeting point `time` seconds after appearing, for a fish meeting you at `speed`
     /// going `heading` (-1: toward you).
     func offset(at time: CGFloat, heading: CGFloat, speed: CGFloat) -> CGVector {
-        CGVector(dx: Self.dx(beforeMeeting: seconds - time, style: style, heading: heading, speed: speed,
-                             awaySpeed: awaySpeed, turnBefore: turnBefore),
-                 dy: dy(progress: min(1, max(0, time / max(seconds, 0.001)))))
+        let dy: CGFloat = switch style {
+        case .dive: (climb ?? 0) * (time - seconds)
+        case .shut: height * min(1, max(0, (seconds - time) / max(turnBefore, 0.001)))
+        default: dy(progress: min(1, max(0, time / max(seconds, 0.001))))
+        }
+        return CGVector(dx: Self.dx(beforeMeeting: seconds - time, style: style, heading: heading, speed: speed,
+                                    awaySpeed: awaySpeed, turnBefore: turnBefore), dy: dy)
     }
 
     /// Horizontal offset `remaining` seconds before the meeting (negative: after it). It depends only on
     /// the time left, so the planner can find where a fish must appear before knowing its whole path.
     static func dx(beforeMeeting remaining: CGFloat, style: Style, heading: CGFloat, speed: CGFloat,
                    awaySpeed: CGFloat, turnBefore: CGFloat) -> CGFloat {
+        if style == .flee, remaining < turnBefore {
+            // Swam at you until `-turnBefore` seconds after the meeting, then away at `awaySpeed`.
+            return -heading * speed * turnBefore + heading * awaySpeed * (remaining - turnBefore)
+        }
         guard style == .turn, remaining > turnBefore else { return -heading * speed * remaining }
         return -heading * speed * turnBefore + heading * awaySpeed * (remaining - turnBefore)
     }
 
     private func dy(progress u: CGFloat) -> CGFloat {
         switch style {
-        case .straight, .turn: 0
+        case .straight, .turn, .flee, .dive, .shut: 0
         case .glide: height * (1 - u * u * (3 - 2 * u))
         case .weave: height * sin(2 * .pi * waves * u + phase) * (1 - u) * (1 - u)
         }
+    }
+}
+
+/// Riptide Reef's current scenarios: speed up to catch a meal before it flees, or to get through a gap in a wall
+/// of big fish before it closes.
+enum RiptideScenario: String, Codable { case catchMeal, closingGap }
+
+/// A Riptide Reef current: a stretch of the lap, `start` to `end` of your forward distance, over a band of the
+/// water (`low` to `high`, 0 its bottom and 1 its top as on screen), where you swim at `speed` times your pace
+/// and small fish are swept along.
+struct PlannedCurrent: Codable, Equatable {
+    var start: CGFloat
+    var end: CGFloat
+    var low: CGFloat
+    var high: CGFloat
+    var speed: CGFloat
+
+    func contains(distance: CGFloat, share: CGFloat) -> Bool {
+        (start...end).contains(distance) && (low...high).contains(share)
     }
 }
 
@@ -249,6 +293,8 @@ struct MeetingPlan: Codable {
     var kelp: [PlannedKelp]? = nil
     /// Sunset Cove's hooks, soonest passed first.
     var hooks: [PlannedHook]? = nil
+    /// Riptide Reef's currents.
+    var currents: [PlannedCurrent]? = nil
 
     var level: Level {
         var level = Level(aiSpeedRange: CGFloat(spec.aiSpeed.lowerBound)...CGFloat(spec.aiSpeed.upperBound),
@@ -371,6 +417,180 @@ enum MeetingPlanner {
         return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
             analysis: analysis, issues: design.issues + check(unchecked) + (hooks?.issues ?? []),
             kelp: KelpLayout.columns(spec, seed: seed), hooks: hooks?.hooks)
+    }
+
+    /// Riptide Reef: Kelp Forest's just-in-time plan with a current scenario at each held-open pause. A catch is a
+    /// fast current, inside the pause, leading to a meal that swims at you, then turns and flees faster than you
+    /// swim: ride the current and you meet it before it turns. A closing gap is a fast current over the meals just
+    /// before the pause, all of them in it, leading to a wall of big fish across the water in the pause, with a gap
+    /// at the current's height that one of them slowly slides down to fill: ride the current and you're through
+    /// while there's room; swim beside it and the gap is shut when you get there. Only scenario fish keep real time
+    /// (`racer`); everything else meets you at your pace, so a current changes nothing else.
+    static func riptidePlan(_ spec: MeetingSpec, scenarios: [RiptideScenario], variation: Int = 0) -> MeetingPlan {
+        typealias T = GameTuning
+        let seed = GameTuning.spawnSeed &+ 7_000 &+ stableHash(spec.name) &+ UInt64(variation) &* 1_000_003
+        let design = MeetingDesigner.design(spec, seed: seed)
+        let timeline = design.timeline, dt = T.simulationStep, width = T.playfieldSize.width
+        let world = WrappedWorld(width: width * CGFloat(spec.worldScreens))
+        var meetings = design.meetings, issues = design.issues
+        var rng = SeededGenerator(seed: seed &+ 0x5249_5054)
+        func step(_ t: CGFloat) -> Int { min(timeline.lastStep, max(0, Int((t / dt).rounded()))) }
+        func time(_ distance: CGFloat) -> CGFloat { CGFloat(timeline.step(reaching: distance)) * dt }
+
+        // The held-open pauses: the longest calm gaps between meetings, in order along the lap.
+        let shortest = min(T.riptideScenarioSeconds, T.riptideGapPauseSeconds)
+        let times = meetings.map { time($0.distance) }.sorted()
+        let gaps = zip(times, times.dropFirst()).map { (start: $0, length: $1 - $0) }
+            .filter { $0.length >= shortest * 0.9 }.sorted { $0.length > $1.length }
+            .prefix(scenarios.count).sorted { $0.start < $1.start }
+        if gaps.count < scenarios.count { issues.append("\(gaps.count) of \(scenarios.count) current scenarios fit") }
+
+        var currents: [PlannedCurrent] = []
+        var racers: [(fish: (Int) -> PlannedFish, crossing: ((Int) -> EncounterCrossing)?)] = []
+        for (kind, gap) in zip(scenarios, gaps) {
+            switch kind {
+            case .catchMeal:
+                let beltStart = gap.start + T.riptideBeltLead
+                let s = step(beltStart), z = timeline.zoom[s], a = timeline.distance[s]
+                let v = width / CGFloat(spec.crossSeconds) / z
+                let belt = timeline.distance[step(beltStart + T.riptideBeltSeconds)] - a
+                let afterBelt = T.riptideAfterBelt
+                let eventDistance = a + belt + v * afterBelt
+                let you = timeline.radius[step(time(eventDistance))]
+                let bounds = PlayerTimeline.waterBounds(zoom: z)
+                // The current leads straight to the meal, at its height just past its end: riding it changes only when
+                // you get there. Without it you swim alongside, outside the band, and slip in after it ends.
+                let band = Bool.random(using: &rng) ? T.riptideBandHigh : T.riptideBandLow
+                let share = (band.lowerBound + band.upperBound) / 2
+                let y = bounds.bottom + (bounds.top - bounds.bottom) * share
+                let segment = meetings.last { $0.distance <= a }?.segment ?? 0
+                let current = T.riptideFastCurrent
+                currents.append(PlannedCurrent(start: a, end: a + belt, low: band.lowerBound, high: band.upperBound, speed: current))
+                let radius = you * T.riptideMealSize, reach = (you + radius) * T.collisionScale
+                let swim = T.riptideMealSpeed * v
+                // Timed from the start of the current: through it on the current, you meet the meal just after.
+                let fast = belt / (current * v) + afterBelt
+                let lead = belt + v * afterBelt + reach + swim * fast
+                let calm = (lead - reach) / (v + swim)
+                let flee = (fast + calm) / 2
+                // It appears just off screen, while you're still at your usual pace if that's before the current.
+                let offScreen = width * (1 - T.playerScreenX) / z + T.kelpAppearMargin / z + radius
+                let appear = min(0, (lead - offScreen) / (v + swim))
+                let meeting = CGPoint(x: world.wrap(a + lead - swim * fast), y: y)
+                let approach = Approach(style: .flee, meeting: meeting, seconds: fast - appear,
+                                        awaySpeed: T.riptideFleeSpeed * v, turnBefore: fast - flee)
+                let spawn = CGPoint(x: world.wrap(a + lead - swim * appear), y: y)
+                let styleSeed = UInt64.random(in: 0...UInt64.max, using: &rng)
+                racers.append((fish: { id in
+                    PlannedFish(id: id, role: .food, segment: segment, fork: nil, lane: 0, radius: radius,
+                        meetingDistance: eventDistance, headOn: true, startHeading: -1, spawn: spawn, cruiseSpeed: swim,
+                        phase: 0, turnTimer: T.aiTurnIntervalRange.upperBound, retargetTimer: T.aiRetargetRange.upperBound,
+                        variant: 0, styleSeed: styleSeed, referenceMeal: false, appearsAt: a + v * appear,
+                        approach: approach, racer: true)
+                }, crossing: { id in
+                    EncounterCrossing(fishID: id, time: Double(time(eventDistance)), distance: Double(eventDistance),
+                        y: Double(y), radius: Double(radius), headOn: true, zoom: Double(z))
+                }))
+            case .closingGap:
+                let current = T.riptideFastCurrent, band = T.riptideGapBand
+                let share = (band.lowerBound + band.upperBound) / 2
+                // At your usual pace: the current over the last meals before the pause, then the wall in it.
+                let beltEnd = gap.start + T.riptideGapBeltPast
+                let beltStart = max(0, beltEnd - T.riptideGapBeltSeconds)
+                let wallTime = beltEnd + T.riptideAfterBelt
+                let a = timeline.distance[step(beltStart)]
+                currents.append(PlannedCurrent(start: a, end: timeline.distance[step(beltEnd)], low: band.lowerBound,
+                                               high: band.upperBound, speed: current))
+                // The meals in the current come to you in it, the big fish guarding them moving with them; open-water
+                // big fish keep out of it.
+                func height(_ y: CGFloat, size: CGFloat, zoom: CGFloat) -> CGFloat {
+                    let bounds = PlayerTimeline.waterBounds(zoom: zoom), r = size * T.baseRadius
+                    return ((y - bounds.bottom - r) / (bounds.top - bounds.bottom - 2 * r)).clamped(0, 1)
+                }
+                func worldY(_ meeting: DesignedMeeting, zoom: CGFloat) -> CGFloat {
+                    let bounds = PlayerTimeline.waterBounds(zoom: zoom), r = meeting.size * T.baseRadius
+                    return bounds.bottom + r + (bounds.top - bounds.bottom - 2 * r) * meeting.height
+                }
+                var moved: [Int: CGFloat] = [:]
+                for i in meetings.indices where meetings[i].role != .threat {
+                    let t = time(meetings[i].distance)
+                    guard t >= beltStart - T.riptideGapBeltLeadIn && t <= beltEnd else { continue }
+                    // A fork's long lane comes in the current too; its short lane stays where it was, the way off it.
+                    if meetings[i].fork != nil && meetings[i].lane != 0 { continue }
+                    let z = timeline.zoom[step(t)], bounds = PlayerTimeline.waterBounds(zoom: z)
+                    let y = bounds.bottom + (bounds.top - bounds.bottom) * share
+                    moved[meetings[i].key] = y - worldY(meetings[i], zoom: z)
+                    meetings[i].height = height(y, size: meetings[i].size, zoom: z)
+                }
+                for i in meetings.indices where meetings[i].role == .threat {
+                    let z = timeline.zoom[step(time(meetings[i].distance))]
+                    if let guarded = meetings[i].guards {
+                        guard let shift = moved[guarded] else { continue }
+                        meetings[i].height = height(worldY(meetings[i], zoom: z) + shift, size: meetings[i].size, zoom: z)
+                    } else if (beltStart - T.riptideGapBeltLeadIn...wallTime).contains(time(meetings[i].distance)) {
+                        meetings[i].height = meetings[i].height > 0.5 ? 1 : 0
+                    }
+                }
+                // The wall, where you'd be at your usual pace `riptideAfterBelt` after the current: still, filling the
+                // water above and below the gap, the door fish waiting on the wall just over it.
+                let ws = step(wallTime), z = timeline.zoom[ws], wallDistance = timeline.distance[ws]
+                let you = timeline.radius[ws], bounds = PlayerTimeline.waterBounds(zoom: z)
+                let y = bounds.bottom + (bounds.top - bounds.bottom) * share
+                let radius = you * T.riptideWallSize, reach = radius * T.collisionScale
+                let half = you * T.riptideGapHalf, x = world.wrap(wallDistance)
+                let spacing = 2 * reach * T.riptideWallSpacing
+                func side(_ direction: CGFloat) -> [CGFloat] {
+                    let first = y + direction * (half + reach), last = (direction > 0 ? bounds.top : bounds.bottom) - direction * reach * 0.5
+                    let span = (last - first) * direction
+                    // One fish reaches the surface (or floor) by itself if it's within half its reach.
+                    guard span > reach * 0.5 else { return [first] }
+                    let count = Int((span / spacing).rounded(.up)) + 1
+                    return (0..<count).map { first + (last - first) * CGFloat($0) / CGFloat(count - 1) }
+                }
+                // Seconds from the start of the current: when you get there at your usual pace, and riding it.
+                let usual = wallTime - beltStart, fast = usual - (beltEnd - beltStart) * (1 - 1 / current)
+                // How far your middle can stray from the gap's without touching the wall, and how fast the door closes
+                // it: still `riptideGapRoom` above the middle as you pass riding the current (a moment late, even),
+                // and none at all just before you'd get there without it.
+                let free = half - you * T.collisionScale, room = you * T.riptideGapRoom
+                let pass = fast + T.riptideGapPassSeconds, shut = usual - T.riptideGapShutEarly
+                let rate = (free + room) / max(shut - pass, 0.01)
+                let closing = (half + reach) / rate, starts = shut - 2 * free / rate
+                if free < room { issues.append("gap \(currents.count) too tight") }
+                // Everything appears just off screen, even riding the current, and before it starts.
+                let ahead = width * (1 - T.playerScreenX) / z + T.kelpAppearMargin / z + radius
+                let appear = min(0, starts, (wallDistance - a - ahead) / (current * width / CGFloat(spec.crossSeconds) / z))
+                let appearsAt = timeline.distance[step(beltStart + appear)]
+                let segment = meetings.last { $0.distance <= wallDistance }?.segment ?? 0
+                let wallSeed = UInt64.random(in: 0...UInt64.max, using: &rng), doorSeed = UInt64.random(in: 0...UInt64.max, using: &rng)
+                let still = side(1) + side(-1)
+                let wall = still.map { (y: $0, approach: Approach(style: .straight, meeting: CGPoint(x: x, y: $0), seconds: usual - appear), seed: wallSeed) }
+                let door = (y: y + half + reach, approach: Approach(style: .shut, meeting: CGPoint(x: x, y: y), seconds: starts + closing - appear,
+                                                                    height: half + reach, turnBefore: closing), seed: doorSeed)
+                for fish in wall + [door] {
+                    racers.append((fish: { id in
+                        PlannedFish(id: id, role: .threat, segment: segment, fork: nil, lane: 0, radius: radius,
+                            meetingDistance: wallDistance, headOn: true, startHeading: -1, spawn: CGPoint(x: x, y: fish.y), cruiseSpeed: 0,
+                            phase: 0, turnTimer: T.aiTurnIntervalRange.upperBound, retargetTimer: T.aiRetargetRange.upperBound,
+                            variant: 0, styleSeed: fish.seed, referenceMeal: false, appearsAt: appearsAt,
+                            approach: fish.approach, racer: true)
+                    }, crossing: nil))
+                }
+            }
+        }
+        let designed = design.meetings.count
+        let solved = MeetingSolver.justInTime(meetings, spec: spec, seed: seed, timeline: timeline)
+        let extra = racers.enumerated().map { offset, racer in (fish: racer.fish(solved.fish.count + offset + 1),
+                                                                 crossing: racer.crossing?(solved.fish.count + offset + 1)) }
+        let crossings = solved.crossings + extra.compactMap(\.crossing)
+        let analysis = EncounterAnalyzer.analyze(crossings, jellies: [], reachScale: spec.reachScale)
+        // The level as designed is checked without its scenarios (each tested by playing it out): their meals are
+        // extra, so gates would read easier than designed, and giants never meet you the way it's meant to be played.
+        let core = solved.crossings.filter { $0.fishID <= designed }
+        let checked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: Array(solved.fish.prefix(designed)),
+            predicted: core, analysis: EncounterAnalyzer.analyze(core, jellies: [], reachScale: spec.reachScale), issues: [])
+        return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish + extra.map(\.fish),
+            predicted: crossings, analysis: analysis, issues: issues + check(checked), currents: currents)
     }
 
     /// How far off plan a plan's fish are, in total ("fish 4 is off its plan (score 21)" counts 21).
@@ -942,9 +1162,12 @@ enum MeetingDesigner {
         var times = Array(repeating: CGFloat(0), count: meetings.count)
         var cursor = T.plannerFirstMeetingScreens * screen
         var previous: DesignedMeeting?
+        // Riptide Reef's pauses, held after their meal and taken at the next gap that isn't inside a fork.
+        var placed = 0, pending: CGFloat = 0
+        let pauses = Dictionary((spec.pauses ?? []).map { ($0.afterMeal, CGFloat($0.seconds)) }, uniquingKeysWith: +)
         for i in meetings.indices where meetings[i].role != .threat {
             let meal = meetings[i]
-            defer { previous = meal }
+            defer { previous = meal; pending += pauses[placed] ?? 0; placed += 1 }
             guard let last = previous else { times[i] = cursor; continue }
             // A bounce meal comes a moment after the pocket it climbs from.
             if let from = meal.bounceFrom, let pocket = meetings.firstIndex(where: { $0.key == from }) {
@@ -959,7 +1182,8 @@ enum MeetingDesigner {
             } else {
                 var gap = meal.fork != nil || last.fork != nil ? spacing * T.plannerForkLead : spacing
                 if last.role == .gate { gap = max(gap, T.plannerGateRecoverySeconds) }
-                cursor += gap
+                cursor += gap + pending
+                pending = 0
             }
             times[i] = cursor
         }
@@ -971,6 +1195,9 @@ enum MeetingDesigner {
                 let before = meetings[..<i].lastIndex { $0.role != .threat }
                 let after = meetings[(i + 1)...].firstIndex { $0.role != .threat }
                 times[i] = switch (before, after) {
+                // Not into a pause: beside the meal before it instead.
+                case let (before?, after?) where spec.pauses != nil && times[after] - times[before] > 3 * spacing:
+                    times[before] + spacing / 2
                 case let (before?, after?): (times[before] + times[after]) / 2
                 case let (before?, nil): times[before] + spacing / 2
                 case let (nil, after?): max(0, times[after] - spacing / 2)
@@ -1766,7 +1993,7 @@ extension MeetingSolver {
         let gentle: CGFloat = big ? T.kelpBigFishApproachShare : 1
         var approach = Approach(style: style, meeting: meetingPoint, seconds: 0)
         switch style {
-        case .straight: break
+        case .straight, .flee, .dive, .shut: break
         case .glide:
             approach.height = CGFloat.random(in: T.kelpGlideHeight, using: &rng) * gentle / zoom
                 * (Bool.random(using: &rng) ? 1 : -1)

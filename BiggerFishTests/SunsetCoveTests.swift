@@ -22,8 +22,8 @@ struct SunsetCoveTests {
 
     /// On the world map in Xcode builds only, after the campaign, every level open and never part of the unlock.
     @Test func sunsetCoveIsAnXcodeOnlyPrototype() {
-        #expect(ArcadeWorld.prototypes == [.sunsetCove] && !ArcadeWorld.campaign.contains(.sunsetCove))
-        #expect(ArcadeWorld.mapWorlds == ArcadeWorld.campaign + [.sunsetCove])
+        #expect(ArcadeWorld.prototypes.contains(.sunsetCove) && !ArcadeWorld.campaign.contains(.sunsetCove))
+        #expect(ArcadeWorld.mapWorlds == ArcadeWorld.campaign + ArcadeWorld.prototypes)
         // What a Release build's map shows.
         #expect(ArcadeWorld.mapWorlds(includingPrototypes: false) == ArcadeWorld.campaign)
         #expect(!ArcadeWorld.mapWorlds(includingPrototypes: false).contains(.sunsetCove))

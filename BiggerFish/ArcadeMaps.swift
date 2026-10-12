@@ -11,6 +11,7 @@ extension ArcadeWorld {
         case .kelpForest: UIColor(red: 0.45, green: 0.78, blue: 0.32, alpha: 1)
         case .midnightZone: UIColor(red: 1, green: 0.66, blue: 0.3, alpha: 1)
         case .sunsetCove: UIColor(red: 1, green: 0.5, blue: 0.56, alpha: 1)
+        case .riptideReef: UIColor(red: 0.95, green: 0.42, blue: 0.62, alpha: 1)
         }
     }
 }
@@ -29,10 +30,12 @@ struct ArcadeWorldMap: View {
         ScreenScaled { size, _ in
             // On a screen taller than a phone's (an iPad), the stops keep a phone's spread, in the middle.
             let spread = min(size.height, ScreenFit.largestPhone.height)
-            let centers = OceanMapLayout.worldCenters(count: 5, size: CGSize(width: size.width, height: spread))
-                .map { CGPoint(x: $0.x, y: $0.y + (size.height - spread) / 2) }
             let worlds = ArcadeWorld.mapWorlds
-            // The fifth stop, until a fifth world is on the map (as a prototype in Xcode builds).
+            // Five stops, the fifth "coming soon" until a fifth world is on the map; in Xcode builds, one more for
+            // each prototype past that.
+            let stops = max(5, worlds.count)
+            let centers = OceanMapLayout.worldCenters(count: stops, size: CGSize(width: size.width, height: spread))
+                .map { CGPoint(x: $0.x, y: $0.y + (size.height - spread) / 2) }
             let comingSoon = [("Riptide Reef", Color.pink)]
             // The first open world with main levels left, else the last open one.
             let isOpen = { (world: ArcadeWorld) in ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) }
@@ -43,7 +46,7 @@ struct ArcadeWorldMap: View {
                 // Your fish swims just above the world you're on, clear of its Deep End ring.
                 MapArtLayer(size: size, points: centers,
                             fishHome: CGPoint(x: centers[focus].x, y: centers[focus].y + 72))
-                ForEach(0..<5, id: \.self) { index in
+                ForEach(0..<stops, id: \.self) { index in
                     if worlds.indices.contains(index) {
                         let world = worlds[index]
                         let open = isOpen(world)
@@ -498,6 +501,7 @@ extension ArcadeWorld {
         case .kelpForest: "WorldKelpForest"
         case .midnightZone: "WorldMidnightZone"
         case .sunsetCove: "WorldSunsetCove"
+        case .riptideReef: "WorldRiptideReef"
         }
     }
 }
@@ -505,9 +509,14 @@ extension ArcadeWorld {
 struct WorldIllustration: View {
     let world: ArcadeWorld
     var body: some View {
-        Image(world.illustration)
-            .resizable()
-            .scaledToFit()
-            .accessibilityHidden(true)
+        Group {
+            if world == .riptideReef {
+                // A stand-in while Riptide Reef is a prototype, until it has a picture of its own.
+                Image(systemName: "water.waves").resizable().scaledToFit().padding(10).foregroundStyle(world.color)
+            } else {
+                Image(world.illustration).resizable().scaledToFit()
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
