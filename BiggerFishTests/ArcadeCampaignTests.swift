@@ -112,10 +112,20 @@ struct ArcadeCampaignTests {
             .jellyBloom: (GameTuning.jellyLabSpecs, GameTuning.jellyLabFrozen),
             .kelpForest: (GameTuning.kelpSpecs, GameTuning.kelpFrozen),
             .midnightZone: (GameTuning.midnightSpecs, GameTuning.midnightFrozen),
+            .sunsetCove: (GameTuning.sunsetSpecs, GameTuning.sunsetFrozen),
         ]
         #expect(Set(frozen.keys) == Set(ArcadeWorld.campaign), "a campaign world has no frozen set here")
         for (world, levels) in frozen {
-            #expect(Set(levels.specs.map(\.name)).isSubset(of: levels.frozen), "\(world.title) has levels that aren't frozen")
+            func check() {
+                #expect(Set(levels.specs.map(\.name)).isSubset(of: levels.frozen), "\(world.title) has levels that aren't frozen")
+            }
+            // Sunset Cove joined for 1.0 with its levels being frozen as Kraig plays them (#170). Once every one is, this
+            // reports that the known issue is gone: take the exception out then.
+            if world == .sunsetCove {
+                withKnownIssue("Sunset Cove's levels are frozen as they're played (#170)") { check() }
+            } else {
+                check()
+            }
         }
     }
 
@@ -165,9 +175,9 @@ struct ArcadeCampaignTests {
 
     @Test func levelIDsAreUniqueAndOnlyJellyBloomHasJellies() {
         let ids = ArcadeWorld.campaign.flatMap { world in world.levels.indices.map { world.levelID($0) } }
-        #expect(Set(ids).count == 60)
+        #expect(Set(ids).count == 75)
         #expect(ids.first == "shallow-reef.1")
-        #expect(ids.contains("shallow-reef.15") && ids.contains("jelly-bloom.15") && ids.contains("kelp-forest.15")
+        #expect(ids.contains("shallow-reef.15") && ids.contains("jelly-bloom.15") && ids.contains("kelp-forest.15") && ids.contains("sunset-cove.15")
             && ids.last == "midnight-zone.15")
         for world in ArcadeWorld.campaign {
             #expect(world.levels.allSatisfy { ($0.jellies != nil) == world.hasJellies }, "\(world.title)")

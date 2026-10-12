@@ -6,12 +6,12 @@ Arcade game: a one-touch game for iPhone and iPad (landscape, SwiftUI + SpriteKi
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
 A new player starts with the tutorial (`ArcadeTutorial.swift`), which teaches the rules by playing them. The world
-map then has four worlds, each with ten levels to conquer and then The Deep End, five more at its hardest:
+map then has five worlds, each with ten levels to conquer and then The Deep End, five more at its hardest:
 **Shallow Reef** (fish only), **Jelly Bloom** (drifting jellyfish: bounce off their domes, dodge their tentacles),
-**Kelp Forest** (kelp slows you, and fish in it are shadows), and **Midnight Zone** (dark water lit by your
-headlamp, and anglerfish lures). A fifth stop, Riptide Reef, is marked coming soon; in Xcode builds it's the prototype
-world instead (`ArcadeWorld.prototypes`): today **Sunset Cove**, three trial levels with baited hooks hanging from boats
-(`FishHooks.swift`, its knobs under `// MARK: Sunset Cove` in `GameTuning`). Every level is planned (see
+**Kelp Forest** (kelp slows you, and fish in it are shadows), **Sunset Cove** (boats lower baited hooks: leave the
+bait; `FishHooks.swift`, its knobs under `// MARK: Sunset Cove` in `GameTuning`), and **Midnight Zone** (dark water
+lit by your headlamp, and anglerfish lures). Xcode builds add a prototype world after them
+(`ArcadeWorld.prototypes`): **Riptide Reef**, whose currents carry you faster, being developed for 2.0. Every level is planned (see
 Meeting planner below), and each world opens its levels in order. Clears and fastest times are saved on the device
 and backed up to the player's own iCloud, so they come back after a reinstall and follow the player to another
 device; the two copies merge so that syncing never un-clears a level.

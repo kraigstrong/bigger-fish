@@ -9,12 +9,14 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     case sunsetCove = "sunset-cove"
     case riptideReef = "riptide-reef"
 
-    /// The playable worlds, in map order. The map shows the rest as coming soon. Once a world ships, its ID and
-    /// level numbers are permanent (they key saved progress).
-    static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom, .kelpForest, .midnightZone]
+    /// The playable worlds, in map order: 1.0's five. Sunset Cove plays fourth, before Midnight Zone (Kraig,
+    /// 2026-10-12: "I think it should actually be the 4th world, with 5th being midnight zone"); saves key progress by
+    /// world ID, so the order can change. Once a world ships, its ID and level numbers are permanent.
+    static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom, .kelpForest, .sunsetCove, .midnightZone]
     /// Worlds still being prototyped: on the map in Xcode builds only, after the campaign and open from the start,
-    /// so nothing unlocks them and the campaign's last world doesn't point to them. Midnight Zone started here.
-    static let prototypes: [ArcadeWorld] = [.sunsetCove, .riptideReef]
+    /// so nothing unlocks them and the campaign's last world doesn't point to them. Midnight Zone and Sunset Cove
+    /// started here; Riptide Reef is being developed for 2.0.
+    static let prototypes: [ArcadeWorld] = [.riptideReef]
     static var mapWorlds: [ArcadeWorld] {
         #if DEBUG
         mapWorlds(includingPrototypes: true)

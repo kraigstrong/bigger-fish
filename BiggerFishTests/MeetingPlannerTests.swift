@@ -198,8 +198,8 @@ struct MeetingPlannerTests {
             let played = (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }!
             #expect(plans[level].fish == played.fish && plans[level].seed == played.seed, "\(trial)")
         }
-        // World four: unlocked by beating Kelp Forest's level 10.
-        #expect(ArcadeWorld.campaign.last == .midnightZone && ArcadeWorld.kelpForest.nextWorld == .midnightZone)
+        // The last of 1.0's five worlds, after Sunset Cove.
+        #expect(ArcadeWorld.campaign.last == .midnightZone && ArcadeWorld.sunsetCove.nextWorld == .midnightZone)
         #expect(GameTuning.midnightFrozen == Set(GameTuning.midnightSpecs.map(\.name)))
     }
 

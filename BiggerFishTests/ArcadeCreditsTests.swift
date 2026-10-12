@@ -29,15 +29,17 @@ struct ArcadeCreditsTests {
 
     // MARK: The names
 
-    /// Design and the play-testers come first, exactly as Kraig gave them, then the music and sound effects, which are
+    /// Design, level design, and the play-testers come first, exactly as Kraig gave them, then the music and sound effects, which are
     /// the ones Sounds/CREDITS.md names: a sound added or swapped there fails this until Credits.json follows.
     @Test func theNamesAreTheTestersThenWhatCreditsMDNames() throws {
         let credits = try #require(ArcadeCredits.load(), "Credits.json is missing from the app or doesn't decode")
         #expect(credits == ArcadeCredits.shipped)
-        #expect(credits.groups.map(\.heading) == ["Design", "Play-testers", "Music", "Sound effects"])
+        #expect(credits.groups.map(\.heading) == ["Design", "Level design", "Play-testers", "Music", "Sound effects"])
         #expect(credits.groups[0].credits.map(\.name) == ["Megan S"])
-        #expect(credits.groups[1].credits.map(\.name) == ["Chad H", "Adam A", "Andy W", "Riley S", "Reagan S"])
-        #expect(credits.names.map(\.tag) == ["Design"] + Array(repeating: "Play-tester", count: 5)
+        // Sunset Cove was Riley's idea (Kraig: "I think Riley S should be 'level designer'").
+        #expect(credits.groups[1].credits.map(\.name) == ["Riley S"])
+        #expect(credits.groups[2].credits.map(\.name) == ["Chad H", "Adam A", "Andy W", "Reagan S"])
+        #expect(credits.names.map(\.tag) == ["Design", "Level design · Sunset Cove"] + Array(repeating: "Play-tester", count: 4)
             + ["Music · Tidal Groove", "Music · Aquarium Fish", "Sound effects"])
 
         let markdown = try String(contentsOf: Self.root.appendingPathComponent("BiggerFish/Sounds/CREDITS.md"), encoding: .utf8)

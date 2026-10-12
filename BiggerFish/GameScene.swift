@@ -1986,7 +1986,7 @@ final class GameScene: SKScene {
     private func catchOnHook(_ index: Int, at hook: CGPoint) {
         let reason = "Caught on a hook."
         if metricAccumulator != nil {
-            // Never sent while Sunset Cove is a prototype (`startRun`); the stats server would need this cause first.
+            // The stats server takes this cause from 1.0 (kraigstrong/BrightBench); before that it dropped a batch with it.
             observeMetrics()
             metricDeathCause = "hook"
             fatalMetrics = metricAccumulator?.summary

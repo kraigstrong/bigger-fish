@@ -28,8 +28,8 @@ struct ArcadeUnlockTests {
             #expect(ArcadeUnlock.needsUnlock(world, free, unlocked: false, selling: true))
             #expect(ArcadeUnlock.needsUnlock(world, ArcadeWorld.mainLevelCount, unlocked: false, selling: true))
         }
-        #expect(ArcadeUnlock.worldsItOpens == [.jellyBloom, .kelpForest, .midnightZone])
-        #expect(ArcadeUnlock.deepEndLevels == 20)
+        #expect(ArcadeUnlock.worldsItOpens == [.jellyBloom, .kelpForest, .sunsetCove, .midnightZone])
+        #expect(ArcadeUnlock.deepEndLevels == 25)
     }
 
     @Test func theUnlockOpensEverythingAndSoDoesNotSellingIt() {

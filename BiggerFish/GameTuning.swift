@@ -835,7 +835,7 @@ enum GameTuning {
     /// A soft glow around your head, as a share of the beam's reach, so a fish right beside you is never invisible.
     static let headlampGlow: CGFloat = 0.14
 
-    // MARK: Sunset Cove (prototype, Xcode builds only)
+    // MARK: Sunset Cove (world 4)
 
     /// Sunset Cove's fifteen levels, ten and the Deep End: Shallow Reef's, borrowed by index as Kelp Forest borrows them,
     /// planned like Midnight Zone's (fish appear just off screen right before you meet them), with baited hooks hung
@@ -904,9 +904,9 @@ enum GameTuning {
     /// 10") and 11 ("11 is incredible"). Take a level out of this set (with Kraig's OK) to tune it in code again, then
     /// regenerate the file.
     static let sunsetFrozen: Set<String> = ["Sunset Cove 10", "Sunset Cove 11"]
-    #if DEBUG
-    /// Sunset Cove's levels as Xcode builds play them: from `SunsetPlans.json` for the frozen ones, otherwise planned
-    /// in code (`sunsetPlan`).
+    /// Sunset Cove's levels as the game plays them: from `SunsetPlans.json` for the frozen ones, otherwise planned in
+    /// code (`sunsetPlan`) in Xcode builds. Release builds play the saved file for every level, so regenerate it after
+    /// any change, and freeze every level before publishing.
     static let sunsetLevels: [Level] = {
         let saved = savedPlans("SunsetPlans")
         return sunsetSpecs.enumerated().map { index, spec in
@@ -914,6 +914,7 @@ enum GameTuning {
         }
     }()
     static var sunsetLevelCount: Int { sunsetSpecs.count }
+    #if DEBUG
     /// A Sunset Cove level planned in code: its re-roll if it has one, otherwise the first layout with every hook hung,
     /// no other planner issues, and no wall of giants.
     static func sunsetPlan(_ index: Int) -> MeetingPlan {
@@ -922,10 +923,6 @@ enum GameTuning {
         return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
             .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
     }
-    #else
-    /// A prototype isn't part of the shipped game.
-    static let sunsetLevels: [Level] = []
-    static var sunsetLevelCount: Int { 0 }
     #endif
     /// No hook is passed before this many screens into the lap, so each one swims in from the right with its boat.
     static let sunsetFirstHookScreens: CGFloat = 1.1

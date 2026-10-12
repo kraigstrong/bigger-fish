@@ -20,23 +20,20 @@ struct SunsetCoveTests {
         return (scene, view)
     }
 
-    /// On the world map in Xcode builds only, after the campaign, every level open and never part of the unlock.
-    @Test func sunsetCoveIsAnXcodeOnlyPrototype() {
-        #expect(ArcadeWorld.prototypes.contains(.sunsetCove) && !ArcadeWorld.campaign.contains(.sunsetCove))
-        #expect(ArcadeWorld.mapWorlds == ArcadeWorld.campaign + ArcadeWorld.prototypes)
-        // What a Release build's map shows.
+    /// World 4 of 1.0's five, between Kelp Forest and Midnight Zone, on every build's map: two free levels, the rest with
+    /// the unlock, like Jelly Bloom, Kelp Forest, and Midnight Zone.
+    @Test func sunsetCoveIsWorldFour() {
+        #expect(ArcadeWorld.campaign == [.shallowReef, .jellyBloom, .kelpForest, .sunsetCove, .midnightZone])
+        #expect(!ArcadeWorld.prototypes.contains(.sunsetCove))
         #expect(ArcadeWorld.mapWorlds(includingPrototypes: false) == ArcadeWorld.campaign)
-        #expect(!ArcadeWorld.mapWorlds(includingPrototypes: false).contains(.sunsetCove))
-        #expect(ArcadeWorld.midnightZone.nextWorld == nil && ArcadeWorld.sunsetCove.nextWorld == nil)
+        #expect(ArcadeWorld.kelpForest.nextWorld == .sunsetCove && ArcadeWorld.sunsetCove.nextWorld == .midnightZone)
         let world = ArcadeWorld.sunsetCove
         #expect(world.rawValue == "sunset-cove" && world.title == "Sunset Cove" && world.levelCount == 15 && world.deepEndCount == 5)
-        let progress = ArcadeProgress(defaults: UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!)
-        for index in 0..<world.levelCount {
-            #expect(progress.isOpen(world, index))
-            #expect(!ArcadeUnlock.needsUnlock(world, index, unlocked: false, selling: true))
-        }
-        #expect(ArcadeUnlock.isWorldOpen(world, unlocked: false, selling: true))
-        #expect(!ArcadeUnlock.worldsItOpens.contains(world))
+        #expect(ArcadeUnlock.freeLevels(in: world) == GameTuning.freeLevelsPerWorld)
+        #expect(!ArcadeUnlock.needsUnlock(world, GameTuning.freeLevelsPerWorld - 1, unlocked: false, selling: true))
+        #expect(ArcadeUnlock.needsUnlock(world, GameTuning.freeLevelsPerWorld, unlocked: false, selling: true))
+        #expect(!ArcadeUnlock.needsUnlock(world, GameTuning.freeLevelsPerWorld, unlocked: true, selling: true))
+        #expect(ArcadeUnlock.worldsItOpens.contains(world))
         #expect(PlayfieldWater.of(world) == .sunset)
     }
 
@@ -170,24 +167,33 @@ struct SunsetCoveTests {
         }
     }
 
-    /// A prototype world never reports: the stats server would drop the whole batch over a world it doesn't know.
-    @Test func prototypeWorldsSendNoAnalytics() async {
+    /// A campaign world reports, a death on a hook as cause "hook" (the stats server takes it from 1.0). A prototype
+    /// world never reports: the server would drop the whole batch over a world or cause it doesn't know.
+    @Test(arguments: [ArcadeWorld.sunsetCove, .riptideReef]) func campaignWorldsReportAndPrototypesDont(_ world: ArcadeWorld) async {
         let sender = ArcadeMetricsTests.Sender()
         let defaults = UserDefaults(suiteName: "metrics.tests.\(UUID().uuidString)")!
         let analytics = ArcadeAnalytics(defaults: defaults, sender: sender, enabled: true)
-        let scene = GameScene(world: .sunsetCove, levelIndex: 0)
+        let scene = GameScene(world: world, levelIndex: 0)
         scene.analytics = analytics
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         scene.debugStart()
-        #expect(scene.debugTouchHook(0, at: .bait))
+        if world == .sunsetCove {
+            #expect(scene.debugTouchHook(0, at: .bait))
+        } else {
+            scene.debugLose()
+        }
         scene.debugAdvance(seconds: 1.5)
         scene.debugTapResult(.tryAgain)
         scene.debugStart()
         scene.exitMetrics()
         await withCheckedContinuation { continuation in DispatchQueue.main.async { continuation.resume() } }
-        #expect(analytics.queue.isEmpty)
-        #expect(sender.batches.flatMap(\.events).isEmpty)
+        let events = analytics.queue + sender.batches.flatMap(\.events)
+        if world == .sunsetCove {
+            #expect(events.contains { $0.kind == .run && $0.outcome == "death" && $0.cause == "hook" && $0.context?.world == "sunset-cove" })
+        } else {
+            #expect(events.isEmpty)
+        }
         withExtendedLifetime(view) {}
     }
 
