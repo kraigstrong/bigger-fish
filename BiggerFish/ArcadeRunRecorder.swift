@@ -13,17 +13,25 @@ final class ArcadeRunRecorder {
     private var lastSnapshot = -Double.infinity
     private var lastSync = 0.0
 
-    static func makeDefault() -> ArcadeRunRecorder? {
+    /// Documents/ArcadeRuns, where recordings go: nil under tests and with -arcadeDisableRunRecording, which turn off
+    /// the hitch log (`HitchLog`) too.
+    static var defaultDirectory: URL? {
         guard NSClassFromString("XCTestCase") == nil,
               ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
               !ProcessInfo.processInfo.arguments.contains("-arcadeDisableRunRecording"),
               let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
-        return ArcadeRunRecorder(directory: documents.appendingPathComponent("ArcadeRuns", isDirectory: true))
+        return documents.appendingPathComponent("ArcadeRuns", isDirectory: true)
     }
 
-    init(directory: URL) {
+    static func makeDefault() -> ArcadeRunRecorder? {
+        defaultDirectory.map { ArcadeRunRecorder(directory: $0) }
+    }
+
+    /// `prefix` names the file (`run-…jsonl`, or the hitch log's `hitches-…jsonl`); only the latest `retained` files
+    /// with that prefix are kept.
+    init(directory: URL, prefix: String = "run", retained: Int = retainedRuns) {
         let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        fileURL = directory.appendingPathComponent("run-\(timestamp)-\(UUID().uuidString.prefix(8)).jsonl")
+        fileURL = directory.appendingPathComponent("\(prefix)-\(timestamp)-\(UUID().uuidString.prefix(8)).jsonl")
         queue.async { [self] in
             do {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -32,8 +40,9 @@ final class ArcadeRunRecorder {
                 }
                 handle = try FileHandle(forWritingTo: fileURL)
                 let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-                    .filter { $0.pathExtension == "jsonl" }.sorted { $0.lastPathComponent > $1.lastPathComponent }
-                for old in files.dropFirst(Self.retainedRuns) where old != fileURL {
+                    .filter { $0.pathExtension == "jsonl" && $0.lastPathComponent.hasPrefix(prefix + "-") }
+                    .sorted { $0.lastPathComponent > $1.lastPathComponent }
+                for old in files.dropFirst(retained) where old != fileURL {
                     try FileManager.default.removeItem(at: old)
                 }
                 print("[ArcadeRun] Recording \(fileURL.lastPathComponent)")
@@ -41,7 +50,8 @@ final class ArcadeRunRecorder {
         }
     }
 
-    func event(_ name: String, time: Double, simulationTime: Double, fields: [String: Any] = [:]) {
+    /// `simulationTime`: the run's simulated seconds, when it has them (the hitch log's own file doesn't).
+    func event(_ name: String, time: Double, simulationTime: Double? = nil, fields: [String: Any] = [:]) {
         guard !finished else { return }
         append(type: name, time: time, simulationTime: simulationTime, fields: fields)
     }
@@ -79,11 +89,11 @@ final class ArcadeRunRecorder {
         }
     }
 
-    private func append(type: String, time: Double, simulationTime: Double, fields: [String: Any]) {
+    private func append(type: String, time: Double, simulationTime: Double?, fields: [String: Any]) {
         var entry = fields
         entry["type"] = type
         entry["time"] = time
-        entry["simTime"] = simulationTime
+        if let simulationTime { entry["simTime"] = simulationTime }
         queue.async { [self, entry] in
             guard let handle else { return }
             do {

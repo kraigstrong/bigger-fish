@@ -189,6 +189,9 @@ final class ArcadeAnalytics {
     }
     func checkpoint(_ summary: ArcadeRunMetrics) {
         guard enabled, pending != nil else { return }
+        #if DEBUG
+        HitchLog.shared?.note(.analyticsEvent, "checkpoint saved")
+        #endif
         pending?.event.summary = summary
         defaults.set(try? JSONEncoder().encode(pending), forKey: prefix + "pending")
     }
@@ -242,6 +245,9 @@ final class ArcadeAnalytics {
     }
     private func enqueue(_ event: ArcadeMetricEvent) { enqueueStored(stamp(event)) }
     private func enqueueStored(_ event: Queued) {
+        #if DEBUG
+        HitchLog.shared?.note(.analyticsEvent, "queued")
+        #endif
         defaults.set(try? JSONEncoder().encode(Array((storedQueue + [event]).suffix(100))), forKey: prefix + "queue")
     }
     /// At-most-once delivery: remove before sending, never retry uncertain deliveries without IDs.
@@ -249,6 +255,9 @@ final class ArcadeAnalytics {
     func flush() {
         guard enabled else { return }
         let events = storedQueue
+        #if DEBUG
+        if !events.isEmpty { HitchLog.shared?.note(.analyticsSend, "flush") }
+        #endif
         defaults.removeObject(forKey: prefix + "queue")
         let grouped = Dictionary(grouping: events) { "\($0.channel):\($0.appVersion):\($0.build)" }
         for group in grouped.values {

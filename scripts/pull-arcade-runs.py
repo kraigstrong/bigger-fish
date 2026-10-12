@@ -23,17 +23,23 @@ def connected_device():
     return connected[0]["identifier"]
 
 
+def read(path):
+    records = []
+    for line in path.read_text().splitlines():
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue  # A recording pulled during play can end with a partial line.
+    return records
+
+
 def summarize(folder):
     files = sorted(folder.rglob("run-*.jsonl"))
-    if not files:
+    hitch_files = sorted(folder.rglob("hitches-*.jsonl"))
+    if not files and not hitch_files:
         print("No run recordings found. Install the new Debug build and play a run first.")
     for path in files:
-        records = []
-        for line in path.read_text().splitlines():
-            try:
-                records.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue  # A recording pulled during play can end with a partial line.
+        records = read(path)
         start = next((r for r in records if r.get("type") == "start"), {})
         end = next((r for r in reversed(records) if r.get("type") == "end"), {})
         counts = collections.Counter(r.get("type") for r in records)
@@ -44,7 +50,12 @@ def summarize(folder):
               f"{sum(r.get('predatorID') == 0 for r in meals)} player meals / "
               f"{sum(r.get('predatorID') != 0 for r in meals)} AI meals · "
               f"{sum(r.get('type') == 'bounce' and r.get('fishID') == 0 for r in records)} bounces · "
-              f"{counts['snapshot']} snapshots" + (f" · {end['reason']}" if end.get("reason") else ""))
+              f"{counts['snapshot']} snapshots" + (f" · {counts['hitch']} slow frames" if counts["hitch"] else "")
+              + (f" · {end['reason']}" if end.get("reason") else ""))
+    for path in hitch_files:
+        hitches = [r for r in read(path) if r.get("type") == "hitch"]
+        worst = max((r.get("elapsedMs", 0) for r in hitches), default=0)
+        print(f"{path.name}: {len(hitches)} slow frames outside a level" + (f" · worst {worst:.1f} ms" if hitches else ""))
     print(f"Recordings: {folder.resolve()}")
 
 

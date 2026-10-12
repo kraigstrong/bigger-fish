@@ -127,6 +127,7 @@ struct ContentView: View {
                 withAnimation { offer = UnlockOffer(featured: nil, source: nil) }
             }
         }
+        .onChange(of: hitchScreen, initial: true) { _, screen in HitchLog.shared?.show(screen) }
         #endif
         .onChange(of: quietOnMap) { _, quiet in if quiet { askForReviewIfDue() } }
         .onChange(of: offer == nil) { _, closed in
@@ -220,6 +221,21 @@ struct ContentView: View {
             requestReview()
         }
     }
+
+    #if DEBUG
+    /// The screen on top, for the hitch log (`HitchLog`). A level or the credits, while up, says more about itself.
+    private var hitchScreen: HitchContext {
+        if !loaded { return HitchContext(.launch) }
+        if credits != nil { return HitchContext(.credits) }
+        if let scene { return HitchContext(scene.isTutorial ? .tutorial : .level) }
+        if showsTuning { return HitchContext(.tuning) }
+        if let offer { return HitchContext(.unlock, detail: offer.featured?.rawValue ?? "") }
+        if let celebrating { return HitchContext(celebrationOffer == nil ? .conquered : .unlock, detail: celebrating.rawValue) }
+        if showsSettings { return HitchContext(.settings) }
+        if let selectedWorld { return HitchContext(.levelMap, detail: selectedWorld.rawValue) }
+        return HitchContext(.worldMap)
+    }
+    #endif
 
     /// The unlock is bought, or isn't on sale yet: nothing past the free levels is locked.
     private var unlocked: Bool { !ArcadeUnlock.isSelling || purchases.isUnlocked }

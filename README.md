@@ -229,6 +229,28 @@ periodically and on pause, and keep the latest 100 files. An interrupted run rem
 an abrupt process kill may lose the most recent queued records. Nothing is uploaded automatically.
 Add `-arcadeDisableRunRecording` to Xcode's launch arguments to disable recording temporarily.
 
+### Slow frames (the hitch log)
+
+Debug builds also log every slow frame anywhere in the app (`HitchLog.swift`): the maps, Settings, the unlock, a level
+in any phase (its card, playing, paused, a death, the result), the tutorial, and the credits. A frame is slow when it
+takes at least 1.5 display intervals (12.5 ms at 120 Hz, 25 ms at 60): it missed a refresh. Each one records the screen
+and phase, how long the frame took, the main thread's longest stretch of work in it, the scene's own update, and the
+last few things that happened before it: a screen or scene appearing, a haptic and its generator, a sound, a swallow, a
+death, a card or result shown, an analytics write or send, a pause or resume. A scene times its own frames on
+SpriteKit's clock; everywhere else a display link does, paused while a scene is up so it never changes the frame rate
+being measured.
+
+1. Play a Debug build from Xcode on the phone, as usual.
+2. Pull: `python3 scripts/pull-arcade-runs.py`. Slow frames during a recorded run are in its `run-*.jsonl`; the rest
+   are in a `hitches-*.jsonl` beside them (one per launch that had any; the latest 30 are kept).
+3. Read the **Hitches** section at the end of `build/arcade-runs/analysis/report.md`: slow frames by screen and phase,
+   then by the event just before them, each worst first, then the ten worst with what led up to each.
+   `analysis/hitches.json` has every one.
+
+A long frame with little work came late rather than busy: the display or the system held it, not the game's code. At
+most 20 slow frames are written a second, and the rest are counted. Release builds have none of it, and
+`-arcadeDisableRunRecording` turns it off along with the recordings.
+
 ### Meeting planner
 
 Every world plays planned levels: each gate's slack and routes are designed, and every fish still swims

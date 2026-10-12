@@ -154,6 +154,10 @@ final class CreditsScene: SKScene, ObservableObject {
 
     override func didMove(to view: SKView) {
         view.isMultipleTouchEnabled = true
+        #if DEBUG
+        hitchLog?.enterScene(self, hitchContext, view: view)
+        hitchLog?.note(.hapticPrepare, "credits: light impact, success notification")
+        #endif
         if !isBuilt { build() }
         // Ready before they're needed: a first haptic otherwise stalls a frame while iOS sets it up.
         mealHaptic.prepare()
@@ -168,6 +172,9 @@ final class CreditsScene: SKScene, ObservableObject {
 
     override func willMove(from view: SKView) {
         UIApplication.shared.isIdleTimerDisabled = false
+        #if DEBUG
+        hitchLog?.leaveScene(self)
+        #endif
         super.willMove(from: view)
     }
 
@@ -228,6 +235,9 @@ final class CreditsScene: SKScene, ObservableObject {
 
     /// The card before the swim, drawn as a level's: the title, the one line, and "Tap to start", beside your fish.
     private func showStartCard() {
+        #if DEBUG
+        hitchLog?.note(.card, "credits start card")
+        #endif
         let card = SKNode()
         let title = Self.label(Self.startTitle, size: 40, heavy: true)
         let line = Self.label(Self.introLine, size: 19, heavy: false)
@@ -254,6 +264,10 @@ final class CreditsScene: SKScene, ObservableObject {
     private func start() {
         guard !started else { return }
         started = true
+        #if DEBUG
+        hitchLog?.note(.phase, "swimming")
+        hitchLog?.updateScene(self, hitchContext)
+        #endif
         startCard?.run(.sequence([.fadeOut(withDuration: 0.15), .removeFromParent()]))
         startCard = nil
         if view != nil { UIApplication.shared.isIdleTimerDisabled = true }
@@ -264,6 +278,10 @@ final class CreditsScene: SKScene, ObservableObject {
 
     override func update(_ currentTime: TimeInterval) {
         guard isBuilt else { return }
+        #if DEBUG
+        hitchLog?.frameBegan(self, timestamp: currentTime)
+        defer { hitchLog?.frameEnded(self) }
+        #endif
         let elapsed = min(max(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 0), T.maximumFrameElapsed)
         lastUpdate = currentTime
         advance(elapsed)
@@ -450,6 +468,9 @@ final class CreditsScene: SKScene, ObservableObject {
             let ratio = s.fish.radius / player.radius
             swallow = Swallow(prey: s, duration: SwallowTiming.duration(sizeRatio: ratio, curve: T.swallowDurationCurve),
                               ratio: ratio, startOffset: CGVector(dx: dx, dy: dy))
+            #if DEBUG
+            hitchLog?.note(.swallow, "you eat a name")
+            #endif
             s.node.zPosition = playerNode.zPosition - 0.25
             return
         }
@@ -540,6 +561,9 @@ final class CreditsScene: SKScene, ObservableObject {
 
     /// "Thanks, Chad H!" floats up from where the name was as its tag goes, and fades (in place, with Reduce Motion).
     private func thank(_ name: String, at point: CGPoint) {
+        #if DEBUG
+        hitchLog?.note(.card, "thanks line")
+        #endif
         let line = SKNode()
         let text = Self.label(Self.thanks(name), size: T.creditsThanksFont, heavy: true)
         let shadow = Self.label(Self.thanks(name), size: T.creditsThanksFont, heavy: true)
@@ -565,6 +589,10 @@ final class CreditsScene: SKScene, ObservableObject {
     private func finish() {
         finished = true
         finishedAt = clock
+        #if DEBUG
+        hitchLog?.note(.phase, "end_card")
+        hitchLog?.updateScene(self, hitchContext)
+        #endif
         holdTouches.removeAll()
         if view != nil { UIApplication.shared.isIdleTimerDisabled = false }
         play(.clear)
@@ -579,6 +607,9 @@ final class CreditsScene: SKScene, ObservableObject {
 
     /// "Thanks for playing!", as a passed level's card looks, with one button: back to Settings.
     private func showCard() {
+        #if DEBUG
+        hitchLog?.note(.card, "credits end card")
+        #endif
         let card = SKNode()
         let width: CGFloat = 430, height: CGFloat = 210
         let backing = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
@@ -654,6 +685,7 @@ final class CreditsScene: SKScene, ObservableObject {
         guard settings.vibrationOn else { return }
         #if DEBUG
         debugHaptics.append(haptic)
+        hitchLog?.note(.haptic, haptic == .meal ? "meal: light impact" : "finish: success notification")
         #endif
         switch haptic {
         case .meal: mealHaptic.impactOccurred(intensity: T.mealHapticIntensity)
@@ -813,6 +845,12 @@ final class CreditsScene: SKScene, ObservableObject {
     // MARK: - Tests and previews
 
     #if DEBUG
+    /// Where slow frames go (`HitchLog`); a test's own, or none.
+    var hitchLog = HitchLog.shared
+    /// Where the hitch log says a slow frame happened: the start card, the swim, or the end card.
+    var hitchContext: HitchContext {
+        HitchContext(.credits, phase: finished ? "end_card" : started ? "swimming" : "start_card")
+    }
     private var debugHolding: Bool?
     /// Every haptic and sound played, in order (only those the settings let through).
     private(set) var debugHaptics: [Haptic] = []

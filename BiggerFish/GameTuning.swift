@@ -21,8 +21,7 @@ enum GameTuning {
     static let maximumFrameElapsed: CGFloat = 0.25
     static let slowMotionRecoveryRate: CGFloat = 2.5
     #if DEBUG
-    /// Log display gaps or frame work longer than 2.5 normal 60 Hz frames.
-    static let debugFrameHitchSeconds: CGFloat = simulationStep * 2.5
+    /// Log a meal whose work takes longer than half a 60 Hz frame. Slow frames themselves are `HitchLog`'s.
     static let debugMealHitchSeconds: CGFloat = simulationStep / 2
     #endif
 

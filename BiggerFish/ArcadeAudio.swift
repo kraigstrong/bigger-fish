@@ -35,6 +35,19 @@ final class ArcadeAudio {
     /// Raw values are the `.caf` files in Sounds/.
     enum Effect: String, CaseIterable {
         case eat = "pop", bounce = "gulp", sting = "zap", lose = "wrong", clear = "win"
+
+        #if DEBUG
+        /// What it's for, for the hitch log.
+        var hitchName: String {
+            switch self {
+            case .eat: "eat"
+            case .bounce: "bounce"
+            case .sting: "sting"
+            case .lose: "lose"
+            case .clear: "clear"
+            }
+        }
+        #endif
     }
     /// Raw values are the `.m4a` files in Sounds/.
     enum Music: String, CaseIterable {
@@ -99,6 +112,9 @@ final class ArcadeAudio {
 
     func play(_ effect: Effect) {
         guard settings.soundEffectsOn else { return }
+        #if DEBUG
+        HitchLog.shared?.note(.sound, effect.hitchName)
+        #endif
         queue.async { [self] in
             guard let pool = voices[effect], let voice = pool.first(where: { !$0.isPlaying }) ?? pool.first else { return }
             voice.currentTime = 0
@@ -109,6 +125,9 @@ final class ArcadeAudio {
     /// Fades to `music`, or to silence with nil. Asking for the track that's already playing does
     /// nothing, so moving between maps doesn't restart it; each track resumes where it left off.
     func playMusic(_ music: Music?) {
+        #if DEBUG
+        HitchLog.shared?.note(.music, music?.rawValue ?? "silence")
+        #endif
         queue.async { [self] in
             guard music != currentMusic else { return }
             let fade = GameTuning.musicFadeSeconds
