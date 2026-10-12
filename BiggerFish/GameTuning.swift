@@ -809,12 +809,19 @@ enum GameTuning {
     /// those meals they're the sizes the level was designed for (70.3, 69): giants all through lap one, edible at the
     /// end.
     static let sunsetFishRadius: [String: [Int: CGFloat]] = ["Sunset Cove 10": [10: 63, 16: 61.5]]
+    /// Played and approved, so they play exactly as saved in `SunsetPlans.json`: a planner change can't alter them.
+    /// Sunset Cove 10 (Kraig, 2026-10-12, after its giants were sized to finish edible: "perfect. let's freeze level
+    /// 10"). Take a level out of this set (with Kraig's OK) to tune it in code again, then regenerate the file.
+    static let sunsetFrozen: Set<String> = ["Sunset Cove 10"]
     #if DEBUG
-    static let sunsetLevels: [Level] = sunsetSpecs.indices.map { index in
-        var level = sunsetPlan(index).level
-        level.ecosystemSeedIndex = index
-        return level
-    }
+    /// Sunset Cove's levels as Xcode builds play them: from `SunsetPlans.json` for the frozen ones, otherwise planned
+    /// in code (`sunsetPlan`).
+    static let sunsetLevels: [Level] = {
+        let saved = savedPlans("SunsetPlans")
+        return sunsetSpecs.enumerated().map { index, spec in
+            savedLevel(spec, index: index, saved: saved, usesSaved: sunsetFrozen.contains(spec.name), planner: .sunset)
+        }
+    }()
     static var sunsetLevelCount: Int { sunsetSpecs.count }
     /// A Sunset Cove level planned in code: its re-roll if it has one, otherwise the first layout with every hook hung,
     /// no other planner issues, and no wall of giants.
@@ -909,9 +916,9 @@ enum GameTuning {
         }
     }
 
-    /// How Xcode builds plan a level in code: Reef Lab and Jelly Bloom 2 straight from the planner, Kelp Forest and
-    /// Midnight Zone with their re-rolls and hand tweaks (`kelpPlan`, `midnightPlan`).
-    private enum Planner { case meetings, kelp, midnight }
+    /// How Xcode builds plan a level in code: Reef Lab and Jelly Bloom 2 straight from the planner, Kelp Forest,
+    /// Midnight Zone, and Sunset Cove with their re-rolls and hand tweaks (`kelpPlan`, `midnightPlan`, `sunsetPlan`).
+    private enum Planner { case meetings, kelp, midnight, sunset }
 
     /// The level `spec` plays, `index` in its world. The shipped game plays its saved plan and never plans on the
     /// device: the planner is in Xcode builds only, so a level with no saved plan stops a Release build at launch
@@ -926,6 +933,7 @@ enum GameTuning {
             case .meetings: MeetingPlanner.plan(spec)
             case .kelp: kelpPlan(index)
             case .midnight: midnightPlan(index)
+            case .sunset: sunsetPlan(index)
             }
         }()
         #else
