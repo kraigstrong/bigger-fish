@@ -720,14 +720,14 @@ enum GameTuning {
 
     // MARK: Riptide Reef (prototype, Xcode builds only)
 
-    /// Riptide Reef's trial levels: Shallow Reef's levels 1, 5, and 12 (Frenzy: Kraig found 10 with currents "wasn't
-    /// that hard") planned like Midnight Zone's (fish appear just off screen right before you meet them), with currents
-    /// running the full height of the water over stretches of the lap, among the level's fish (`riptideCurrents`), and
-    /// there every lap. The plan reckons with the currents, so each level keeps
+    /// Riptide Reef's trial levels: Shallow Reef's levels 1 and 5, and a recipe of its own in Frenzy's style
+    /// (`riptideRush`), planned like Midnight Zone's (fish appear just off screen right before you meet them), with
+    /// currents running the full height of the water over stretches of the lap, among the level's fish
+    /// (`riptideCurrents`), and there every lap. The plan reckons with the currents, so each level keeps
     /// Shallow Reef's rhythm in seconds, every meal as reachable as there; in a current you just cover more water. Its
     /// lap is longer to make room for that.
-    static let riptideSpecs: [MeetingSpec] = [0, 4, 11].enumerated().map { index, source in
-        var spec = reefLabSpecs[source]
+    static let riptideSpecs: [MeetingSpec] = [reefLabSpecs[0], reefLabSpecs[4], riptideRush].enumerated().map { index, source in
+        var spec = source
         spec.name = "Riptide Reef \(index + 1)"
         let speeds = riptideCurrents[index]
         spec.currents = CurrentSpec(speeds: speeds.map(Double.init), seconds: Double(riptideCurrentSeconds),
@@ -736,6 +736,20 @@ enum GameTuning {
         spec.worldScreens += Double(speeds.reduce(0) { $0 + ($1 - 1) } * riptideCurrentSeconds) / spec.crossSeconds / 0.75
         return spec
     }
+    /// The hard trial's recipe. Kraig found Shallow Reef 10 with currents "wasn't that hard", and Frenzy (Shallow Reef 12)
+    /// borrowed whole played as a copy of it: "I want it to feel like 12, but not be a copy." So Frenzy's feel, quick
+    /// meals and four walled gates with a burst to open, in its own run of lanes: the opening burst from a two-meal lane
+    /// rather than three lone meals, a short fork before the second gate, and a last gate that takes three meals, not
+    /// two. A planner takes a recipe very literally (borrowed whole, the meetings fall at the same moments and nearly
+    /// the same heights), so a new feel needs a new recipe.
+    static let riptideRush = MeetingSpec(name: "Riptide Rush",
+        segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3),
+                   .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2, dangerFoods: 1),
+                   .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                   .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1)],
+        worldScreens: 6, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.72, heightSwing: 0.45...0.85,
+        foodSize: 0.66...0.8, gateMargin: 0.15, dangerGap: 24, threatClearance: 38, spacing: 0.21,
+        aiSpeed: 64...186, aiVertical: 93, crossSeconds: 2.57, walledGates: true, timesTheEdge: true)
     /// Each trial's currents, in order along the lap, times your pace, every one carrying you forward. Easy three,
     /// medium four, hard three: more in the early levels, with their easier fish, since the currents are the fun.
     /// Kraig (2026-10-11), after narrow channels "just aren't doing it": "full height, and just slip into a fast
