@@ -1791,14 +1791,12 @@ final class GameScene: SKScene {
     /// Riptide Reef's currents, from the level's plan: only where a scenario needs one.
     private var currents: [PlannedCurrent] { level.meetingPlan?.currents ?? [] }
 
-    /// A small fish that has met you drifts with any current it's in; big fish and fish on their way to you don't.
+    /// A small fish that has met you drifts with any current it's in; big fish and fish on their way to you don't. Like
+    /// yours, its place in a current is how far along your run it is, so currents carry it on your first lap only.
     private func sweep(_ f: Fish, _ dt: CGFloat) {
         guard !currents.isEmpty, f.state == .swimming, approachEnds[f.id] == nil, f.radius <= T.currentSweepsRadius else { return }
-        let share = waterShare(f.position.y)
-        guard let current = currents.first(where: { current in
-            let into = world.delta(from: world.wrap(current.start), to: f.position.x)
-            return (0...(current.end - current.start)).contains(into) && (current.low...current.high).contains(share)
-        }) else { return }
+        let distance = forwardDistance + world.delta(from: player.position.x, to: f.position.x)
+        guard let current = currents.first(where: { $0.contains(distance: distance, share: waterShare(f.position.y)) }) else { return }
         f.position.x = world.wrap(f.position.x + (current.speed - 1) * playerSpeed * dt)
     }
 
@@ -1812,8 +1810,8 @@ final class GameScene: SKScene {
         wake = nil
         guard !currents.isEmpty else { return }
         var rng = SeededGenerator(seed: 0x52495054)
-        let span = screenWaterTop - screenWaterBottom
         for current in currents {
+            let (bottom, top) = currentBand(current)
             let node = SKNode()
             // Over the water (0) and under the surface line and the specks (1); the scene ignores sibling order, so
             // depth alone decides.
@@ -1821,7 +1819,7 @@ final class GameScene: SKScene {
             let fast = current.speed > 1
             let band = SKSpriteNode(color: fast ? SKColor(red: 0.55, green: 0.92, blue: 1, alpha: 0.13)
                                                : SKColor(red: 1, green: 0.78, blue: 0.5, alpha: 0.11),
-                                    size: CGSize(width: 1, height: span * (current.high - current.low)))
+                                    size: CGSize(width: 1, height: top - bottom))
             band.anchorPoint = .zero
             node.addChild(band)
             var streaks: [(SKSpriteNode, CGFloat, CGFloat)] = []
@@ -1855,14 +1853,24 @@ final class GameScene: SKScene {
         bubbles.targetNode = fishLayer
         wake = bubbles
     }
-    private func renderCurrents(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
+    /// Where a current runs on screen, bottom to top: a full-height one fills the water edge to edge, past the margins
+    /// your fish keeps from the floor and the surface.
+    private func currentBand(_ current: PlannedCurrent) -> (bottom: CGFloat, top: CGFloat) {
         let span = screenWaterTop - screenWaterBottom
+        return (current.low <= 0 ? 0 : screenWaterBottom + span * current.low,
+                current.high >= 1 ? size.height : screenWaterBottom + span * current.high)
+    }
+
+    private func renderCurrents(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
+        // How far you've come as drawn, between the last two steps. A current is somewhere along your run, not a place
+        // on the lap: it's there on your first lap only (`simulate`), so it never shows coming round again.
+        let distance = forwardDistance + world.delta(from: player.position.x, to: cameraX)
         for patch in currentPatches {
             let length = (patch.current.end - patch.current.start) * zoom
-            let x = screenAnchorX + world.delta(from: cameraX, to: world.wrap(patch.current.start)) * zoom
-            patch.node.isHidden = forwardDistance > world.width || x > size.width || x + length < 0
+            let x = screenAnchorX + (patch.current.start - distance) * zoom
+            patch.node.isHidden = x > size.width || x + length < 0
             if patch.node.isHidden { continue }
-            patch.node.position = CGPoint(x: x, y: screenWaterBottom + span * patch.current.low)
+            patch.node.position = CGPoint(x: x, y: currentBand(patch.current).bottom)
             patch.band.size.width = length
             let direction: CGFloat = patch.current.speed > 1 ? 1 : -1
             for (streak, offset, y) in patch.streaks {
@@ -3332,6 +3340,11 @@ final class GameScene: SKScene {
     func debugStartTutorial(at beat: ArcadeTutorial.Beat) {
         tutorialCheckpoint = beat
         resetGame(startPlaying: true)
+    }
+
+    /// Each current as last drawn: hidden, or where its band is on screen.
+    var debugCurrentBands: [CGRect?] {
+        currentPatches.map { $0.node.isHidden ? nil : CGRect(origin: $0.node.position, size: $0.band.size) }
     }
 
     func debugAdvance(seconds: CGFloat) {

@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import SpriteKit
 import Testing
 @testable import BiggerFish
 
@@ -216,6 +217,37 @@ struct MeetingPlannerTests {
                 let meetings = plan.predicted.filter { (current.start...current.end).contains(CGFloat($0.distance)) }.count
                 #expect(meetings >= 2, "\(name) current \(number + 1) has \(meetings) fish in it")
             }
+        }
+    }
+
+    /// A current is somewhere along your run, as it is for your pace: it comes on screen once and, once it's gone off the
+    /// left, never shows again (it once peeked in at the end of the first lap, coming round again, and vanished), and a
+    /// full-height one fills the water from the bottom of the screen to the top (it once stopped a few points short).
+    @MainActor @Test func riptideReefCurrentsShowOnceAndFillTheWater() {
+        for index in 0..<ArcadeWorld.riptideReef.levelCount {
+            let scene = GameScene(world: .riptideReef, levelIndex: index, showsJellyLesson: false)
+            let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+            view.ignoresSiblingOrder = true
+            view.presentScene(scene)
+            defer { withExtendedLifetime(view) {} }
+            let count = scene.debugMeetingPlan?.currents?.count ?? 0
+            var gone = Array(repeating: false, count: count), back = gone, short: [CGRect] = []
+            var last: [CGRect?] = Array(repeating: nil, count: count)
+            _ = scene.debugPlayReferenceRoute(limit: 30, safeFromFish: true) {
+                scene.debugRender()
+                for (number, band) in scene.debugCurrentBands.enumerated() {
+                    if let band {
+                        if gone[number] { back[number] = true }
+                        if band.minY != 0 || band.maxY != scene.size.height { short.append(band) }
+                    } else if let was = last[number], was.maxX < 30 {
+                        gone[number] = true
+                    }
+                    last[number] = band
+                }
+            }
+            #expect(count >= 2 && gone.allSatisfy { $0 }, "Riptide Reef \(index + 1): not every current came and went (\(gone))")
+            #expect(!back.contains(true), "Riptide Reef \(index + 1): a current showed again after it had gone (\(back))")
+            #expect(short.isEmpty, "Riptide Reef \(index + 1): a band from \(short.first?.minY ?? 0) to \(short.first?.maxY ?? 0)")
         }
     }
 
