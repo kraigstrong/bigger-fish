@@ -201,7 +201,8 @@ final class ArcadeProgress: ObservableObject {
     }
 
     /// Only the player's real save, in standard defaults, is backed up to `iCloud`. A save of its own never is: a Debug
-    /// playtest's (`ArcadePlaytest.suiteName`) or a store capture's staged progress (`StoreCapture.suiteName`).
+    /// playtest's (`ArcadePlaytest.suiteName`) or a store capture's or footage's staged progress (`StoreCapture.suiteName`,
+    /// `StoreFootage.suiteName`).
     static func backup(for defaults: UserDefaults, iCloud: @autoclosure () -> ArcadeCloudStore?) -> ArcadeCloudStore? {
         defaults === UserDefaults.standard ? iCloud() : nil
     }

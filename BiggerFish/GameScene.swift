@@ -989,7 +989,12 @@ final class GameScene: SKScene {
         let realDt = min(frameElapsed, T.maximumFrameElapsed)
         lastUpdate = currentTime
         settlePresentationLag(elapsed: realDt, steps: advanceFrame(realDt))
+        present(realDt)
+    }
 
+    /// Draws the frame `realDt` seconds after the last: the fish where the simulation has them, the camera, and the
+    /// specks and sun rays drifting past.
+    private func present(_ realDt: CGFloat) {
         let presentation = render()
         let cameraDelta = world.delta(from: lastCameraX, to: presentation.cameraX) * presentation.zoom
         lastCameraX = presentation.cameraX
@@ -4002,5 +4007,12 @@ extension GameScene {
 
     /// No pause button, level name, or card over the frame.
     func debugHideInterface() { uiLayer.isHidden = true }
+
+    /// One display frame of `seconds`, played and drawn as `update` does, specks and sun rays included: for footage
+    /// recorded a frame at a time (`StoreFootage`).
+    func debugFrame(seconds: CGFloat) {
+        settlePresentationLag(elapsed: seconds, steps: advanceFrame(seconds))
+        present(seconds)
+    }
 }
 #endif

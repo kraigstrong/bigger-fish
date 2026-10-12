@@ -65,7 +65,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     backed up to iCloud key-value storage. At launch and whenever iCloud's copy changes (another device, a reinstall's
     first download, a new Apple ID), the two merge so progress only ever grows: cleared levels and seen screens are
     united, the faster best time wins, and fields from a later version are kept. Without iCloud it plays exactly as
-    before. Debug playtest and store-capture saves never sync
+    before. Debug playtest, store-capture and footage saves never sync
   - `ArcadeUnlock.swift` / `UnlockView.swift` / `WorldClips/` — free to try (all of Shallow Reef, two levels of
     each other world) and the one-time unlock that opens every world and Deep End; its screen loops a clip of each
     world. `BiggerFish.storekit` is the scheme's StoreKit test file
@@ -75,6 +75,8 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them
   - `ArcadePlaytest.swift` — debug-only isolated level launches for playtesting
   - `StoreCapture.swift` — debug-only App Store screenshots: the bot plays each moment's level to its best frame
+  - `StoreFootage.swift` — debug-only gameplay footage for the trailer and App Store previews: the bot plays a level
+    one frame at a time, so it never stutters, with the interface hidden (`scripts/bigger-fish-footage.sh`)
 - `MathReef/` — **Math Reef** (`com.kraigstrong.mathreef`), the education app for grades 1–5. Pick a
   world (Addition, Subtraction, Multiplication, Division, Exponents), then a level,
   and swim into the right answer. Addition and subtraction climb in small strategy steps (+1/+2, make 10,

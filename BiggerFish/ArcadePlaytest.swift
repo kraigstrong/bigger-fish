@@ -50,8 +50,8 @@ enum ArcadePlaytest {
 
     /// Play with or without the unlock, ignoring StoreKit: -arcadeUnlocked YES (or NO).
     static var unlockOverride: Bool? {
-        // App Store captures show every world open, with no price anywhere.
-        if StoreCapture.moment != nil { return true }
+        // App Store captures and footage show every world open, with no price anywhere.
+        if StoreCapture.moment != nil || StoreFootage.request != nil { return true }
         let args = ProcessInfo.processInfo.arguments
         guard let flag = args.firstIndex(of: "-arcadeUnlocked"), args.indices.contains(flag + 1) else { return nil }
         return args[flag + 1] == "YES"
@@ -61,7 +61,8 @@ enum ArcadePlaytest {
     static let suiteName = "biggerFish.playtest"
 
     static var defaults: UserDefaults {
-        StoreCapture.defaults ?? screenDefaults ?? (selection == nil ? .standard : UserDefaults(suiteName: suiteName)!)
+        StoreCapture.defaults ?? StoreFootage.defaults ?? screenDefaults
+            ?? (selection == nil ? .standard : UserDefaults(suiteName: suiteName)!)
     }
 
     /// A screen to open at launch, to check its layout at a device's size (an iPad, a small phone):
