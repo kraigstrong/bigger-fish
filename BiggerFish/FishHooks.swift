@@ -42,7 +42,7 @@ struct PlannedHook: Codable, Equatable {
     /// Seconds for one bob, or one sweep there and back.
     let period: CGFloat
     let phase: CGFloat
-    /// World points a second a trolling hook's boat drifts the way you swim.
+    /// World points a second a trolling hook's boat moves: negative, as it motors toward you.
     let speed: CGFloat
     let baitRadius: CGFloat
     /// Seconds into the run that the reference route passes it.
@@ -65,10 +65,10 @@ enum HookMotion {
         }
     }
 
-    /// Where its line leaves the boat's rod, world x (unwrapped): straight above the hook, or ahead of it for a boat
-    /// trolling it along behind.
+    /// Where its line leaves the boat's rod, world x (unwrapped): straight above the hook, or ahead of it (toward you)
+    /// for a boat trolling it along behind.
     static func rodX(_ hook: PlannedHook, time: CGFloat) -> CGFloat {
-        position(hook, time: time).x + (hook.motion == .troll ? GameTuning.sunsetTrollTrail : 0)
+        position(hook, time: time).x - (hook.motion == .troll ? GameTuning.sunsetTrollTrail : 0)
     }
 }
 
@@ -95,10 +95,16 @@ enum HookRules {
 // MARK: - Art
 
 /// A boat seen from under the water: a dark hull at the surface, its rod over the stern. Drawn at the reference scale
-/// (zoom 1) with its origin where the line leaves the rod, at the waterline; the hull runs ahead of it, to the right.
+/// (zoom 1) with its origin where the line leaves the rod, at the waterline; the hull runs ahead of it, to the left,
+/// pointing the way it goes across the screen as you swim past (Kraig: a boat facing the way you swim looked like it
+/// was backing up).
 final class HookBoatNode: SKNode {
     init(seed: UInt64) {
         super.init()
+        // Drawn bow to the right, then turned round.
+        let art = SKNode()
+        art.xScale = -1
+        addChild(art)
         var rng = SeededGenerator(seed: seed)
         let length = GameTuning.sunsetBoatLength * CGFloat.random(in: 0.9...1.1, using: &rng)
         let draft = GameTuning.sunsetBoatDraft
@@ -118,13 +124,13 @@ final class HookBoatNode: SKNode {
         body.lineWidth = 1.5
         // Over the cabin and the outboard (they're the hull's color, but it has a rim): the scene ignores sibling order.
         body.zPosition = 0
-        addChild(body)
+        art.addChild(body)
         // A cabin above the deck, and the outboard under the stern: its leg and propeller.
         let cabin = SKShapeNode(rect: CGRect(x: stern + length * 0.4, y: 6, width: length * 0.32, height: 16), cornerRadius: 3)
         cabin.fillColor = GameTuning.sunsetBoatColor
         cabin.strokeColor = .clear
         cabin.zPosition = -0.05
-        addChild(cabin)
+        art.addChild(cabin)
         let motor = CGMutablePath()
         motor.addRoundedRect(in: CGRect(x: stern - 6, y: -draft * 0.3, width: 12, height: draft * 0.5), cornerWidth: 3, cornerHeight: 3)
         // Apart from one another, so they fill alike whatever the fill rule.
@@ -134,7 +140,7 @@ final class HookBoatNode: SKNode {
         outboard.fillColor = GameTuning.sunsetBoatColor
         outboard.strokeColor = .clear
         outboard.zPosition = -0.05
-        addChild(outboard)
+        art.addChild(outboard)
         // The rod, out over the stern to where the line leaves it.
         let rodPath = CGMutablePath()
         rodPath.move(to: CGPoint(x: stern + 14, y: 7))
@@ -144,7 +150,7 @@ final class HookBoatNode: SKNode {
         rod.lineWidth = 2.5
         rod.lineCap = .round
         rod.zPosition = 0.05
-        addChild(rod)
+        art.addChild(rod)
     }
 
     @available(*, unavailable)
@@ -364,7 +370,7 @@ enum HookLayout {
                                    period: T.sunsetBobSeconds, phase: (above ? .pi : 0) - omega * passTime, speed: 0,
                                    baitRadius: bait, passTime: passTime, styleSeed: 0)
             case .troll:
-                let range = T.sunsetTrollSweep / zoom, speed = T.sunsetTrollSpeed / zoom
+                let range = T.sunsetTrollSweep / zoom, speed = -T.sunsetTrollSpeed / zoom
                 let angle = 2 * .pi * passTime / T.sunsetTrollSweepSeconds + phase
                 return PlannedHook(motion: .troll, role: role, x: x - speed * passTime, depth: y - range * sin(angle),
                                    range: range, period: T.sunsetTrollSweepSeconds, phase: phase, speed: speed,

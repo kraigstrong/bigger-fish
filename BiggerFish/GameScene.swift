@@ -44,7 +44,7 @@ private struct HookRig {
     let line: SKShapeNode
     let metal: SKShapeNode
     let bait: FishNode
-    /// The gate's second line hangs from the first one's boat.
+    /// The gate's first line hangs from the second one's boat.
     let sharesBoat: Bool
 }
 
@@ -1086,6 +1086,12 @@ final class GameScene: SKScene {
         zoom += (target - zoom) * min(1, dt * T.zoomEase)
     }
 
+    /// How fast a fish roaming free rises and dives (world points a second): kept the same on screen as the camera zooms
+    /// out where `GameTuning.zoomedRoamingWorlds` says.
+    private var roamingVerticalSpeed: CGFloat {
+        level.aiVerticalSpeed / (T.zoomedRoamingWorlds.contains(arcadeWorld) ? zoom : 1)
+    }
+
     private func moveAI(_ f: Fish, _ dt: CGFloat) {
         if let scripted = tutorialPaths[f.id] {
             moveScripted(f, scripted, dt)
@@ -1121,7 +1127,7 @@ final class GameScene: SKScene {
         let minY = waterBottom + f.radius
         let maxY = max(minY, waterTop - f.radius)
         let steered = FreeSwim.steer(f, dt: dt, clock: simClock, minY: minY, maxY: maxY,
-            verticalSpeed: level.aiVerticalSpeed, rng: &movementRNG)
+            verticalSpeed: roamingVerticalSpeed, rng: &movementRNG)
         var vx = steered.dx, vy = steered.dy
 
         if encounterProtected(f.id) {
@@ -1916,8 +1922,8 @@ final class GameScene: SKScene {
                 node.isHidden = true
                 hazardLayer.addChild(node)
             }
-            // One boat fishes both of the gate's lines: the second's rod is just behind the first's, over its hull.
-            let sharesBoat = hook.role == .gate && index > 0 && hooks[index - 1].role == .gate
+            // One boat fishes both of the gate's lines: the first's rod is just ahead of the second's, under its hull.
+            let sharesBoat = hook.role == .gate && hooks.indices.contains(index + 1) && hooks[index + 1].role == .gate
             return HookRig(hook: hook, boat: boat, line: line, metal: metal, bait: bait, sharesBoat: sharesBoat)
         }
     }
@@ -1984,9 +1990,9 @@ final class GameScene: SKScene {
             var at = screen(hookPosition(rig.hook, time: hookTime))
             let rodX = anchorX + world.delta(from: cameraX, to: world.wrap(HookMotion.rodX(rig.hook, time: hookTime))) * zoom
             let rod = CGPoint(x: rodX, y: waterline + 4 * zoom)
-            // The boat runs ahead of its rod, and a caught fish swings out round its hook.
-            let left = min(at.x, rodX) - 3 * max(bait, player.radius * zoom)
-            let right = max(at.x + 3 * bait, rodX + (T.sunsetBoatLength + 40) * zoom)
+            // The boat runs ahead of its rod, to the left, and a caught fish swings out round its hook.
+            let left = min(at.x, rodX - (T.sunsetBoatLength + 40) * zoom) - 3 * max(bait, player.radius * zoom)
+            let right = max(at.x, rodX) + 3 * max(bait, player.radius * zoom)
             let hidden = right < 0 || left > size.width
             for node in [rig.line, rig.metal] as [SKNode] { node.isHidden = hidden }
             rig.boat.isHidden = hidden || rig.sharesBoat
@@ -2575,7 +2581,7 @@ final class GameScene: SKScene {
 
             let rawTilt = f.isPlayer
                 ? pose.velocity.dy * zoom / T.motion.maxRiseSpeed * T.motion.maxTilt
-                : pose.velocity.dy / level.aiVerticalSpeed * T.aiMaxTilt
+                : pose.velocity.dy / roamingVerticalSpeed * T.aiMaxTilt
             let facingSign: CGFloat = pose.facing >= 0 ? 1 : -1
             let tilt = rawTilt.clamped(-T.motion.maxTilt, T.motion.maxTilt) * facingSign
                 + pose.struggle * sin(time * 45) * 0.35

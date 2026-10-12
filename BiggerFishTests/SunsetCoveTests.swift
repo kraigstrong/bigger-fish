@@ -59,10 +59,11 @@ struct SunsetCoveTests {
         #expect(hooks[1].filter { $0.motion == .bob }.count == 3 && hooks[1].contains { $0.role == .lane })
         #expect(hooks[2].filter { $0.motion == .bob }.count == 2 && hooks[2].filter { $0.motion == .troll }.count == 2)
         #expect(hooks[2].filter { $0.role == .gate }.count == 2 && hooks[2].filter { $0.role == .beside }.count == 2)
-        // Bobbing takes a readable three or four seconds; trolling boats drift your way, slower than you swim.
+        // Bobbing takes a readable three or four seconds; trolling boats motor toward you, slower than you swim, so they
+        // go bow first across the screen as everything else does.
         for hook in hooks.joined() where hook.motion == .bob { #expect((3...4).contains(hook.period)) }
         for hook in hooks.joined() where hook.motion == .troll {
-            #expect(hook.speed > 0 && hook.speed < GameTuning.playfieldSize.width / 2.9 / 2)
+            #expect(hook.speed < 0 && -hook.speed < GameTuning.playfieldSize.width / 2.9 / 2)
         }
         // The bait reads as a meal: smaller than you when you pass it.
         for plan in plans {
@@ -102,7 +103,7 @@ struct SunsetCoveTests {
                     time += GameTuning.simulationStep
                 }
                 #expect(hook.passTime - time >= 1.5, "\(name) shows only \(hook.passTime - time) s ahead")
-                #expect(HookMotion.rodX(hook, time: time) >= HookMotion.position(hook, time: time).x)
+                #expect(HookMotion.rodX(hook, time: time) <= HookMotion.position(hook, time: time).x)
             }
         }
     }

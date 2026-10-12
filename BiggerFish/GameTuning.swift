@@ -126,6 +126,11 @@ enum GameTuning {
     static let aiMaxTilt: CGFloat = 0.15
     static let aiRetargetRange: ClosedRange<CGFloat> = 2...6
     static let aiTurnIntervalRange: ClosedRange<CGFloat> = 8...20
+    /// Worlds where a fish roaming free rises and dives as fast on screen however far the camera has zoomed out, so
+    /// roaming fish use all the water it shows. Elsewhere their speed is the same in the world, so as the camera zooms out
+    /// they slow on screen and stay near where they met you (Shallow Reef and Jelly Bloom also plan free swims to their
+    /// meetings at that speed, so it can't change there).
+    static let zoomedRoamingWorlds: Set<ArcadeWorld> = [.sunsetCove]
 
     // MARK: Initial ecosystem
 
@@ -907,8 +912,8 @@ enum GameTuning {
     /// Bobbing hooks: reeled this many screen points up and back down, over this many seconds.
     static let sunsetBobRange: CGFloat = 70
     static let sunsetBobSeconds: CGFloat = 3.6
-    /// Trolling hooks: the boat drifts the way you swim at this many screen points a second, so you overtake it; its hook
-    /// trails this far behind it and sweeps up and down this far either way, over this many seconds.
+    /// Trolling hooks: the boat motors toward you at this many screen points a second; its hook trails this far behind
+    /// it and sweeps up and down this far either way, over this many seconds.
     static let sunsetTrollSpeed: CGFloat = 45
     static let sunsetTrollTrail: CGFloat = 60
     static let sunsetTrollSweep: CGFloat = 40

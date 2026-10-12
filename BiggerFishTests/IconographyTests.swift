@@ -234,13 +234,13 @@ import UIKit
         pool.zPosition = -5
         cove.addChild(pool)
         // The boat at the surface, its line down to the baited hook.
-        let surface: CGFloat = side * 0.3, rod = CGPoint(x: -52, y: surface)
+        let surface: CGFloat = side * 0.3, rod = CGPoint(x: 52, y: surface)
         let boat = HookBoatNode(seed: 3)
         boat.setScale(1.1)
         boat.position = rod
         boat.zPosition = -1
         cove.addChild(boat)
-        let hook = CGPoint(x: -52, y: -6), bait: CGFloat = 20
+        let hook = CGPoint(x: 52, y: -6), bait: CGFloat = 20
         let linePath = CGMutablePath()
         linePath.move(to: CGPoint(x: rod.x, y: rod.y + 5))
         linePath.addLine(to: CGPoint(x: hook.x, y: hook.y + HookMetal.eye * bait))
@@ -256,7 +256,7 @@ import UIKit
         metal.zPosition = -1.5
         cove.addChild(metal)
         cove.addChild(fish(Self.pink, player: false, radius: bait, at: hook, tilt: 0.12, facing: -1))
-        cove.addChild(fish(.player, player: true, radius: 38, at: CGPoint(x: 62, y: -70), tilt: 0.28, facing: -1))
+        cove.addChild(fish(.player, player: true, radius: 38, at: CGPoint(x: -62, y: -70), tilt: 0.28, facing: 1))
         return cove
     }
 
