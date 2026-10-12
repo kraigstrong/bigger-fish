@@ -72,9 +72,9 @@ struct GamePresentationTests {
     @Test func slowMotionStillAdvancesThePoseBetweenRealTimeTicks() {
         let step = GameTuning.simulationStep
         let first = PresentationInterpolation.fraction(simulationRemainder: step * 0.35,
-            frameRemainder: 0, timeScale: 0.35, step: step)
+            frameRemainder: 0, timeScale: 0.35, lag: step, step: step)
         let nextDisplay = PresentationInterpolation.fraction(simulationRemainder: step * 0.35,
-            frameRemainder: step / 2, timeScale: 0.35, step: step)
+            frameRemainder: step / 2, timeScale: 0.35, lag: step, step: step)
         #expect(abs(first - 0.35) < 1e-10)
         #expect(abs(nextDisplay - 0.525) < 1e-10)
         #expect(nextDisplay > first)
@@ -102,6 +102,41 @@ struct GamePresentationTests {
             let control = run(schedules[0])
             for schedule in schedules.dropFirst() { #expect(control == run(schedule)) }
         }
+    }
+
+    @MainActor @Test func aSixtyHertzDisplayDrawsATouchOnTheFrameItLands() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0)
+        #expect(scene.debugTouchToDrawSeconds(frameInterval: 1.0 / 60) == 0)
+        // 120 Hz blends between steps as it always has: a touch starts to show a frame or two later.
+        #expect(abs(scene.debugTouchToDrawSeconds(frameInterval: 1.0 / 120) - 0.0125) < 1e-9)
+    }
+
+    @MainActor @Test func drawingKeepsAnEvenPaceAndNeverRunsBackward() {
+        // 60 Hz with a couple of milliseconds of timestamp jitter, a close call at frame 60, two dropped frames at
+        // 150, 120 Hz from 200 to 300, then jittery 60 Hz again.
+        let step = 1.0 / 60
+        var times: [Double] = []
+        var time = 1_000.0
+        for frame in 0..<420 {
+            let jitter = frame < 60 || frame >= 300 ? 0.002 * sin(Double(frame) * 1.7) : 0
+            times.append(time + jitter)
+            time += frame == 150 ? 3 * step : (200..<300).contains(frame) ? step / 2 : step
+        }
+        let scene = GameScene(world: .shallowReef, levelIndex: 0)
+        let moments = scene.debugDrawnMoments(at: times, slowMotionAt: 60)
+        let advances = zip(moments.dropFirst(), moments).map { ($0 - $1) / step }
+        func advance(_ frame: Int) -> Double { advances[frame - 1] }
+        for frame in 1..<moments.count {
+            // At most a quarter step past the frame's own time (or a step's, for a frame that came early).
+            let elapsed = max((times[frame] - times[frame - 1]) / step, 1)
+            #expect(advance(frame) >= -1e-9, "frame \(frame) drew an earlier moment")
+            #expect(advance(frame) <= elapsed * 1.25 + 1e-9, "frame \(frame) jumped")
+        }
+        // Each 60 Hz frame takes and draws exactly one step, jitter and all; 120 Hz frames draw half a step.
+        for frame in Array(20..<60) + Array(320..<420) { #expect(abs(advance(frame) - 1) < 1e-9, "frame \(frame)") }
+        for frame in 220..<300 { #expect(abs(advance(frame) - 0.5) < 1e-9, "frame \(frame)") }
+        // Slow motion holds for the moment it needs to have a step to draw, then keeps a steady pace.
+        for frame in 63..<88 { #expect((0.2...0.5).contains(advance(frame)), "frame \(frame)") }
     }
 
     @MainActor @Test func fixedTimingBoundsHitchesAndDropsPausedDebt() {

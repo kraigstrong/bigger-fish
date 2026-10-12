@@ -46,10 +46,18 @@ struct FishPresentation {
 }
 
 enum PresentationInterpolation {
+    /// How far from the previous step to the newest a frame draws. `lag` is how far behind the moment the frame stands
+    /// for, in game seconds: a step blends the last two (never guessing past the newest), and none draws the newest.
     static func fraction(simulationRemainder: CGFloat, frameRemainder: CGFloat,
-                         timeScale: CGFloat, step: CGFloat) -> CGFloat {
+                         timeScale: CGFloat, lag: CGFloat, step: CGFloat) -> CGFloat {
         // Include time between real-time ticks so 120 Hz displays also get fresh poses.
-        ((simulationRemainder + frameRemainder * timeScale) / step).clamped(0, 1)
+        ((remainder(simulation: simulationRemainder, frame: frameRemainder, timeScale: timeScale) + step - lag) / step)
+            .clamped(0, 1)
+    }
+
+    /// How far past the newest step a frame is, in game seconds.
+    static func remainder(simulation: CGFloat, frame: CGFloat, timeScale: CGFloat) -> CGFloat {
+        simulation + frame * timeScale
     }
 
     static func position(from previous: CGPoint, to current: CGPoint, fraction: CGFloat,
