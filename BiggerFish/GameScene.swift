@@ -127,6 +127,8 @@ final class GameScene: SKScene {
 
     var onClear: ((Int, Double) -> Void)?
     var onExit: (() -> Void)?
+    /// Pausing and resuming, so the screen around the playfield (on an iPad) can darken with the pause menu.
+    var onPause: ((Bool) -> Void)?
     /// The first-launch tutorial was played to the end (called at once, before the win plays out and it leaves).
     var onTutorialFinished: (() -> Void)?
     /// Set from `onClear` when this win conquers the world for the first time: instead of its result card, the
@@ -522,6 +524,7 @@ final class GameScene: SKScene {
             if newPhase == .ready || newPhase == .paused || phase == .paused { lastUpdate = nil }
             capturePresentation()
         }
+        if (newPhase == .paused) != (phase == .paused) { onPause?(newPhase == .paused) }
         phase = newPhase
         pauseButton.isHidden = newPhase != .playing
         pauseMenu.isHidden = newPhase != .paused

@@ -935,33 +935,15 @@ final class CreditTag: SKNode {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
-/// The credits on screen: the scene letterboxed on the ocean like a level, with Skip in the corner until the card
-/// comes up (as the tutorial's).
+/// The credits on screen: the scene fitted to the screen like a level, with Skip in the corner until the card comes
+/// up (as the tutorial's).
 struct CreditsView: View {
     @ObservedObject var scene: CreditsScene
 
     var body: some View {
-        GeometryReader { geometry in
-            let fitted = GameTuning.fittedPlayfieldSize(in: geometry.size)
-            ZStack {
-                OceanBackdrop(bloom: false)
-                SpriteView(scene: scene, preferredFramesPerSecond: 120, options: [.ignoresSiblingOrder])
-                    .id(ObjectIdentifier(scene))
-                    .frame(width: fitted.width, height: fitted.height)
+        PlayfieldScreen(scene: scene, water: .reef)
+            .overlay(alignment: .topLeading) {
+                if !scene.finished { SkipButton(accessibilityLabel: "Skip the credits") { scene.leave() } }
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-        }
-        .ignoresSafeArea()
-        .overlay(alignment: .topLeading) {
-            if !scene.finished {
-                Button("Skip") { scene.leave() }
-                    .font(.custom("AvenirNext-DemiBold", size: 14)).foregroundStyle(.white.opacity(0.75))
-                    .padding(.horizontal, 14).padding(.vertical, 7)
-                    .background(.black.opacity(0.25), in: Capsule())
-                    .buttonStyle(.plain)
-                    .padding(.leading, 24).padding(.top, 14)
-                    .accessibilityLabel("Skip the credits")
-            }
-        }
     }
 }

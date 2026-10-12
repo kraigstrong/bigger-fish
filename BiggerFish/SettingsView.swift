@@ -24,58 +24,72 @@ struct SettingsView: View {
     enum RestoreState: Equatable { case idle, working, restored, nothing }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack {
             LinearGradient(colors: [DeepEndColors.night, DeepEndColors.abyss], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
                 .onTapGesture(perform: onClose)
-            // Scrolls only if it has to (large text, a small phone); the close button stays put.
-            ScrollView {
-                VStack(spacing: 14) {
-                    Text("Settings").font(.custom("AvenirNext-Heavy", size: 26))
-                    HStack(alignment: .top, spacing: 18) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            heading("Sound")
-                            toggle("Sound effects", symbol: "speaker.wave.2.fill", isOn: $settings.soundEffectsOn)
-                            toggle("Music", symbol: "music.note", isOn: $settings.musicOn)
-                            toggle("Vibration", symbol: "iphone.radiowaves.left.and.right", isOn: $settings.vibrationOn)
-                            heading("Play").padding(.top, 6)
-                            row("Replay the tutorial", symbol: "arrow.counterclockwise", action: onReplayTutorial)
-                        }
-                        .frame(maxWidth: 320)
-                        VStack(alignment: .leading, spacing: 8) {
-                            if Self.showsRestore(selling: ArcadeUnlock.isSelling, unlocked: purchases.isUnlocked) {
-                                heading("Purchases")
-                                row(restoreTitle, symbol: "arrow.down.circle", action: restore)
-                                    .disabled(restoring == .working)
-                            }
-                            heading("Help")
-                            row("Privacy policy", symbol: "hand.raised.fill", trailing: "arrow.up.right") { openURL(ArcadeLinks.privacy) }
-                            row("Support", symbol: "questionmark.circle.fill", trailing: "arrow.up.right") { openURL(ArcadeLinks.support) }
-                            heading("Credits").padding(.top, 6)
-                            row("Play the credits", symbol: "fish.fill", action: onPlayCredits)
-                            Text(Self.versionLine(Bundle.main.infoDictionary ?? [:]))
-                                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.55)
-                        }
-                        .frame(maxWidth: 320)
-                    }
+            ScreenScaled { size, _ in
+                ZStack(alignment: .topTrailing) {
+                    content(height: size.height)
+                    closeButton
                 }
-                .padding(.horizontal, 24).padding(.vertical, 16)
-                .frame(maxWidth: .infinity)
             }
-            .scrollBounceBehavior(.basedOnSize)
-            Button(action: onClose) {
-                Image(systemName: "xmark").font(.system(size: 17, weight: .bold))
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(.white.opacity(0.12)))
-                    .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
-            }
-            .buttonStyle(.plain)
-            .padding(.trailing, 20).padding(.top, 12)
-            .accessibilityLabel("Close settings")
         }
         .foregroundStyle(.white)
         .opacity(shown ? 1 : 0)
         .onAppear { withAnimation(.easeOut(duration: 0.2)) { shown = true } }
+    }
+
+    /// Scrolls only if it has to (large text, a small phone); the close button stays put. On a screen taller than a
+    /// phone's (an iPad), it sits in the middle.
+    private func content(height: CGFloat) -> some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                Text("Settings").font(.custom("AvenirNext-Heavy", size: 26))
+                HStack(alignment: .top, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        heading("Sound")
+                        toggle("Sound effects", symbol: "speaker.wave.2.fill", isOn: $settings.soundEffectsOn)
+                        toggle("Music", symbol: "music.note", isOn: $settings.musicOn)
+                        toggle("Vibration", symbol: "iphone.radiowaves.left.and.right", isOn: $settings.vibrationOn)
+                        heading("Play").padding(.top, 6)
+                        row("Replay the tutorial", symbol: "arrow.counterclockwise", action: onReplayTutorial)
+                    }
+                    .frame(maxWidth: 320)
+                    VStack(alignment: .leading, spacing: 8) {
+                        if Self.showsRestore(selling: ArcadeUnlock.isSelling, unlocked: purchases.isUnlocked) {
+                            heading("Purchases")
+                            row(restoreTitle, symbol: "arrow.down.circle", action: restore)
+                                .disabled(restoring == .working)
+                        }
+                        heading("Help")
+                        row("Privacy policy", symbol: "hand.raised.fill", trailing: "arrow.up.right") { openURL(ArcadeLinks.privacy) }
+                        row("Support", symbol: "questionmark.circle.fill", trailing: "arrow.up.right") { openURL(ArcadeLinks.support) }
+                        heading("Credits").padding(.top, 6)
+                        row("Play the credits", symbol: "fish.fill", action: onPlayCredits)
+                        Text(Self.versionLine(Bundle.main.infoDictionary ?? [:]))
+                            .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.55)
+                    }
+                    .frame(maxWidth: 320)
+                }
+            }
+            .padding(.horizontal, 24).padding(.vertical, 16)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: height > ScreenFit.largestPhone.height ? height : nil)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    private var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark").font(.system(size: 17, weight: .bold))
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(.white.opacity(0.12)))
+                .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 20).padding(.top, 12)
+        .accessibilityLabel("Close settings")
     }
 
     /// Restoring only means something while the unlock is on sale and not yet bought.
