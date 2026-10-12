@@ -190,6 +190,21 @@ struct SunsetCoveTests {
         #expect(real.reason != "Caught on a hook.", "\(name): \(real)")
     }
 
+    /// A line hangs from its own boat's rod, so on screen it's never wider than a trolling hook trails behind its boat,
+    /// wherever the hook is on the lap. (Rod and hook were each placed on screen the shorter way round the lap from you,
+    /// so a hook half a lap away hung its line from the far side: Kraig saw "a random line that appears across the
+    /// screen almost horizontally" in level 3.)
+    @Test(arguments: [0, 1, 2]) func hookLinesHangFromTheirOwnBoats(_ index: Int) {
+        let (scene, view) = level(index)
+        defer { withExtendedLifetime(view) {} }
+        var widest: CGFloat = 0
+        _ = scene.debugPlayReferenceRoute(limit: 40, safeFromFish: true) {
+            scene.debugRender()
+            widest = max(widest, scene.debugHookLineWidths.max() ?? 0)
+        }
+        #expect(widest <= GameTuning.sunsetTrollTrail + 1, "Sunset Cove \(index + 1): a hook line \(Int(widest)) points wide")
+    }
+
     // MARK: Previews
 
     /// Renders Sunset Cove's key moments to build/previews/sunset-cove-*.png, with a contact sheet, when xcodebuild

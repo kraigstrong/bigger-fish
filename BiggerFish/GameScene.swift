@@ -1988,7 +1988,9 @@ final class GameScene: SKScene {
         for (index, rig) in hookRigs.enumerated() {
             let bait = rig.hook.baitRadius * zoom
             var at = screen(hookPosition(rig.hook, time: hookTime))
-            let rodX = anchorX + world.delta(from: cameraX, to: world.wrap(HookMotion.rodX(rig.hook, time: hookTime))) * zoom
+            // Measured from its own hook, not the shorter way round the lap from you: for a hook about half a lap away,
+            // that could put its rod on the far side of the screen, with a line all the way across.
+            let rodX = at.x + (HookMotion.rodX(rig.hook, time: hookTime) - HookMotion.position(rig.hook, time: hookTime).x) * zoom
             let rod = CGPoint(x: rodX, y: waterline + 4 * zoom)
             // The boat runs ahead of its rod, to the left, and a caught fish swings out round its hook.
             let left = min(at.x, rodX - (T.sunsetBoatLength + 40) * zoom) - 3 * max(bait, player.radius * zoom)
@@ -3805,6 +3807,10 @@ extension GameScene {
     var debugReeling: Bool { reel != nil }
     /// Where hook `index` is now (wrapped world point).
     func debugHookPosition(_ index: Int) -> CGPoint { hookPosition(hookRigs[index].hook, time: simClock) }
+    /// How wide each hook line on show was drawn across the screen (points).
+    var debugHookLineWidths: [CGFloat] {
+        hookRigs.filter { !$0.line.isHidden }.compactMap { $0.line.path?.boundingBoxOfPath.width }
+    }
 
     /// Puts your fish on hook `index` (its bait's center, its bend under the bait, or its line well above the hook), as
     /// big as it is now, and checks the hooks. Returns whether you were caught.
