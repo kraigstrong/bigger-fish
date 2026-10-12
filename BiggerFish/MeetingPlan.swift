@@ -435,9 +435,11 @@ enum MeetingPlanner {
             predicted: solved.crossings, analysis: analysis, issues: [])
         let hooks = spec.hooks.map { HookLayout.place($0, fish: solved.fish, crossings: solved.crossings,
                                                       timeline: design.timeline, seed: seed) }
+        let high = GameTuning.sunsetHooksSweptHigh[spec.name] ?? []
+        let placed = hooks?.hooks.enumerated().map { high.contains($0.offset + 1) ? HookLayout.sweptHigh($0.element) : $0.element }
         return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
             analysis: analysis, issues: design.issues + check(unchecked) + (hooks?.issues ?? []),
-            kelp: KelpLayout.columns(spec, seed: seed), hooks: hooks?.hooks, currents: design.currents.isEmpty ? nil : design.currents)
+            kelp: KelpLayout.columns(spec, seed: seed), hooks: placed, currents: design.currents.isEmpty ? nil : design.currents)
     }
 
     /// How far off plan a plan's fish are, in total ("fish 4 is off its plan (score 21)" counts 21).

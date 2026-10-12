@@ -914,6 +914,12 @@ enum GameTuning {
     /// those meals they're the sizes the level was designed for (70.3, 69): giants all through lap one, edible at the
     /// end.
     static let sunsetFishRadius: [String: [Int: CGFloat]] = ["Sunset Cove 10": [10: 63, 16: 61.5]]
+    /// Trolling hooks retimed by hand, numbered in the order you pass them, to be at the top of their sweep as you pass
+    /// (`HookLayout.sweptHigh`). In Sunset Cove 15 (Kraig, 2026-10-12: "might be impossible") the giant over you and
+    /// the big fish coming at you under it leave only the floor, and the fourth hook's bait was at the bottom of its sweep
+    /// just then, filling it: his 30-odd runs all ended there. The hooks are hung clear of the level's reference route,
+    /// which goes up for the top fish, but the giant swimming along with you shuts that water first.
+    static let sunsetHooksSweptHigh: [String: Set<Int>] = ["Sunset Cove 15": [4]]
     /// Played and approved, so they play exactly as saved in `SunsetPlans.json`: a planner change can't alter them.
     /// Sunset Cove 10 (Kraig, 2026-10-12, after its giants were sized to finish edible: "perfect. let's freeze level
     /// 10"), 11 ("11 is incredible"), and 12 to 14 ("levels 10-14 on sunset cove are great"). Take a level out of this
