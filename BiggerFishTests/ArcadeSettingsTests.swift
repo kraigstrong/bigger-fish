@@ -74,6 +74,23 @@ struct ArcadeSettingsTests {
         #expect(!UIApplication.shared.isIdleTimerDisabled)
     }
 
+    /// The game's view hands it the scene before it's in a window, and iOS may ignore waking haptics for a view not on
+    /// screen (the first death froze on the phone): they wait for the first frame on screen, then wake.
+    @MainActor @Test func hapticsWakeOnlyOnceTheSceneIsOnScreen() {
+        let was = ArcadeSettings.shared.vibrationOn
+        defer { ArcadeSettings.shared.vibrationOn = was }
+        ArcadeSettings.shared.vibrationOn = true
+        let scene = GameScene(world: .shallowReef, levelIndex: 0)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        #expect(scene.debugHapticsWaitForWindow)
+        let window = UIWindow(frame: view.frame)
+        window.addSubview(view)
+        scene.update(1)
+        #expect(!scene.debugHapticsWaitForWindow)
+        withExtendedLifetime(window) {}
+    }
+
     /// Every meal is felt, and a win; the Vibration switch silences them all.
     @MainActor @Test func hapticsFollowTheVibrationSwitch() {
         let was = ArcadeSettings.shared.vibrationOn
