@@ -110,7 +110,8 @@ struct ContentView: View {
             }
             .font(.caption.bold()).buttonStyle(.borderedProminent)
             .padding(.trailing, 12).padding(.bottom, 4)
-            .opacity(StoreCapture.moment == nil && ArcadePlaytest.screen == nil && credits == nil ? 1 : 0)
+            .opacity(StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil
+                     && credits == nil ? 1 : 0)
         }
         .sheet(isPresented: $showsTuning) {
             ArcadeTuningPanel(onPlanner: playPlanner, onResetProgress: { progress.reset($0) })
@@ -153,6 +154,7 @@ struct ContentView: View {
             }
             #if DEBUG
             StoreCapture.begin()
+            StoreFootage.begin()
             if scene == nil, let world = ArcadePlaytest.mapSelection {
                 selectedWorld = world
             }
@@ -354,6 +356,7 @@ struct ContentView: View {
         let game = GameScene(world: world, levelIndex: index, showsJellyLesson: !progress.save.hasSeenJellyLesson)
         #if DEBUG
         StoreCapture.attach(game)
+        StoreFootage.attach(game)
         #endif
         game.analytics = analytics
         game.hasCleared = { index in progress.isCleared(world, index) }

@@ -279,6 +279,11 @@ enum StoreCapture {
         let score: Double
     }
 
+    /// How often the bot decides, in run seconds: as often as it does in the balance studies (`GameScene.debugSimulate`).
+    static func decisionInterval(_ policy: ArcadeSimulation.Policy) -> CGFloat {
+        policy == .collector ? 0.16 : policy == .cautious ? 0.10 : 0.08
+    }
+
     /// The longest a run plays looking for its moment, in run seconds.
     static let runLimit: CGFloat = 90
     /// Frames this many steps or fewer before your fish is eaten don't count: the moment should show play going on.
@@ -350,8 +355,7 @@ enum StoreCapture {
     @MainActor static func play(_ scene: GameScene, policy: ArcadeSimulation.Policy,
                                 while going: (Int, SceneView) -> Bool) {
         scene.debugCaptureRestart()
-        // As often as the bot decides in the balance studies (`GameScene.debugSimulate`).
-        let interval: CGFloat = policy == .collector ? 0.16 : policy == .cautious ? 0.10 : 0.08
+        let interval = decisionInterval(policy)
         var nextDecision: CGFloat = 0
         var step = 0
         while CGFloat(step) * GameTuning.simulationStep < runLimit {

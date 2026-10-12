@@ -65,7 +65,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     backed up to iCloud key-value storage. At launch and whenever iCloud's copy changes (another device, a reinstall's
     first download, a new Apple ID), the two merge so progress only ever grows: cleared levels and seen screens are
     united, the faster best time wins, and fields from a later version are kept. Without iCloud it plays exactly as
-    before. Debug playtest and store-capture saves never sync
+    before. Debug playtest, store-capture and footage saves never sync
   - `ArcadeUnlock.swift` / `UnlockView.swift` / `WorldClips/` — free to try (all of Shallow Reef, two levels of
     each other world) and the one-time unlock that opens every world and Deep End; its screen loops a clip of each
     world. `BiggerFish.storekit` is the scheme's StoreKit test file
@@ -75,6 +75,8 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   - `ArcadeAudio.swift` / `Sounds/` — copied sound effects; source credits stay alongside them
   - `ArcadePlaytest.swift` — debug-only isolated level launches for playtesting
   - `StoreCapture.swift` — debug-only App Store screenshots: the bot plays each moment's level to its best frame
+  - `StoreFootage.swift` — debug-only gameplay footage for the trailer and App Store previews: the bot plays a level
+    one frame at a time, so it never stutters, with the interface hidden (`scripts/bigger-fish-footage.sh`)
 - `MathReef/` — **Math Reef** (`com.kraigstrong.mathreef`), the education app for grades 1–5. Pick a
   world (Addition, Subtraction, Multiplication, Division, Exponents), then a level,
   and swim into the right answer. Addition and subtraction climb in small strategy steps (+1/+2, make 10,
@@ -168,10 +170,34 @@ Output goes to `build/store-capture/bigger-fish/` (ignored by git): `screenshots
 With `--ipad`, `screenshots-ipad-13/NN-<moment>.png` at 2752×2064, App Store Connect's 13-inch iPad size,
 bands of water above and below the playfield included, as an iPad shows them.
 The moments: `eat` (Shallow Reef 5), `dodge` (Shallow Reef 9), `missed` (Shallow Reef 10: a fish that kept
-eating), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp Forest 8), `midnight-light` (Midnight Zone 5),
+eating), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp Forest 8), `sunset-hooks` (Sunset Cove 7: a baited hook
+ahead, under its boat), `midnight-light` (Midnight Zone 5),
 `conquered` (Shallow Reef's map, conquered), and `deep-end` (the screen that opens its Deep End). The levels
 are `StoreCapture.Moment.level`; to try another in Xcode, add `-arcadePlaytest world.N` beside
 `-storeCapture <moment>`.
+
+### Bigger Fish trailer and footage
+
+`scripts/bigger-fish-footage.sh` records gameplay for the trailer and App Store previews
+(`BiggerFish/StoreFootage.swift`). The diagnostics bot plays a level and the app saves every frame at 60 fps with the
+interface hidden, one frame at a time, so the footage never stutters and the same launch gives the same footage. A
+`--look` is a contact sheet of a whole run, a frame every half second; then record just the seconds wanted. Each
+recording writes a report beside it listing every bite: yours, with the meal's size then and at its biggest (a fish
+that had been three times your size is a "turn the tables" moment), and the other fish's on screen, with where.
+
+```bash
+scripts/bigger-fish-footage.sh --look sunset-cove.7 opportunist    # the whole run, to pick from
+scripts/bigger-fish-footage.sh sunset-cove.7 opportunist 1.5 10    # 1.5-10 s of it, 60 fps
+scripts/bigger-fish-trailer.sh                                     # the trailer and App Store preview
+```
+
+`scripts/bigger-fish-trailer.sh` rebuilds the trailer from `scripts/trailer/edl.json`: it records whatever footage
+the cut needs that isn't in `build/footage/` yet, renders the captions in Avenir Next, and composes each shot with a
+slow camera move over the game's music (cut to its 120 BPM bars, the world montage on its drop). It writes
+`build/trailer/bigger-fish-trailer.mp4` (60 fps, with the release line, for biggerfish.app) and
+`bigger-fish-app-preview.mp4` (30 fps, no dates, 29.5 s: the App Store preview at the 6.9" iPhone size, 1920×886). A
+level that isn't frozen can play differently after a change, so delete its recording to record it again. It needs
+ffmpeg and Python with Pillow and NumPy.
 
 ## Tuning
 

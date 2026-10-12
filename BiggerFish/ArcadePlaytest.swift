@@ -14,10 +14,14 @@ enum ArcadePlaytest {
     /// An App Store capture (`StoreCapture`) plays its moment's level, unless this picks another.
     static var selection: (world: ArcadeWorld, index: Int)? {
         let args = ProcessInfo.processInfo.arguments
-        guard let flag = args.firstIndex(of: "-arcadePlaytest"), args.indices.contains(flag + 1) else {
-            return StoreCapture.moment?.level
-        }
-        let parts = args[flag + 1].split(separator: ".")
+        guard args.contains("-arcadePlaytest") else { return StoreCapture.moment?.level }
+        return level(in: args)
+    }
+
+    /// The level `-arcadePlaytest <world>.<level>` names in a launch's arguments, if it's a real one.
+    static func level(in arguments: [String]) -> (world: ArcadeWorld, index: Int)? {
+        guard let flag = arguments.firstIndex(of: "-arcadePlaytest"), arguments.indices.contains(flag + 1) else { return nil }
+        let parts = arguments[flag + 1].split(separator: ".")
         guard parts.count == 2, let world = ArcadeWorld(rawValue: String(parts[0])),
               let number = Int(parts[1]), (0..<world.levelCount).contains(number - 1) else { return nil }
         return (world, number - 1)
@@ -50,8 +54,8 @@ enum ArcadePlaytest {
 
     /// Play with or without the unlock, ignoring StoreKit: -arcadeUnlocked YES (or NO).
     static var unlockOverride: Bool? {
-        // App Store captures show every world open, with no price anywhere.
-        if StoreCapture.moment != nil { return true }
+        // App Store captures and footage show every world open, with no price anywhere.
+        if StoreCapture.moment != nil || StoreFootage.request != nil { return true }
         let args = ProcessInfo.processInfo.arguments
         guard let flag = args.firstIndex(of: "-arcadeUnlocked"), args.indices.contains(flag + 1) else { return nil }
         return args[flag + 1] == "YES"
@@ -61,7 +65,8 @@ enum ArcadePlaytest {
     static let suiteName = "biggerFish.playtest"
 
     static var defaults: UserDefaults {
-        StoreCapture.defaults ?? screenDefaults ?? (selection == nil ? .standard : UserDefaults(suiteName: suiteName)!)
+        StoreCapture.defaults ?? StoreFootage.defaults ?? screenDefaults
+            ?? (selection == nil ? .standard : UserDefaults(suiteName: suiteName)!)
     }
 
     /// A screen to open at launch, to check its layout at a device's size (an iPad, a small phone):
