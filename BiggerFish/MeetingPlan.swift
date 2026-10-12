@@ -76,6 +76,8 @@ struct MeetingSpec: Codable, Equatable {
     var jellies: JellySpec? = nil
     /// Kelp Forest's kelp: it slows you, so the plan allows for slower rising and falling everywhere.
     var kelp: KelpSpec? = nil
+    /// Sunset Cove's baited hooks, hung from boats around the meetings. Optional so older plans decode.
+    var hooks: HookSpec? = nil
     /// You're in kelp for about its share of any swim.
     var reachScale: CGFloat { kelp.map { 1 - CGFloat($0.coverage) * (1 - GameTuning.kelpDrag) } ?? 1 }
 }
@@ -245,6 +247,8 @@ struct MeetingPlan: Codable {
     var jellies: [PlannedJelly]? = nil
     /// Kelp Forest's kelp columns.
     var kelp: [PlannedKelp]? = nil
+    /// Sunset Cove's hooks, soonest passed first.
+    var hooks: [PlannedHook]? = nil
 
     var level: Level {
         var level = Level(aiSpeedRange: CGFloat(spec.aiSpeed.lowerBound)...CGFloat(spec.aiSpeed.upperBound),
@@ -362,9 +366,11 @@ enum MeetingPlanner {
         let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: [], reachScale: spec.reachScale)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
             predicted: solved.crossings, analysis: analysis, issues: [])
+        let hooks = spec.hooks.map { HookLayout.place($0, fish: solved.fish, crossings: solved.crossings,
+                                                      timeline: design.timeline, seed: seed) }
         return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
-            analysis: analysis, issues: design.issues + check(unchecked),
-            kelp: KelpLayout.columns(spec, seed: seed))
+            analysis: analysis, issues: design.issues + check(unchecked) + (hooks?.issues ?? []),
+            kelp: KelpLayout.columns(spec, seed: seed), hooks: hooks?.hooks)
     }
 
     /// How far off plan a plan's fish are, in total ("fish 4 is off its plan (score 21)" counts 21).

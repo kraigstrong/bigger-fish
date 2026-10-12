@@ -744,6 +744,108 @@ enum GameTuning {
     /// A soft glow around your head, as a share of the beam's reach, so a fish right beside you is never invisible.
     static let headlampGlow: CGFloat = 0.14
 
+    // MARK: Sunset Cove (prototype, Xcode builds only)
+
+    /// Sunset Cove's three trials, easy, medium, and hard: Shallow Reef's levels 2, 5, and 9 (Easy, Reef Lab 5, and Reef
+    /// Lab 9, borrowed by index as Kelp Forest and Midnight Zone borrow them), planned like Midnight Zone's (fish appear
+    /// just off screen right before you meet them), with baited hooks hung from boats around the meetings. Planned in
+    /// code at launch while they're being played; not frozen.
+    static let sunsetSources = [1, 4, 8]
+    static let sunsetSpecs: [MeetingSpec] = sunsetSources.enumerated().map { index, source in
+        var spec = reefLabSpecs[source]
+        spec.name = "Sunset Cove \(index + 1)"
+        spec.hooks = sunsetHooks[index]
+        return spec
+    }
+    /// Each trial's hooks. Easy: three still hooks well off your way, the bait plain to see, to learn not to eat it.
+    /// Medium: five, three reeled slowly up and down, three hung as near the meal lanes as is fair, so you time them or
+    /// pick a lane. Hard: seven, bobbing and trolling, two baited beside real meals their size, and near the end a gate
+    /// of two hooks, one above your way and one below. `clearance` is the water (screen points) every hook keeps from
+    /// your way from meal to meal.
+    static let sunsetHooks: [HookSpec] = [
+        HookSpec(still: 3, baitSize: 0.55, clearance: 60),
+        HookSpec(still: 2, bobbing: 3, nearLanes: 3, baitSize: 0.62, clearance: 30),
+        HookSpec(still: 1, bobbing: 2, trolling: 2, gate: true, besideMeals: 2, nearLanes: 3, baitSize: 0.7, clearance: 24),
+    ]
+    /// Levels re-rolled to another layout of the same settings, fish and hooks both (`MeetingPlanner.kelpPlan`'s
+    /// variation): one line to try another.
+    static let sunsetRerolls: [String: Int] = [:]
+    #if DEBUG
+    static let sunsetLevels: [Level] = sunsetSpecs.indices.map { index in
+        var level = sunsetPlan(index).level
+        level.ecosystemSeedIndex = index
+        return level
+    }
+    static var sunsetLevelCount: Int { sunsetSpecs.count }
+    /// A Sunset Cove level planned in code: its re-roll if it has one, otherwise the first layout with every hook hung,
+    /// no other planner issues, and no wall of giants.
+    static func sunsetPlan(_ index: Int) -> MeetingPlan {
+        let spec = sunsetSpecs[index]
+        if let variation = sunsetRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation) }
+        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
+            ?? MeetingPlanner.kelpPlan(spec)
+    }
+    #else
+    /// A prototype isn't part of the shipped game.
+    static let sunsetLevels: [Level] = []
+    static var sunsetLevelCount: Int { 0 }
+    #endif
+    /// No hook is passed before this many screens into the lap, so each one swims in from the right with its boat.
+    static let sunsetFirstHookScreens: CGFloat = 1.1
+    /// Seconds between passing one hook and the next (the gate's two count as one). Hooks spread out along the lap,
+    /// each in its own stretch where there's room; this pulls one that strays back toward its stretch.
+    static let sunsetHookSpacing: CGFloat = 0.85
+    static let sunsetStretchPull: CGFloat = 200
+    /// The gate's lower hook is passed this long after its upper one, so their lines hang apart; the gate comes once
+    /// this share of the reference route's meals is behind you. Its hooks keep clear of your way `sunsetGateWindow`
+    /// seconds either side of passing them (tighter than other hooks' `sunsetPassWindow`: it's a gate).
+    static let sunsetGateStagger: CGFloat = 0.12
+    static let sunsetGateFrom: CGFloat = 0.55
+    static let sunsetGateWindow: CGFloat = 0.1
+    /// Fairness: every hook keeps this far (screen points beyond both bodies) from every reference meal's meeting,
+    /// either along the way or above or below it, when you meet that meal...
+    static let sunsetMealClearance: (distance: CGFloat, height: CGFloat) = (distance: 90, height: 30)
+    /// ...and stays clear of your way this many seconds before and after you pass it, for a player a little off the plan.
+    /// Your way is wherever you could be between one reference meal and the next, swimming up or down as fast as you can.
+    static let sunsetPassWindow: CGFloat = 0.25
+    /// An open hook hangs at least this far from your way where it can (screen points); past that, nearer mid-water wins.
+    static let sunsetOpenGap: CGFloat = 90
+    /// Bait beside a meal hangs this far from it (screen points between the bodies).
+    static let sunsetBesideGap: CGFloat = 30
+    /// The smallest bait (radius, world points), so it's always plain to see.
+    static let sunsetSmallestBait: CGFloat = 9
+    /// Bobbing hooks: reeled this many screen points up and back down, over this many seconds.
+    static let sunsetBobRange: CGFloat = 70
+    static let sunsetBobSeconds: CGFloat = 3.6
+    /// Trolling hooks: the boat drifts the way you swim at this many screen points a second, so you overtake it; its hook
+    /// trails this far behind it and sweeps up and down this far either way, over this many seconds.
+    static let sunsetTrollSpeed: CGFloat = 45
+    static let sunsetTrollTrail: CGFloat = 60
+    static let sunsetTrollSweep: CGFloat = 40
+    static let sunsetTrollSweepSeconds: CGFloat = 6
+    /// What catches you, as shares of the bait's radius: the bait's body, and the hook's bend under it. Your body counts
+    /// at `hazardHitboxScale`, as it does against tentacles. The line never does.
+    static let sunsetBaitHitScale: CGFloat = 0.9
+    static let sunsetHookHitShare: CGFloat = 0.3
+    /// Room a hook keeps from the floor, and from its boat's hull (world points at zoom 1).
+    static let sunsetFloorRoom: CGFloat = 12
+    static let sunsetSurfaceRoom: CGFloat = 8
+    /// Caught, you're reeled up the line and out of the water over this many seconds; the result comes this long after
+    /// you're caught.
+    static let sunsetReelSeconds: CGFloat = 0.8
+    static let sunsetReelResultDelay: CGFloat = 1.15
+    /// How far the bait wriggles on its hook (radians either way).
+    static let sunsetBaitWiggle: CGFloat = 0.16
+    /// The boats, at zoom 1 (screen points): hull length and how deep it sits.
+    static let sunsetBoatLength: CGFloat = 104
+    static let sunsetBoatDraft: CGFloat = 20
+    static let sunsetBoatColor = SKColor(red: 0.21, green: 0.06, blue: 0.2, alpha: 0.96)
+    static let sunsetLineColor = SKColor(red: 1, green: 0.95, blue: 0.9, alpha: 0.8)
+    /// The low sun glowing at the surface (share of the screen's width), and how far its rays drift as you swim
+    /// (share of your own speed on screen).
+    static let sunsetSunX: CGFloat = 0.72
+    static let sunsetRayParallax: CGFloat = 0.08
+
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")
 

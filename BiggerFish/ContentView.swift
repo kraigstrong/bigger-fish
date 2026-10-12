@@ -260,6 +260,10 @@ struct ContentView: View {
         let remaining = GameTuning.launchMinimumSeconds - Date().timeIntervalSince(started)
         if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
         withAnimation(.easeOut(duration: 0.35)) { loaded = true }
+        #if DEBUG
+        // The prototypes plan their levels in code; behind the map, so a level opens at once.
+        Task.detached(priority: .utility) { _ = ArcadeWorld.prototypes.map(\.levels.count) }
+        #endif
         // A new player starts with the tutorial, then lands on Shallow Reef (not a level launched for playtesting).
         var startsWithTutorial = progress.needsTutorial
         #if DEBUG

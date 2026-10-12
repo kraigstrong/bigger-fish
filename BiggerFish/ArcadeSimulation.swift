@@ -10,7 +10,7 @@ enum ArcadeSimulation {
     struct Bell { let x: CGFloat; let y: CGFloat; let radius: CGFloat; let tentacles: CGFloat }
     struct Observation {
         let player: Swimmer
-        let fish: [Swimmer]
+        var fish: [Swimmer]
         let bells: [Bell]
         let width: CGFloat
         let screenWidth: CGFloat
@@ -20,6 +20,15 @@ enum ArcadeSimulation {
         let speed: CGFloat
         let bouncing: Bool
         let bounceSpeed: CGFloat
+        /// Sunset Cove's hooks on screen, each as the circle its bait and bend catch you in (`radius`), moving as it is now.
+        var hooks: [Swimmer] = []
+        /// Smaller fish to swim round rather than eat (meals a planned route skips), and how close (screen points of
+        /// water) a bigger fish may come before the bot starts to give it room.
+        var avoids: [Swimmer] = []
+        var threatMargin: CGFloat = 75
+        var seeksFood = true
+        /// Screen points of water the bot likes to keep from a hook (it never touches one it sees coming).
+        var hookMargin: CGFloat = 8
     }
     /// Internal steering state for controlled repeatability investigations.
     struct AuditFish: Codable, Equatable {
@@ -52,7 +61,11 @@ enum ArcadeSimulation {
 
     /// Predict short local trajectories for both inputs. Only visible fish enter the observation.
     /// Prediction is approximate; the rollout itself always advances the actual scene physics.
-    static func holding(_ observation: Observation, policy: Policy) -> Bool {
+    /// `path`: the height to be at so many seconds from now, and how much it matters then, followed instead of making for
+    /// the nearest meal (a planned level's reference route: a straight swim from one meeting to the next, and being at
+    /// each meeting matters most).
+    static func holding(_ observation: Observation, policy: Policy,
+                        path: ((CGFloat) -> (y: CGFloat, weight: CGFloat))? = nil) -> Bool {
         let p = observation.player
         let wrapped = WrappedWorld(width: observation.width)
         let food = observation.fish.filter { GameRules.playerEncounter(p.radius, $0.radius) == .firstEatsSecond }
@@ -103,6 +116,11 @@ enum ArcadeSimulation {
                         bounced = true
                     }
                 }
+                for hook in observation.hooks {
+                    let dx = wrapped.delta(from: x, to: wrapped.wrap(hook.x + hook.vx * time))
+                    let gap = hypot(dx, hook.y + hook.vy * time - y) - p.radius * GameTuning.hazardHitboxScale - hook.radius
+                    if gap < 0 { cost += 100_000 } else { cost += max(0, observation.hookMargin - gap) * 60 / CGFloat(predictionSteps) }
+                }
                 for f in observation.fish {
                     let dx = wrapped.delta(from: x, to: wrapped.wrap(f.x + f.vx * time))
                     let dy = f.y + f.vy * time - y
@@ -110,13 +128,19 @@ enum ArcadeSimulation {
                     if GameRules.playerEncounter(p.radius, f.radius) == .secondEatsFirst {
                         let threatCost: CGFloat = policy == .cautious ? 140 : (policy == .opportunist ? 45 : 80)
                         if gap < 0 { cost += 100_000 }
-                        else { cost += max(0, 75 - gap) * threatCost / CGFloat(predictionSteps) }
-                    } else if GameRules.playerEncounter(p.radius, f.radius) == .firstEatsSecond && gap < 0 {
+                        else { cost += max(0, observation.threatMargin - gap) * threatCost / CGFloat(predictionSteps) }
+                    } else if observation.seeksFood, GameRules.playerEncounter(p.radius, f.radius) == .firstEatsSecond && gap < 0 {
                         cost += policy == .opportunist ? -300 : -150
                     }
                 }
+                for f in observation.avoids {
+                    let dx = wrapped.delta(from: x, to: wrapped.wrap(f.x + f.vx * time))
+                    if hypot(dx, f.y + f.vy * time - y) < (p.radius + f.radius) * GameTuning.collisionScale { cost += 20_000 }
+                }
+                if let wanted = path?(time) { cost += abs(y - wanted.y) * wanted.weight * 4 / CGFloat(predictionSteps) }
             }
-            cost += abs(y - targetY) * 2 + abs(vy) * 0.02
+            if path == nil { cost += abs(y - targetY) * 2 }
+            cost += abs(vy) * 0.02
             if cost < best { best = cost; choice = sequence & 1 != 0 }
         }
         return choice

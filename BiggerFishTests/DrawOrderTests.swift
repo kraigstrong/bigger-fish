@@ -106,7 +106,7 @@ struct DrawOrderTests {
     // MARK: The moments
 
     static func sweep(_ capture: @escaping Capture) {
-        for world in ArcadeWorld.campaign { level(world, capture) }
+        for world in ArcadeWorld.campaign + ArcadeWorld.prototypes { level(world, capture) }
         tutorial(capture)
         credits(capture)
         maps(capture)
@@ -191,6 +191,12 @@ struct DrawOrderTests {
                 for tenth in 1...25 {
                     scene.debugAdvance(seconds: 0.1)
                     shoot(scene, view, "\(name) stung \(tenth)", keyframe: tenth == 3, capture)
+                }
+            } else if !scene.debugHooks.isEmpty && scene.debugTouchHook(0, at: .bait) {
+                // Reeled up the line and out of the water, then the card.
+                for tenth in 1...13 {
+                    scene.debugAdvance(seconds: 0.1)
+                    shoot(scene, view, "\(name) hooked \(tenth)", keyframe: tenth == 3, capture)
                 }
             } else {
                 scene.debugCommitFatalSwallowForMetrics()
