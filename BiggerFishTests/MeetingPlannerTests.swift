@@ -203,7 +203,7 @@ struct MeetingPlannerTests {
         #expect(GameTuning.midnightFrozen == Set(GameTuning.midnightSpecs.map(\.name)))
     }
 
-    /// Riptide Reef's currents run the full height of the water, with you and against you in turn, over stretches of
+    /// Riptide Reef's currents run the full height of the water, each carrying you forward, over stretches of
     /// the lap among the level's fish.
     @MainActor @Test func riptideReefCurrentsRunFullHeightAmongTheFish() {
         #expect(ArcadeWorld.prototypes.contains(.riptideReef) && !ArcadeWorld.campaign.contains(.riptideReef))
@@ -211,7 +211,7 @@ struct MeetingPlannerTests {
             let plan = level.meetingPlan!, currents = plan.currents ?? [], name = plan.spec.name
             #expect(plan.issues.isEmpty, "\(name): \(plan.issues)")
             #expect(currents.map(\.speed) == GameTuning.riptideCurrents[index], "\(name)")
-            #expect(currents.allSatisfy { $0.low == 0 && $0.high == 1 && $0.start < $0.end }, "\(name)")
+            #expect(currents.allSatisfy { $0.speed > 1 && $0.low == 0 && $0.high == 1 && $0.start < $0.end }, "\(name)")
             #expect(zip(currents, currents.dropFirst()).allSatisfy { $0.end < $1.start }, "\(name): currents overlap")
             for (number, current) in currents.enumerated() {
                 let meetings = plan.predicted.filter { (current.start...current.end).contains(CGFloat($0.distance)) }.count

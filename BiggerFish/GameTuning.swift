@@ -728,17 +728,16 @@ enum GameTuning {
         spec.name = "Riptide Reef \(index + 1)"
         return spec
     }
-    /// Each trial's currents, in order along the lap, times your pace: easy one with you and one against you, medium
-    /// and hard three (the hard level is no longer, just busier). Kraig (2026-10-11), after narrow channels "just aren't
-    /// doing it": "full height, and just slip into a fast current or be swimming against it."
-    static let riptideCurrents: [[CGFloat]] = [[riptideWithYou, riptideAgainstYou],
-                                               [riptideWithYou, riptideAgainstYou, riptideWithYou],
-                                               [riptideWithYou, riptideAgainstYou, riptideWithYou]]
+    /// Each trial's currents, in order along the lap, times your pace: easy two, medium and hard three (the hard level is
+    /// no longer, just busier), every one carrying you forward. Kraig (2026-10-11), after narrow channels "just aren't
+    /// doing it": "full height, and just slip into a fast current or be swimming against it"; then (2026-10-12)
+    /// "speeding up through a section is really fun. Slowing down is not."
+    static let riptideCurrents: [[CGFloat]] = [[riptideWithYou, riptideWithYou],
+                                               [riptideWithYou, riptideWithYou, riptideWithYou],
+                                               [riptideWithYou, riptideWithYou, riptideWithYou]]
     static let riptideWithYou: CGFloat = 1.45
-    static let riptideAgainstYou: CGFloat = 0.6
-    /// How long a current is, in seconds at your usual pace (you're through one with you sooner, and one against you
-    /// takes longer), the calm water at the start of the lap, and the least calm water between two currents. The trial
-    /// levels meet their last fish 8 to 10 seconds in.
+    /// How long a current is, in seconds at your usual pace (you're through it sooner), the calm water at the start of
+    /// the lap, and the least calm water between two currents. The trial levels meet their last fish 8 to 10 seconds in.
     static let riptideCurrentSeconds: CGFloat = 2.2
     static let riptideCalmStart: CGFloat = 1.8
     static let riptideCalmBetween: CGFloat = 0.8

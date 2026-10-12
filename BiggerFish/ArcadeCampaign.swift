@@ -95,7 +95,7 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .kelpForest: ["Kelp slows you down.", "Fish in the kelp hide their colors."]
         case .midnightZone: ["Your light shows the way.", "Fish lurk in the dark."]
         case .sunsetCove: ["Boats lower baited hooks.", "Don't take the bait."]
-        case .riptideReef: ["Currents speed you up and slow you down.", "Small fish get swept along."]
+        case .riptideReef: ["Currents speed you up.", "Small fish get swept along."]
         }
     
     }
