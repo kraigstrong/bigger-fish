@@ -761,30 +761,34 @@ enum GameTuning {
         return spec
     }
     /// The three trials (Shallow Reef's 2, 5, and 9) were planned as Sunset Cove 1, 2, and 3, and Kraig's daughters loved
-    /// them; levels 2, 5, and 9 keep those layouts, fish and hooks both.
+    /// them; levels 2, 5, and 9 keep those fish layouts (their hooks follow `sunsetHooks`).
     static let sunsetSeedNames: [String: String] = ["Sunset Cove 2": "Sunset Cove 1", "Sunset Cove 5": "Sunset Cove 2",
                                                     "Sunset Cove 9": "Sunset Cove 3"]
-    /// Each level's hooks. Levels 2, 5, and 9 are the trials, as played; each level between brings in one new thing,
-    /// and the Deep End hangs more hooks nearer your way with the bait closer to your size. `nearLanes` hooks hang as
+    /// Each level's hooks. Every level hangs some near your way from the start, each level brings in one new thing,
+    /// and the Deep End hangs more hooks nearer your way with the bait closer to your size. Kraig (2026-10-12): "levels
+    /// 8-10 were great. But I think I made it through 1-7 without getting hooked a single time. I think we're playing
+    /// it a little too safe on those": levels 1 to 3 hung every hook well off your way (70 to 50 points clear), and 4
+    /// to 7 most of them. Now 1 to 7 hang two to four near the meal lanes, with 45 points clear at first, down to 28
+    /// by 7, as at 8. `nearLanes` hooks hang as
     /// near the meal lanes as is fair, so you time them or pick a lane; `besideMeals` bait hangs beside a real meal its
     /// size, where a meal has a fair spot beside it (the Deep End hangs one to three); the gate is two hooks near the
     /// end, one above your way and one below. `clearance` is the water (screen
     /// points) every hook keeps from your way from meal to meal.
     static let sunsetHooks: [HookSpec] = [
-        // 1: two still hooks well off your way, the bait plain to see: learn not to eat it.
-        HookSpec(still: 2, baitSize: 0.5, clearance: 70),
-        // 2, the easy trial: three.
-        HookSpec(still: 3, baitSize: 0.55, clearance: 60),
-        // 3: one reeled slowly up and down.
-        HookSpec(still: 2, bobbing: 1, baitSize: 0.58, clearance: 50),
-        // 4: hooks near the meal lanes.
-        HookSpec(still: 2, bobbing: 2, nearLanes: 2, baitSize: 0.6, clearance: 40),
+        // 1: three still hooks, two near your way: the bait is plain to see, and close enough to tempt you.
+        HookSpec(still: 3, nearLanes: 2, baitSize: 0.55, clearance: 45),
+        // 2, the easy trial: four.
+        HookSpec(still: 4, nearLanes: 3, baitSize: 0.58, clearance: 40),
+        // 3: hooks reeled slowly up and down.
+        HookSpec(still: 2, bobbing: 2, nearLanes: 3, baitSize: 0.6, clearance: 36),
+        // 4: more of them, nearer.
+        HookSpec(still: 2, bobbing: 3, nearLanes: 4, baitSize: 0.62, clearance: 33),
         // 5, the medium trial.
-        HookSpec(still: 2, bobbing: 3, nearLanes: 3, baitSize: 0.62, clearance: 30),
+        HookSpec(still: 2, bobbing: 3, nearLanes: 4, baitSize: 0.62, clearance: 30),
         // 6: a boat trolling its hook toward you.
-        HookSpec(still: 2, bobbing: 1, trolling: 1, nearLanes: 2, baitSize: 0.64, clearance: 32),
+        HookSpec(still: 2, bobbing: 2, trolling: 1, nearLanes: 4, baitSize: 0.64, clearance: 29),
         // 7: bait beside a real meal.
-        HookSpec(still: 1, bobbing: 2, trolling: 1, besideMeals: 1, nearLanes: 3, baitSize: 0.66, clearance: 28),
+        HookSpec(still: 1, bobbing: 2, trolling: 2, besideMeals: 1, nearLanes: 4, baitSize: 0.66, clearance: 28),
         // 8: the gate.
         HookSpec(still: 2, bobbing: 2, gate: true, nearLanes: 3, baitSize: 0.66, clearance: 28),
         // 9, the hard trial: all of it.
@@ -811,8 +815,9 @@ enum GameTuning {
     static let sunsetFishRadius: [String: [Int: CGFloat]] = ["Sunset Cove 10": [10: 63, 16: 61.5]]
     /// Played and approved, so they play exactly as saved in `SunsetPlans.json`: a planner change can't alter them.
     /// Sunset Cove 10 (Kraig, 2026-10-12, after its giants were sized to finish edible: "perfect. let's freeze level
-    /// 10"). Take a level out of this set (with Kraig's OK) to tune it in code again, then regenerate the file.
-    static let sunsetFrozen: Set<String> = ["Sunset Cove 10"]
+    /// 10") and 11 ("11 is incredible"). Take a level out of this set (with Kraig's OK) to tune it in code again, then
+    /// regenerate the file.
+    static let sunsetFrozen: Set<String> = ["Sunset Cove 10", "Sunset Cove 11"]
     #if DEBUG
     /// Sunset Cove's levels as Xcode builds play them: from `SunsetPlans.json` for the frozen ones, otherwise planned
     /// in code (`sunsetPlan`).

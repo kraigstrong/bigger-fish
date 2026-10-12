@@ -613,30 +613,43 @@
     ],
     "hooks" : [
       {
-        "baitRadius" : 12.448966314304604,
-        "depth" : 30.896471021190834,
+        "baitRadius" : 10.985779767487275,
+        "depth" : 272.20000000000016,
         "motion" : "still",
-        "passTime" : 5.520000000000002,
+        "passTime" : 3.2800000000000002,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
-        "role" : "open",
+        "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 16500328581483366464,
-        "x" : 1678.500149434722
+        "styleSeed" : 16979671050788397075,
+        "x" : 989.5287356321819
       },
       {
-        "baitRadius" : 15.965587070184672,
-        "depth" : 3.5191203496259007,
+        "baitRadius" : 15.268785959833982,
+        "depth" : 140.06020632460152,
         "motion" : "still",
-        "passTime" : 7.920000000000004,
+        "passTime" : 6.000000000000003,
+        "period" : 1,
+        "phase" : 0,
+        "range" : 0,
+        "role" : "lane",
+        "speed" : 0,
+        "styleSeed" : 6971428173739706789,
+        "x" : 1839.1383558267487
+      },
+      {
+        "baitRadius" : 16.34747922380163,
+        "depth" : 39.229830257079286,
+        "motion" : "still",
+        "passTime" : 7.040000000000004,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
         "role" : "open",
         "speed" : 0,
-        "styleSeed" : 11007193201356711014,
-        "x" : 2531.819617250645
+        "styleSeed" : 14032056608971699418,
+        "x" : 2203.269508380538
       }
     ],
     "issues" : [
@@ -776,13 +789,13 @@
         0.35
       ],
       "hooks" : {
-        "baitSize" : 0.5,
+        "baitSize" : 0.55,
         "besideMeals" : 0,
         "bobbing" : 0,
-        "clearance" : 70,
+        "clearance" : 45,
         "gate" : false,
-        "nearLanes" : 0,
-        "still" : 2,
+        "nearLanes" : 2,
+        "still" : 3,
         "trolling" : 0
       },
       "lapTwoSize" : [
@@ -1725,43 +1738,56 @@
     ],
     "hooks" : [
       {
-        "baitRadius" : 15.211667323013994,
-        "depth" : 358.3646191655223,
+        "baitRadius" : 13.763111781901888,
+        "depth" : 87.29570290081375,
         "motion" : "still",
-        "passTime" : 4.910000000000001,
+        "passTime" : 3.9500000000000006,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
-        "role" : "open",
+        "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 16979671050788397075,
-        "x" : 1526.214130706723
+        "styleSeed" : 11007193201356711014,
+        "x" : 1209.2289289708363
       },
       {
-        "baitRadius" : 17.431162929602593,
-        "depth" : 373.8218513308629,
+        "baitRadius" : 16.546782329745017,
+        "depth" : 243.66950334108236,
         "motion" : "still",
-        "passTime" : 5.950000000000002,
+        "passTime" : 5.150000000000001,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
-        "role" : "open",
+        "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 6971428173739706789,
-        "x" : 1899.2466191102346
+        "styleSeed" : 10235524898945632487,
+        "x" : 1607.4164216994272
       },
       {
-        "baitRadius" : 21.90010802617231,
-        "depth" : 404.99203276368496,
+        "baitRadius" : 21.124526119061496,
+        "depth" : 325.54577206891236,
         "motion" : "still",
-        "passTime" : 7.790000000000004,
+        "passTime" : 6.830000000000003,
+        "period" : 1,
+        "phase" : 0,
+        "range" : 0,
+        "role" : "lane",
+        "speed" : 0,
+        "styleSeed" : 8118661612016701267,
+        "x" : 2243.418837670157
+      },
+      {
+        "baitRadius" : 23.094659373054434,
+        "depth" : 404.03431129778954,
+        "motion" : "still",
+        "passTime" : 7.7100000000000035,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
         "role" : "open",
         "speed" : 0,
-        "styleSeed" : 14032056608971699418,
-        "x" : 2648.036768074873
+        "styleSeed" : 16578507693732060916,
+        "x" : 2618.3844368147084
       }
     ],
     "issues" : [
@@ -1955,13 +1981,13 @@
         0.45
       ],
       "hooks" : {
-        "baitSize" : 0.55,
+        "baitSize" : 0.58,
         "besideMeals" : 0,
         "bobbing" : 0,
-        "clearance" : 60,
+        "clearance" : 40,
         "gate" : false,
-        "nearLanes" : 0,
-        "still" : 3,
+        "nearLanes" : 3,
+        "still" : 4,
         "trolling" : 0
       },
       "lapTwoSize" : [
@@ -2951,43 +2977,56 @@
     ],
     "hooks" : [
       {
-        "baitRadius" : 16.467525644827678,
-        "depth" : 24.168662860245846,
+        "baitRadius" : 15.134257790949663,
+        "depth" : 121.08800803797214,
         "motion" : "still",
-        "passTime" : 4.780000000000001,
+        "passTime" : 4.140000000000001,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
-        "role" : "open",
+        "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 12357485527614980173,
-        "x" : 1510.0545749184178
+        "styleSeed" : 8991925791319086035,
+        "x" : 1291.163200875745
       },
       {
-        "baitRadius" : 21.444979674046323,
-        "depth" : -7.599878198827277,
+        "baitRadius" : 18.512703082749688,
+        "depth" : 54.8447408911514,
         "motion" : "bob",
-        "passTime" : 6.540000000000003,
+        "passTime" : 5.340000000000002,
         "period" : 3.6,
-        "phase" : -11.41445330804292,
-        "range" : 93.27337274658478,
-        "role" : "open",
+        "phase" : -9.320058205649723,
+        "range" : 83.55977086858061,
+        "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 3442043703928282973,
-        "x" : 2181.483802404307
+        "styleSeed" : 15015996307657073422,
+        "x" : 1708.6805425588634
       },
       {
-        "baitRadius" : 24.981952122041,
-        "depth" : -33.5614986209262,
+        "baitRadius" : 20.775732821943006,
+        "depth" : 84.28522763748632,
         "motion" : "still",
-        "passTime" : 7.4200000000000035,
+        "passTime" : 6.460000000000003,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
+        "role" : "lane",
+        "speed" : 0,
+        "styleSeed" : 11868442504053831649,
+        "x" : 2153.928449781622
+      },
+      {
+        "baitRadius" : 25.843398746938966,
+        "depth" : -14.560546128137403,
+        "motion" : "bob",
+        "passTime" : 7.340000000000003,
+        "period" : 3.6,
+        "phase" : -12.810716709638385,
+        "range" : 104.01134507596689,
         "role" : "open",
         "speed" : 0,
-        "styleSeed" : 1759007663491363628,
-        "x" : 2571.152634317399
+        "styleSeed" : 8908015465371771891,
+        "x" : 2532.4308992690912
       }
     ],
     "issues" : [
@@ -3190,12 +3229,12 @@
         0.55
       ],
       "hooks" : {
-        "baitSize" : 0.58,
+        "baitSize" : 0.6,
         "besideMeals" : 0,
-        "bobbing" : 1,
-        "clearance" : 50,
+        "bobbing" : 2,
+        "clearance" : 36,
         "gate" : false,
-        "nearLanes" : 0,
+        "nearLanes" : 3,
         "still" : 2,
         "trolling" : 0
       },
@@ -4301,56 +4340,69 @@
     ],
     "hooks" : [
       {
-        "baitRadius" : 12.951883596536396,
-        "depth" : 99.44603732709425,
+        "baitRadius" : 12.14395844001037,
+        "depth" : 190.80000000000013,
         "motion" : "bob",
-        "passTime" : 4.170000000000001,
+        "passTime" : 3.05,
         "period" : 3.6,
-        "phase" : -7.278022980816355,
-        "range" : 71.24268610428544,
+        "phase" : -2.181661564992912,
+        "range" : 70,
         "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 4215845029479284712,
-        "x" : 1317.6725243288818
+        "styleSeed" : 8915796276978994856,
+        "x" : 962.3465703971156
       },
       {
-        "baitRadius" : 18.348715373433404,
-        "depth" : 190.91185478765038,
+        "baitRadius" : 17.553984003410967,
+        "depth" : 125.07641818404775,
         "motion" : "still",
-        "passTime" : 5.770000000000002,
+        "passTime" : 5.450000000000002,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
         "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 5126417657011319274,
-        "x" : 1874.4938616834597
+        "styleSeed" : 9598757973518398813,
+        "x" : 1756.8638936438497
       },
       {
-        "baitRadius" : 21.477225818676036,
-        "depth" : 296.1481097565112,
-        "motion" : "bob",
-        "passTime" : 7.290000000000004,
-        "period" : 3.6,
-        "phase" : -9.581857593448875,
-        "range" : 95.33098701070482,
-        "role" : "open",
-        "speed" : 0,
-        "styleSeed" : 3282855208258172142,
-        "x" : 2487.228597860827
-      },
-      {
-        "baitRadius" : 30.12316537247044,
-        "depth" : 57.16493337028015,
+        "baitRadius" : 22.193133345965236,
+        "depth" : -11.210501717105927,
         "motion" : "still",
-        "passTime" : 9.290000000000004,
+        "passTime" : 7.2100000000000035,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
+        "role" : "lane",
+        "speed" : 0,
+        "styleSeed" : 11132416794872500194,
+        "x" : 2458.6298961470807
+      },
+      {
+        "baitRadius" : 28.51979280551907,
+        "depth" : -37.64215270920283,
+        "motion" : "bob",
+        "passTime" : 8.570000000000004,
+        "period" : 3.6,
+        "phase" : -14.957471689591411,
+        "range" : 106.77118542775482,
+        "role" : "lane",
+        "speed" : 0,
+        "styleSeed" : 16847387226179727460,
+        "x" : 3065.705812958464
+      },
+      {
+        "baitRadius" : 31.863361605516598,
+        "depth" : 16.310410529205114,
+        "motion" : "bob",
+        "passTime" : 9.450000000000005,
+        "period" : 3.6,
+        "phase" : -16.493361431346422,
+        "range" : 116.6812274315394,
         "role" : "open",
         "speed" : 0,
-        "styleSeed" : 877426213529607294,
-        "x" : 3424.189267875381
+        "styleSeed" : 10824996176620089912,
+        "x" : 3511.077438975398
       }
     ],
     "issues" : [
@@ -4571,12 +4623,12 @@
         0.6
       ],
       "hooks" : {
-        "baitSize" : 0.6,
+        "baitSize" : 0.62,
         "besideMeals" : 0,
-        "bobbing" : 2,
-        "clearance" : 40,
+        "bobbing" : 3,
+        "clearance" : 33,
         "gate" : false,
-        "nearLanes" : 2,
+        "nearLanes" : 4,
         "still" : 2,
         "trolling" : 0
       },
@@ -5796,17 +5848,17 @@
         "x" : 2229.5017834738496
       },
       {
-        "baitRadius" : 20.498002782229182,
-        "depth" : 292.7072225909827,
+        "baitRadius" : 23.576451575302247,
+        "depth" : 233.610321032517,
         "motion" : "bob",
-        "passTime" : 7.480000000000004,
+        "passTime" : 7.960000000000004,
         "period" : 3.6,
-        "phase" : -9.913470151327799,
-        "range" : 91.91934251230545,
-        "role" : "open",
+        "phase" : -10.751228192285078,
+        "range" : 94.10889889104698,
+        "role" : "lane",
         "speed" : 0,
         "styleSeed" : 986424660349398175,
-        "x" : 2592.8744022467176
+        "x" : 2798.771944305114
       },
       {
         "baitRadius" : 29.69052124996347,
@@ -6063,7 +6115,7 @@
         "bobbing" : 3,
         "clearance" : 30,
         "gate" : false,
-        "nearLanes" : 3,
+        "nearLanes" : 4,
         "still" : 2,
         "trolling" : 0
       },
@@ -7258,54 +7310,67 @@
     "hooks" : [
       {
         "baitRadius" : 12.647997120377267,
-        "depth" : 158.20000000000005,
+        "depth" : 225.00000000000017,
+        "motion" : "bob",
+        "passTime" : 3.910000000000001,
+        "period" : 3.6,
+        "phase" : -3.682644721708037,
+        "range" : 70,
+        "role" : "lane",
+        "speed" : 0,
+        "styleSeed" : 2597101960453740504,
+        "x" : 1277.3009950248709
+      },
+      {
+        "baitRadius" : 18.17181189532372,
+        "depth" : 189.53228545424193,
+        "motion" : "bob",
+        "passTime" : 5.670000000000003,
+        "period" : 3.6,
+        "phase" : -6.75442420521806,
+        "range" : 79.64565415250834,
+        "role" : "lane",
+        "speed" : 0,
+        "styleSeed" : 8267965386355204879,
+        "x" : 1876.5916452898555
+      },
+      {
+        "baitRadius" : 19.09057760525311,
+        "depth" : 260.8313243694633,
         "motion" : "still",
-        "passTime" : 4.230000000000001,
+        "passTime" : 6.6300000000000034,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
         "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 4901211456641673814,
-        "x" : 1380.5721393034773
-      },
-      {
-        "baitRadius" : 18.76742939707929,
-        "depth" : 189.43222417284312,
-        "motion" : "bob",
-        "passTime" : 5.750000000000003,
-        "period" : 3.6,
-        "phase" : -6.894050545377606,
-        "range" : 80.40698998923853,
-        "role" : "lane",
-        "speed" : 0,
-        "styleSeed" : 5591970070822154390,
-        "x" : 1907.6864540754864
+        "styleSeed" : 371556554391092684,
+        "x" : 2252.9372129203225
       },
       {
         "baitRadius" : 20.673829933976496,
-        "depth" : 351.5488857451368,
+        "depth" : 264.37959444151124,
         "motion" : "still",
-        "passTime" : 7.350000000000004,
+        "passTime" : 7.670000000000004,
         "period" : 1,
         "phase" : 0,
         "range" : 0,
-        "role" : "open",
+        "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 2042843397445556026,
-        "x" : 2546.852561716521
+        "styleSeed" : 1719320936255623924,
+        "x" : 2680.685062169671
       },
       {
         "baitRadius" : 31.07114879584763,
-        "depth" : 336.8057321801193,
+        "depth" : 262.8091975088729,
         "motion" : "troll",
         "passTime" : 9.350000000000005,
         "period" : 6,
-        "phase" : 1.577482663501551,
+        "phase" : 3.3283617305022872,
         "range" : 63.155776590791035,
         "role" : "open",
         "speed" : -71.05024866463991,
-        "styleSeed" : 18146085000036169407,
+        "styleSeed" : 15244044920830099340,
         "x" : 4127.708686698281
       }
     ],
@@ -7547,10 +7612,10 @@
       "hooks" : {
         "baitSize" : 0.64,
         "besideMeals" : 0,
-        "bobbing" : 1,
-        "clearance" : 32,
+        "bobbing" : 2,
+        "clearance" : 29,
         "gate" : false,
-        "nearLanes" : 2,
+        "nearLanes" : 4,
         "still" : 2,
         "trolling" : 1
       },
@@ -8881,47 +8946,60 @@
         "range" : 0,
         "role" : "beside",
         "speed" : 0,
-        "styleSeed" : 6740433303523035928,
+        "styleSeed" : 4541996905592170932,
         "x" : 1629.0589910862873
       },
       {
-        "baitRadius" : 22.760854183373606,
-        "depth" : 318.33238781612044,
+        "baitRadius" : 22.119470659925067,
+        "depth" : 76.66830662173392,
         "motion" : "troll",
-        "passTime" : 6.020000000000002,
+        "passTime" : 5.700000000000002,
         "period" : 6,
-        "phase" : 1.6521901950122335,
-        "range" : 52.939645939598556,
+        "phase" : 6.206150066695185,
+        "range" : 51.957419736803146,
         "role" : "lane",
-        "speed" : -59.557101682048376,
-        "styleSeed" : 6223864251905441391,
-        "x" : 2503.0649965556963
+        "speed" : -58.45209720390354,
+        "styleSeed" : 3441083280587206686,
+        "x" : 2339.592955838056
       },
       {
         "baitRadius" : 23.851711199632533,
-        "depth" : 250.97578365110547,
+        "depth" : 62.92256026150645,
         "motion" : "bob",
-        "passTime" : 6.900000000000003,
+        "passTime" : 6.660000000000003,
         "period" : 3.6,
-        "phase" : -8.901179185171086,
-        "range" : 98.03035317520236,
+        "phase" : -11.62389281828224,
+        "range" : 97.11964353941852,
         "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 3214996324158206186,
-        "x" : 2546.27828868823
+        "styleSeed" : 14351002853877043986,
+        "x" : 2438.127350197856
       },
       {
-        "baitRadius" : 32.49931386915262,
-        "depth" : 132.37091353706577,
+        "baitRadius" : 31.32729951377768,
+        "depth" : 49.35380452797577,
         "motion" : "bob",
-        "passTime" : 8.020000000000003,
+        "passTime" : 7.620000000000004,
         "period" : 3.6,
-        "phase" : -13.997540600994528,
-        "range" : 113.25445101448327,
+        "phase" : -13.299408900196797,
+        "range" : 106.73313444374185,
         "role" : "lane",
         "speed" : 0,
-        "styleSeed" : 12945782307088702383,
-        "x" : 3103.0253390202397
+        "styleSeed" : 4601953697120925575,
+        "x" : 2893.5524497420865
+      },
+      {
+        "baitRadius" : 36.1655451119632,
+        "depth" : 238.60255956586255,
+        "motion" : "troll",
+        "passTime" : 8.660000000000004,
+        "period" : 6,
+        "phase" : 2.668401834741165,
+        "range" : 70.51766233047293,
+        "role" : "lane",
+        "speed" : -79.33237012178205,
+        "styleSeed" : 10902315438209255256,
+        "x" : 4156.351460505387
       }
     ],
     "issues" : [
@@ -9183,9 +9261,9 @@
         "bobbing" : 2,
         "clearance" : 28,
         "gate" : false,
-        "nearLanes" : 3,
+        "nearLanes" : 4,
         "still" : 1,
-        "trolling" : 1
+        "trolling" : 2
       },
       "lapTwoSize" : [
         0.88,

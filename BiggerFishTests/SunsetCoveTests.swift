@@ -62,8 +62,10 @@ struct SunsetCoveTests {
             let beside = hooks.filter { $0.role == .beside }.count
             #expect(wanted.besideMeals == 0 ? beside == 0 : (1...wanted.besideMeals).contains(beside), "\(plan.spec.name)")
         }
-        // The first level's hooks hang still, well off your way: the bait is something to leave alone.
-        #expect((plans[0].hooks ?? []).allSatisfy { $0.motion == .still && $0.role == .open })
+        // The first level's hooks hang still, some near your way: the bait is something to leave alone.
+        #expect((plans[0].hooks ?? []).allSatisfy { $0.motion == .still })
+        // Every level hangs hooks near your way (Kraig got through 1 to 7 unhooked when they hung well clear).
+        for plan in plans { #expect((plan.hooks ?? []).contains { $0.role == .lane || $0.role == .gate }, "\(plan.spec.name)") }
         let hooks = plans.map { $0.hooks ?? [] }
         // Bobbing takes a readable three or four seconds; trolling boats motor toward you, slower than you swim, so they
         // go bow first across the screen as everything else does.
@@ -81,8 +83,8 @@ struct SunsetCoveTests {
         }
     }
 
-    /// The trials Kraig's daughters played keep their layouts as levels 2, 5, and 9, fish and hooks both: each plans as
-    /// it did under its old name.
+    /// The trials Kraig's daughters played keep their layouts as levels 2, 5, and 9: each plans as it would under its
+    /// old name, fish and hooks both.
     @Test func theTrialsKeepTheirLayouts() {
         for (old, index) in [("Sunset Cove 1", 1), ("Sunset Cove 2", 4), ("Sunset Cove 3", 8)] {
             var spec = GameTuning.sunsetSpecs[index]
@@ -226,7 +228,7 @@ struct SunsetCoveTests {
         let bundled = try JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: url))
         #expect(bundled.map(\.spec) == GameTuning.sunsetSpecs, "SunsetPlans.json is out of date: regenerate it")
         #expect(GameTuning.sunsetFrozen.isSubset(of: GameTuning.sunsetSpecs.map(\.name)))
-        #expect(GameTuning.sunsetFrozen.contains("Sunset Cove 10"))
+        #expect(GameTuning.sunsetFrozen.isSuperset(of: ["Sunset Cove 10", "Sunset Cove 11"]))
         for (index, plan) in plans.enumerated() where GameTuning.sunsetFrozen.contains(plan.spec.name) {
             #expect(plan.fish == bundled[index].fish && plan.hooks == bundled[index].hooks, "\(plan.spec.name)")
         }
