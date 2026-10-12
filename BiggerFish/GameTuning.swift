@@ -722,30 +722,45 @@ enum GameTuning {
 
     /// Riptide Reef's trial levels: Shallow Reef's levels 1, 5, and 10 planned like Midnight Zone's (fish appear just
     /// off screen right before you meet them), with currents running the full height of the water over stretches of
-    /// the lap, among the level's fish (`riptideCurrents`).
+    /// the lap, among the level's fish (`riptideCurrents`). The plan reckons with the currents, so each level keeps
+    /// Shallow Reef's rhythm in seconds, every meal as reachable as there; in a current you just cover more water. Its
+    /// lap is longer to make room for that.
     static let riptideSpecs: [MeetingSpec] = [0, 4, 9].enumerated().map { index, source in
         var spec = reefLabSpecs[source]
         spec.name = "Riptide Reef \(index + 1)"
+        let speeds = riptideCurrents[index]
+        spec.currents = CurrentSpec(speeds: speeds.map(Double.init), seconds: Double(riptideCurrentSeconds),
+                                    calmStart: Double(riptideCalmStart), calmBetween: Double(riptideCalmBetween))
+        // The extra water the currents cover, at the zoom a lap is usually played at.
+        spec.worldScreens += Double(speeds.reduce(0) { $0 + ($1 - 1) } * riptideCurrentSeconds) / spec.crossSeconds / 0.75
         return spec
     }
-    /// Each trial's currents, in order along the lap, times your pace: easy two, medium and hard three (the hard level is
-    /// no longer, just busier), every one carrying you forward. Kraig (2026-10-11), after narrow channels "just aren't
-    /// doing it": "full height, and just slip into a fast current or be swimming against it"; then (2026-10-12)
-    /// "speeding up through a section is really fun. Slowing down is not."
-    static let riptideCurrents: [[CGFloat]] = [[riptideWithYou, riptideWithYou],
-                                               [riptideWithYou, riptideWithYou, riptideWithYou],
-                                               [riptideWithYou, riptideWithYou, riptideWithYou]]
+    /// Each trial's currents, in order along the lap, times your pace, every one carrying you forward. Easy three,
+    /// medium four, hard three: more in the early levels, with their easier fish, since the currents are the fun.
+    /// Kraig (2026-10-11), after narrow channels "just aren't doing it": "full height, and just slip into a fast
+    /// current"; (2026-10-12) "speeding up through a section is really fun. Slowing down is not", and "we need more
+    /// riptides in the earlier levels... the number of currents should be higher. That's the fun part."
+    static let riptideCurrents: [[CGFloat]] = [Array(repeating: riptideWithYou, count: 3),
+                                               Array(repeating: riptideWithYou, count: 4),
+                                               Array(repeating: riptideWithYou, count: 3)]
     static let riptideWithYou: CGFloat = 1.45
-    /// How long a current is, in seconds at your usual pace (you're through it sooner), the calm water at the start of
-    /// the lap, and the least calm water between two currents. The trial levels meet their last fish 8 to 10 seconds in.
-    static let riptideCurrentSeconds: CGFloat = 2.2
-    static let riptideCalmStart: CGFloat = 1.8
-    static let riptideCalmBetween: CGFloat = 0.8
+    /// How long a current lasts at most (seconds of play), the calm water at the start of the lap, and the least calm
+    /// water between two currents. Between the calm start and your last meeting (8 to 10 seconds in), each current
+    /// has an even slot. A level whose currents don't fit says so.
+    static let riptideCurrentSeconds: CGFloat = 2
+    static let riptideCalmStart: CGFloat = 1.5
+    static let riptideCalmBetween: CGFloat = 0.6
+    /// Levels re-rolled to another layout of the same settings. Riptide Reef 3's first: a bot on its route, with nothing
+    /// able to eat it, couldn't reach four of the route's eleven meals (five with no currents at all), and Kraig wasn't
+    /// sure it was beatable ("I kept running into a wall that wasn't passable"); on layout 2 it eats them all.
+    static let riptideRerolls: [String: Int] = ["Riptide Reef 3": 2]
     #if DEBUG
-    /// Each level is the first layout with no planner issues.
-    static let riptideLevels: [Level] = riptideSpecs.enumerated().map { index, spec in
-        let plan = (0..<16).lazy.map { MeetingPlanner.riptidePlan(spec, currents: riptideCurrents[index], variation: $0) }
-            .first { $0.issues.isEmpty } ?? MeetingPlanner.riptidePlan(spec, currents: riptideCurrents[index])
+    /// Each level is its re-roll, or the first layout with no planner issues.
+    static let riptideLevels: [Level] = riptideSpecs.indices.map { index in
+        let spec = riptideSpecs[index]
+        let plan = riptideRerolls[spec.name].map { MeetingPlanner.kelpPlan(spec, variation: $0) }
+            ?? (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty }
+            ?? MeetingPlanner.kelpPlan(spec)
         var level = plan.level
         level.ecosystemSeedIndex = index
         return level
@@ -756,9 +771,6 @@ enum GameTuning {
     static let riptideLevels: [Level] = []
     static var riptideLevelCount: Int { 0 }
     #endif
-    /// After meeting you, a racing fish (one on real time, not your pace; none planned at the moment) keeps to its path
-    /// this many screens more before swimming freely.
-    static let riptideRacerReleaseScreens: CGFloat = 1
     static let currentEase: CGFloat = 4
     /// Fish this small or smaller (radius; you start at 16) are swept along by a current once they've met you; bigger
     /// ones swim straight through.

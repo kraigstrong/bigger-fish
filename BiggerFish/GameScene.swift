@@ -271,11 +271,10 @@ final class GameScene: SKScene {
     private var realClock: CGFloat = 0
     /// Simulated seconds since the current run started playing.
     private var simClock: CGFloat = 0
-    /// Your pace through the water: 1 normally, a current's speed while you're in one (eased). Planned fish follow
-    /// their approach on `paceClock`, which runs at this pace, so they still meet you exactly where planned however a
-    /// current speeds you up or slows you down.
+    /// Your pace through the water: 1 normally, a current's speed while you're in one (eased). Riptide Reef's levels
+    /// are planned with their currents (`MeetingDesigner`), so planned fish keep real time and still meet you where
+    /// planned.
     private var currentPace: CGFloat = 1
-    private var paceClock: CGFloat = 0
     private var timeScale: CGFloat = 1
     private var slowMoRemaining: CGFloat = 0
     private var slowMoFactor: CGFloat = 1
@@ -284,7 +283,7 @@ final class GameScene: SKScene {
     /// Kelp Forest fish that appear just off screen once you reach `appearsAt`, soonest first.
     private var waitingFish: [PlannedFish] = []
     /// A Kelp Forest fish swims straight at its meeting height until you're this far along, then roams.
-    private var approachEnds: [Int: (until: CGFloat, y: CGFloat, start: CGFloat, path: Approach?, heading: CGFloat, racer: Bool)] = [:]
+    private var approachEnds: [Int: (until: CGFloat, y: CGFloat, start: CGFloat, path: Approach?, heading: CGFloat)] = [:]
     private var kelpBeds: [(bed: PlannedKelp, back: KelpNode, front: KelpNode)] = []
     /// Sunset Cove's hooks, each with its boat, line, and bait.
     private var hookRigs: [HookRig] = []
@@ -508,7 +507,6 @@ final class GameScene: SKScene {
         timeScale = 1
         slowMoRemaining = 0
         simClock = 0
-        paceClock = 0
         currentPace = 1
         frameAccumulator = 0
         simulationAccumulator = 0
@@ -577,10 +575,8 @@ final class GameScene: SKScene {
         encounterLeases[f.id] = EncounterLease(home: planned.spawn,
             releaseDistance: planned.meetingDistance + size.width * T.freeEncounterReleaseScreens, index: planned.segment)
         if planned.appearsAt != nil {
-            // A Riptide Reef scenario fish keeps real time and its path a while longer, so it gets well away.
-            let racer = planned.racer == true
-            approachEnds[f.id] = (planned.meetingDistance + size.width * (racer ? T.riptideRacerReleaseScreens : T.kelpApproachReleaseScreens),
-                                  planned.spawn.y, racer ? simClock : paceClock, planned.approach, planned.headOn ? -1 : 1, racer)
+            approachEnds[f.id] = (planned.meetingDistance + size.width * T.kelpApproachReleaseScreens,
+                                  planned.spawn.y, simClock, planned.approach, planned.headOn ? -1 : 1)
         }
     }
 
@@ -792,7 +788,6 @@ final class GameScene: SKScene {
             showsJellyLesson = false
         }
         simClock = 0
-        paceClock = 0
         currentPace = 1
         replaying = false
         clearedBeforeRun = hasCleared?(levelIndex) ?? false
@@ -1012,7 +1007,6 @@ final class GameScene: SKScene {
             let pace = currents.first { $0.contains(distance: forwardDistance, share: share) }?.speed ?? 1
             currentPace += (pace - currentPace) * min(1, dt * T.currentEase)
         }
-        paceClock += dt * currentPace
         updateZoom(dt)
         let previous = Dictionary(uniqueKeysWithValues: fish.map { ($0.id, $0.position) })
         // All protected swimmers steer from the same snapshot, not update-order-dependent positions.
@@ -1105,12 +1099,12 @@ final class GameScene: SKScene {
             // Held to its line, so nothing it passes on the way can push it off its meeting.
             if forwardDistance < approach.until {
                 guard let path = approach.path else {
-                    f.velocity = CGVector(dx: f.heading * f.cruiseSpeed * (approach.racer ? 1 : currentPace), dy: 0)
+                    f.velocity = CGVector(dx: f.heading * f.cruiseSpeed, dy: 0)
                     f.position = CGPoint(x: world.wrap(f.position.x + f.velocity.dx * dt), y: approach.y)
                     f.facing = f.heading
                     return
                 }
-                let offset = path.offset(at: (approach.racer ? simClock : paceClock) - approach.start, heading: approach.heading, speed: f.cruiseSpeed)
+                let offset = path.offset(at: simClock - approach.start, heading: approach.heading, speed: f.cruiseSpeed)
                 let next = CGPoint(x: world.wrap(path.meeting.x + offset.dx), y: path.meeting.y + offset.dy)
                 f.velocity = CGVector(dx: world.delta(from: f.position.x, to: next.x) / dt, dy: (next.y - f.position.y) / dt)
                 f.position = next
@@ -3114,7 +3108,6 @@ final class GameScene: SKScene {
                 }
             } else if isolatedAI {
                 simClock += dt
-                paceClock += dt
                 for f in fish where !f.isPlayer && !omittedIDs.contains(f.id) { moveAI(f, dt) }
             } else {
                 simulate(dt)

@@ -220,6 +220,21 @@ struct MeetingPlannerTests {
         }
     }
 
+    /// Riptide Reef's levels are planned with their currents, so every meal on the route is there to eat however fast
+    /// a current carries you to it (planned without them, a route meal could be out of reach in a current, and the fish
+    /// it was to grow you past made a wall, as Kraig found in level 3). A bot on the route, with nothing able to eat
+    /// it, eats every meal on it; the route's timing is when you really get there, currents and all.
+    @MainActor @Test(arguments: [0, 1, 2]) func riptideReefRoutesStayOpenInTheCurrents(_ index: Int) {
+        let scene = GameScene(world: .riptideReef, levelIndex: index, showsJellyLesson: false)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        defer { withExtendedLifetime(view) {} }
+        let plan = scene.debugMeetingPlan!
+        let result = scene.debugPlayReferenceRoute(safeFromFish: true)
+        let route = Set(plan.fish.filter(\.referenceMeal).map(\.id)), eaten = Set(scene.debugMealLog.map(\.id))
+        #expect(route.isSubset(of: eaten), "Riptide Reef \(index + 1) missed \(route.subtracting(eaten).sorted()): \(result)")
+    }
+
     /// A current is somewhere along your run, as it is for your pace: it comes on screen once and, once it's gone off the
     /// left, never shows again (it once peeked in at the end of the first lap, coming round again, and vanished), and a
     /// full-height one fills the water from the bottom of the screen to the top (it once stopped a few points short).
