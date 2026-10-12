@@ -359,7 +359,7 @@ private struct MapArtLayer: View {
     }
 }
 
-private final class MapDecorationScene: SKScene {
+final class MapDecorationScene: SKScene {
     private let marker = FishNode(style: .player, isPlayer: true, tailPhase: 0)
     private let home: CGPoint?
     /// A swim from a level just cleared to the next: where it starts, and when (the first frame).
@@ -386,6 +386,9 @@ private final class MapDecorationScene: SKScene {
             ])))
             addChild(halo)
         }
+        // Your fish over the dotted path and a stop's pulsing ring, its tail and fin (at -2 and -1 of its own) under
+        // them as they've always been: the scene ignores sibling order, so its body at the path's depth could go under.
+        marker.zPosition = 0.5
         if let fishHome { marker.position = fishFrom ?? fishHome; addChild(marker) }
         else if pulsingStops.isEmpty { isPaused = true }
     }

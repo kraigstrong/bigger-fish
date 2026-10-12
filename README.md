@@ -30,6 +30,19 @@ Unit tests (wrapping, size rules, growth, win detection):
 xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
+**Draw order.** Every SpriteView draws with `ignoresSiblingOrder`, so nodes at the same global depth come out in any
+order on a phone, though the simulator keeps the order they were added. Anything drawn over something else needs its own
+zPosition. `DrawOrderTests` walks every scene at the moments that matter (cards, play, pause, the result, the tutorial,
+the credits, the maps) with `DrawOrderAudit`, which reports overlapping nodes that share a depth. To check that a change
+of depths keeps the look, render the key moments before and after and compare:
+
+```bash
+TEST_RUNNER_DRAW_ORDER_RENDERS=before xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' '-only-testing:BiggerFishTests/DrawOrderTests/manualRenderDrawOrderMoments()'
+# change the depths, render again as `after`, then:
+diff -rq build/draw-order/before build/draw-order/after
+```
+
 ## Layout
 
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
