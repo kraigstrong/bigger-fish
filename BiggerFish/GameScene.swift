@@ -3332,33 +3332,6 @@ final class GameScene: SKScene {
         resetGame(startPlaying: true)
     }
 
-    /// Riptide Reef: the closest each fish comes to you over the first lap (negative: touching), with your height
-    /// set from `share` (of the water, as on screen) at each forward distance and your size from `radii`. Nothing
-    /// collides with you, so every fish's path plays out.
-    func debugClosestApproach(share: (CGFloat) -> CGFloat, radii: [CGFloat], within: ClosedRange<CGFloat>? = nil) -> [Int: CGFloat] {
-        simulationHeadless = true
-        simulationEcologyProbe = true
-        simulationHolding = false
-        resetGame(startPlaying: true)
-        var closest: [Int: CGFloat] = [:]
-        var step = 0
-        while phase == .playing && forwardDistance < world.width {
-            player.radius = radii[min(step, radii.count - 1)]
-            player.targetRadius = player.radius
-            player.position.y = waterBottom + share(forwardDistance) * (waterTop - waterBottom)
-            player.velocity.dy = 0
-            advanceFrame(T.simulationStep)
-            step += 1
-            guard within?.contains(forwardDistance) ?? true else { continue }
-            for f in fish where !f.isPlayer && f.state == .swimming {
-                let dx = world.delta(from: player.position.x, to: f.position.x), dy = f.position.y - player.position.y
-                let gap = (dx * dx + dy * dy).squareRoot() - (player.radius + f.radius) * T.collisionScale
-                closest[f.id] = min(closest[f.id] ?? .infinity, gap)
-            }
-        }
-        return closest
-    }
-
     func debugAdvance(seconds: CGFloat) {
         for _ in 0..<Int((seconds / T.simulationStep).rounded(.up)) { advanceFrame(T.simulationStep) }
     }
