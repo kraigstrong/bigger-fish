@@ -10,6 +10,8 @@ extension ArcadeWorld {
         case .jellyBloom: UIColor(red: 0.75, green: 0.52, blue: 1, alpha: 1)
         case .kelpForest: UIColor(red: 0.45, green: 0.78, blue: 0.32, alpha: 1)
         case .midnightZone: UIColor(red: 1, green: 0.66, blue: 0.3, alpha: 1)
+        case .sunsetCove: UIColor(red: 1, green: 0.5, blue: 0.56, alpha: 1)
+        case .riptideReef: UIColor(red: 0.95, green: 0.42, blue: 0.62, alpha: 1)
         }
     }
 }
@@ -28,10 +30,12 @@ struct ArcadeWorldMap: View {
         ScreenScaled { size, _ in
             // On a screen taller than a phone's (an iPad), the stops keep a phone's spread, in the middle.
             let spread = min(size.height, ScreenFit.largestPhone.height)
-            let centers = OceanMapLayout.worldCenters(count: 5, size: CGSize(width: size.width, height: spread))
-                .map { CGPoint(x: $0.x, y: $0.y + (size.height - spread) / 2) }
             let worlds = ArcadeWorld.mapWorlds
-            // The fifth stop, until a fifth world is on the map (as a prototype in Xcode builds).
+            // Five stops, the fifth "coming soon" until a fifth world is on the map; in Xcode builds, one more for
+            // each prototype past that.
+            let stops = max(5, worlds.count)
+            let centers = OceanMapLayout.worldCenters(count: stops, size: CGSize(width: size.width, height: spread))
+                .map { CGPoint(x: $0.x, y: $0.y + (size.height - spread) / 2) }
             let comingSoon = [("Riptide Reef", Color.pink)]
             // The first open world with main levels left, else the last open one.
             let isOpen = { (world: ArcadeWorld) in ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) }
@@ -42,7 +46,7 @@ struct ArcadeWorldMap: View {
                 // Your fish swims just above the world you're on, clear of its Deep End ring.
                 MapArtLayer(size: size, points: centers,
                             fishHome: CGPoint(x: centers[focus].x, y: centers[focus].y + 72))
-                ForEach(0..<5, id: \.self) { index in
+                ForEach(0..<stops, id: \.self) { index in
                     if worlds.indices.contains(index) {
                         let world = worlds[index]
                         let open = isOpen(world)
@@ -224,7 +228,7 @@ struct ArcadeLevelMap: View {
             }
         }
         .foregroundStyle(.white)
-        .background(OceanBackdrop(bloom: world.hasJellies))
+        .background(OceanBackdrop(bloom: world.hasJellies, sunset: world == .sunsetCove))
     }
 
     /// Along the bottom: the world's goal until it's met, then its Deep End's.
@@ -452,13 +456,18 @@ final class MapDecorationScene: SKScene {
 
 struct OceanBackdrop: View {
     let bloom: Bool
+    /// Sunset Cove's level map: its coral water fading to deep purple.
+    var sunset = false
+    private var colors: [Color] {
+        if sunset { return [Color(red: 0.62, green: 0.25, blue: 0.42), Color(red: 0.14, green: 0.05, blue: 0.24)] }
+        return bloom
+            ? [Color(red: 0.19, green: 0.13, blue: 0.39), Color(red: 0.04, green: 0.07, blue: 0.20)]
+            : [Color(red: 0.06, green: 0.38, blue: 0.49), Color(red: 0.02, green: 0.09, blue: 0.23)]
+    }
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                LinearGradient(colors: bloom
-                               ? [Color(red: 0.19, green: 0.13, blue: 0.39), Color(red: 0.04, green: 0.07, blue: 0.20)]
-                               : [Color(red: 0.06, green: 0.38, blue: 0.49), Color(red: 0.02, green: 0.09, blue: 0.23)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
                 Canvas { context, size in
                     for i in 0..<42 {
                         let x = CGFloat((i * 137 + 19) % 997) / 997 * size.width
@@ -474,7 +483,7 @@ struct OceanBackdrop: View {
                                  control1: CGPoint(x: size.width * 0.3, y: size.height - 45),
                                  control2: CGPoint(x: size.width * 0.7, y: size.height + 15))
                     bed.addLine(to: CGPoint(x: size.width, y: size.height))
-                    context.fill(bed, with: .color((bloom ? Color.purple : Color.teal).opacity(0.2)))
+                    context.fill(bed, with: .color((sunset ? Color.pink : bloom ? Color.purple : Color.teal).opacity(0.2)))
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -491,6 +500,8 @@ extension ArcadeWorld {
         case .jellyBloom: "WorldJellyBloom"
         case .kelpForest: "WorldKelpForest"
         case .midnightZone: "WorldMidnightZone"
+        case .sunsetCove: "WorldSunsetCove"
+        case .riptideReef: "WorldRiptideReef"
         }
     }
 }
@@ -498,9 +509,14 @@ extension ArcadeWorld {
 struct WorldIllustration: View {
     let world: ArcadeWorld
     var body: some View {
-        Image(world.illustration)
-            .resizable()
-            .scaledToFit()
-            .accessibilityHidden(true)
+        Group {
+            if world == .riptideReef {
+                // A stand-in while Riptide Reef is a prototype, until it has a picture of its own.
+                Image(systemName: "water.waves").resizable().scaledToFit().padding(10).foregroundStyle(world.color)
+            } else {
+                Image(world.illustration).resizable().scaledToFit()
+            }
+        }
+        .accessibilityHidden(true)
     }
 }

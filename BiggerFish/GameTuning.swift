@@ -126,6 +126,11 @@ enum GameTuning {
     static let aiMaxTilt: CGFloat = 0.15
     static let aiRetargetRange: ClosedRange<CGFloat> = 2...6
     static let aiTurnIntervalRange: ClosedRange<CGFloat> = 8...20
+    /// Worlds where a fish roaming free rises and dives as fast on screen however far the camera has zoomed out, so
+    /// roaming fish use all the water it shows. Elsewhere their speed is the same in the world, so as the camera zooms out
+    /// they slow on screen and stay near where they met you (Shallow Reef and Jelly Bloom also plan free swims to their
+    /// meetings at that speed, so it can't change there).
+    static let zoomedRoamingWorlds: Set<ArcadeWorld> = [.sunsetCove]
 
     // MARK: Initial ecosystem
 
@@ -712,6 +717,92 @@ enum GameTuning {
     /// big fish 13 swims your way, so you overtake it slowly and it hung in the climb from meal 12 to gate 15;
     /// Kraig reached the gate once in about eight tries. 0.4 s puts it level with meal 12, gone before the climb.
     static let midnightFishEarlier: [String: [Int: CGFloat]] = ["Midnight Zone 14": [13: 0.4]]
+
+    // MARK: Riptide Reef (prototype, Xcode builds only)
+
+    /// Riptide Reef's trial levels: Shallow Reef's levels 1 and 5, and a recipe of its own in Frenzy's style
+    /// (`riptideRush`), planned like Midnight Zone's (fish appear just off screen right before you meet them), with
+    /// currents running the full height of the water over stretches of the lap, among the level's fish
+    /// (`riptideCurrents`), and there every lap. The plan reckons with the currents, so each level keeps
+    /// Shallow Reef's rhythm in seconds, every meal as reachable as there; in a current you just cover more water. Its
+    /// lap is longer to make room for that.
+    static let riptideSpecs: [MeetingSpec] = [reefLabSpecs[0], reefLabSpecs[4], riptideRush].enumerated().map { index, source in
+        var spec = source
+        spec.name = "Riptide Reef \(index + 1)"
+        let speeds = riptideCurrents[index]
+        spec.currents = CurrentSpec(speeds: speeds.map(Double.init), seconds: Double(riptideCurrentSeconds),
+                                    calmStart: Double(riptideCalmStart), calmBetween: Double(riptideCalmBetween))
+        // The extra water the currents cover, at the zoom a lap is usually played at.
+        spec.worldScreens += Double(speeds.reduce(0) { $0 + ($1 - 1) } * riptideCurrentSeconds) / spec.crossSeconds / 0.75
+        return spec
+    }
+    /// The hard trial's recipe. Kraig found Shallow Reef 10 with currents "wasn't that hard", and Frenzy (Shallow Reef 12)
+    /// borrowed whole played as a copy of it: "I want it to feel like 12, but not be a copy." So Frenzy's feel, quick
+    /// meals and four walled gates with a burst to open, in its own run of lanes: the opening burst from a two-meal lane
+    /// rather than three lone meals, a short fork before the second gate, and a last gate that takes three meals, not
+    /// two. A planner takes a recipe very literally (borrowed whole, the meetings fall at the same moments and nearly
+    /// the same heights), so a new feel needs a new recipe.
+    static let riptideRush = MeetingSpec(name: "Riptide Rush",
+        segments: [.init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3),
+                   .init(singles: 2, forks: [.init(long: 1, short: 1)], needed: 2, dangerFoods: 1),
+                   .init(singles: 1, forks: [.init(long: 2, short: 1)], needed: 2, dangerFoods: 1),
+                   .init(singles: 2, forks: [.init(long: 2, short: 1)], needed: 3, dangerFoods: 1)],
+        worldScreens: 6, extraThreats: 3, lapTwoSize: 0.93...0.98, headOnShare: 0.72, heightSwing: 0.45...0.85,
+        foodSize: 0.66...0.8, gateMargin: 0.15, dangerGap: 24, threatClearance: 38, spacing: 0.21,
+        aiSpeed: 64...186, aiVertical: 93, crossSeconds: 2.57, walledGates: true, timesTheEdge: true)
+    /// Each trial's currents, in order along the lap, times your pace, every one carrying you forward. Easy three,
+    /// medium four, hard three: more in the early levels, with their easier fish, since the currents are the fun.
+    /// Kraig (2026-10-11), after narrow channels "just aren't doing it": "full height, and just slip into a fast
+    /// current"; (2026-10-12) "speeding up through a section is really fun. Slowing down is not", and "we need more
+    /// riptides in the earlier levels... the number of currents should be higher. That's the fun part."
+    static let riptideCurrents: [[CGFloat]] = [Array(repeating: riptideWithYou, count: 3),
+                                               Array(repeating: riptideWithYou, count: 4),
+                                               Array(repeating: riptideWithYou, count: 3)]
+    static let riptideWithYou: CGFloat = 1.45
+    /// How long a current lasts at most (seconds of play), the calm water at the start of the lap, and the least calm
+    /// water between two currents. Between the calm start and your last meeting (8 to 10 seconds in), each current
+    /// has an even slot. A level whose currents don't fit says so.
+    static let riptideCurrentSeconds: CGFloat = 2
+    static let riptideCalmStart: CGFloat = 1.5
+    static let riptideCalmBetween: CGFloat = 0.6
+    /// Levels re-rolled to another layout of the same settings: one line to try another. Riptide Reef 3's first had a
+    /// wall Kraig couldn't get through ("the furthest runs all died in the same spot"): a big fish placed beside one
+    /// meal sat on the way to the next walled gate, leaving 7% of the water open at the tightest moment, in a current;
+    /// Frenzy's tightest is 10.5%. Layout 4's is 15%, as tight as Gauntlet's and Needle's.
+    static let riptideRerolls: [String: Int] = ["Riptide Reef 3": 4]
+    #if DEBUG
+    /// Each level is its re-roll, or the first layout with no planner issues.
+    static let riptideLevels: [Level] = riptideSpecs.indices.map { index in
+        let spec = riptideSpecs[index]
+        let plan = riptideRerolls[spec.name].map { MeetingPlanner.kelpPlan(spec, variation: $0) }
+            ?? (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty }
+            ?? MeetingPlanner.kelpPlan(spec)
+        var level = plan.level
+        level.ecosystemSeedIndex = index
+        return level
+    }
+    static var riptideLevelCount: Int { riptideSpecs.count }
+    #else
+    /// A prototype isn't part of the shipped game.
+    static let riptideLevels: [Level] = []
+    static var riptideLevelCount: Int { 0 }
+    #endif
+    static let currentEase: CGFloat = 4
+    /// Fish this small or smaller (radius; you start at 16) are swept along by a current once they've met you; bigger
+    /// ones swim straight through.
+    static let currentSweepsRadius: CGFloat = 24
+    /// The streaks that show a current flowing: how many per current and their speed across the screen (points/s).
+    static let currentStreaks = 16
+    static let currentStreakSpeed: CGFloat = 140
+    /// The camera lags a current so the speed reads as yours: your fish slides this share of the screen's width
+    /// ahead per unit of extra pace (1.45 → about a sixth of the screen). Going back it barely moves, so fish
+    /// still appear off screen (`kelpAppearMargin`).
+    static let currentSurgeAhead: CGFloat = 0.35
+    static let currentSurgeBack: CGFloat = 0.08
+    /// Bubbles off your fish in a current: a wake off your tail in a fast one, water rushing past from your face
+    /// in a slow one. Most bubbles per second at a full current, and their speed across the screen.
+    static let currentBubbles: CGFloat = 70
+    static let currentBubbleSpeed: CGFloat = 220
     /// Played and approved, so shipped exactly as saved in `MidnightPlans.json`: a planner change can't alter them.
     /// All fifteen (Kraig, 2026-10-09: "lock in the midnight levels", then "I played 14 and 15 and approve").
     static let midnightFrozen: Set<String> = Set(midnightSpecs.map(\.name))
@@ -744,6 +835,163 @@ enum GameTuning {
     /// A soft glow around your head, as a share of the beam's reach, so a fish right beside you is never invisible.
     static let headlampGlow: CGFloat = 0.14
 
+    // MARK: Sunset Cove (prototype, Xcode builds only)
+
+    /// Sunset Cove's fifteen levels, ten and the Deep End: Shallow Reef's, borrowed by index as Kelp Forest borrows them,
+    /// planned like Midnight Zone's (fish appear just off screen right before you meet them), with baited hooks hung
+    /// from boats around the meetings (`sunsetHooks`). Planned in code at launch while they're being played; not frozen.
+    static let sunsetSpecs: [MeetingSpec] = (0..<15).map { index in
+        var spec = reefLabSpecs[index]
+        spec.name = "Sunset Cove \(index + 1)"
+        spec.hooks = sunsetHooks[index]
+        return spec
+    }
+    /// The three trials (Shallow Reef's 2, 5, and 9) were planned as Sunset Cove 1, 2, and 3, and Kraig's daughters loved
+    /// them; levels 2, 5, and 9 keep those fish layouts (their hooks follow `sunsetHooks`).
+    static let sunsetSeedNames: [String: String] = ["Sunset Cove 2": "Sunset Cove 1", "Sunset Cove 5": "Sunset Cove 2",
+                                                    "Sunset Cove 9": "Sunset Cove 3"]
+    /// Each level's hooks. Every level hangs some near your way from the start, each level brings in one new thing,
+    /// and the Deep End hangs more hooks nearer your way with the bait closer to your size. Kraig (2026-10-12): "levels
+    /// 8-10 were great. But I think I made it through 1-7 without getting hooked a single time. I think we're playing
+    /// it a little too safe on those": levels 1 to 3 hung every hook well off your way (70 to 50 points clear), and 4
+    /// to 7 most of them. Now 1 to 7 hang two to four near the meal lanes, with 45 points clear at first, down to 28
+    /// by 7, as at 8. `nearLanes` hooks hang as
+    /// near the meal lanes as is fair, so you time them or pick a lane; `besideMeals` bait hangs beside a real meal its
+    /// size, where a meal has a fair spot beside it (the Deep End hangs one to three); the gate is two hooks near the
+    /// end, one above your way and one below. `clearance` is the water (screen
+    /// points) every hook keeps from your way from meal to meal.
+    static let sunsetHooks: [HookSpec] = [
+        // 1: three still hooks, two near your way: the bait is plain to see, and close enough to tempt you.
+        HookSpec(still: 3, nearLanes: 2, baitSize: 0.55, clearance: 45),
+        // 2, the easy trial: four.
+        HookSpec(still: 4, nearLanes: 3, baitSize: 0.58, clearance: 40),
+        // 3: hooks reeled slowly up and down.
+        HookSpec(still: 2, bobbing: 2, nearLanes: 3, baitSize: 0.6, clearance: 36),
+        // 4: more of them, nearer.
+        HookSpec(still: 2, bobbing: 3, nearLanes: 4, baitSize: 0.62, clearance: 33),
+        // 5, the medium trial.
+        HookSpec(still: 2, bobbing: 3, nearLanes: 4, baitSize: 0.62, clearance: 30),
+        // 6: a boat trolling its hook toward you.
+        HookSpec(still: 2, bobbing: 2, trolling: 1, nearLanes: 4, baitSize: 0.64, clearance: 29),
+        // 7: bait beside a real meal.
+        HookSpec(still: 1, bobbing: 2, trolling: 2, besideMeals: 1, nearLanes: 4, baitSize: 0.66, clearance: 28),
+        // 8: the gate.
+        HookSpec(still: 2, bobbing: 2, gate: true, nearLanes: 3, baitSize: 0.66, clearance: 28),
+        // 9, the hard trial: all of it.
+        HookSpec(still: 1, bobbing: 2, trolling: 2, gate: true, besideMeals: 2, nearLanes: 3, baitSize: 0.7, clearance: 24),
+        // 10: all of it, a little more.
+        HookSpec(still: 2, bobbing: 2, trolling: 2, gate: true, besideMeals: 2, nearLanes: 4, baitSize: 0.72, clearance: 22),
+        // The Deep End.
+        HookSpec(still: 2, bobbing: 3, trolling: 2, gate: true, besideMeals: 2, nearLanes: 4, baitSize: 0.72, clearance: 22),
+        HookSpec(still: 1, bobbing: 3, trolling: 3, gate: true, besideMeals: 3, nearLanes: 4, baitSize: 0.74, clearance: 20),
+        HookSpec(still: 2, bobbing: 2, trolling: 3, gate: true, besideMeals: 3, nearLanes: 5, baitSize: 0.74, clearance: 20),
+        // 14 and 15 are short (about ten seconds), so fewer hooks fit: tighter and bigger instead.
+        HookSpec(still: 2, bobbing: 2, trolling: 2, gate: true, besideMeals: 3, nearLanes: 5, baitSize: 0.76, clearance: 18),
+        HookSpec(still: 1, bobbing: 2, trolling: 3, gate: true, besideMeals: 3, nearLanes: 5, baitSize: 0.78, clearance: 18),
+    ]
+    /// Levels re-rolled to another layout of the same settings, fish and hooks both (`MeetingPlanner.kelpPlan`'s
+    /// variation): one line to try another. Sunset Cove 10 is pinned to the layout Kraig loves ("might be my favorite
+    /// level yet... it's near perfection"), so its fish tweaks below can't pick another.
+    static let sunsetRerolls: [String: Int] = ["Sunset Cove 10": 9]
+    /// Fish made a different size by hand. In Sunset Cove 10 the two giants ate the medium fish meant for your lap
+    /// two in every one of Kraig's 52 runs (10 ate 6 and 11, 16 ate 15), finishing at 76.9 and 75.8, just over the
+    /// 74.5 a run that eats everything reaches; his one run through ate a spare fish. They start smaller, so after
+    /// those meals they're the sizes the level was designed for (70.3, 69): giants all through lap one, edible at the
+    /// end.
+    static let sunsetFishRadius: [String: [Int: CGFloat]] = ["Sunset Cove 10": [10: 63, 16: 61.5]]
+    /// Played and approved, so they play exactly as saved in `SunsetPlans.json`: a planner change can't alter them.
+    /// Sunset Cove 10 (Kraig, 2026-10-12, after its giants were sized to finish edible: "perfect. let's freeze level
+    /// 10") and 11 ("11 is incredible"). Take a level out of this set (with Kraig's OK) to tune it in code again, then
+    /// regenerate the file.
+    static let sunsetFrozen: Set<String> = ["Sunset Cove 10", "Sunset Cove 11"]
+    #if DEBUG
+    /// Sunset Cove's levels as Xcode builds play them: from `SunsetPlans.json` for the frozen ones, otherwise planned
+    /// in code (`sunsetPlan`).
+    static let sunsetLevels: [Level] = {
+        let saved = savedPlans("SunsetPlans")
+        return sunsetSpecs.enumerated().map { index, spec in
+            savedLevel(spec, index: index, saved: saved, usesSaved: sunsetFrozen.contains(spec.name), planner: .sunset)
+        }
+    }()
+    static var sunsetLevelCount: Int { sunsetSpecs.count }
+    /// A Sunset Cove level planned in code: its re-roll if it has one, otherwise the first layout with every hook hung,
+    /// no other planner issues, and no wall of giants.
+    static func sunsetPlan(_ index: Int) -> MeetingPlan {
+        let spec = sunsetSpecs[index], seedName = sunsetSeedNames[spec.name]
+        if let variation = sunsetRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation, seedName: seedName) }
+        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
+            .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
+    }
+    #else
+    /// A prototype isn't part of the shipped game.
+    static let sunsetLevels: [Level] = []
+    static var sunsetLevelCount: Int { 0 }
+    #endif
+    /// No hook is passed before this many screens into the lap, so each one swims in from the right with its boat.
+    static let sunsetFirstHookScreens: CGFloat = 1.1
+    /// Seconds between passing one hook and the next (the gate's two count as one). Hooks spread out along the lap,
+    /// each in its own stretch where there's room; this pulls one that strays back toward its stretch.
+    static let sunsetHookSpacing: CGFloat = 0.85
+    static let sunsetStretchPull: CGFloat = 200
+    /// The gate's lower hook is passed this long after its upper one, so their lines hang apart; the gate comes once
+    /// this share of the reference route's meals is behind you. Its hooks keep clear of your way `sunsetGateWindow`
+    /// seconds either side of passing them (tighter than other hooks' `sunsetPassWindow`: it's a gate).
+    static let sunsetGateStagger: CGFloat = 0.12
+    static let sunsetGateFrom: CGFloat = 0.55
+    static let sunsetGateWindow: CGFloat = 0.1
+    /// Fairness: every hook keeps this far (screen points beyond both bodies) from every reference meal's meeting,
+    /// either along the way or above or below it, when you meet that meal...
+    static let sunsetMealClearance: (distance: CGFloat, height: CGFloat) = (distance: 90, height: 30)
+    /// ...and stays clear of your way this many seconds before and after you pass it, for a player a little off the plan.
+    /// Your way is wherever you could be between one reference meal and the next, swimming up or down as fast as you can.
+    static let sunsetPassWindow: CGFloat = 0.25
+    /// An open hook hangs at least this far from your way where it can (screen points); past that, nearer mid-water wins.
+    static let sunsetOpenGap: CGFloat = 90
+    /// Bait beside a meal hangs this far from it (screen points between the bodies).
+    static let sunsetBesideGap: CGFloat = 30
+    /// The smallest bait (radius, world points), so it's always plain to see.
+    static let sunsetSmallestBait: CGFloat = 9
+    /// Bobbing hooks: reeled this many screen points up and back down, over this many seconds.
+    static let sunsetBobRange: CGFloat = 70
+    static let sunsetBobSeconds: CGFloat = 3.6
+    /// Trolling hooks: the boat motors toward you at this many screen points a second; its hook trails this far behind
+    /// it and sweeps up and down this far either way, over this many seconds.
+    static let sunsetTrollSpeed: CGFloat = 45
+    static let sunsetTrollTrail: CGFloat = 60
+    static let sunsetTrollSweep: CGFloat = 40
+    static let sunsetTrollSweepSeconds: CGFloat = 6
+    /// Once you've passed a hook, its boat reels the line up so the bait hangs just under the surface for the rest of
+    /// the level: every boat stays and still fishes up top, but the water below is yours for the clean-up, when you're
+    /// big. The hooks are planned around your first pass, so later laps only met them by chance (Kraig, Sunset Cove 13:
+    /// "the late game with all the hooks is really hard. You can't really dive in and out because you're so big and the
+    /// hooks are so close"). The reel-up starts this many seconds after the reference route passes the hook, behind
+    /// you and off screen, takes this long, and leaves the bait's middle this many screen points under the surface.
+    static let sunsetReelUpAfter: CGFloat = 2
+    static let sunsetReelUpSeconds: CGFloat = 2
+    static let sunsetReeledDepth: CGFloat = 35
+    /// What catches you, as shares of the bait's radius: the bait's body, and the hook's bend under it. Your body counts
+    /// at `hazardHitboxScale`, as it does against tentacles. The line never does.
+    static let sunsetBaitHitScale: CGFloat = 0.9
+    static let sunsetHookHitShare: CGFloat = 0.3
+    /// Room a hook keeps from the floor, and from its boat's hull (world points at zoom 1).
+    static let sunsetFloorRoom: CGFloat = 12
+    static let sunsetSurfaceRoom: CGFloat = 8
+    /// Caught, you're reeled up the line and out of the water over this many seconds; the result comes this long after
+    /// you're caught.
+    static let sunsetReelSeconds: CGFloat = 0.8
+    static let sunsetReelResultDelay: CGFloat = 1.15
+    /// How far the bait wriggles on its hook (radians either way).
+    static let sunsetBaitWiggle: CGFloat = 0.16
+    /// The boats, at zoom 1 (screen points): hull length and how deep it sits.
+    static let sunsetBoatLength: CGFloat = 104
+    static let sunsetBoatDraft: CGFloat = 20
+    static let sunsetBoatColor = SKColor(red: 0.21, green: 0.06, blue: 0.2, alpha: 0.96)
+    static let sunsetLineColor = SKColor(red: 1, green: 0.95, blue: 0.9, alpha: 0.8)
+    /// The low sun glowing at the surface (share of the screen's width), and how far its rays drift as you swim
+    /// (share of your own speed on screen).
+    static let sunsetSunX: CGFloat = 0.72
+    static let sunsetRayParallax: CGFloat = 0.08
+
     /// Jelly Bloom 2's levels, planned on the Mac and shipped as data (`JellyLabPlans.json`), like Reef Lab's.
     static let jellyLabLevels: [Level] = plannedLevels(jellyLabSpecs, file: "JellyLabPlans")
 
@@ -768,9 +1016,9 @@ enum GameTuning {
         }
     }
 
-    /// How Xcode builds plan a level in code: Reef Lab and Jelly Bloom 2 straight from the planner, Kelp Forest and
-    /// Midnight Zone with their re-rolls and hand tweaks (`kelpPlan`, `midnightPlan`).
-    private enum Planner { case meetings, kelp, midnight }
+    /// How Xcode builds plan a level in code: Reef Lab and Jelly Bloom 2 straight from the planner, Kelp Forest,
+    /// Midnight Zone, and Sunset Cove with their re-rolls and hand tweaks (`kelpPlan`, `midnightPlan`, `sunsetPlan`).
+    private enum Planner { case meetings, kelp, midnight, sunset }
 
     /// The level `spec` plays, `index` in its world. The shipped game plays its saved plan and never plans on the
     /// device: the planner is in Xcode builds only, so a level with no saved plan stops a Release build at launch
@@ -785,6 +1033,7 @@ enum GameTuning {
             case .meetings: MeetingPlanner.plan(spec)
             case .kelp: kelpPlan(index)
             case .midnight: midnightPlan(index)
+            case .sunset: sunsetPlan(index)
             }
         }()
         #else

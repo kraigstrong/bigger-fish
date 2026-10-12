@@ -87,6 +87,9 @@ struct PlayfieldWater: Equatable {
     static let kelp = PlayfieldWater(top: Color(uiColor: ArcadeArt.kelpWaterColors.top), bottom: Color(uiColor: ArcadeArt.kelpWaterColors.bottom))
     /// Midnight Zone's dark, which covers its water everywhere but your headlamp's beam.
     static let midnight = PlayfieldWater(top: Color(uiColor: GameTuning.midnightDark), bottom: Color(uiColor: GameTuning.midnightDark))
+    /// `ArcadeArt.sunsetWater()`'s: coral at the surface, deep purple at the bottom.
+    static let sunset = PlayfieldWater(top: Color(uiColor: ArcadeArt.sunsetWaterColors.top),
+                                       bottom: Color(uiColor: ArcadeArt.sunsetWaterColors.bottom))
 
     /// `ArcadeArt.bloomWater(night: true)`'s: for every Jelly Bloom level, as a level can turn to night without leaving
     /// the scene ("Next level"), and the bands should stay darker than the water either way.
@@ -102,6 +105,8 @@ struct PlayfieldWater: Equatable {
         case .jellyBloom: .bloom
         case .kelpForest: .kelp
         case .midnightZone: .midnight
+        case .sunsetCove: .sunset
+        case .riptideReef: .reef
         }
     }
 }

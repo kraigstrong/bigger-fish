@@ -13,7 +13,7 @@ import UIKit
     private static let assets = root.appendingPathComponent("BiggerFish/Assets.xcassets")
 
     @Test func shippedIconographyExists() {
-        for name in ["WorldShallowReef", "WorldJellyBloom", "WorldKelpForest", "WorldMidnightZone", "LaunchArt"] { #expect(UIImage(named: name) != nil, "\(name) is missing") }
+        for name in ["WorldShallowReef", "WorldJellyBloom", "WorldKelpForest", "WorldMidnightZone", "WorldSunsetCove", "LaunchArt"] { #expect(UIImage(named: name) != nil, "\(name) is missing") }
         #expect(UIColor(named: "LaunchBackground") != nil)
         let icon = Self.assets.appendingPathComponent("AppIcon.appiconset/AppIcon-1024.png")
         let image = CGImageSourceCreateWithURL(icon as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
@@ -31,6 +31,15 @@ import UIKit
         try write(worldIcon(kelpForest()), to: "WorldKelpForest.imageset/WorldKelpForest.png", opaque: false)
         try write(worldIcon(midnightZone()), to: "WorldMidnightZone.imageset/WorldMidnightZone.png", opaque: false)
         try write(launchChase(), to: "LaunchArt.imageset/LaunchArt.png", opaque: false)
+        try write(worldIcon(sunsetCove()), to: "WorldSunsetCove.imageset/WorldSunsetCove.png", opaque: false)
+    }
+
+    /// Sunset Cove's picture alone (the prototype's), when build/arcade-development/sunset-icon.request exists.
+    @Test func manualRenderSunsetCoveIcon() throws {
+        let marker = Self.root.appendingPathComponent("build/arcade-development/sunset-icon.request")
+        guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        try write(worldIcon(sunsetCove()), to: "WorldSunsetCove.imageset/WorldSunsetCove.png", opaque: false)
+        try FileManager.default.removeItem(at: marker)
     }
 
     // MARK: Art
@@ -192,6 +201,63 @@ import UIKit
         core.zPosition = 13
         zone.addChild(core)
         return zone
+    }
+
+    /// A pool of sunset water, coral at the top to deep purple, with the low sun glowing at its surface and a boat's
+    /// hull there; its line hangs down to a hook baited with a little pink fish, and the player's fish eyes it.
+    private func sunsetCove() -> SKNode {
+        let cove = SKNode()
+        let side = Self.tile
+        let water = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
+            let cg = context.cgContext
+            cg.addEllipse(in: CGRect(x: side * 0.03, y: side * 0.03, width: side * 0.94, height: side * 0.94))
+            cg.clip()
+            let colors = [ArcadeArt.sunsetWaterColors.top.cgColor, ArcadeArt.sunsetWaterColors.middle.cgColor,
+                          ArcadeArt.sunsetWaterColors.bottom.cgColor] as CFArray
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0.25, 0.65, 1])!
+            cg.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: side), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+            // The low sun at the surface, and its light slanting down.
+            let sun = CGPoint(x: side * 0.7, y: side * 0.19)
+            let glow = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [UIColor.white.cgColor, UIColor(red: 1, green: 0.88, blue: 0.6, alpha: 0.85).cgColor,
+                         UIColor(red: 1, green: 0.7, blue: 0.5, alpha: 0).cgColor] as CFArray, locations: [0, 0.18, 1])!
+            cg.drawRadialGradient(glow, startCenter: sun, startRadius: 0, endCenter: sun, endRadius: side * 0.5, options: [])
+            cg.setFillColor(UIColor(white: 1, alpha: 0.08).cgColor)
+            for i in 0..<3 {
+                let x = side * (0.42 + CGFloat(i) * 0.14)
+                cg.move(to: CGPoint(x: x, y: side * 0.2)); cg.addLine(to: CGPoint(x: x + side * 0.06, y: side * 0.2))
+                cg.addLine(to: CGPoint(x: x - side * 0.2, y: side)); cg.addLine(to: CGPoint(x: x - side * 0.34, y: side))
+                cg.closePath(); cg.fillPath()
+            }
+        }
+        let pool = SKSpriteNode(texture: SKTexture(image: water))
+        pool.zPosition = -5
+        cove.addChild(pool)
+        // The boat at the surface, its line down to the baited hook.
+        let surface: CGFloat = side * 0.3, rod = CGPoint(x: 52, y: surface)
+        let boat = HookBoatNode(seed: 3)
+        boat.setScale(1.1)
+        boat.position = rod
+        boat.zPosition = -1
+        cove.addChild(boat)
+        let hook = CGPoint(x: 52, y: -6), bait: CGFloat = 20
+        let linePath = CGMutablePath()
+        linePath.move(to: CGPoint(x: rod.x, y: rod.y + 5))
+        linePath.addLine(to: CGPoint(x: hook.x, y: hook.y + HookMetal.eye * bait))
+        let line = SKShapeNode(path: linePath)
+        line.strokeColor = .white
+        line.lineWidth = 2.5
+        line.zPosition = -2
+        cove.addChild(line)
+        let metal = HookMetal.make()
+        metal.position = hook
+        metal.setScale(bait / FishNode.referenceRadius)
+        metal.lineWidth = 3.5 / (bait / FishNode.referenceRadius)
+        metal.zPosition = -1.5
+        cove.addChild(metal)
+        cove.addChild(fish(Self.pink, player: false, radius: bait, at: hook, tilt: 0.12, facing: -1))
+        cove.addChild(fish(.player, player: true, radius: 38, at: CGPoint(x: -62, y: -70), tilt: 0.28, facing: 1))
+        return cove
     }
 
     /// A giant-kelp stalk: a thick wavy stem with blades on alternate sides, each with a float, olive at the

@@ -6,19 +6,25 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
     case jellyBloom = "jelly-bloom"
     case kelpForest = "kelp-forest"
     case midnightZone = "midnight-zone"
+    case sunsetCove = "sunset-cove"
+    case riptideReef = "riptide-reef"
 
     /// The playable worlds, in map order. The map shows the rest as coming soon. Once a world ships, its ID and
     /// level numbers are permanent (they key saved progress).
     static let campaign: [ArcadeWorld] = [.shallowReef, .jellyBloom, .kelpForest, .midnightZone]
     /// Worlds still being prototyped: on the map in Xcode builds only, after the campaign and open from the start,
     /// so nothing unlocks them and the campaign's last world doesn't point to them. Midnight Zone started here.
-    static let prototypes: [ArcadeWorld] = []
+    static let prototypes: [ArcadeWorld] = [.sunsetCove, .riptideReef]
     static var mapWorlds: [ArcadeWorld] {
         #if DEBUG
-        campaign + prototypes
+        mapWorlds(includingPrototypes: true)
         #else
-        campaign
+        mapWorlds(includingPrototypes: false)
         #endif
+    }
+    /// The world map's worlds: the campaign, then (in Xcode builds) the prototypes.
+    static func mapWorlds(includingPrototypes: Bool) -> [ArcadeWorld] {
+        includingPrototypes ? campaign + prototypes : campaign
     }
     var hasJellies: Bool { self == .jellyBloom }
 
@@ -29,6 +35,8 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .jellyBloom: "Jelly Bloom"
         case .kelpForest: "Kelp Forest"
         case .midnightZone: "Midnight Zone"
+        case .sunsetCove: "Sunset Cove"
+        case .riptideReef: "Riptide Reef"
         }
     }
     /// The world's one line, on the world map and its unlock screen. Each world names things one way
@@ -39,6 +47,8 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .jellyBloom: "Bounce the tops. Dodge the tentacles."
         case .kelpForest: "Dive into the kelp. Mind what's hiding."
         case .midnightZone: "Light the way. Mind the dark."
+        case .sunsetCove: "Watch the boats. Leave the bait."
+        case .riptideReef: "Ride the currents."
         }
     }
     /// Both worlds play planned levels (see docs/meeting-planner.md), shipped as data.
@@ -48,6 +58,8 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .jellyBloom: GameTuning.jellyLabLevels
         case .kelpForest: GameTuning.kelpLevels
         case .midnightZone: GameTuning.midnightLevels
+        case .sunsetCove: GameTuning.sunsetLevels
+        case .riptideReef: GameTuning.riptideLevels
         }
     }
     func level(_ index: Int) -> Level { levels[index] }
@@ -58,6 +70,8 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .jellyBloom: GameTuning.jellyLabSpecs.count
         case .kelpForest: GameTuning.kelpSpecs.count
         case .midnightZone: GameTuning.midnightSpecs.count
+        case .sunsetCove: GameTuning.sunsetLevelCount
+        case .riptideReef: GameTuning.riptideLevelCount
         }
     }
     var levelTitles: [String] { (0..<levelCount).map { "Level \($0 + 1)" } }
@@ -80,7 +94,10 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         case .jellyBloom: ["Bounce the tops.", "Dodge the tentacles."]
         case .kelpForest: ["Kelp slows you down.", "Fish in the kelp hide their colors."]
         case .midnightZone: ["Your light shows the way.", "Fish lurk in the dark."]
+        case .sunsetCove: ["Boats lower baited hooks.", "Don't take the bait."]
+        case .riptideReef: ["Currents speed you up.", "Small fish get swept along."]
         }
+    
     }
     func levelID(_ index: Int) -> String { "\(rawValue).\(index + 1)" }
 }
