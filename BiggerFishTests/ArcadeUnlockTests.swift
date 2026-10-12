@@ -32,6 +32,13 @@ struct ArcadeUnlockTests {
         #expect(ArcadeUnlock.deepEndLevels == 25)
     }
 
+    /// The unlock screen plays a clip of each world it opens (`WorldClip`); a world without one shows a still picture.
+    @Test func everyWorldTheUnlockOpensHasAClip() {
+        for world in ArcadeUnlock.worldsItOpens {
+            #expect(Bundle.main.url(forResource: "clip-\(world.rawValue)", withExtension: "mp4") != nil, "\(world.rawValue)")
+        }
+    }
+
     @Test func theUnlockOpensEverythingAndSoDoesNotSellingIt() {
         for world in ArcadeWorld.campaign {
             #expect(ArcadeUnlock.isWorldOpen(world, unlocked: true, selling: true))
