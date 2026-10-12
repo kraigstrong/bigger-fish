@@ -9,8 +9,10 @@ struct StoreFootageTests {
 
     @Test func aLaunchRecordsALevelWithABot() {
         #expect(StoreFootage.request(in: level + ["-storeFootage", "collector"]) == .init(policy: .collector))
-        // It needs a level, and a bot it knows.
+        // It needs a level that exists, and a bot it knows.
         #expect(StoreFootage.request(in: ["BiggerFish", "-storeFootage", "collector"]) == nil)
+        #expect(StoreFootage.request(in: ["BiggerFish", "-arcadePlaytest", "shallow-reef.99", "-storeFootage", "collector"]) == nil)
+        #expect(StoreFootage.request(in: ["BiggerFish", "-arcadePlaytest", "deep-sea.1", "-storeFootage", "collector"]) == nil)
         #expect(StoreFootage.request(in: level + ["-storeFootage", "greedy"]) == nil)
         #expect(StoreFootage.request(in: level) == nil)
     }

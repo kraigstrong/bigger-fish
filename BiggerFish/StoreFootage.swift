@@ -24,13 +24,14 @@ enum StoreFootage {
     /// The footage this launch records, if any.
     static let request = request(in: ProcessInfo.processInfo.arguments)
 
-    /// `-storeFootage <policy>` and its options in a launch's arguments. It needs a level (`-arcadePlaytest`).
+    /// `-storeFootage <policy>` and its options in a launch's arguments. It needs a real level (`-arcadePlaytest`):
+    /// without one no level opens, and nothing would ever be recorded.
     static func request(in arguments: [String]) -> Request? {
         func value(_ flag: String) -> String? {
             guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
             return arguments[index + 1]
         }
-        guard arguments.contains("-arcadePlaytest"),
+        guard ArcadePlaytest.level(in: arguments) != nil,
               let policy = value("-storeFootage").flatMap({ ArcadeSimulation.Policy(rawValue: $0) }) else { return nil }
         var request = Request(policy: policy)
         if let from = value("-storeFootageFrom").flatMap(Double.init), from >= 0 { request.from = CGFloat(from) }
@@ -67,6 +68,13 @@ enum StoreFootage {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }()
+
+    /// At launch: tells the script when `-storeFootage` can't record, rather than leave it waiting for frames.
+    static func begin() {
+        guard request == nil, ProcessInfo.processInfo.arguments.contains("-storeFootage") else { return }
+        fail("-storeFootage needs a level that exists (-arcadePlaytest <world>.<level>) and a bot: "
+             + ArcadeSimulation.Policy.allCases.map(\.rawValue).joined(separator: ", "))
+    }
 
     /// Records the level once its scene is on screen.
     @MainActor static func attach(_ scene: GameScene) {

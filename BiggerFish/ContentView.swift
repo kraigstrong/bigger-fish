@@ -154,6 +154,7 @@ struct ContentView: View {
             }
             #if DEBUG
             StoreCapture.begin()
+            StoreFootage.begin()
             if scene == nil, let world = ArcadePlaytest.mapSelection {
                 selectedWorld = world
             }

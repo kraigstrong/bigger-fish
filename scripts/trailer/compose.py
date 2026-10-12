@@ -32,7 +32,8 @@ def frames_of(path, start, count):
             break
         yield Image.frombuffer('RGB', (SW, SH), data, 'raw', 'RGB', 0, 1)
     proc.stdout.close()
-    proc.wait()
+    if proc.wait() != 0:
+        sys.exit(f'ffmpeg could not decode {path}')
 
 
 def ease(u):
@@ -127,7 +128,8 @@ def main():
         if written >= limit:
             break
     enc.stdin.close()
-    enc.wait()
+    if enc.wait() != 0:
+        sys.exit(f'ffmpeg could not encode {out}')
     print(f'{out}: {written} frames, {written / FPS:.2f}s')
 
 
