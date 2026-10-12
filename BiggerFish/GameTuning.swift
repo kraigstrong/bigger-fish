@@ -20,6 +20,21 @@ enum GameTuning {
     /// Bound catch-up after a hitch; longer stalls discard excess elapsed time.
     static let maximumFrameElapsed: CGFloat = 0.25
     static let slowMotionRecoveryRate: CGFloat = 2.5
+    /// Where display frames fall between simulation steps when a run starts or resumes: halfway. At 60 Hz frames come
+    /// a step apart, so they stay halfway, clear of the step boundaries: timing jitter never leaves a frame with no
+    /// step or two.
+    static let frameRemainderStart: CGFloat = simulationStep / 2
+    /// Frames draw a blend of the last two steps, a step behind the newest: the smooth way to show a fixed step on a
+    /// faster display. Once this many frames in a row have each simulated a step of their own at full speed (a 60 Hz
+    /// display), there's nothing to blend between frames, so they draw the newest step instead, and a touch shows on
+    /// the frame it lands rather than a step later.
+    static let newestStepAfterFrames = 8
+    /// How fast drawing moves between the two, in seconds of lag per second: a step's change takes four steps (67 ms),
+    /// so motion never jumps.
+    static let presentationLagEase: CGFloat = 0.25
+    /// In slow motion a frame now and then lands further past the newest step than a step; drawing that far behind
+    /// lets go this slowly, so slow motion keeps an even pace.
+    static let presentationLagSettle: CGFloat = 0.02
     #if DEBUG
     /// Log a meal whose work takes longer than half a 60 Hz frame. Slow frames themselves are `HitchLog`'s.
     static let debugMealHitchSeconds: CGFloat = simulationStep / 2

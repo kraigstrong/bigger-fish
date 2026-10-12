@@ -265,8 +265,16 @@ final class GameScene: SKScene {
 
     private var holdTouches = Set<UITouch>()
     private var lastUpdate: TimeInterval?
-    private var frameAccumulator: CGFloat = 0
+    private var frameAccumulator = T.frameRemainderStart
     private var simulationAccumulator: CGFloat = 0
+    /// How far behind the moment a frame stands for it draws, in game seconds: a step (a blend of the last two steps)
+    /// until every frame simulates a step of its own, then the newest step (`GameTuning.newestStepAfterFrames`). It
+    /// eases between them, and never drops below how far the frame is past the newest step, so a frame never guesses.
+    private var presentationLag = T.simulationStep
+    /// Display frames in a row that each took at least one step at full speed.
+    private var steppedFrames = 0
+    /// The game moment the last frame drew, while the game runs, so the next never draws an earlier one.
+    private var lastDrawnMoment: CGFloat?
     private var previousPresentation: [Int: FishPresentation] = [:]
     private var previousJellyPositions: [CGPoint] = []
     private var previousZoom: CGFloat = 1
@@ -532,9 +540,10 @@ final class GameScene: SKScene {
         slowMoRemaining = 0
         simClock = 0
         currentPace = 1
-        frameAccumulator = 0
+        frameAccumulator = T.frameRemainderStart
         simulationAccumulator = 0
         lastUpdate = nil
+        lastDrawnMoment = nil
         zoom = 1
 
         world = WrappedWorld(width: size.width * level.worldScreens)
@@ -628,7 +637,7 @@ final class GameScene: SKScene {
         if view != nil { UIApplication.shared.isIdleTimerDisabled = Self.keepsScreenAwake(newPhase) }
         if newPhase != .won && newPhase != .lost { accessibilityElements = nil }
         if newPhase == .ready || newPhase == .paused || phase == .ready || phase == .paused {
-            frameAccumulator = 0
+            frameAccumulator = T.frameRemainderStart
             simulationAccumulator = 0
             if newPhase == .ready || newPhase == .paused || phase == .paused { lastUpdate = nil }
             capturePresentation()
@@ -979,7 +988,7 @@ final class GameScene: SKScene {
         let frameElapsed = max(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 0)
         let realDt = min(frameElapsed, T.maximumFrameElapsed)
         lastUpdate = currentTime
-        advanceFrame(realDt)
+        settlePresentationLag(elapsed: realDt, steps: advanceFrame(realDt))
 
         let presentation = render()
         let cameraDelta = world.delta(from: lastCameraX, to: presentation.cameraX) * presentation.zoom
@@ -990,12 +999,16 @@ final class GameScene: SKScene {
 
     /// Display frames only contribute elapsed time. Both real-time slow motion and
     /// gameplay consume fixed ticks, so batching frames cannot change the ecology.
-    private func advanceFrame(_ elapsed: CGFloat, beforeStep: (() -> Void)? = nil) {
+    /// Returns how many real-time steps the frame took.
+    @discardableResult
+    private func advanceFrame(_ elapsed: CGFloat, beforeStep: (() -> Void)? = nil) -> Int {
         let step = T.simulationStep
         let epsilon: CGFloat = 1e-10
+        var steps = 0
         frameAccumulator += min(max(elapsed, 0), T.maximumFrameElapsed)
         while frameAccumulator + epsilon >= step {
             frameAccumulator = max(0, frameAccumulator - step)
+            steps += 1
             realClock += step
             if let at = pendingLossResultAt, realClock >= at {
                 pendingLossResultAt = nil
@@ -1023,6 +1036,24 @@ final class GameScene: SKScene {
                 simulate(step)
             }
         }
+        return steps
+    }
+
+    /// Frames that each take a step of their own (a 60 Hz display at full speed) draw the newest step; any others
+    /// (120 Hz, slow motion) blend the last two. A frame with no time (the first after a pause) changes nothing.
+    private func settlePresentationLag(elapsed: CGFloat, steps: Int) {
+        guard elapsed > 0 else { return }
+        steppedFrames = steps > 0 && timeScale == 1 ? steppedFrames + 1 : 0
+        let drawsNewest = steppedFrames >= T.newestStepAfterFrames
+        let target = drawsNewest ? 0 : T.simulationStep
+        let fall = elapsed * (drawsNewest || timeScale == 1 ? T.presentationLagEase : T.presentationLagSettle)
+        let eased = presentationLag + (target - presentationLag).clamped(-fall, elapsed * T.presentationLagEase)
+        // Never past the newest step, and never back before what the last frame drew.
+        let remainder = presentationRemainder
+        let simulating = phase != .ready && phase != .paused
+        let latest = lastDrawnMoment.map { simClock + remainder - $0 } ?? .infinity
+        presentationLag = min(max(remainder, eased), latest)
+        lastDrawnMoment = simulating ? simClock - T.simulationStep * (1 - presentationFraction) : nil
     }
 
     private func simulate(_ dt: CGFloat) {
@@ -2583,9 +2614,13 @@ final class GameScene: SKScene {
         previousZoom = zoom
     }
 
+    private var presentationRemainder: CGFloat {
+        PresentationInterpolation.remainder(simulation: simulationAccumulator, frame: frameAccumulator, timeScale: timeScale)
+    }
+
     private var presentationFraction: CGFloat {
         PresentationInterpolation.fraction(simulationRemainder: simulationAccumulator,
-            frameRemainder: frameAccumulator, timeScale: timeScale, step: T.simulationStep)
+            frameRemainder: frameAccumulator, timeScale: timeScale, lag: presentationLag, step: T.simulationStep)
     }
 
     private func presentationPose(_ fish: Fish, fraction: CGFloat) -> FishPresentation {
@@ -3187,7 +3222,7 @@ final class GameScene: SKScene {
         let randomControl = nextDraws()
         _ = render()
         let firstY = nodes[player.id]!.position.y
-        frameAccumulator = T.simulationStep / 2
+        frameAccumulator += T.simulationStep / 4
         _ = render()
         let secondY = nodes[player.id]!.position.y
         guard abs(firstY - secondY) > 1e-6, player.position == position, player.radius == radius, simClock == clock,
@@ -3206,9 +3241,11 @@ final class GameScene: SKScene {
         simulationEcologyProbe = true
         resetGame(startPlaying: true)
         let step = T.simulationStep
-        advanceFrame(step / 2)
+        // A run starts, and resumes, partway to its first step.
+        let halfwayToStep = (step - T.frameRemainderStart) / 2
+        advanceFrame(halfwayToStep)
         guard simClock == 0 else { return false }
-        advanceFrame(step / 2)
+        advanceFrame(halfwayToStep)
         guard abs(simClock - step) < 1e-10 else { return false }
         advanceFrame(step / 2)
         setPhase(.paused)
@@ -3216,9 +3253,9 @@ final class GameScene: SKScene {
         advanceFrame(10)
         guard simClock == pausedClock else { return false }
         setPhase(.playing)
-        advanceFrame(step / 2)
+        advanceFrame(halfwayToStep)
         guard simClock == pausedClock else { return false }
-        advanceFrame(step / 2)
+        advanceFrame(halfwayToStep)
         guard abs(simClock - pausedClock - step) < 1e-10 else { return false }
         let beforeHitch = simClock
         advanceFrame(10)
@@ -3226,7 +3263,7 @@ final class GameScene: SKScene {
         advanceFrame(0)
         guard abs(simClock - beforeHitch - T.maximumFrameElapsed) < 1e-10 else { return false }
         resetGame(startPlaying: true)
-        advanceFrame(step / 2)
+        advanceFrame(halfwayToStep)
         guard simClock == 0 else { return false }
         // Exercise SpriteKit timestamps too: a background gap must not be caught up
         // on the first resumed display frame.
@@ -3242,6 +3279,54 @@ final class GameScene: SKScene {
         guard abs(simClock - step) < 1e-10 else { return false }
         update(1_000 + Double(step))
         return abs(simClock - 2 * step) < 1e-10
+    }
+
+    /// How long the game takes to draw a press, on a display refreshing every `frameInterval` seconds: from the frame
+    /// the touch lands on to the first frame that draws you differently, averaged over landing on each frame of a
+    /// step. (The display adds its own refresh on top.) Plays the level from the same start pressing once and never.
+    func debugTouchToDrawSeconds(frameInterval: Double, level: Int = 0) -> Double {
+        // Twelve landings cover every way frames fall against steps at 30, 60, 80, and 120 Hz.
+        let landings = 12
+        let firstPress = Int((1 / frameInterval).rounded())
+        func drawn(pressingAt press: Int?) -> [[CGFloat]] {
+            simulationHeadless = true
+            simulationEcologyProbe = true
+            isBuilt = true
+            simulationHolding = false
+            resetGame(startPlaying: true)
+            return (0..<(firstPress + landings + 8)).map { frame in
+                if frame == press { simulationHolding = true }
+                update(1_000 + Double(frame) * frameInterval)
+                let node = nodes[player.id]!
+                return [node.position.x, node.position.y, node.zRotation]
+            }
+        }
+        let control = drawn(pressingAt: nil)
+        let delays = (0..<landings).map { offset in
+            let press = firstPress + offset
+            let pressed = drawn(pressingAt: press)
+            let shown = (press..<pressed.count).first { pressed[$0] != control[$0] } ?? pressed.count
+            return Double(shown - press) * frameInterval
+        }
+        return delays.reduce(0, +) / Double(delays.count)
+    }
+
+    /// The game moment each frame draws, playing frames at these display timestamps (seconds). `slowMotionAt` starts a
+    /// close call's slow motion before that frame.
+    func debugDrawnMoments(at timestamps: [Double], slowMotionAt: Int? = nil) -> [Double] {
+        simulationHeadless = true
+        simulationEcologyProbe = true
+        isBuilt = true
+        simulationHolding = false
+        resetGame(startPlaying: true)
+        return timestamps.enumerated().map { frame, timestamp in
+            if frame == slowMotionAt {
+                slowMoRemaining = T.closeCallSlowDuration
+                slowMoFactor = T.closeCallSlowFactor
+            }
+            update(timestamp)
+            return Double(simClock - T.simulationStep * (1 - presentationFraction))
+        }
     }
 
     // Integration-test fixtures exercise the real scene update and hazard resolution.
