@@ -235,34 +235,42 @@ struct MeetingPlannerTests {
         #expect(route.isSubset(of: eaten), "Riptide Reef \(index + 1) missed \(route.subtracting(eaten).sorted()): \(result)")
     }
 
-    /// A current is somewhere along your run, as it is for your pace: it comes on screen once and, once it's gone off the
-    /// left, never shows again (it once peeked in at the end of the first lap, coming round again, and vanished), and a
-    /// full-height one fills the water from the bottom of the screen to the top (it once stopped a few points short).
-    @MainActor @Test func riptideReefCurrentsShowOnceAndFillTheWater() {
+    /// A current is a place on the lap, there every time round: for your pace on any lap, and on screen it moves with the
+    /// water, so it leaves off the left, never vanishing in the middle (once, at the end of the first lap, one peeked in
+    /// and vanished). A full-height one fills the water from the bottom of the screen to the top (it once stopped a few
+    /// points short).
+    @MainActor @Test func riptideReefCurrentsStayPutEveryLapAndFillTheWater() {
         for index in 0..<ArcadeWorld.riptideReef.levelCount {
             let scene = GameScene(world: .riptideReef, levelIndex: index, showsJellyLesson: false)
             let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
             view.ignoresSiblingOrder = true
             view.presentScene(scene)
             defer { withExtendedLifetime(view) {} }
-            let count = scene.debugMeetingPlan?.currents?.count ?? 0
-            var gone = Array(repeating: false, count: count), back = gone, short: [CGRect] = []
-            var last: [CGRect?] = Array(repeating: nil, count: count)
+            let name = "Riptide Reef \(index + 1)", plan = scene.debugMeetingPlan!, currents = plan.currents ?? []
+            let lap = GameTuning.playfieldSize.width * CGFloat(plan.spec.worldScreens)
+            for current in currents {
+                for laps in 0..<3 {
+                    let at = current.start + 1 + lap * CGFloat(laps)
+                    #expect(scene.debugCurrentSpeed(atForwardDistance: at) == current.speed, "\(name): no current on lap \(laps + 1)")
+                }
+            }
+            var gone = Array(repeating: false, count: currents.count), vanished: [CGRect] = [], short: [CGRect] = []
+            var last: [CGRect?] = Array(repeating: nil, count: currents.count)
             _ = scene.debugPlayReferenceRoute(limit: 30, safeFromFish: true) {
                 scene.debugRender()
                 for (number, band) in scene.debugCurrentBands.enumerated() {
                     if let band {
-                        if gone[number] { back[number] = true }
                         if band.minY != 0 || band.maxY != scene.size.height { short.append(band) }
-                    } else if let was = last[number], was.maxX < 30 {
-                        gone[number] = true
+                    } else if let was = last[number] {
+                        // Off the left, or just a sliver at the right edge as your fish surges ahead.
+                        if was.maxX < 30 { gone[number] = true } else if was.minX < scene.size.width - 30 { vanished.append(was) }
                     }
                     last[number] = band
                 }
             }
-            #expect(count >= 2 && gone.allSatisfy { $0 }, "Riptide Reef \(index + 1): not every current came and went (\(gone))")
-            #expect(!back.contains(true), "Riptide Reef \(index + 1): a current showed again after it had gone (\(back))")
-            #expect(short.isEmpty, "Riptide Reef \(index + 1): a band from \(short.first?.minY ?? 0) to \(short.first?.maxY ?? 0)")
+            #expect(currents.count >= 2 && gone.allSatisfy { $0 }, "\(name): not every current came and went (\(gone))")
+            #expect(vanished.isEmpty, "\(name): a current vanished on screen at \(vanished.first.map { "\(Int($0.minX))" } ?? "")")
+            #expect(short.isEmpty, "\(name): a band from \(short.first?.minY ?? 0) to \(short.first?.maxY ?? 0)")
         }
     }
 

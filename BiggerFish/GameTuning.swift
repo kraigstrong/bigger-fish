@@ -720,12 +720,13 @@ enum GameTuning {
 
     // MARK: Riptide Reef (prototype, Xcode builds only)
 
-    /// Riptide Reef's trial levels: Shallow Reef's levels 1, 5, and 10 planned like Midnight Zone's (fish appear just
-    /// off screen right before you meet them), with currents running the full height of the water over stretches of
-    /// the lap, among the level's fish (`riptideCurrents`). The plan reckons with the currents, so each level keeps
+    /// Riptide Reef's trial levels: Shallow Reef's levels 1, 5, and 12 (Frenzy: Kraig found 10 with currents "wasn't
+    /// that hard") planned like Midnight Zone's (fish appear just off screen right before you meet them), with currents
+    /// running the full height of the water over stretches of the lap, among the level's fish (`riptideCurrents`), and
+    /// there every lap. The plan reckons with the currents, so each level keeps
     /// Shallow Reef's rhythm in seconds, every meal as reachable as there; in a current you just cover more water. Its
     /// lap is longer to make room for that.
-    static let riptideSpecs: [MeetingSpec] = [0, 4, 9].enumerated().map { index, source in
+    static let riptideSpecs: [MeetingSpec] = [0, 4, 11].enumerated().map { index, source in
         var spec = reefLabSpecs[source]
         spec.name = "Riptide Reef \(index + 1)"
         let speeds = riptideCurrents[index]
@@ -750,10 +751,8 @@ enum GameTuning {
     static let riptideCurrentSeconds: CGFloat = 2
     static let riptideCalmStart: CGFloat = 1.5
     static let riptideCalmBetween: CGFloat = 0.6
-    /// Levels re-rolled to another layout of the same settings. Riptide Reef 3's first: a bot on its route, with nothing
-    /// able to eat it, couldn't reach four of the route's eleven meals (five with no currents at all), and Kraig wasn't
-    /// sure it was beatable ("I kept running into a wall that wasn't passable"); on layout 2 it eats them all.
-    static let riptideRerolls: [String: Int] = ["Riptide Reef 3": 2]
+    /// Levels re-rolled to another layout of the same settings: one line to try another.
+    static let riptideRerolls: [String: Int] = [:]
     #if DEBUG
     /// Each level is its re-roll, or the first layout with no planner issues.
     static let riptideLevels: [Level] = riptideSpecs.indices.map { index in

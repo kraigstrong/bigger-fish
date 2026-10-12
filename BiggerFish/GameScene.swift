@@ -1003,8 +1003,7 @@ final class GameScene: SKScene {
     private func simulate(_ dt: CGFloat) {
         simClock += dt
         if !currents.isEmpty, player.isAlive {
-            let share = waterShare(player.position.y)
-            let pace = currents.first { $0.contains(distance: forwardDistance, share: share) }?.speed ?? 1
+            let pace = currentSpeed(atForwardDistance: forwardDistance, share: waterShare(player.position.y))
             currentPace += (pace - currentPace) * min(1, dt * T.currentEase)
         }
         updateZoom(dt)
@@ -1785,12 +1784,17 @@ final class GameScene: SKScene {
     /// Riptide Reef's currents, from the level's plan: only where a scenario needs one.
     private var currents: [PlannedCurrent] { level.meetingPlan?.currents ?? [] }
 
-    /// A small fish that has met you drifts with any current it's in; big fish and fish on their way to you don't. Like
-    /// yours, its place in a current is how far along your run it is, so currents carry it on your first lap only.
+    /// How fast a current carries you at this point of your run and height: 1 outside them. A current is a place on the
+    /// lap, there every time round.
+    private func currentSpeed(atForwardDistance distance: CGFloat, share: CGFloat) -> CGFloat {
+        let place = world.wrap(distance)
+        return currents.first { $0.contains(distance: place, share: share) }?.speed ?? 1
+    }
+
+    /// A small fish that has met you drifts with any current it's in; big fish and fish on their way to you don't.
     private func sweep(_ f: Fish, _ dt: CGFloat) {
         guard !currents.isEmpty, f.state == .swimming, approachEnds[f.id] == nil, f.radius <= T.currentSweepsRadius else { return }
-        let distance = forwardDistance + world.delta(from: player.position.x, to: f.position.x)
-        guard let current = currents.first(where: { $0.contains(distance: distance, share: waterShare(f.position.y)) }) else { return }
+        guard let current = currents.first(where: { $0.contains(distance: f.position.x, share: waterShare(f.position.y)) }) else { return }
         f.position.x = world.wrap(f.position.x + (current.speed - 1) * playerSpeed * dt)
     }
 
@@ -1856,12 +1860,11 @@ final class GameScene: SKScene {
     }
 
     private func renderCurrents(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
-        // How far you've come as drawn, between the last two steps. A current is somewhere along your run, not a place
-        // on the lap: it's there on your first lap only (`simulate`), so it never shows coming round again.
-        let distance = forwardDistance + world.delta(from: player.position.x, to: cameraX)
         for patch in currentPatches {
+            // A place on the lap, measured from its middle, so the whole of it is placed one way round.
             let length = (patch.current.end - patch.current.start) * zoom
-            let x = screenAnchorX + (patch.current.start - distance) * zoom
+            let middle = world.delta(from: cameraX, to: world.wrap((patch.current.start + patch.current.end) / 2))
+            let x = screenAnchorX + middle * zoom - length / 2
             patch.node.isHidden = x > size.width || x + length < 0
             if patch.node.isHidden { continue }
             patch.node.position = CGPoint(x: x, y: currentBand(patch.current).bottom)
@@ -3335,6 +3338,8 @@ final class GameScene: SKScene {
         resetGame(startPlaying: true)
     }
 
+    /// How fast a current carries you `distance` into your run, at mid-water.
+    func debugCurrentSpeed(atForwardDistance distance: CGFloat) -> CGFloat { currentSpeed(atForwardDistance: distance, share: 0.5) }
     /// Each current as last drawn: hidden, or where its band is on screen.
     var debugCurrentBands: [CGRect?] {
         currentPatches.map { $0.node.isHidden ? nil : CGRect(origin: $0.node.position, size: $0.band.size) }

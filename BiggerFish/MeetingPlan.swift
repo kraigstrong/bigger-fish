@@ -332,7 +332,7 @@ struct MeetingPlan: Codable {
         guard let jellySpec = spec.jellies, let jellies, !jellies.isEmpty else { return [] }
         let timeline = PlayerTimeline.reference(meals: fish.filter(\.referenceMeal).map { ($0.meetingDistance, $0.radius) },
             crossSeconds: CGFloat(spec.crossSeconds), until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05,
-            currents: currents ?? [])
+            currents: currents ?? [], lap: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens))
         return MeetingPlanner.jellyPasses(jellies, spec: jellySpec, crossSeconds: CGFloat(spec.crossSeconds),
             worldWidth: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens), timeline: timeline)
     }
@@ -355,7 +355,8 @@ struct MeetingPlan: Codable {
     func radii(eating meals: Set<Int>) -> [CGFloat] {
         PlayerTimeline.reference(meals: fish.filter { meals.contains($0.id) }.map { ($0.meetingDistance, $0.radius) },
             crossSeconds: CGFloat(spec.crossSeconds),
-            until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05, currents: currents ?? []).radius
+            until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05, currents: currents ?? [],
+            lap: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens)).radius
     }
 
     /// Player radius after each simulation step on the route the meetings were timed against, for ghost checks.
@@ -585,9 +586,9 @@ struct PlayerTimeline {
     }
 
     /// Meals start when the player reaches each fish (sorted by distance) and complete like real swallows.
-    /// `currents` (full height) speed you up where they run, eased as GameScene eases them.
+    /// `currents` (full height) speed you up where they run on each `lap`, eased as GameScene eases them.
     static func reference(meals: [(distance: CGFloat, radius: CGFloat)], crossSeconds: CGFloat, until end: CGFloat,
-                          currents: [PlannedCurrent] = []) -> PlayerTimeline {
+                          currents: [PlannedCurrent] = [], lap: CGFloat = .infinity) -> PlayerTimeline {
         typealias T = GameTuning
         let dt = T.simulationStep
         let meals = meals.sorted { $0.distance < $1.distance }
@@ -599,7 +600,8 @@ struct PlayerTimeline {
         var next = 0
         while covered < end {
             if !currents.isEmpty {
-                let target = currents.first { ($0.start...$0.end).contains(covered) }?.speed ?? 1
+                let place = covered.truncatingRemainder(dividingBy: lap)
+                let target = currents.first { ($0.start...$0.end).contains(place) }?.speed ?? 1
                 pace += (target - pace) * min(1, dt * T.currentEase)
             }
             let growth = radius / (T.baseRadius * T.zoomStartSize)
@@ -728,7 +730,7 @@ enum MeetingDesigner {
             timeline = PlayerTimeline.reference(
                 meals: meetings.filter(\.onReferenceRoute).map { ($0.distance, $0.size * T.baseRadius) },
                 crossSeconds: CGFloat(spec.crossSeconds), until: T.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05,
-                currents: currents)
+                currents: currents, lap: T.playfieldSize.width * CGFloat(spec.worldScreens))
             // Squeeze the lap's meetings into its first pass if they run long.
             let lastTime = CGFloat(timeline.step(reaching: lastDistance)) * T.simulationStep * 0.99
             if let first = times.first, let last = times.last, last > lastTime {
