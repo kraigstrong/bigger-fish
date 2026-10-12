@@ -219,6 +219,39 @@ struct SunsetCoveTests {
         #expect(widest <= GameTuning.sunsetTrollTrail + 1, "Sunset Cove \(index + 1): a hook line \(Int(widest)) points wide")
     }
 
+    /// Frozen levels play their saved plans, not fresh ones, and `SunsetPlans.json` holds a plan for every level's
+    /// current settings: change a level's settings and the file must be regenerated.
+    @Test func frozenLevelsPlayTheirSavedPlans() throws {
+        let url = try #require(Bundle.main.url(forResource: "SunsetPlans", withExtension: "json"))
+        let bundled = try JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: url))
+        #expect(bundled.map(\.spec) == GameTuning.sunsetSpecs, "SunsetPlans.json is out of date: regenerate it")
+        #expect(GameTuning.sunsetFrozen.isSubset(of: GameTuning.sunsetSpecs.map(\.name)))
+        #expect(GameTuning.sunsetFrozen.contains("Sunset Cove 10"))
+        for (index, plan) in plans.enumerated() where GameTuning.sunsetFrozen.contains(plan.spec.name) {
+            #expect(plan.fish == bundled[index].fish && plan.hooks == bundled[index].hooks, "\(plan.spec.name)")
+        }
+        // Sunset Cove 10's giants were sized by hand so they finish edible (`sunsetFishRadius`).
+        #expect(plans[9].variation == 9 && plans[9].fish[9].radius == 63 && plans[9].fish[15].radius == 61.5)
+    }
+
+    /// Writes BiggerFish/SunsetPlans.json when build/arcade-development/sunset-plans.request exists. Frozen levels keep
+    /// their saved plans; the rest are planned in code (`GameTuning.sunsetPlan`).
+    @Test func manualWriteSunsetPlans() throws {
+        let marker = Self.root.appendingPathComponent("build/arcade-development/sunset-plans.request")
+        guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        let file = Self.root.appendingPathComponent("BiggerFish/SunsetPlans.json")
+        let existing = (try? JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: file))) ?? []
+        let plans = GameTuning.sunsetSpecs.indices.map { index in
+            let spec = GameTuning.sunsetSpecs[index]
+            return GameTuning.sunsetFrozen.contains(spec.name) ? existing.first { $0.spec == spec } ?? GameTuning.sunsetPlan(index)
+                : GameTuning.sunsetPlan(index)
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        try encoder.encode(plans).write(to: file)
+        try FileManager.default.removeItem(at: marker)
+    }
+
     // MARK: Previews
 
     /// Renders Sunset Cove's key moments to build/previews/sunset-cove-*.png, with a contact sheet, when xcodebuild
