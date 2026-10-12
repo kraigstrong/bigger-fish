@@ -961,9 +961,10 @@ enum GameTuning {
     /// the level: every boat stays and still fishes up top, but the water below is yours for the clean-up, when you're
     /// big. The hooks are planned around your first pass, so later laps only met them by chance (Kraig, Sunset Cove 13:
     /// "the late game with all the hooks is really hard. You can't really dive in and out because you're so big and the
-    /// hooks are so close"). The reel-up starts this many seconds after the reference route passes the hook, behind
-    /// you and off screen, takes this long, and leaves the bait's middle this many screen points under the surface.
-    static let sunsetReelUpAfter: CGFloat = 2
+    /// hooks are so close"). The reel-up starts this many seconds after the hook, boat and all, has gone off the left of
+    /// your screen (by how far you've come, not the planned route's timing), takes this long, and leaves the bait's
+    /// middle this many screen points under the surface.
+    static let sunsetReelUpAfter: CGFloat = 0.3
     static let sunsetReelUpSeconds: CGFloat = 2
     static let sunsetReeledDepth: CGFloat = 35
     /// What catches you, as shares of the bait's radius: the bait's body, and the hook's bend under it. Your body counts

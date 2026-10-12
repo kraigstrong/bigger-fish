@@ -255,7 +255,7 @@ struct ContentView: View {
         let started = Date()
         await Task.detached(priority: .userInitiated) {
             _ = GameTuning.shallowReefLevels.count + GameTuning.jellyLabLevels.count + GameTuning.kelpLevels.count
-                + GameTuning.midnightLevels.count
+                + GameTuning.sunsetLevels.count + GameTuning.midnightLevels.count
         }.value
         let remaining = GameTuning.launchMinimumSeconds - Date().timeIntervalSince(started)
         if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }

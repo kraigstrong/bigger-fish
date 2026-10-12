@@ -3,7 +3,7 @@ import Testing
 @testable import BiggerFish
 
 /// A frozen level plays exactly as it was played and approved. Each one's fingerprint is pinned below, so changing a
-/// frozen level (its fish, jellies, kelp, seed, or settings) means editing its line here: never a side effect of a
+/// frozen level (its fish, jellies, kelp, hooks, currents, seed, or settings) means editing its line here: never a side effect of a
 /// planner change or a regenerated plans file. To change one on purpose (with Kraig's OK), unfreeze it, tune it, freeze
 /// it again, and update its line with the fingerprint this test prints.
 struct FrozenLevelTests {
@@ -14,12 +14,16 @@ struct FrozenLevelTests {
         let fish: [PlannedFish]
         let jellies: [PlannedJelly]?
         let kelp: [PlannedKelp]?
+        /// Sunset Cove's and Riptide Reef's; nil elsewhere, so other worlds' fingerprints are unchanged.
+        let hooks: [PlannedHook]?
+        let currents: [PlannedCurrent]?
     }
 
     private static func fingerprint(_ plan: MeetingPlan) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(Played(spec: plan.spec, seed: plan.seed, fish: plan.fish, jellies: plan.jellies, kelp: plan.kelp))
+        let data = try encoder.encode(Played(spec: plan.spec, seed: plan.seed, fish: plan.fish, jellies: plan.jellies, kelp: plan.kelp,
+                                             hooks: plan.hooks, currents: plan.currents))
         // FNV-1a, 64 bits: stable from run to run, unlike `Hasher`.
         let hash = data.reduce(UInt64(0xCBF2_9CE4_8422_2325)) { ($0 ^ UInt64($1)) &* 0x100_0000_01B3 }
         return String(hash, radix: 16)
@@ -28,6 +32,7 @@ struct FrozenLevelTests {
     private static let worlds: [(file: String, frozen: Set<String>)] = [
         ("ReefLabPlans", GameTuning.reefLabFrozen), ("JellyLabPlans", GameTuning.jellyLabFrozen),
         ("KelpPlans", GameTuning.kelpFrozen), ("MidnightPlans", GameTuning.midnightFrozen),
+        ("SunsetPlans", GameTuning.sunsetFrozen),
     ]
 
     @Test(arguments: worlds.map(\.file)) func frozenLevelsAreExactlyAsPlayed(_ file: String) throws {
@@ -110,5 +115,8 @@ struct FrozenLevelTests {
         "Midnight Zone 13": "3f6a104135606a6f",
         "Midnight Zone 14": "393f872ce83f9b0f",
         "Midnight Zone 15": "63f26e76171a3890",
+        // Sunset Cove (fish and hooks both)
+        "Sunset Cove 10": "daaab810f4775923",
+        "Sunset Cove 11": "5032d7834f8e5a96",
     ]
 }

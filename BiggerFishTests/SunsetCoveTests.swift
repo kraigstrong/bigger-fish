@@ -262,23 +262,29 @@ struct SunsetCoveTests {
 
     /// Once you've passed a hook, its boat reels the line up: on later laps the bait hangs just under the surface and the
     /// water below is yours (Kraig, Sunset Cove 13: "you can't really dive in and out because you're so big and the
-    /// hooks are so close"). Until then it hangs exactly as planned, so the first pass is unchanged.
+    /// hooks are so close"). Passed means gone off the left of your screen, however far behind the planned route you
+    /// are, so until then it hangs exactly as planned and the first pass is unchanged.
     @Test func passedHooksReelUpNearTheSurface() {
         let (scene, view) = level(12)
         defer { withExtendedLifetime(view) {} }
         let hooks = scene.debugHooks
-        var drift: CGFloat = 0, lowest: [Int: CGFloat] = [:]
+        var drift: CGFloat = 0, lowest: [Int: CGFloat] = [:], passed: [Int: CGFloat] = [:]
         _ = scene.debugPlayReferenceRoute(limit: 30, safeFromFish: true) {
             let t = CGFloat(scene.debugGameplayClock)
             for (index, hook) in hooks.enumerated() {
-                if t < hook.passTime + GameTuning.sunsetReelUpAfter {
+                guard let at = scene.debugHookPassedAt(index) else {
                     drift = max(drift, abs(scene.debugHookPosition(index).y - HookMotion.position(hook, time: t).y))
-                } else if t > hook.passTime + GameTuning.sunsetReelUpAfter + GameTuning.sunsetReelUpSeconds {
+                    continue
+                }
+                passed[index] = at
+                if t > at + GameTuning.sunsetReelUpAfter + GameTuning.sunsetReelUpSeconds {
                     lowest[index] = min(lowest[index] ?? 1, scene.debugHookDepthShare(index))
                 }
             }
         }
         #expect(drift < 0.5, "a hook moved before you'd passed it (\(drift))")
+        // Passed only once you're well beyond it: after the planned route reaches it, and then off the screen.
+        for (index, at) in passed { #expect(at > hooks[index].passTime, "hook \(index) counted passed at \(at) s, before \(hooks[index].passTime) s") }
         #expect(lowest.count >= hooks.count - 2, "only \(lowest.count) of \(hooks.count) hooks were seen reeled up")
         for (index, share) in lowest { #expect(share > 0.85, "hook \(index) hangs at \(share) of the water once reeled up") }
     }
