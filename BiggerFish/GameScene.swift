@@ -274,24 +274,43 @@ final class GameScene: SKScene {
     private var hasLayers = false
     private var isBuilt = false
 
-    private let closeCallHaptic = UIImpactFeedbackGenerator(style: .rigid)
-    private let eatenHaptic = UIImpactFeedbackGenerator(style: .heavy)
-    private let eatenNotification = UINotificationFeedbackGenerator()
-    private let mealHaptic = UIImpactFeedbackGenerator(style: .light)
-    private let winNotification = UINotificationFeedbackGenerator()
+    private var closeCallHaptic = UIImpactFeedbackGenerator(style: .rigid)
+    private var eatenHaptic = UIImpactFeedbackGenerator(style: .heavy)
+    private var eatenNotification = UINotificationFeedbackGenerator()
+    private var mealHaptic = UIImpactFeedbackGenerator(style: .light)
+    private var winNotification = UINotificationFeedbackGenerator()
+    private var haptics: [UIFeedbackGenerator] { [mealHaptic, closeCallHaptic, eatenHaptic, eatenNotification, winNotification] }
+    /// Presented before its view is in a window (the game's view hands it the scene as it's made), so the haptics wait
+    /// for the first frame on screen to be woken: iOS may ignore waking a generator for a view not in a window.
+    private var hapticsWaitForWindow = false
     /// The Vibration setting (Settings, and the pause menu): off, the game plays no haptics.
     private var vibrates: Bool { ArcadeSettings.shared.vibrationOn }
 
-    /// Wakes the haptics before they're needed. A session's first haptic otherwise stalls a frame while iOS sets them up:
-    /// the first death (its two buzzes) stuttered. Called as the scene appears, while its card is up and nothing moves,
-    /// and again as each run starts, since a prepared generator only stays ready a few seconds.
+    /// Makes the haptic generators for the view the scene is shown in, as iOS 17.5 and later expect: each then plays for
+    /// that view's window.
+    private func makeHaptics(for view: SKView) {
+        guard #available(iOS 17.5, *) else { return }
+        closeCallHaptic = UIImpactFeedbackGenerator(style: .rigid, view: view)
+        eatenHaptic = UIImpactFeedbackGenerator(style: .heavy, view: view)
+        eatenNotification = UINotificationFeedbackGenerator(view: view)
+        mealHaptic = UIImpactFeedbackGenerator(style: .light, view: view)
+        winNotification = UINotificationFeedbackGenerator(view: view)
+    }
+
+    /// Wakes the haptics before they're needed. A session's first haptic otherwise stalls while iOS sets them up: the
+    /// first death (its two buzzes) froze. Called as the scene appears (once its view is on screen), as each run starts,
+    /// and after each haptic, since a woken generator only stays ready a few seconds.
     private func prepareHaptics() {
-        guard vibrates, view != nil else { return }
+        guard vibrates, let view else { return }
+        guard view.window != nil else {
+            hapticsWaitForWindow = true
+            return
+        }
+        hapticsWaitForWindow = false
         #if DEBUG
         noteHitch(.hapticPrepare, "all five generators")
         #endif
-        let generators: [UIFeedbackGenerator] = [mealHaptic, closeCallHaptic, eatenHaptic, eatenNotification, winNotification]
-        for generator in generators { generator.prepare() }
+        for generator in haptics { generator.prepare() }
     }
 
     /// Every haptic the game plays.
@@ -341,6 +360,8 @@ final class GameScene: SKScene {
                 self?.eatenHaptic.impactOccurred(intensity: T.conquerThumpIntensity)
             }]))
         }
+        // Ready again for the next one.
+        for generator in haptics { generator.prepare() }
     }
 
     /// Camera scale: 1 at the start of a run, easing toward `minZoom` as the player grows.
@@ -400,6 +421,7 @@ final class GameScene: SKScene {
         hitchLog?.enterScene(self, hitchContext, view: view)
         #endif
         _ = audio // Warm normal gameplay audio; headless studies never create the player pool.
+        makeHaptics(for: view)
         prepareHaptics()
         if !isBuilt { build() }
     }
@@ -897,6 +919,7 @@ final class GameScene: SKScene {
 
     override func update(_ currentTime: TimeInterval) {
         guard isBuilt else { return }
+        if hapticsWaitForWindow { prepareHaptics() }
         #if DEBUG
         // Every frame in every phase, timed from SpriteKit's own clock (the game's `lastUpdate` restarts at each pause).
         hitchLog?.frameBegan(self, timestamp: currentTime)
@@ -3119,6 +3142,8 @@ final class GameScene: SKScene {
     }
 
     var debugFishCount: Int { fish.count }
+    /// Whether the haptics are waiting for the scene's view to be on screen before they're woken.
+    var debugHapticsWaitForWindow: Bool { hapticsWaitForWindow }
     /// The pause menu's switches: sound effects, music, and vibration.
     var debugSoundSwitches: [Bool] { [effectsButton.isOn, musicButton.isOn, vibrationButton.isOn] }
     /// How many backdrops the pause menu has drawn (one, however often it's paused).

@@ -120,8 +120,11 @@ final class CreditsScene: SKScene, ObservableObject {
     /// The card's button, in scene points.
     private var doneFrame = CGRect.zero
     private var isBuilt = false
-    private let mealHaptic = UIImpactFeedbackGenerator(style: .light)
-    private let finishHaptic = UINotificationFeedbackGenerator()
+    private var mealHaptic = UIImpactFeedbackGenerator(style: .light)
+    private var finishHaptic = UINotificationFeedbackGenerator()
+    /// Shown before its view is in a window: the haptics are woken on the first frame on screen instead (see
+    /// `GameScene.prepareHaptics`).
+    private var hapticsWaitForWindow = false
 
     init(credits: ArcadeCredits = .shipped, reduceMotion: Bool = UIAccessibility.isReduceMotionEnabled,
          settings: ArcadeSettings = .shared) {
@@ -160,8 +163,11 @@ final class CreditsScene: SKScene, ObservableObject {
         #endif
         if !isBuilt { build() }
         // Ready before they're needed: a first haptic otherwise stalls a frame while iOS sets it up.
-        mealHaptic.prepare()
-        finishHaptic.prepare()
+        if #available(iOS 17.5, *) {
+            mealHaptic = UIImpactFeedbackGenerator(style: .light, view: view)
+            finishHaptic = UINotificationFeedbackGenerator(view: view)
+        }
+        prepareHaptics()
         // Awake while you swim, as in a level; the start card and the end card let the phone sleep.
         UIApplication.shared.isIdleTimerDisabled = started && !finished && !hasLeft
         configureAccessibility()
@@ -264,6 +270,7 @@ final class CreditsScene: SKScene, ObservableObject {
     private func start() {
         guard !started else { return }
         started = true
+        prepareHaptics()
         #if DEBUG
         hitchLog?.note(.phase, "swimming")
         hitchLog?.updateScene(self, hitchContext)
@@ -278,6 +285,7 @@ final class CreditsScene: SKScene, ObservableObject {
 
     override func update(_ currentTime: TimeInterval) {
         guard isBuilt else { return }
+        if hapticsWaitForWindow { prepareHaptics() }
         #if DEBUG
         hitchLog?.frameBegan(self, timestamp: currentTime)
         defer { hitchLog?.frameEnded(self) }
@@ -681,6 +689,15 @@ final class CreditsScene: SKScene, ObservableObject {
 
     enum Haptic { case meal, finish }
 
+    /// Wakes the haptics once the scene's view is on screen, so the first name eaten doesn't stall while iOS sets them up.
+    private func prepareHaptics() {
+        guard settings.vibrationOn, let view else { return }
+        hapticsWaitForWindow = view.window == nil
+        guard !hapticsWaitForWindow else { return }
+        mealHaptic.prepare()
+        finishHaptic.prepare()
+    }
+
     private func buzz(_ haptic: Haptic) {
         guard settings.vibrationOn else { return }
         #if DEBUG
@@ -691,6 +708,8 @@ final class CreditsScene: SKScene, ObservableObject {
         case .meal: mealHaptic.impactOccurred(intensity: T.mealHapticIntensity)
         case .finish: finishHaptic.notificationOccurred(.success)
         }
+        // Ready again for the next one.
+        mealHaptic.prepare()
     }
 
     private func play(_ effect: ArcadeAudio.Effect) {
