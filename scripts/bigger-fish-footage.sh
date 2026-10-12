@@ -13,9 +13,11 @@
 # Output goes to build/footage/ (ignored by git):
 #   <world>.<level>-<policy>[-<from>-<to>].mp4   60 fps H.264, silent, at the simulator's screen size
 #   <world>.<level>-<policy>-look.jpg            with --look: a frame every half second, ten to a row
+#   <name>.txt                                   how the run went, and every bite: when, and the meal's size against
+#                                                yours then and at its biggest, for finding moments to record
 #
 # Needs ffmpeg (brew install ffmpeg). FOOTAGE_DEVICE picks the simulator (default iPhone 17 Pro Max, 2868x1320, the
-# App Store's 6.9" size). FOOTAGE_NO_BUILD=1 reuses the last build.
+# App Store's 6.9" size). FOOTAGE_NO_BUILD=1 reuses the last build, already installed.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -43,7 +45,10 @@ if [ "${FOOTAGE_NO_BUILD:-0}" != 1 ]; then
 fi
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE" -b >/dev/null
-xcrun simctl install "$DEVICE" "$DERIVED/Build/Products/Debug-iphonesimulator/BiggerFish.app"
+# Installing takes longer than a short recording, so only after a build, or when the app isn't there.
+if [ "${FOOTAGE_NO_BUILD:-0}" != 1 ] || ! xcrun simctl get_app_container "$DEVICE" "$BUNDLE" >/dev/null 2>&1; then
+    xcrun simctl install "$DEVICE" "$DERIVED/Build/Products/Debug-iphonesimulator/BiggerFish.app"
+fi
 
 args=(-arcadePlaytest "$LEVEL" -storeFootage "$POLICY" -arcadeDisableRunRecording)
 name="$LEVEL-$POLICY"
@@ -73,9 +78,11 @@ if [ $LOOK = 1 ]; then
     count=$(find "$frames" -name '*.jpg' | wc -l | tr -d ' ')
     ffmpeg -v error -y -framerate 1 -i "$frames/%05d.jpg" \
         -vf "tile=10x$(( (count + 9) / 10 )):padding=4" -frames:v 1 "$OUT/$name.jpg"
-    echo "$OUT/$name.jpg: $(cat "$frames/done.txt"), a frame every half second"
+    cp "$frames/done.txt" "$OUT/$name.txt"
+    echo "$OUT/$name.jpg (a frame every half second): $(head -1 "$frames/done.txt")"
 else
     ffmpeg -v error -y -framerate 60 -i "$frames/%05d.jpg" -c:v libx264 -preset slow -crf 14 -pix_fmt yuv420p \
         -movflags +faststart "$OUT/$name.mp4"
-    echo "$OUT/$name.mp4: $(cat "$frames/done.txt")"
+    cp "$frames/done.txt" "$OUT/$name.txt"
+    echo "$OUT/$name.mp4: $(head -1 "$frames/done.txt")"
 fi

@@ -90,6 +90,14 @@ enum StoreFootage {
         var frame = 0, saved = 0
         var endedAt: Int?
         let started = Date()
+        // Every bite, for picking moments: when, how big the meal was against your fish, and the biggest it had been.
+        var biggest: [Int: CGFloat] = [:]
+        var lastPrey: Int?
+        var bites: [String] = []
+        // And the other fish's bites on screen, for showing that they grow too: when, which fish, its size against
+        // yours, and where it is (fractions of the frame from the top left).
+        var theirLastPrey: [Int: Int] = [:]
+        var theirBites: [String] = []
         while CGFloat(frame) * step < request.to {
             let view = scene.debugCaptureView
             if view.playing, view.time >= nextDecision {
@@ -98,7 +106,24 @@ enum StoreFootage {
             }
             scene.debugFrame(seconds: step)
             frame += 1
-            if endedAt == nil, !scene.debugCaptureView.playing { endedAt = frame }
+            let after = scene.debugCaptureView
+            if endedAt == nil, !after.playing { endedAt = frame }
+            for fish in after.fish where !fish.isEaten {
+                biggest[fish.id] = max(biggest[fish.id] ?? 0, fish.radius / after.player.radius)
+            }
+            if let prey = after.player.prey, prey != lastPrey, let meal = after.fish.first(where: { $0.id == prey }) {
+                bites.append(String(format: "%.2fs %.2f (at most %.2f)", CGFloat(frame) * step,
+                                    meal.radius / after.player.radius, biggest[prey] ?? 0))
+            }
+            lastPrey = after.player.prey
+            for fish in after.fish where !fish.isEaten {
+                guard let prey = fish.prey, theirLastPrey[fish.id] != prey else { continue }
+                theirLastPrey[fish.id] = prey
+                guard after.shows(fish, margin: 0) else { continue }
+                theirBites.append(String(format: "%.2fs #%d %.2f at %.2f, %.2f", CGFloat(frame) * step, fish.id,
+                                         fish.radius / after.player.radius, fish.center.x / after.size.width,
+                                         1 - fish.center.y / after.size.height))
+            }
             if CGFloat(frame) * step >= request.from, frame % request.every == 0 {
                 scene.debugHideInterface()
                 guard let data = jpeg(scene, scale: request.scale) else { return fail("couldn't draw frame \(frame)") }
@@ -114,7 +139,10 @@ enum StoreFootage {
         let outcome = endedAt.map { "\(scene.debugCaptureView.won ? "won" : "lost") at \(String(format: "%.2f", CGFloat($0) * step))s" }
             ?? "still playing"
         let summary = "\(saved) frames, \(request.policy.rawValue) bot, \(outcome), in \(Int(Date().timeIntervalSince(started)))s"
-        try? summary.write(to: framesDirectory.appendingPathComponent("done.txt"), atomically: true, encoding: .utf8)
+        let report = ([summary, "bites (time, meal against you, the most it had been):"] + bites
+                      + ["their bites on screen (time, fish, its size against you, where it is):"] + theirBites)
+            .joined(separator: "\n")
+        try? report.write(to: framesDirectory.appendingPathComponent("done.txt"), atomically: true, encoding: .utf8)
         print("[StoreFootage] \(summary)")
     }
 
