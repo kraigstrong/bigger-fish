@@ -765,8 +765,11 @@ enum GameTuning {
     static let riptideCurrentSeconds: CGFloat = 2
     static let riptideCalmStart: CGFloat = 1.5
     static let riptideCalmBetween: CGFloat = 0.6
-    /// Levels re-rolled to another layout of the same settings: one line to try another.
-    static let riptideRerolls: [String: Int] = [:]
+    /// Levels re-rolled to another layout of the same settings: one line to try another. Riptide Reef 3's first had a
+    /// wall Kraig couldn't get through ("the furthest runs all died in the same spot"): a big fish placed beside one
+    /// meal sat on the way to the next walled gate, leaving 7% of the water open at the tightest moment, in a current;
+    /// Frenzy's tightest is 10.5%. Layout 4's is 15%, as tight as Gauntlet's and Needle's.
+    static let riptideRerolls: [String: Int] = ["Riptide Reef 3": 4]
     #if DEBUG
     /// Each level is its re-roll, or the first layout with no planner issues.
     static let riptideLevels: [Level] = riptideSpecs.indices.map { index in
