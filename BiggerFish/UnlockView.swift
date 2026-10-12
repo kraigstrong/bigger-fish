@@ -27,23 +27,25 @@ struct UnlockView: View {
             // Solid deep water, so nothing behind shows through the words.
             LinearGradient(colors: [DeepEndColors.night, DeepEndColors.abyss], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
-            switch stage {
-            case .offer:
-                offer
-            case .working:
-                VStack(spacing: 14) {
-                    ProgressView().controlSize(.large).tint(.white)
-                    Text("Talking to the App Store…").font(.custom("AvenirNext-DemiBold", size: 17))
+            ScreenScaled { size, _ in
+                switch stage {
+                case .offer:
+                    offer(in: size)
+                case .working:
+                    VStack(spacing: 14) {
+                        ProgressView().controlSize(.large).tint(.white)
+                        Text("Talking to the App Store…").font(.custom("AvenirNext-DemiBold", size: 17))
+                    }
+                case .message(let title, let line, let unlocked):
+                    VStack(spacing: 10) {
+                        if unlocked { DeepEndBadge(size: 84) }
+                        Text(title).font(.custom("AvenirNext-Heavy", size: 28)).multilineTextAlignment(.center)
+                        Text(line).font(.custom("AvenirNext-DemiBold", size: 16)).multilineTextAlignment(.center).opacity(0.85)
+                        GoldButton(title: unlocked ? "Let's swim" : "OK") { unlocked ? onClose() : (stage = .offer) }
+                            .padding(.top, 8)
+                    }
+                    .padding(.horizontal, 40)
                 }
-            case .message(let title, let line, let unlocked):
-                VStack(spacing: 10) {
-                    if unlocked { DeepEndBadge(size: 84) }
-                    Text(title).font(.custom("AvenirNext-Heavy", size: 28)).multilineTextAlignment(.center)
-                    Text(line).font(.custom("AvenirNext-DemiBold", size: 16)).multilineTextAlignment(.center).opacity(0.85)
-                    GoldButton(title: unlocked ? "Let's swim" : "OK") { unlocked ? onClose() : (stage = .offer) }
-                        .padding(.top, 8)
-                }
-                .padding(.horizontal, 40)
             }
         }
         .foregroundStyle(.white)
@@ -56,45 +58,47 @@ struct UnlockView: View {
         .task { await purchases.loadProduct() }
     }
 
-    private var offer: some View {
-        GeometryReader { geometry in
-            let worlds = ArcadeUnlock.worldsItOpens
-            let gap: CGFloat = 14
-            let cardWidth = min(232, (geometry.size.width - 48 - gap * CGFloat(max(worlds.count - 1, 0))) / CGFloat(max(worlds.count, 1)))
-            VStack(spacing: 0) {
-                VStack(spacing: 2) {
-                    Text(conquered.map { "\($0.title) conquered!" } ?? "Unlock every world")
-                        .font(.custom("AvenirNext-Heavy", size: 27))
-                    Text(conquered == nil ? "Swim anywhere you like, whenever you like."
-                                          : "Ready for bigger water? Unlock every world.")
-                        .font(.custom("AvenirNext-DemiBold", size: 14)).opacity(0.85)
-                }
-                .multilineTextAlignment(.center)
-                Spacer(minLength: 8)
-                HStack(alignment: .top, spacing: gap) {
-                    ForEach(worlds) { world in
-                        WorldClipCard(world: world, width: cardWidth, featured: world == featured)
-                    }
-                }
-                Spacer(minLength: 8)
-                HStack(spacing: 8) {
-                    DeepEndBadge(size: 30)
-                    Text("Plus The Deep End in every world: \(ArcadeUnlock.deepEndLevels) extra-hard levels.")
-                        .font(.custom("AvenirNext-DemiBold", size: 13))
-                }
-                Spacer(minLength: 8)
-                GoldButton(title: purchases.displayPrice.map { "Unlock all for \($0)" } ?? "Unlock all", action: buy)
-                HStack(spacing: 22) {
-                    Text("One-time purchase. No ads.").opacity(0.6)
-                    Button("Restore purchase", action: restore).buttonStyle(.plain).opacity(0.85)
-                    Button(conquered == nil ? "Not now" : "Maybe later", action: onClose).buttonStyle(.plain).opacity(0.85)
-                }
-                .font(.custom("AvenirNext-DemiBold", size: 13))
-                .padding(.top, 8)
+    /// Spread over the screen's height. On a screen taller than a phone's (an iPad), the clips grow a little and it
+    /// sits in the middle, no more spread out than that.
+    private func offer(in size: CGSize) -> some View {
+        let worlds = ArcadeUnlock.worldsItOpens
+        let gap: CGFloat = 14
+        let taller = ScreenFit.tallness(of: size)
+        let cardWidth = min(232 * taller, (size.width - 48 - gap * CGFloat(max(worlds.count - 1, 0))) / CGFloat(max(worlds.count, 1)))
+        let margin: CGFloat = 12
+        return VStack(spacing: 0) {
+            VStack(spacing: 2) {
+                Text(conquered.map { "\($0.title) conquered!" } ?? "Unlock every world")
+                    .font(.custom("AvenirNext-Heavy", size: 27))
+                Text(conquered == nil ? "Swim anywhere you like, whenever you like."
+                                      : "Ready for bigger water? Unlock every world.")
+                    .font(.custom("AvenirNext-DemiBold", size: 14)).opacity(0.85)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
+            .multilineTextAlignment(.center)
+            Spacer(minLength: 8)
+            HStack(alignment: .top, spacing: gap) {
+                ForEach(worlds) { world in
+                    WorldClipCard(world: world, width: cardWidth, featured: world == featured)
+                }
+            }
+            Spacer(minLength: 8)
+            HStack(spacing: 8) {
+                DeepEndBadge(size: 30)
+                Text("Plus The Deep End in every world: \(ArcadeUnlock.deepEndLevels) extra-hard levels.")
+                    .font(.custom("AvenirNext-DemiBold", size: 13))
+            }
+            Spacer(minLength: 8)
+            GoldButton(title: purchases.displayPrice.map { "Unlock all for \($0)" } ?? "Unlock all", action: buy)
+            HStack(spacing: 22) {
+                Text("One-time purchase. No ads.").opacity(0.6)
+                Button("Restore purchase", action: restore).buttonStyle(.plain).opacity(0.85)
+                Button(conquered == nil ? "Not now" : "Maybe later", action: onClose).buttonStyle(.plain).opacity(0.85)
+            }
+            .font(.custom("AvenirNext-DemiBold", size: 13))
+            .padding(.top, 8)
         }
-        .padding(.vertical, 12)
+        .frame(width: size.width, height: min(size.height, ScreenFit.largestPhone.height * taller) - margin * 2)
+        .frame(width: size.width, height: size.height)
     }
 
     private static let unlockedMessage = Stage.message("Every world is open!",

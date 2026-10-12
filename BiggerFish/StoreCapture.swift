@@ -358,20 +358,25 @@ enum StoreCapture {
     /// Saves the whole window as drawn, at the screen's full resolution and with no alpha (App Store Connect rejects
     /// PNGs with an alpha channel).
     @MainActor private static func save(_ moment: Moment, note: String) {
-        guard let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
-                .flatMap(\.windows).first(where: \.isKeyWindow) else { fail(moment, "no window"); return }
-        let format = UIGraphicsImageRendererFormat(for: window.traitCollection)
-        format.opaque = true
-        let image = UIGraphicsImageRenderer(bounds: window.bounds, format: format).image { _ in
-            _ = window.drawHierarchy(in: window.bounds, afterScreenUpdates: false)
-        }
-        guard let data = image.pngData() else { fail(moment, "couldn't encode the frame"); return }
+        guard let data = windowPNG() else { fail(moment, "no window, or couldn't encode the frame"); return }
         do {
             try data.write(to: framesDirectory.appendingPathComponent("\(moment.rawValue).png"), options: .atomic)
             print("[StoreCapture] \(moment.rawValue): \(note)")
         } catch {
             fail(moment, "couldn't save the frame: \(error.localizedDescription)")
         }
+    }
+
+    /// The whole window as drawn, at the screen's full resolution and with no alpha, as a PNG.
+    @MainActor static func windowPNG() -> Data? {
+        guard let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+                .flatMap(\.windows).first(where: \.isKeyWindow) else { return nil }
+        let format = UIGraphicsImageRendererFormat(for: window.traitCollection)
+        format.opaque = true
+        let image = UIGraphicsImageRenderer(bounds: window.bounds, format: format).image { _ in
+            _ = window.drawHierarchy(in: window.bounds, afterScreenUpdates: false)
+        }
+        return image.pngData()
     }
 
     /// Tells the script the moment couldn't be captured, and why.

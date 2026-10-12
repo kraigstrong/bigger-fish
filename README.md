@@ -2,7 +2,7 @@
 
 There's always a bigger fish.
 
-Arcade game: a one-touch iPhone game (landscape, SwiftUI + SpriteKit, iOS 17+).
+Arcade game: a one-touch game for iPhone and iPad (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
 A new player starts with the tutorial (`ArcadeTutorial.swift`), which teaches the rules by playing them. The world
@@ -20,7 +20,7 @@ from the start and every Deep End (`ArcadeUnlock.swift`). No endless mode, pearl
 
 ## Running
 
-Open `BiggerFish.xcodeproj` in Xcode, pick your iPhone or a simulator, and Run.
+Open `BiggerFish.xcodeproj` in Xcode, pick your iPhone, iPad, or a simulator, and Run.
 Signing uses automatic signing with team `MKACSCQ588`. The Bigger Fish target has the iCloud key-value storage
 capability (`BiggerFish/BiggerFish.entitlements`), which automatic signing adds to the App ID.
 
@@ -30,12 +30,30 @@ Unit tests (wrapping, size rules, growth, win detection):
 xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
+**Draw order.** Every SpriteView draws with `ignoresSiblingOrder`, so nodes at the same global depth come out in any
+order on a phone, though the simulator keeps the order they were added. Anything drawn over something else needs its own
+zPosition. `DrawOrderTests` walks every scene at the moments that matter (cards, play, pause, the result, the tutorial,
+the credits, the maps) with `DrawOrderAudit`, which reports overlapping nodes that share a depth. To check that a change
+of depths keeps the look, render the key moments before and after and compare:
+
+```bash
+TEST_RUNNER_DRAW_ORDER_RENDERS=before xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' '-only-testing:BiggerFishTests/DrawOrderTests/manualRenderDrawOrderMoments()'
+# change the depths, render again as `after`, then:
+diff -rq build/draw-order/before build/draw-order/after
+```
+
 ## Layout
 
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
   - `ArcadeMaps.swift` — world selection and the level paths (one stop per level)
+  - `ScreenFit.swift` — the iPad: every level plays at the same fixed playfield (`GameTuning.playfieldSize`),
+    fitted to the screen's width with its world's water in a band above and below (a touch in a band still
+    steers), and the menus are laid out as on the biggest iPhone and scaled up to fill the screen (`ScreenScaled`).
+    Every iPhone draws exactly as before. On an iPad the app takes the whole screen in landscape
+    (`UIRequiresFullScreen`), so it doesn't join Split View or resize in Stage Manager
   - `SettingsView.swift` — Settings from the world map's gear: sound, music, vibration, replaying the tutorial,
     restoring the unlock, the privacy policy and support (biggerfish.app), the credits, and the version
   - `CreditsScene.swift` / `ArcadeCredits.swift` / `Credits.json` — the credits, played: from Settings, a calm swim
@@ -140,10 +158,13 @@ progress of its own, silently, leaving real progress, purchases, and analytics a
 ```bash
 scripts/bigger-fish-store-capture.sh                 # every moment, about a minute
 scripts/bigger-fish-store-capture.sh dodge missed    # just these
+scripts/bigger-fish-store-capture.sh --ipad          # every moment on the iPad Pro 13-inch (M5) simulator
 ```
 
 Output goes to `build/store-capture/bigger-fish/` (ignored by git): `screenshots/NN-<moment>.png` at
 2868×1320 (6.9", no alpha) in the listing's order, and `screenshots-6.5/` scaled and trimmed to 2778×1284.
+With `--ipad`, `screenshots-ipad-13/NN-<moment>.png` at 2752×2064, App Store Connect's 13-inch iPad size,
+bands of water above and below the playfield included, as an iPad shows them.
 The moments: `eat` (Shallow Reef 5), `dodge` (Shallow Reef 9), `missed` (Shallow Reef 10: a fish that kept
 eating), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp Forest 8), `midnight-light` (Midnight Zone 5),
 `conquered` (Shallow Reef's map, conquered), and `deep-end` (the screen that opens its Deep End). The levels
@@ -173,6 +194,14 @@ plus one-based level). This bypasses the level lock and uses a separate `biggerF
 syncs to iCloud.
 Add `-arcadeResult passed` or `-arcadeResult failed` to preview its result panel without recording a
 clear. Remove the arguments to return to the normal world map and real campaign progress.
+
+To check a screen's layout at a device's size (an iPad, a small phone), `-arcadeScreen <screen>` opens it at launch:
+`worlds`, `settings`, `unlock`, `conquered`, `credits`, `tutorial`, or `pause` (with `-arcadePlaytest` for the
+level to pause). It plays in a staged save of its own (`biggerFish.screen`: Shallow Reef conquered, the tutorial
+seen), which never syncs to iCloud. Add `-arcadeMap <world ID>` for a level map, `-arcadeUnlocked YES` or `NO` for
+either side of the unlock, or `-arcadePlaytest` with `-arcadeResult` for a result card. `-arcadeScreenCapture <name>`
+saves the screen once it settles, at full resolution, to the app's `Documents/ScreenCheck/<name>.png`: an iPad
+simulator held upright shows the landscape-only game shrunk to fit, in its own screenshots too.
 
 ## Debug playtest recordings
 

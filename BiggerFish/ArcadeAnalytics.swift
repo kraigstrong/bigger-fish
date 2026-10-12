@@ -47,7 +47,8 @@ final class ArcadeAnalytics {
     }
     static var defaultEnabled: Bool {
         #if DEBUG
-        if ArcadePlaytest.selection != nil || ArcadePlaytest.planner != nil || StoreCapture.moment != nil { return false }
+        if ArcadePlaytest.selection != nil || ArcadePlaytest.planner != nil || ArcadePlaytest.screen != nil
+            || StoreCapture.moment != nil { return false }
         #endif
         return isEnabled && !isRunningTests
     }

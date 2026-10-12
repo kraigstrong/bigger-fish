@@ -10,10 +10,13 @@ import UIKit
 
 /// The pause menu's backdrop: Settings' deep-blue gradient over the whole screen, the paused game faintly showing.
 enum MenuBackdrop {
+    /// How much of the paused game shows through: a little.
+    static let opacity: CGFloat = 0.93
+
     static func node(size: CGSize) -> SKSpriteNode {
         let node = SKSpriteNode(texture: texture, size: size)
         node.anchorPoint = .zero
-        node.alpha = 0.93
+        node.alpha = opacity
         // Under everything on it, the controls' own backgrounds included.
         node.zPosition = -10
         return node

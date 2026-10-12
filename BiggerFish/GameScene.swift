@@ -142,6 +142,8 @@ final class GameScene: SKScene {
 
     var onClear: ((Int, Double) -> Void)?
     var onExit: (() -> Void)?
+    /// Pausing and resuming, so the screen around the playfield (on an iPad) can darken with the pause menu.
+    var onPause: ((Bool) -> Void)?
     /// The first-launch tutorial was played to the end (called at once, before the win plays out and it leaves).
     var onTutorialFinished: (() -> Void)?
     /// Set from `onClear` when this win conquers the world for the first time: instead of its result card, the
@@ -575,6 +577,7 @@ final class GameScene: SKScene {
         default: noteHitch(.phase, newPhase.name)
         }
         #endif
+        if (newPhase == .paused) != (phase == .paused) { onPause?(newPhase == .paused) }
         phase = newPhase
         #if DEBUG
         if view != nil { hitchLog?.updateScene(self, hitchContext) }
@@ -799,7 +802,9 @@ final class GameScene: SKScene {
         glow.strokeColor = SKColor(white: 1, alpha: 0.8)
         glow.fillColor = .clear
         glow.lineWidth = 3
-        glow.zPosition = 29
+        // Over your dorsal fin (30 less 1) and under your body (30). At the fin's own depth it could draw either way:
+        // the scene ignores sibling order.
+        glow.zPosition = 29.25
         glow.run(.repeatForever(.sequence([
             .group([.scale(to: 1.6, duration: 1.0), .fadeOut(withDuration: 1.0)]),
             .scale(to: 1, duration: 0),
@@ -1192,6 +1197,8 @@ final class GameScene: SKScene {
         halo.blendMode = .add
         halo.alpha = 0.55
         let core = SKSpriteNode(texture: lureTexture, color: .white, size: CGSize(width: T.lureCore * 2, height: T.lureCore * 2))
+        // The bright core over its halo: the scene ignores sibling order.
+        core.zPosition = 0.1
         light.addChild(halo)
         light.addChild(core)
         light.run(.sequence([.wait(forDuration: Double(phase.truncatingRemainder(dividingBy: 7)) * 0.13), .repeatForever(.sequence([
@@ -1582,6 +1589,8 @@ final class GameScene: SKScene {
         ring.strokeColor = SKColor(white: 1, alpha: 0.8)
         ring.fillColor = .clear
         ring.lineWidth = 2.5
+        // Over the fish's body (0), under its belly and the rest (0.5 and up), as it was drawn when added last.
+        ring.zPosition = 0.25
         ring.run(.repeatForever(.sequence([.group([.scale(to: 1.35, duration: 0.8), .fadeOut(withDuration: 0.8)]),
                                            .scale(to: 1, duration: 0), .fadeAlpha(to: 1, duration: 0)])))
         nodes[id]?.addChild(ring)
@@ -1684,6 +1693,8 @@ final class GameScene: SKScene {
         let panel = SKShapeNode(rectOf: CGSize(width: line.frame.width + 70, height: 84), cornerRadius: 24)
         panel.fillColor = SKColor(white: 0, alpha: 0.3)
         panel.strokeColor = .clear
+        // Under its line: the scene ignores sibling order.
+        panel.zPosition = -1
         messageNode.addChild(panel)
         messageNode.addChild(line)
         messageNode.position = CGPoint(x: size.width / 2, y: size.height * 0.6)
@@ -2337,6 +2348,8 @@ final class GameScene: SKScene {
         circle.fillColor = SKColor(white: 0, alpha: 0.25)
         circle.strokeColor = SKColor(white: 1, alpha: 0.5)
         circle.lineWidth = 1.5
+        // Under its bars: the scene ignores sibling order, and its dark fill drawn last would dim them.
+        circle.zPosition = -1
         pauseButton.addChild(circle)
         for x in [-5.0, 5.0] {
             let bar = SKShapeNode(rect: CGRect(x: x - 2.5, y: -8, width: 5, height: 16), cornerRadius: 1.5)
@@ -3111,6 +3124,9 @@ final class GameScene: SKScene {
     /// How many backdrops the pause menu has drawn (one, however often it's paused).
     var debugPauseBackdrops: Int { pauseMenu.children.filter { $0.name == "pauseBackdrop" }.count }
     var debugPauseMenu: SKNode { pauseMenu }
+    var debugPhase: Phase { phase }
+    /// The card on screen (before a level, after it, or the tutorial's last line); faded out while you play.
+    var debugMessage: SKNode { messageNode }
     var debugMealsEaten: Int { mealsEaten }
     var debugEdibleCount: Int {
         fish.filter { !$0.isPlayer && $0.isAlive && GameRules.playerEncounter(player.radius, $0.radius) == .firstEatsSecond }.count

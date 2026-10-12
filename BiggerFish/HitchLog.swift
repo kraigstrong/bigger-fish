@@ -68,6 +68,9 @@ struct HitchContext: Equatable {
     enum Screen: String {
         case launch, worldMap = "world_map", levelMap = "level_map", settings, unlock, conquered, tuning
         case level, tutorial, credits
+
+        /// Shown as a sheet over a scene, which stays up underneath.
+        var isSheet: Bool { self == .tuning }
     }
     var screen: Screen
     /// Which one: a level map's world (`kelp-forest`), a level (`kelp-forest.3`), the tutorial's beat.
@@ -130,6 +133,12 @@ final class HitchLog {
     private var updateStarted: CFTimeInterval?
     private var lastUpdateWork: CFTimeInterval?
     private var lastDisplayFrame: TimeInterval?
+    /// The last frame from either source. A scene's first frame, and the display link's first after a scene goes, time
+    /// from it: the handoff (building and presenting a scene, or leaving one) is often the slowest frame of all.
+    private var lastAnyFrame: TimeInterval?
+    /// A sheet over the scene (Tuning): the scene underneath stops speaking for the screen, and the display link times
+    /// frames until the sheet goes.
+    private var overlayUp = false
     /// When the main thread last woke to work, if it's working now, and its longest stretch since the last frame.
     private var busySince: CFTimeInterval?
     private var longestBusy: CFTimeInterval = 0
@@ -146,8 +155,11 @@ final class HitchLog {
         self.write = write
     }
 
-    /// Where a slow frame happened: the scene's own account while one is up, otherwise the SwiftUI screen.
-    var context: HitchContext { sceneOwner == nil ? screen : sceneContext }
+    /// Where a slow frame happened: the scene's own account while one is up, otherwise the SwiftUI screen (a sheet over
+    /// the scene included).
+    var context: HitchContext { sceneOwner == nil || overlayUp ? screen : sceneContext }
+    /// Whether the scene, rather than the display link, is timing frames.
+    private var sceneTiming: Bool { sceneOwner != nil && !overlayUp }
 
     // MARK: What happened
 
@@ -161,6 +173,14 @@ final class HitchLog {
         guard screen != self.screen else { return }
         self.screen = screen
         note(.screen, screen.screen.rawValue)
+        // A sheet over the scene speaks for the screen while it's up.
+        let overlay = sceneOwner != nil && screen.screen.isSheet
+        guard overlay != overlayUp else { return }
+        overlayUp = overlay
+        if overlay { lastDisplayFrame = lastAnyFrame } else { lastSceneFrame = lastAnyFrame }
+        updateStarted = nil
+        lastUpdateWork = nil
+        watchdog?.isPaused = sceneTiming
     }
 
     // MARK: Scenes
@@ -177,10 +197,12 @@ final class HitchLog {
         preferredFramesPerSecond = framesPerSecond
         screenMaximumFramesPerSecond = screenMaximum
         updateSceneInterval()
-        lastSceneFrame = nil
+        // Its first frame times from the last one shown, so building and presenting it is measured.
+        lastSceneFrame = lastAnyFrame
         updateStarted = nil
         lastUpdateWork = nil
-        watchdog?.isPaused = true
+        overlayUp = sceneOwner != nil && screen.screen.isSheet
+        watchdog?.isPaused = sceneTiming
         note(.scene, context.screen.rawValue)
     }
 
@@ -194,17 +216,20 @@ final class HitchLog {
     func leaveScene(_ owner: AnyObject) {
         guard owner === sceneOwner else { return }
         sceneOwner = nil
-        lastDisplayFrame = nil
+        overlayUp = false
+        // The display link's first frame times from the scene's last, so leaving it is measured.
+        lastDisplayFrame = lastAnyFrame
         watchdog?.isPaused = false
     }
 
     /// At the top of the scene's `update`, with its timestamp: times the frame since the last one.
     func frameBegan(_ owner: AnyObject, timestamp: TimeInterval) {
-        guard owner === sceneOwner else { return }
+        guard owner === sceneOwner, !overlayUp else { return }
         let time = now()
         let work = takeWork(at: time)
         defer {
             lastSceneFrame = timestamp
+            lastAnyFrame = timestamp
             updateStarted = time
         }
         guard let previous = lastSceneFrame else { return }
@@ -214,7 +239,7 @@ final class HitchLog {
 
     /// At the end of the scene's `update`: its own work, for the next frame's account.
     func frameEnded(_ owner: AnyObject) {
-        guard owner === sceneOwner, let updateStarted else { return }
+        guard owner === sceneOwner, !overlayUp, let updateStarted else { return }
         lastUpdateWork = now() - updateStarted
     }
 
@@ -224,8 +249,12 @@ final class HitchLog {
     func displayFrame(timestamp: TimeInterval, interval: CFTimeInterval) {
         let time = now()
         let work = takeWork(at: time)
-        defer { lastDisplayFrame = timestamp }
-        guard sceneOwner == nil, let previous = lastDisplayFrame else { return }
+        guard !sceneTiming else { return }
+        defer {
+            lastDisplayFrame = timestamp
+            lastAnyFrame = timestamp
+        }
+        guard let previous = lastDisplayFrame else { return }
         check(elapsed: timestamp - previous, interval: interval, work: work, update: nil, source: "display", at: time)
     }
 
@@ -239,8 +268,10 @@ final class HitchLog {
     func resignActive() { active = false }
     func becomeActive() {
         active = true
+        // Time away isn't a slow frame.
         lastSceneFrame = nil
         lastDisplayFrame = nil
+        lastAnyFrame = nil
         busySince = nil
         longestBusy = 0
     }

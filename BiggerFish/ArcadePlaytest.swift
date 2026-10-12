@@ -61,7 +61,54 @@ enum ArcadePlaytest {
     static let suiteName = "biggerFish.playtest"
 
     static var defaults: UserDefaults {
-        StoreCapture.defaults ?? (selection == nil ? .standard : UserDefaults(suiteName: suiteName)!)
+        StoreCapture.defaults ?? screenDefaults ?? (selection == nil ? .standard : UserDefaults(suiteName: suiteName)!)
+    }
+
+    /// A screen to open at launch, to check its layout at a device's size (an iPad, a small phone):
+    /// -arcadeScreen worlds, settings, unlock, conquered, credits, tutorial, or pause (with -arcadePlaytest for the
+    /// level to pause). Add -arcadeMap <world ID> for a level map, -arcadeUnlocked YES or NO for either side of the
+    /// unlock ("conquered" shows the unlock's offer without it), or -arcadePlaytest with -arcadeResult for a result card.
+    enum Screen: String { case worlds, settings, unlock, conquered, credits, tutorial, pause }
+
+    static let screen: Screen? = argument("-arcadeScreen").flatMap(Screen.init(rawValue:))
+
+    /// With -arcadeScreenCapture <name> as well: the screen once it has settled, saved to
+    /// Documents/ScreenCheck/<name>.png at the screen's full resolution. (An iPad simulator held upright shows a
+    /// landscape-only app shrunk, and so do its screenshots.)
+    @MainActor static func captureScreen() {
+        guard screen != nil, let name = argument("-arcadeScreenCapture") else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(GameTuning.launchMinimumSeconds + 3.5))
+            let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("ScreenCheck", isDirectory: true)
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            guard let data = StoreCapture.windowPNG(),
+                  (try? data.write(to: directory.appendingPathComponent("\(name).png"), options: .atomic)) != nil else {
+                print("[ScreenCheck] \(name) failed")
+                return
+            }
+            print("[ScreenCheck] \(name) saved")
+        }
+    }
+
+    private static func argument(_ flag: String) -> String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: flag), args.indices.contains(index + 1) else { return nil }
+        return args[index + 1]
+    }
+
+    /// A screen check's own saved state, wiped and staged at launch as the App Store captures stage theirs: Shallow
+    /// Reef conquered with a best time on each level, the tutorial and every "conquered" screen seen. Never backed up
+    /// to iCloud (`ArcadeProgress.backup`).
+    static let screenSuiteName = "biggerFish.screen"
+
+    private static let screenDefaults: UserDefaults? = screen.map { _ in
+        let defaults = UserDefaults(suiteName: screenSuiteName)!
+        defaults.removePersistentDomain(forName: screenSuiteName)
+        if let data = try? JSONEncoder().encode(StoreCapture.stagedSave(for: .conquered)) {
+            defaults.set(data, forKey: ArcadeProgress.key)
+        }
+        return defaults
     }
 }
 #endif

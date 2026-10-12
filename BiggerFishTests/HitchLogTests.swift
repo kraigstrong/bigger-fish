@@ -227,7 +227,8 @@ struct HitchLogTests {
         log.displayFrame(timestamp: 2, interval: Self.frame120)
         log.displayFrame(timestamp: 3, interval: Self.frame120)
         #expect(harness.written.count == 1)
-        log.frameBegan(owner, timestamp: 3)
+        // The scene's first frame comes on time after the last one shown (a slow handoff is a hitch of its own).
+        log.frameBegan(owner, timestamp: 1.1 + Self.frame120)
         log.resignActive()
         log.frameBegan(owner, timestamp: 9)
         log.becomeActive()
@@ -238,6 +239,44 @@ struct HitchLogTests {
         // A frame from a scene that isn't up (one leaving as another comes) isn't timed.
         log.frameBegan(NSObject(), timestamp: 30)
         #expect(harness.written.count == 2)
+    }
+
+    /// Building and presenting a scene, and leaving it, are timed: the first frame of each source times from the
+    /// other's last, so a slow handoff is a hitch rather than a gap between two clocks.
+    @Test func sceneHandoffsAreTimed() {
+        let harness = Harness(), log = harness.log
+        log.show(HitchContext(.levelMap))
+        log.displayFrame(timestamp: 1, interval: Self.frame120)
+        let owner = NSObject()
+        log.enterScene(owner, HitchContext(.level, phase: "ready"), framesPerSecond: 120, screenMaximum: 120)
+        log.frameBegan(owner, timestamp: 1.3)
+        #expect(harness.written.count == 1)
+        #expect(harness.written.last?["screen"] as? String == "level" && harness.written.last?["source"] as? String == "scene")
+        log.frameBegan(owner, timestamp: 1.3 + Self.frame120)
+        log.leaveScene(owner)
+        log.displayFrame(timestamp: 1.5, interval: Self.frame120)
+        #expect(harness.written.count == 2 && harness.written.last?["source"] as? String == "display")
+    }
+
+    /// The Tuning sheet over a level speaks for the screen while it's up: the display link times its frames, and the
+    /// level underneath doesn't. When it goes, the level times its frames again, from the sheet's last.
+    @Test func aSheetOverASceneTakesOverTheTiming() {
+        let harness = Harness(), log = harness.log
+        let owner = NSObject()
+        log.show(HitchContext(.level))
+        log.enterScene(owner, HitchContext(.level, phase: "paused"), framesPerSecond: 120, screenMaximum: 120)
+        log.frameBegan(owner, timestamp: 1)
+        log.show(HitchContext(.tuning))
+        #expect(log.context.screen == .tuning)
+        log.frameBegan(owner, timestamp: 5)
+        #expect(harness.written.isEmpty)
+        log.displayFrame(timestamp: 1 + Self.frame120, interval: Self.frame120)
+        log.displayFrame(timestamp: 1.2, interval: Self.frame120)
+        #expect(harness.written.count == 1 && harness.written.last?["screen"] as? String == "tuning")
+        log.show(HitchContext(.level))
+        #expect(log.context.screen == .level && log.context.phase == "paused")
+        log.frameBegan(owner, timestamp: 1.2 + Self.frame120)
+        #expect(harness.written.count == 1)
     }
 
     /// A long run of slow frames writes at most `hitchesPerSecond` a second; the next one counts the rest.
