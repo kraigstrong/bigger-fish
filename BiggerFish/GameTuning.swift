@@ -751,26 +751,53 @@ enum GameTuning {
 
     // MARK: Sunset Cove (prototype, Xcode builds only)
 
-    /// Sunset Cove's three trials, easy, medium, and hard: Shallow Reef's levels 2, 5, and 9 (Easy, Reef Lab 5, and Reef
-    /// Lab 9, borrowed by index as Kelp Forest and Midnight Zone borrow them), planned like Midnight Zone's (fish appear
-    /// just off screen right before you meet them), with baited hooks hung from boats around the meetings. Planned in
-    /// code at launch while they're being played; not frozen.
-    static let sunsetSources = [1, 4, 8]
-    static let sunsetSpecs: [MeetingSpec] = sunsetSources.enumerated().map { index, source in
-        var spec = reefLabSpecs[source]
+    /// Sunset Cove's fifteen levels, ten and the Deep End: Shallow Reef's, borrowed by index as Kelp Forest borrows them,
+    /// planned like Midnight Zone's (fish appear just off screen right before you meet them), with baited hooks hung
+    /// from boats around the meetings (`sunsetHooks`). Planned in code at launch while they're being played; not frozen.
+    static let sunsetSpecs: [MeetingSpec] = (0..<15).map { index in
+        var spec = reefLabSpecs[index]
         spec.name = "Sunset Cove \(index + 1)"
         spec.hooks = sunsetHooks[index]
         return spec
     }
-    /// Each trial's hooks. Easy: three still hooks well off your way, the bait plain to see, to learn not to eat it.
-    /// Medium: five, three reeled slowly up and down, three hung as near the meal lanes as is fair, so you time them or
-    /// pick a lane. Hard: seven, bobbing and trolling, two baited beside real meals their size, and near the end a gate
-    /// of two hooks, one above your way and one below. `clearance` is the water (screen points) every hook keeps from
-    /// your way from meal to meal.
+    /// The three trials (Shallow Reef's 2, 5, and 9) were planned as Sunset Cove 1, 2, and 3, and Kraig's daughters loved
+    /// them; levels 2, 5, and 9 keep those layouts, fish and hooks both.
+    static let sunsetSeedNames: [String: String] = ["Sunset Cove 2": "Sunset Cove 1", "Sunset Cove 5": "Sunset Cove 2",
+                                                    "Sunset Cove 9": "Sunset Cove 3"]
+    /// Each level's hooks. Levels 2, 5, and 9 are the trials, as played; each level between brings in one new thing,
+    /// and the Deep End hangs more hooks nearer your way with the bait closer to your size. `nearLanes` hooks hang as
+    /// near the meal lanes as is fair, so you time them or pick a lane; `besideMeals` bait hangs beside a real meal its
+    /// size, where a meal has a fair spot beside it (the Deep End hangs one to three); the gate is two hooks near the
+    /// end, one above your way and one below. `clearance` is the water (screen
+    /// points) every hook keeps from your way from meal to meal.
     static let sunsetHooks: [HookSpec] = [
+        // 1: two still hooks well off your way, the bait plain to see: learn not to eat it.
+        HookSpec(still: 2, baitSize: 0.5, clearance: 70),
+        // 2, the easy trial: three.
         HookSpec(still: 3, baitSize: 0.55, clearance: 60),
+        // 3: one reeled slowly up and down.
+        HookSpec(still: 2, bobbing: 1, baitSize: 0.58, clearance: 50),
+        // 4: hooks near the meal lanes.
+        HookSpec(still: 2, bobbing: 2, nearLanes: 2, baitSize: 0.6, clearance: 40),
+        // 5, the medium trial.
         HookSpec(still: 2, bobbing: 3, nearLanes: 3, baitSize: 0.62, clearance: 30),
+        // 6: a boat trolling its hook toward you.
+        HookSpec(still: 2, bobbing: 1, trolling: 1, nearLanes: 2, baitSize: 0.64, clearance: 32),
+        // 7: bait beside a real meal.
+        HookSpec(still: 1, bobbing: 2, trolling: 1, besideMeals: 1, nearLanes: 3, baitSize: 0.66, clearance: 28),
+        // 8: the gate.
+        HookSpec(still: 2, bobbing: 2, gate: true, nearLanes: 3, baitSize: 0.66, clearance: 28),
+        // 9, the hard trial: all of it.
         HookSpec(still: 1, bobbing: 2, trolling: 2, gate: true, besideMeals: 2, nearLanes: 3, baitSize: 0.7, clearance: 24),
+        // 10: all of it, a little more.
+        HookSpec(still: 2, bobbing: 2, trolling: 2, gate: true, besideMeals: 2, nearLanes: 4, baitSize: 0.72, clearance: 22),
+        // The Deep End.
+        HookSpec(still: 2, bobbing: 3, trolling: 2, gate: true, besideMeals: 2, nearLanes: 4, baitSize: 0.72, clearance: 22),
+        HookSpec(still: 1, bobbing: 3, trolling: 3, gate: true, besideMeals: 3, nearLanes: 4, baitSize: 0.74, clearance: 20),
+        HookSpec(still: 2, bobbing: 2, trolling: 3, gate: true, besideMeals: 3, nearLanes: 5, baitSize: 0.74, clearance: 20),
+        // 14 and 15 are short (about ten seconds), so fewer hooks fit: tighter and bigger instead.
+        HookSpec(still: 2, bobbing: 2, trolling: 2, gate: true, besideMeals: 3, nearLanes: 5, baitSize: 0.76, clearance: 18),
+        HookSpec(still: 1, bobbing: 2, trolling: 3, gate: true, besideMeals: 3, nearLanes: 5, baitSize: 0.78, clearance: 18),
     ]
     /// Levels re-rolled to another layout of the same settings, fish and hooks both (`MeetingPlanner.kelpPlan`'s
     /// variation): one line to try another.
@@ -785,10 +812,10 @@ enum GameTuning {
     /// A Sunset Cove level planned in code: its re-roll if it has one, otherwise the first layout with every hook hung,
     /// no other planner issues, and no wall of giants.
     static func sunsetPlan(_ index: Int) -> MeetingPlan {
-        let spec = sunsetSpecs[index]
-        if let variation = sunsetRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation) }
-        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
-            ?? MeetingPlanner.kelpPlan(spec)
+        let spec = sunsetSpecs[index], seedName = sunsetSeedNames[spec.name]
+        if let variation = sunsetRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation, seedName: seedName) }
+        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
+            .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
     }
     #else
     /// A prototype isn't part of the shipped game.

@@ -14,7 +14,8 @@ struct HookSpec: Codable, Equatable {
     var trolling = 0
     /// Two still hooks near the end of the lap, one above your way and one below, narrowing the gap between them.
     var gate = false
-    /// Hooks hung beside a real meal, with bait that meal's size (still or bobbing hooks first).
+    /// Hooks hung beside a real meal, with bait that meal's size (still or bobbing hooks first). One that finds no meal
+    /// with a fair spot beside it hangs near a lane instead.
     var besideMeals = 0
     /// Hooks hung as near your way as the clearance allows, so you pick a lane; the rest hang well clear of it.
     var nearLanes = 0
