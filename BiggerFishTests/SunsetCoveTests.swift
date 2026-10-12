@@ -102,7 +102,9 @@ struct SunsetCoveTests {
                                              crossSeconds: CGFloat(plan.spec.crossSeconds),
                                              until: GameTuning.playfieldSize.width * CGFloat(plan.spec.worldScreens) * 1.05))
             #expect(route.meals.count == plan.fish.filter(\.referenceMeal).count)
-            for hook in plan.hooks ?? [] {
+            // A hook retimed by hand is out of the way you can really swim, which isn't the reference route there.
+            let retimed = GameTuning.sunsetHooksSweptHigh[plan.spec.name] ?? []
+            for (number, hook) in (plan.hooks ?? []).enumerated().map({ ($0.offset + 1, $0.element) }) where !retimed.contains(number) {
                 let name = "\(plan.spec.name) \(hook.motion.rawValue) hook at \(String(format: "%.2f", hook.passTime)) s"
                 #expect(HookLayout.fits(hook, zoom: route.zoom(hook.passTime)), "\(name) doesn't fit the water")
                 for meal in route.meals {
@@ -121,6 +123,22 @@ struct SunsetCoveTests {
                 }
                 #expect(hook.passTime - time >= 1.5, "\(name) shows only \(hook.passTime - time) s ahead")
                 #expect(HookMotion.rodX(hook, time: time) <= HookMotion.position(hook, time: time).x)
+            }
+        }
+    }
+
+    /// A hook retimed by hand (`sunsetHooksSweptHigh`) is a trolling hook at the top of its sweep as you pass it, its
+    /// boat and sweep as planned. In Sunset Cove 15 that leaves the floor open under the big fish that comes at you
+    /// beneath the giant.
+    @Test func retimedHooksSweepHighAsYouPass() throws {
+        #expect(GameTuning.sunsetHooksSweptHigh["Sunset Cove 15"] == [4])
+        for (name, numbers) in GameTuning.sunsetHooksSweptHigh {
+            let index = try #require(GameTuning.sunsetSpecs.firstIndex { $0.name == name })
+            let planned = plans[index].hooks ?? []
+            for number in numbers {
+                let hook = try #require(planned.indices.contains(number - 1) ? planned[number - 1] : nil)
+                #expect(hook.motion == .troll, "\(name) hook \(number)")
+                #expect(abs(HookMotion.position(hook, time: hook.passTime).y - (hook.depth + hook.range)) < 0.01, "\(name) hook \(number)")
             }
         }
     }

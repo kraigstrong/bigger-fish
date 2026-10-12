@@ -341,6 +341,15 @@ enum HookLayout {
             && high + hook.baitRadius * HookMetal.eye <= water.top - (T.sunsetBoatDraft + T.sunsetSurfaceRoom) / zoom
     }
 
+    /// A trolling hook retimed to be at the top of its sweep as you pass it: the same boat, sweep, and bait
+    /// (`GameTuning.sunsetHooksSweptHigh`).
+    static func sweptHigh(_ hook: PlannedHook) -> PlannedHook {
+        guard hook.motion == .troll else { return hook }
+        return PlannedHook(motion: .troll, role: hook.role, x: hook.x, depth: hook.depth, range: hook.range, period: hook.period,
+                           phase: .pi / 2 - 2 * .pi * hook.passTime / hook.period, speed: hook.speed,
+                           baitRadius: hook.baitRadius, passTime: hook.passTime, styleSeed: hook.styleSeed)
+    }
+
     /// The level's hooks, hung around its planned meetings, and any it couldn't fit.
     static func place(_ spec: HookSpec, fish: [PlannedFish], crossings: [EncounterCrossing],
                       timeline: PlayerTimeline, seed: UInt64) -> (hooks: [PlannedHook], issues: [String]) {
