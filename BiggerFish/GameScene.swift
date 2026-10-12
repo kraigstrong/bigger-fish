@@ -2005,6 +2005,14 @@ final class GameScene: SKScene {
         return CGPoint(x: world.wrap(at.x), y: at.y + (shallow - at.y) * lift * lift * (3 - 2 * lift))
     }
 
+    /// Whether a hook is where you'll meet it: passed already, or less than half a lap ahead along your route. One
+    /// planned near the end of the lap is, round the loop, just behind where you start, and drawn there it hung behind
+    /// you at the start of Sunset Cove 7, out of reach (Kraig: "There's a fish behind me at the beginning of level 7").
+    /// Until it's coming up it isn't drawn, and it can't catch you.
+    private func isComingUp(_ rig: HookRig, time: CGFloat) -> Bool {
+        rig.passedAt != nil || HookMotion.position(rig.hook, time: time).x - forwardDistance < world.width / 2
+    }
+
     /// Notes each hook as you leave it behind: once all of it, boat, line, and bait, is off the left of the screen. By
     /// how far you've really come, not when the planned route passes it, so a player behind the plan (smaller, so
     /// slower across the lap) never sees a hook reel up before they've passed it.
@@ -2024,7 +2032,7 @@ final class GameScene: SKScene {
         #if DEBUG
         if simulationEcologyProbe { return }
         #endif
-        for (index, rig) in hookRigs.enumerated() {
+        for (index, rig) in hookRigs.enumerated() where isComingUp(rig, time: simClock) {
             let at = hookPosition(rig, time: simClock)
             if HookRules.catches(player.position, radius: player.radius, hook: at, bait: rig.hook.baitRadius, world: world) {
                 catchOnHook(index, at: at)
@@ -2078,7 +2086,7 @@ final class GameScene: SKScene {
             // The boat runs ahead of its rod, to the left, and a caught fish swings out round its hook.
             let left = min(at.x, rodX - (T.sunsetBoatLength + 40) * zoom) - 3 * max(bait, player.radius * zoom)
             let right = max(at.x, rodX) + 3 * max(bait, player.radius * zoom)
-            let hidden = right < 0 || left > size.width
+            let hidden = right < 0 || left > size.width || !isComingUp(rig, time: hookTime)
             for node in [rig.line, rig.metal] as [SKNode] { node.isHidden = hidden }
             rig.boat.isHidden = hidden || rig.sharesBoat
             rig.bait.isHidden = hidden || reel?.rig == index
@@ -3961,6 +3969,8 @@ extension GameScene {
     func debugHookPosition(_ index: Int) -> CGPoint { hookPosition(hookRigs[index], time: simClock) }
     /// When hook `index` went off the left of the screen behind you, if it has.
     func debugHookPassedAt(_ index: Int) -> CGFloat? { hookRigs[index].passedAt }
+    /// Whether a hook's bait is drawn this frame.
+    func debugHookShows(_ index: Int) -> Bool { !hookRigs[index].bait.isHidden }
     /// How far up the water hook `index`'s bait hangs now, as on screen: 0 the bottom, 1 the top.
     func debugHookDepthShare(_ index: Int) -> CGFloat { waterShare(debugHookPosition(index).y) }
     /// How wide each hook line on show was drawn across the screen (points).
