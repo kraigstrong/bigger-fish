@@ -206,11 +206,14 @@ enum StoreCapture {
                     - Double(view.playerOffCenter) * 30 - edges
             }.max()
         case .missed:
-            // A fish ahead of you that kept eating, mid-bite and as big as you or bigger.
+            // A fish ahead of you that kept eating, as big as you or bigger, its mouth open on a meal that's all but gone.
+            // Earlier in the swallow the meal is drawn over its face, which looks wrong held still (Kraig: "a fish
+            // overlapping and it's weird").
             guard player.prey == nil else { return nil }
             return shown.compactMap { fish -> Double? in
                 guard let preyID = fish.prey, let prey = view.fish.first(where: { $0.id == preyID }),
-                      (0.5...0.9).contains(prey.shrink), fish.radius >= player.radius,
+                      prey.shrink <= 0.3,
+                      fish.radius >= player.radius,
                       fish.center.x > player.center.x + player.radius * 2 else { return nil }
                 let centered = abs(fish.center.x - view.size.width * 0.55) / view.size.width
                 return 50 + Double(min(fish.radius / player.radius, 2.5)) * 10 - Double(centered) * 40

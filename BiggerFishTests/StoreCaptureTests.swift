@@ -94,15 +94,18 @@ struct StoreCaptureTests {
         #expect(score(Swimmer(id: 1, center: CGPoint(x: 300, y: 248), radius: 20)) == nil)
     }
 
-    @Test func aFishThatKeptEatingIsAheadMidBiteAndBigger() {
-        func score(at x: CGFloat) -> Double? {
+    @Test func aFishThatKeptEatingIsAheadAndBiggerItsMealAllButGone() {
+        func score(at x: CGFloat, shrink: CGFloat = 0.2) -> Double? {
             StoreCapture.score(.missed, StoreCapture.SceneView(player: player, fish: [
                 Swimmer(id: 1, center: CGPoint(x: x, y: 200), radius: 30, prey: 2),
-                Swimmer(id: 2, center: CGPoint(x: x + 40, y: 200), radius: 10, isEaten: true, shrink: 0.7),
+                Swimmer(id: 2, center: CGPoint(x: x + 30, y: 200), radius: 10, isEaten: true, shrink: shrink),
             ]))
         }
         #expect(score(at: 520) != nil)
         #expect(score(at: 100) == nil)
+        // Earlier in the swallow, the meal is drawn over the fish's face.
+        #expect(score(at: 520, shrink: 0.6) == nil)
+        #expect(score(at: 520, shrink: 0.9) == nil)
     }
 
     @Test func aJellyTopIsJustBouncedOff() {
