@@ -67,4 +67,17 @@ struct ScreenFitTests {
         #expect(scene.size == GameTuning.playfieldSize)
         withExtendedLifetime(scene) {}
     }
+
+    /// Recording or mirroring the screen drops the game to 60 frames a second, so neither it nor the recording stutters,
+    /// and stopping goes back to 120.
+    @MainActor @Test func recordingTheScreenDrawsAt60() {
+        let container = PlayfieldView.Container(frame: CGRect(x: 0, y: 0, width: 874, height: 402))
+        #expect(container.sceneView.preferredFramesPerSecond == 120)
+        container.traitOverrides.sceneCaptureState = .active
+        container.updateTraitsIfNeeded()
+        #expect(container.sceneView.preferredFramesPerSecond == 60)
+        container.traitOverrides.sceneCaptureState = .inactive
+        container.updateTraitsIfNeeded()
+        #expect(container.sceneView.preferredFramesPerSecond == 120)
+    }
 }

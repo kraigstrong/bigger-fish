@@ -151,7 +151,6 @@ struct PlayfieldView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> Container {
         let container = Container()
-        container.sceneView.preferredFramesPerSecond = 120
         container.sceneView.ignoresSiblingOrder = true
         container.sceneView.presentScene(scene)
         return container
@@ -168,6 +167,19 @@ struct PlayfieldView: UIViewRepresentable {
             super.init(frame: frame)
             backgroundColor = .clear
             addSubview(sceneView)
+            matchScreenCapture()
+            registerForTraitChanges([UITraitSceneCaptureState.self]) { (container: Container, _: UITraitCollection) in
+                container.matchScreenCapture()
+            }
+        }
+
+        /// The game draws at up to 120 frames a second, but at 60 while the screen is recorded or mirrored: the phone
+        /// can't draw at 120 and encode the video too, so both the game and the recording stuttered (Kraig's own
+        /// footage did, until he turned on Limit Frame Rate). Back to 120 when the recording stops.
+        static func framesPerSecond(capturing: Bool) -> Int { capturing ? 60 : 120 }
+
+        private func matchScreenCapture() {
+            sceneView.preferredFramesPerSecond = Self.framesPerSecond(capturing: traitCollection.sceneCaptureState == .active)
         }
 
         @available(*, unavailable)
