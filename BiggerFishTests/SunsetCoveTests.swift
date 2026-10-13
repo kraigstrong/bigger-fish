@@ -270,7 +270,7 @@ struct SunsetCoveTests {
         let bundled = try JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: url))
         #expect(bundled.map(\.spec) == GameTuning.sunsetSpecs, "SunsetPlans.json is out of date: regenerate it")
         #expect(GameTuning.sunsetFrozen.isSubset(of: GameTuning.sunsetSpecs.map(\.name)))
-        #expect(GameTuning.sunsetFrozen.isSuperset(of: [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15].map { "Sunset Cove \($0)" }))
+        #expect(GameTuning.sunsetFrozen == Set(GameTuning.sunsetSpecs.map(\.name)))
         for (index, plan) in plans.enumerated() where GameTuning.sunsetFrozen.contains(plan.spec.name) {
             #expect(plan.fish == bundled[index].fish && plan.hooks == bundled[index].hooks, "\(plan.spec.name)")
         }
