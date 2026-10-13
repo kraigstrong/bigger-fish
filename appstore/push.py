@@ -62,8 +62,10 @@ FIELDS = {
 REQUIRED = ["name", "subtitle", "description", "keywords", "support_url", "privacy_policy_url"]
 IAP_LIMITS = {"name": 30, "description": 45}
 # An app's first version has no What's New, so release_notes.txt is left out until there's a second.
-EDITABLE_STATES = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED",
+EDITABLE_STATES = {"PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED",
                    "WAITING_FOR_REVIEW", "INVALID_BINARY"}
+# A version in a draft submission (Ready for Review) keeps its text editable but not its images and videos.
+MEDIA_EDITABLE_STATES = EDITABLE_STATES - {"READY_FOR_REVIEW"}
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -97,6 +99,11 @@ def purchases(app: str, locale: str) -> dict[str, dict[str, str]]:
     return out
 
 
+def measure(name: str, value: str) -> int:
+    """A field's length as Apple limits it: keywords in UTF-8 bytes, everything else in characters."""
+    return len(value.encode()) if name == "keywords" else len(value)
+
+
 def problems(app: str, locale: str) -> list[str]:
     """Everything wrong with one locale's text, by Apple's limits and a few house rules."""
     found = []
@@ -106,16 +113,17 @@ def problems(app: str, locale: str) -> list[str]:
             found.append(f"{name}.txt is missing")
     for name, value in text.items():
         limit = FIELDS[name][2]
-        if len(value) > limit:
-            found.append(f"{name}: {len(value)} characters, over the limit of {limit}")
+        if measure(name, value) > limit:
+            unit = "bytes" if name == "keywords" else "characters"
+            found.append(f"{name}: {measure(name, value)} {unit}, over the limit of {limit}")
         if name.endswith("_url") and not value.startswith("https://"):
             found.append(f"{name}: not an https:// link")
     keywords = text.get("keywords", "")
     if ", " in keywords:
         found.append("keywords: a space after a comma wastes a character")
     # Words in the name and subtitle are already searched; repeating them in keywords wastes room.
-    named = set(re.findall(r"[a-z]+", (text.get("name", "") + " " + text.get("subtitle", "")).lower()))
-    repeats = [k for k in keywords.split(",") if k and set(re.findall(r"[a-z]+", k.lower())) <= named]
+    named = set(re.findall(r"\w+", (text.get("name", "") + " " + text.get("subtitle", "")).lower()))
+    repeats = [k for k in keywords.split(",") if (words := set(re.findall(r"\w+", k.lower()))) and words <= named]
     if repeats:
         found.append(f"keywords: already in the name or subtitle: {', '.join(repeats)}")
     for folder, fields in purchases(app, locale).items():
@@ -130,7 +138,7 @@ def validate(apps: list[str]) -> int:
     for app in apps:
         for locale in locales(app):
             found = problems(app, locale)
-            sizes = ", ".join(f"{name} {len(value)}/{FIELDS[name][2]}" for name, value in listing(app, locale).items())
+            sizes = ", ".join(f"{name} {measure(name, value)}/{FIELDS[name][2]}" for name, value in listing(app, locale).items())
             print(f"{app} {locale}: {'ok' if not found else 'NOT OK'} ({sizes})")
             for problem in found:
                 print(f"  - {problem}")
@@ -248,8 +256,11 @@ def push(app: str, only: set[str] | None, dry_run: bool) -> int:
     if not app_id:
         raise SystemExit(f"missing {APPS[app]['app_id_env']} (the app's numeric Apple ID) in the 1Password Environment")
     client = Client()
-    versions = [v for v in client.get(f"/v1/apps/{app_id}/appStoreVersions?limit=50")
-                if v["attributes"].get("appStoreState") in EDITABLE_STATES]
+    every = client.get(f"/v1/apps/{app_id}/appStoreVersions?limit=50")
+    versions = [v for v in every if v["attributes"].get("appStoreState") in EDITABLE_STATES]
+    if not versions and only == {"promotional_text"}:
+        # Promotional text can change on the live version, without a new one.
+        versions = [v for v in every if v["attributes"].get("appStoreState") == "READY_FOR_SALE"]
     if not versions:
         raise SystemExit("no editable version: create the next version in App Store Connect first")
     version = versions[0]
@@ -415,9 +426,10 @@ def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path]
             raise SystemExit(f"{group}: {len(files)} screenshots, over Apple's 10")
 
     versions = [v for v in client.get(f"/v1/apps/{app_id}/appStoreVersions?limit=50")
-                if v["attributes"].get("appStoreState") in EDITABLE_STATES]
+                if v["attributes"].get("appStoreState") in MEDIA_EDITABLE_STATES]
     if not versions:
-        raise SystemExit("no editable version: create the next version in App Store Connect first")
+        raise SystemExit("no version whose media can change: create the next version in App Store Connect, or take "
+                         "it out of its draft submission")
     version = versions[0]
     localization = next((l for l in client.get(f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations?limit=200")
                          if l["attributes"]["locale"] == locale), None)
