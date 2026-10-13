@@ -116,10 +116,19 @@ struct FrozenLevelTests {
         "Midnight Zone 14": "393f872ce83f9b0f",
         "Midnight Zone 15": "63f26e76171a3890",
         // Sunset Cove (fish and hooks both)
+        "Sunset Cove 1": "4adf8b77160dd757",
+        "Sunset Cove 2": "335abc58ec71c83f",
+        "Sunset Cove 3": "9d03291b865d394c",
+        "Sunset Cove 4": "a0dca7d7c0c8d219",
+        "Sunset Cove 5": "70726a8f422b3b25",
+        "Sunset Cove 6": "3cf5446b8f88b209",
+        "Sunset Cove 8": "b245059c8e60003f",
+        "Sunset Cove 9": "a7e5a69cd663914d",
         "Sunset Cove 10": "daaab810f4775923",
         "Sunset Cove 11": "5032d7834f8e5a96",
         "Sunset Cove 12": "d22699c86515c0f0",
         "Sunset Cove 13": "6c6af9285f941cec",
         "Sunset Cove 14": "a69c5d5d57d56ded",
+        "Sunset Cove 15": "b409c04ae44c3011",
     ]
 }
