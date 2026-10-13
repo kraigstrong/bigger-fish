@@ -351,6 +351,7 @@ metadata or identifiers under an extension field.
 ## License
 
 The source code is under the [PolyForm Noncommercial License 1.0.0](LICENSE): free to read, learn from, and use
-for noncommercial purposes, but not in anything commercial. The names, icons, art, and videos are all rights
-reserved, and the sounds and music are third-party works under their own licenses (see each app's
+for noncommercial purposes, but not in anything commercial. (The license also permits any use by charities,
+schools, and public and government institutions; see its Noncommercial Organizations section.) The names, icons,
+art, and videos are all rights reserved, and the sounds and music are third-party works under their own licenses (see each app's
 `Sounds/CREDITS.md`).
