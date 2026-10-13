@@ -20,7 +20,7 @@ python3 appstore/push.py push --app bigger-fish --dry-run     # what would chang
 python3 appstore/push.py push --app bigger-fish                # push only what differs
 python3 appstore/push.py push --app bigger-fish --only promotional_text
 python3 appstore/push.py media --app bigger-fish --screenshots DIR DIR --header FILE --search FILE --dry-run
-python3 appstore/push.py media --app bigger-fish --preview VIDEO --poster 00:00:27:04 --dry-run
+python3 appstore/push.py media --app bigger-fish --preview VIDEO --poster 00:00:26:20 --dry-run
 ```
 
 `media` replaces the editable version's screenshots (each folder's PNGs in name order, one folder per device size)
