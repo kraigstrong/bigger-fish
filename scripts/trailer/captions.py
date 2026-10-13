@@ -19,8 +19,8 @@ GOLD = (255, 211, 77, 255)
 # The end card's last line on biggerfish.app. The App Store preview leaves it off: no dates there.
 RELEASE_LINE = 'Coming to iPhone and iPad November 3'
 
-BEATS = [('eat', 'EAT.'), ('grow', 'GROW.'), ('they-grow-too', 'THEY GROW TOO.'), ('win-the-food-race', 'WIN THE FOOD RACE.'),
-         ('turn-the-tables', 'TURN THE TABLES.'), ('five-worlds', 'FIVE WORLDS. 75 LEVELS.')]
+BEATS = [('eat', 'EAT.'), ('grow', 'GROW.'), ('win-the-food-race', 'WIN THE FOOD RACE.'), ('turn-the-tables', 'TURN THE TABLES.'),
+         ('five-worlds', 'FIVE WORLDS. 75 LEVELS.')]
 # Each world's name in its map color (`ArcadeWorld.mapColor`), its motto (`ArcadeWorld.subtitle`) under it.
 WORLDS = [
     ('jelly-bloom', 'Jelly Bloom', 'Bounce the tops. Dodge the tentacles.', (191, 133, 255)),

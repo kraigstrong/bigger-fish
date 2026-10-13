@@ -22,8 +22,7 @@
   "captions": [
     {"caption": "eat", "in": 0.1, "out": 2.45},
     {"caption": "grow", "in": 2.55, "out": 4.95},
-    {"caption": "they-grow-too", "in": 5.05, "out": 7.45, "only": "site"},
-    {"caption": "win-the-food-race", "in": 5.05, "out": 7.45, "only": "store"},
+    {"caption": "win-the-food-race", "in": 5.05, "out": 7.45},
     {"caption": "turn-the-tables", "in": 7.55, "out": 9.95},
     {"caption": "world-jelly-bloom", "in": 10.15, "out": 12.95},
     {"caption": "world-kelp-forest", "in": 13.05, "out": 15.95},
