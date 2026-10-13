@@ -347,3 +347,10 @@ Bump the content revision when seeds, rules, or tuning change so comparisons rem
 Additive optional fields require server-first allowlist updates; old schema-1 summaries remain
 valid. Incompatible meaning/shape changes require a new schema version. Never add unrestricted
 metadata or identifiers under an extension field.
+
+## License
+
+The source code is under the [PolyForm Noncommercial License 1.0.0](LICENSE): free to read, learn from, and use
+for noncommercial purposes, but not in anything commercial. The names, icons, art, and videos are all rights
+reserved, and the sounds and music are third-party works under their own licenses (see each app's
+`Sounds/CREDITS.md`).
