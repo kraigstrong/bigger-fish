@@ -20,6 +20,24 @@ struct SunsetCoveTests {
         return (scene, view)
     }
 
+    /// A hook planned near the end of the lap is, round the loop, just behind where you start. It isn't drawn there,
+    /// and can't catch you, until it's coming up along your route (Kraig, Sunset Cove 7: "There's a fish behind me at
+    /// the beginning of level 7").
+    @Test func aHookAtTheEndOfTheLapIsntBehindYouAtTheStart() throws {
+        let (scene, view) = level(6)
+        defer { withExtendedLifetime(view) {} }
+        scene.debugCaptureRestart()
+        scene.debugFrame(seconds: GameTuning.simulationStep)
+        let width = GameTuning.playfieldSize.width * CGFloat(GameTuning.sunsetSpecs[6].worldScreens)
+        let last = try #require(scene.debugHooks.indices.last)
+        // It's planned most of a lap ahead, so round the loop it's on screen behind you...
+        #expect(HookMotion.position(scene.debugHooks[last], time: 0).x > width / 2)
+        // ...but it isn't drawn, and passing the start doesn't count as passing it.
+        #expect(!scene.debugHookShows(last))
+        scene.debugAdvance(seconds: 2)
+        #expect(scene.debugHookPassedAt(last) == nil)
+    }
+
     /// World 4 of 1.0's five, between Kelp Forest and Midnight Zone, on every build's map: two free levels, the rest with
     /// the unlock, like Jelly Bloom, Kelp Forest, and Midnight Zone.
     @Test func sunsetCoveIsWorldFour() {
@@ -252,7 +270,7 @@ struct SunsetCoveTests {
         let bundled = try JSONDecoder().decode([MeetingPlan].self, from: Data(contentsOf: url))
         #expect(bundled.map(\.spec) == GameTuning.sunsetSpecs, "SunsetPlans.json is out of date: regenerate it")
         #expect(GameTuning.sunsetFrozen.isSubset(of: GameTuning.sunsetSpecs.map(\.name)))
-        #expect(GameTuning.sunsetFrozen.isSuperset(of: ["Sunset Cove 10", "Sunset Cove 11", "Sunset Cove 12", "Sunset Cove 13", "Sunset Cove 14"]))
+        #expect(GameTuning.sunsetFrozen.isSuperset(of: [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15].map { "Sunset Cove \($0)" }))
         for (index, plan) in plans.enumerated() where GameTuning.sunsetFrozen.contains(plan.spec.name) {
             #expect(plan.fish == bundled[index].fish && plan.hooks == bundled[index].hooks, "\(plan.spec.name)")
         }
