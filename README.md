@@ -199,6 +199,13 @@ slow camera move over the game's music (cut to its 120 BPM bars, the world monta
 level that isn't frozen can play differently after a change, so delete its recording to record it again. It needs
 ffmpeg and Python with Pillow and NumPy.
 
+The App Store cut differs from the site's in three places (shots and captions marked `"only": "store"`). Its third
+caption is "WIN THE FOOD RACE.", the description's opening line. Its "TURN THE TABLES." shot is a different bite. And
+it ends on Shallow Reef 11's eating run in slow motion, with "Bigger Fish / Eat fast. Stay alive." landing under it
+before the blur. That's for the poster frame, the one frame the App Store shows until the preview plays: it can only
+be a frame of the video, so the video has to hold the picture. The poster is 26.67 s in, mouth open with the next
+meal just ahead (mid-swallow read as two fish bumping): `appstore/push.py media --preview ... --poster 00:00:26:20`.
+
 ## Tuning
 
 Every feel constant — movement, growth, swallow timing, AI behavior, and the `aiFishCanEatEachOther`

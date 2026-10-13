@@ -6,10 +6,13 @@
 
 The EDL (edl.json) lists shots on a 60 fps timeline. Each is a stretch of a recording (scripts/bigger-fish-footage.sh,
 named <world>.<level>-<policy>-<from>-<to>) with a slow camera move: zoom, and the centre in fractions of the frame
-from the top left, eased from start to end. Captions (captions.py) show between two times, fading and popping in;
-"only" keeps one to the site's cut or the App Store's. Frames are moved and composed here, then encoded with the music.
+from the top left, eased from start to end. A shot can play slower ("speed": 0.5 is half speed). The end card softens
+and darkens its shot behind the wordmark, from "blur_at" seconds into it. Captions (captions.py) show between two
+times, fading and popping in. "only" keeps a caption or a shot to the site's cut or the App Store's; a cut's shots
+must add up to the same timeline. Frames are moved and composed here, then encoded with the music.
 """
 import json
+import math
 import os
 import subprocess
 import sys
@@ -55,6 +58,7 @@ def main():
     preview = float(sys.argv[sys.argv.index('--preview') + 1]) if '--preview' in sys.argv else None
     out_fps = int(sys.argv[sys.argv.index('--fps') + 1]) if '--fps' in sys.argv else FPS
     edl = json.load(open(edl_path))
+    edl['shots'] = [shot for shot in edl['shots'] if shot.get('only', variant) == variant]
     for shot in edl['shots']:
         shot['src'] = os.path.join(footage, shot['footage'] + '.mp4')
     total = edl['duration']
@@ -82,22 +86,28 @@ def main():
         n = round(shot['dur'] * FPS)
         z0, z1 = shot.get('zoom', [1, 1])
         c0, c1 = shot.get('center', [[0.5, 0.5], [0.5, 0.5]])
-        def padded():
-            # A short source holds its last frame rather than let the cuts drift off the beat.
-            last, got = None, 0
-            for image in frames_of(shot['src'], shot['in'], n):
-                last, got = image, got + 1
-                yield image
-            if got < n:
-                print(f"short shot {shot['src']} at {shot['in']}: {got} of {n} frames", file=sys.stderr)
-            for _ in range(n - got):
+        def timed():
+            # Source frames at the shot's speed. A short source holds its last frame rather than let the cuts drift
+            # off the beat.
+            speed = shot.get('speed', 1)
+            source = frames_of(shot['src'], shot['in'], math.floor((n - 1) * speed) + 1)
+            last, index, short = None, -1, False
+            for i in range(n):
+                while index < math.floor(i * speed) and not short:
+                    image = next(source, None)
+                    if image is None:
+                        short = True
+                        print(f"short shot {shot['src']} at {shot['in']}: {index + 1} source frames", file=sys.stderr)
+                    else:
+                        last, index = image, index + 1
                 yield last
-        for i, image in enumerate(padded()):
+            next(source, None)  # lets the decoder finish, and fail loudly if it didn't
+        for i, image in enumerate(timed()):
             u = ease(i / max(n - 1, 1))
             frame = framed(image, z0 + (z1 - z0) * u, c0[0] + (c1[0] - c0[0]) * u, c0[1] + (c1[1] - c0[1]) * u)
             if shot.get('end_card'):
-                # Softened and darkened behind the wordmark, coming on over the first half second.
-                k = min(1, i / (0.5 * FPS))
+                # Softened and darkened behind the wordmark, coming on over half a second from blur_at.
+                k = min(1, max(0, i - shot.get('blur_at', 0) * FPS) / (0.5 * FPS))
                 soft = frame.filter(ImageFilter.GaussianBlur(14 * k))
                 frame = Image.blend(frame, soft, k)
                 frame = Image.blend(frame, Image.new('RGB', (W, H), (6, 18, 44)), 0.45 * k)

@@ -19,8 +19,8 @@ GOLD = (255, 211, 77, 255)
 # The end card's last line on biggerfish.app. The App Store preview leaves it off: no dates there.
 RELEASE_LINE = 'Coming to iPhone and iPad November 3'
 
-BEATS = [('eat', 'EAT.'), ('grow', 'GROW.'), ('they-grow-too', 'THEY GROW TOO.'), ('turn-the-tables', 'TURN THE TABLES.'),
-         ('five-worlds', 'FIVE WORLDS. 75 LEVELS.')]
+BEATS = [('eat', 'EAT.'), ('grow', 'GROW.'), ('they-grow-too', 'THEY GROW TOO.'), ('win-the-food-race', 'WIN THE FOOD RACE.'),
+         ('turn-the-tables', 'TURN THE TABLES.'), ('five-worlds', 'FIVE WORLDS. 75 LEVELS.')]
 # Each world's name in its map color (`ArcadeWorld.mapColor`), its motto (`ArcadeWorld.subtitle`) under it.
 WORLDS = [
     ('jelly-bloom', 'Jelly Bloom', 'Bounce the tops. Dodge the tentacles.', (191, 133, 255)),
@@ -92,6 +92,17 @@ def end_card(release_line):
     return shadowed(layer, blur=18, opacity=150)
 
 
+def end_lockup():
+    """The App Store preview's end card: the wordmark and tagline low in the frame, under a bite sharp enough to be
+    the preview's poster frame (the still the App Store shows until it plays)."""
+    layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    rows = [('Bigger Fish', HEAVY, 150, WHITE), ('Eat fast. Stay alive.', DEMI, 52, WHITE)]
+    heights = [draw.textbbox((0, 0), t, font=font(f, s)) for t, f, s, _ in rows]
+    centred(draw, rows, H - 44 - sum(b[3] - b[1] for b in heights) - 30, 30)
+    return shadowed(layer, blur=18, opacity=150)
+
+
 def main():
     out = sys.argv[1]
     os.makedirs(out, exist_ok=True)
@@ -101,7 +112,7 @@ def main():
         caption([(title.upper(), HEAVY, 92, color + (255,)), (motto, DEMI, 42, WHITE)]).save(
             os.path.join(out, 'world-' + slug + '.png'))
     end_card(RELEASE_LINE).save(os.path.join(out, 'end-site.png'))
-    end_card(None).save(os.path.join(out, 'end-store.png'))
+    end_lockup().save(os.path.join(out, 'end-store.png'))
 
 
 main()
