@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import re
@@ -30,6 +31,7 @@ import struct
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -415,7 +417,8 @@ def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path]
     if dry_run:
         return 0
 
-    # Upload every distinct file once, and wait until each is processed.
+    # Upload every distinct file once, and wait until each is processed. Apple wants each image's reference name
+    # unique, so it ends with a hash of the contents; an image the library already has under that name is reused.
     library = client.call("GET", f"/v1/apps/{app_id}/assetLibrary")["data"]["id"]
     uploaded: dict[Path, str] = {}
     for (kind, group), files in plan.items():
@@ -424,10 +427,19 @@ def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path]
             if path in uploaded:
                 continue
             data = path.read_bytes()
+            digest = hashlib.sha256(data).hexdigest()[:8]
+            name = f"{app} {path.parent.name} {path.stem}"[:91] + f" {digest}"
+            found = [i for i in client.get(f"/v1/appAssetLibraries/{library}/images?filter[referenceName]="
+                                           f"{urllib.parse.quote(name)}&limit=5")
+                     if i["attributes"].get("state") != "FAILED"]
+            if found:
+                uploaded[path] = found[0]["id"]
+                print(f"  {path.name}: already in the library")
+                continue
             image = client.call("POST", "/v1/appAssetLibraryImages", {"data": {
                 "type": "appAssetLibraryImages",
                 "attributes": {"fileName": path.name, "fileSize": len(data), "category": category,
-                               "referenceName": f"{app} {path.parent.name} {path.stem}"[:100]},
+                               "referenceName": name},
                 "relationships": {"assetLibrary": {"data": {"type": "appAssetLibraries", "id": library}}}}})["data"]
             transfer(image["attributes"]["uploadOperations"], data)
             client.call("PATCH", f"/v1/appAssetLibraryImages/{image['id']}",

@@ -9,10 +9,11 @@ the middle, and the tagline in the open water below the fish, inside the 21:9 ba
 for one clear idea with the focal point centered, a short phrase at most, no price or URL, and no alpha
 (developer.apple.com/app-store/asset-best-practices/). The tagline can be left out with --tagline "".
 
-The product page header needs `--scale 0.6`. On an iPhone it shows only the middle half of the image's width and its top
+The product page header needs `--scale 0.7`. On an iPhone it shows only the middle half of the image's width and its top
 60% or so (the title card covers the rest), so at full size it's a close-up of one fish (Kraig: "the header image is
 zoomed"). Scaled, the game sits at the top of the image, smaller, with the water carried on around it and deeper below,
-and the iPhone's crop holds the whole moment. Search results show all of it, so they take the full-size version.
+and the iPhone's crop holds the whole moment. (At 0.6 it sat high over a band of empty deep water, where iOS's blur
+behind the Dynamic Island picked up the purple fish.) Search results show all of it, so they take the full-size version.
 """
 import argparse
 import math
@@ -74,7 +75,7 @@ def main():
     parser.add_argument("frame")
     parser.add_argument("out")
     parser.add_argument("--center", type=float, default=0.45, help="the crop's middle, as a fraction of the width")
-    parser.add_argument("--scale", type=float, default=1, help="draw the game smaller (0.6 for the header)")
+    parser.add_argument("--scale", type=float, default=1, help="draw the game smaller (0.7 for the header)")
     parser.add_argument("--tagline", default="Eat fast. Stay alive.")
     args = parser.parse_args()
 

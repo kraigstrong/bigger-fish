@@ -199,7 +199,7 @@ iPhone shows only the middle half of the header and its top 60% or so, which at 
 FOOTAGE_SCALE=2.4461 scripts/bigger-fish-footage.sh shallow-reef.9 collector 15.21 15.22
 scripts/bigger-fish-creative.py build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
   build/footage/bigger-fish-universal-creative.png
-scripts/bigger-fish-creative.py --scale 0.6 build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
+scripts/bigger-fish-creative.py --scale 0.7 build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
   build/footage/bigger-fish-header.png
 ```
 
