@@ -1,4 +1,4 @@
-Eat smaller fish. Dodge bigger ones. They grow too.
+Eat smaller fish. Dodge bigger ones. Win the food race.
 
 Bigger Fish is a one-touch arcade game about the food chain, and how quickly it turns. Hold anywhere to rise, let go to fall, and swim into anything smaller than you. Every meal makes you bigger, so the fish that chased you a moment ago becomes your next target.
 

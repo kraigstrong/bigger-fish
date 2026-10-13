@@ -10,8 +10,10 @@ import UIKit
 /// Progress is staged in its own saved state, so real progress, purchases, and analytics are untouched.
 ///
 /// Optional, in seconds of the run: `-storeFootageFrom` and `-storeFootageTo` (default the whole run, and
-/// `tail` seconds after it ends). `-storeFootageEvery <n>` keeps every nth frame and `-storeFootageScale` shrinks
-/// them, for a quick look at a whole run before recording the part that's wanted.
+/// `tail` seconds after it ends). `-storeFootageEvery <n>` keeps every nth frame. `-storeFootageScale` below 1 shrinks
+/// them, for a quick look at a whole run before recording the part that's wanted; above 1 (up to 3) draws them bigger
+/// than the screen, sharp, as PNGs (NNNNN.png), for App Store art (the universal creative is 5244 x 2950: about 2.45
+/// times).
 enum StoreFootage {
     struct Request: Equatable {
         var policy: ArcadeSimulation.Policy
@@ -37,7 +39,7 @@ enum StoreFootage {
         if let from = value("-storeFootageFrom").flatMap(Double.init), from >= 0 { request.from = CGFloat(from) }
         if let to = value("-storeFootageTo").flatMap(Double.init), CGFloat(to) > request.from { request.to = CGFloat(to) }
         if let every = value("-storeFootageEvery").flatMap(Int.init), every >= 1 { request.every = every }
-        if let scale = value("-storeFootageScale").flatMap(Double.init), scale > 0, scale <= 1 { request.scale = CGFloat(scale) }
+        if let scale = value("-storeFootageScale").flatMap(Double.init), scale > 0, scale <= 3 { request.scale = CGFloat(scale) }
         return request
     }
 
@@ -134,9 +136,10 @@ enum StoreFootage {
             }
             if CGFloat(frame) * step >= request.from, frame % request.every == 0 {
                 scene.debugHideInterface()
-                guard let data = jpeg(scene, scale: request.scale) else { return fail("couldn't draw frame \(frame)") }
+                guard let data = image(scene, scale: request.scale) else { return fail("couldn't draw frame \(frame)") }
                 do {
-                    try data.write(to: framesDirectory.appendingPathComponent(String(format: "%05d.jpg", saved)))
+                    let name = String(format: "%05d.%@", saved, request.scale > 1 ? "png" : "jpg")
+                    try data.write(to: framesDirectory.appendingPathComponent(name))
                 } catch {
                     return fail("couldn't save frame \(frame): \(error.localizedDescription)")
                 }
@@ -154,11 +157,25 @@ enum StoreFootage {
         print("[StoreFootage] \(summary)")
     }
 
-    /// The scene as drawn, interface hidden, at the screen's full resolution times `scale`, as a JPEG.
-    @MainActor static func jpeg(_ scene: SKScene, scale: CGFloat) -> Data? {
+    /// The scene as drawn, interface hidden, at the screen's full resolution times `scale`: a JPEG, or a PNG above 1.
+    @MainActor static func image(_ scene: SKScene, scale: CGFloat) -> Data? {
         guard let view = scene.view else { return nil }
         let crop = CGRect(x: -scene.anchorPoint.x * scene.size.width, y: -scene.anchorPoint.y * scene.size.height,
                           width: scene.size.width, height: scene.size.height)
+        if scale > 1 {
+            // A scene's texture is clipped to the scene, so every node is drawn `scale` times as big inside a holder,
+            // just for this frame, and put back after.
+            let children = scene.children
+            let holder = SKNode()
+            for node in children { node.removeFromParent(); holder.addChild(node) }
+            holder.setScale(scale)
+            scene.addChild(holder)
+            let big = CGRect(x: crop.minX * scale, y: crop.minY * scale, width: crop.width * scale, height: crop.height * scale)
+            let image = view.texture(from: holder, crop: big)?.cgImage()
+            holder.removeFromParent()
+            for node in children { node.removeFromParent(); scene.addChild(node) }
+            return image.flatMap { UIImage(cgImage: $0).pngData() }
+        }
         guard let image = view.texture(from: scene, crop: crop)?.cgImage() else { return nil }
         guard scale < 1 else { return UIImage(cgImage: image).jpegData(compressionQuality: 0.92) }
         let size = CGSize(width: (CGFloat(image.width) * scale).rounded(), height: (CGFloat(image.height) * scale).rounded())

@@ -13,6 +13,8 @@
 # Output goes to build/footage/ (ignored by git):
 #   <world>.<level>-<policy>[-<from>-<to>].mp4   60 fps H.264, silent, at the simulator's screen size
 #   <world>.<level>-<policy>-look.jpg            with --look: a frame every half second, ten to a row
+#   <world>.<level>-<policy>-<from>-<to>/        with FOOTAGE_SCALE above 1: the frames as PNGs that many times the
+#                                                screen's size, sharp, for App Store art (2.45 makes 5244 wide)
 #   <name>.txt                                   how the run went, and every bite: when, and the meal's size against
 #                                                yours then and at its biggest, for finding moments to record
 #
@@ -59,6 +61,11 @@ elif [ -n "$FROM" ]; then
     args+=(-storeFootageFrom "$FROM" -storeFootageTo "$TO")
     name="$name-$FROM-$TO"
 fi
+STILLS=0
+if [ $LOOK = 0 ] && [ -n "${FOOTAGE_SCALE:-}" ]; then
+    args+=(-storeFootageScale "$FOOTAGE_SCALE")
+    STILLS=1
+fi
 
 frames="$(xcrun simctl get_app_container "$DEVICE" "$BUNDLE" data)/Documents/StoreFootage"
 xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
@@ -74,7 +81,11 @@ xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
 [ -f "$frames/failed.txt" ] && { echo "$name failed: $(cat "$frames/failed.txt")" >&2; exit 1; }
 
 mkdir -p "$OUT"
-if [ $LOOK = 1 ]; then
+if [ $STILLS = 1 ]; then
+    rm -rf "${OUT:?}/$name" && mkdir -p "$OUT/$name"
+    cp "$frames"/*.png "$frames/done.txt" "$OUT/$name/"
+    echo "$OUT/$name/: $(head -1 "$frames/done.txt"), PNGs at $FOOTAGE_SCALE times the screen"
+elif [ $LOOK = 1 ]; then
     count=$(find "$frames" -name '*.jpg' | wc -l | tr -d ' ')
     ffmpeg -v error -y -framerate 1 -i "$frames/%05d.jpg" \
         -vf "tile=10x$(( (count + 9) / 10 )):padding=4" -frames:v 1 "$OUT/$name.jpg"

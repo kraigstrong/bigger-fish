@@ -6,6 +6,7 @@
     python3 appstore/push.py push --app bigger-fish --dry-run   # what would change, field by field
     python3 appstore/push.py push --app bigger-fish             # push it (only the fields that differ)
     python3 appstore/push.py push --app bigger-fish --only promotional_text,description
+    python3 appstore/push.py media --app bigger-fish --screenshots DIR [DIR ...] --creative FILE --dry-run
 
 The text lives in appstore/<app>/app/<locale>/<field>.txt, and the in-app purchase's display name and description in
 appstore/<app>/iap/<folder>/<locale>/. A push writes to the version that's still editable (Prepare for Submission and
@@ -25,6 +26,7 @@ import base64
 import json
 import os
 import re
+import struct
 import sys
 import time
 import urllib.error
@@ -204,6 +206,16 @@ class Client:
         return self.call("GET", path).get("data", [])
 
 
+def transfer(operations: list[dict], data: bytes) -> None:
+    """Sends a reserved asset's bytes to the upload URLs Apple returned: unauthenticated and time-limited."""
+    for op in operations:
+        headers = {h["name"]: h["value"] for h in op.get("requestHeaders") or []}
+        part = data[op["offset"]:op["offset"] + op["length"]]
+        request = urllib.request.Request(op["url"], method=op["method"], data=part, headers=headers)
+        with urllib.request.urlopen(request, timeout=120) as response:
+            response.read()
+
+
 def upsert(client: Client, kind: str, existing: dict | None, attrs: dict, parent: tuple[str, str, str],
            locale: str, dry_run: bool, label: str) -> bool:
     """Changes only the attributes that differ from what App Store Connect has; creates the localization if needed."""
@@ -315,6 +327,155 @@ def check() -> int:
     return 0 if good else 1
 
 
+# --------------------------------------------------------------------------------------------------------------------
+# Screenshots and creative assets, through the App Asset Library
+
+SCREENSHOT, HEADER, SEARCH = "APP_SCREENSHOT", "PRODUCT_PAGE_HEADER_ASSET", "APP_STORE_SEARCH_RESULTS_ASSET"
+
+
+def png_info(path: Path) -> tuple[int, int, bool]:
+    """A PNG's width, height, and whether it has an alpha channel (App Store Connect refuses one)."""
+    with path.open("rb") as file:
+        head = file.read(33)
+    if head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
+        raise SystemExit(f"{path}: not a PNG")
+    width, height = struct.unpack(">II", head[16:24])
+    return width, height, head[25] in (4, 6)
+
+
+def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path], dry_run: bool) -> int:
+    """Replaces the editable version's screenshots (each folder's PNGs, in name order) and its product page header
+    and search results asset (`creatives`, by placement type). New images are uploaded and processed first; the old placements are
+    only swapped out once every one is ready, so a failure leaves the listing as it was."""
+    load_credentials()
+    app_id = os.environ.get(APPS[app]["app_id_env"])
+    if not app_id:
+        raise SystemExit(f"missing {APPS[app]['app_id_env']} in the 1Password Environment")
+    client = Client()
+    ref = client.call("GET", "/v1/appAssetLibraryRefData")["data"]
+    ref = (ref[0] if isinstance(ref, list) else ref)["attributes"]
+    specs = {s["specId"]: s for s in ref["imageSpecs"]}
+
+    def groups_for(kind: str, width: int, height: int) -> list[str]:
+        out = []
+        for placement in ref["placementTypes"]:
+            if placement["placementTypeId"] != kind:
+                continue
+            for mapping in placement["specMappings"]:
+                for spec_id in mapping["specs"]:
+                    d = specs.get(spec_id, {}).get("dimensions", {})
+                    if d.get("minWidth", 0) <= width <= d.get("maxWidth", 0) and d.get("minHeight", 0) <= height <= d.get("maxHeight", 0):
+                        out.append(mapping["placementGroupId"])
+                        break
+        return out
+
+    # What goes where: (placement type, group) -> files in order.
+    plan: dict[tuple[str, str], list[Path]] = {}
+    for folder in folders:
+        for path in sorted(folder.glob("*.png")):
+            width, height, alpha = png_info(path)
+            if alpha:
+                raise SystemExit(f"{path}: has an alpha channel, which App Store Connect refuses")
+            groups = groups_for(SCREENSHOT, width, height)
+            if not groups:
+                raise SystemExit(f"{path}: {width}x{height} isn't an App Store screenshot size")
+            plan.setdefault((SCREENSHOT, groups[0]), []).append(path)
+    for kind, creative in creatives.items():
+        width, height, alpha = png_info(creative)
+        if alpha:
+            raise SystemExit(f"{creative}: has an alpha channel")
+        groups = groups_for(kind, width, height)
+        if not groups:
+            raise SystemExit(f"{creative}: {width}x{height} doesn't fit {kind}")
+        plan[(kind, groups[0])] = [creative]
+    for (kind, group), files in plan.items():
+        if kind == SCREENSHOT and len(files) > 10:
+            raise SystemExit(f"{group}: {len(files)} screenshots, over Apple's 10")
+
+    versions = [v for v in client.get(f"/v1/apps/{app_id}/appStoreVersions?limit=50")
+                if v["attributes"].get("appStoreState") in EDITABLE_STATES]
+    if not versions:
+        raise SystemExit("no editable version: create the next version in App Store Connect first")
+    version = versions[0]
+    localization = next((l for l in client.get(f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations?limit=200")
+                         if l["attributes"]["locale"] == locale), None)
+    if localization is None:
+        raise SystemExit(f"version {version['attributes'].get('versionString')} has no {locale} localization yet: push the text first")
+    print(f"{app} {locale}: version {version['attributes'].get('versionString')} ({version['attributes'].get('appStoreState')})"
+          + (" — dry run, nothing is written" if dry_run else ""))
+
+    def existing(kind: str, group: str) -> list[dict]:
+        return client.get(f"/v1/appStoreVersionLocalizations/{localization['id']}/placements?filter[placementType]={kind}"
+                          f"&filter[placementGroup]={group}&sort=placementGroupPosition&limit=50")
+
+    current = {key: existing(*key) for key in plan}
+    for (kind, group), files in plan.items():
+        print(f"  {kind} {group}: replace {len(current[(kind, group)])} with {len(files)}: "
+              + ", ".join(p.name for p in files))
+    if dry_run:
+        return 0
+
+    # Upload every distinct file once, and wait until each is processed.
+    library = client.call("GET", f"/v1/apps/{app_id}/assetLibrary")["data"]["id"]
+    uploaded: dict[Path, str] = {}
+    for (kind, group), files in plan.items():
+        category = "APP_SCREENSHOTS_AND_PREVIEWS" if kind == SCREENSHOT else "CREATIVE_ASSETS"
+        for path in files:
+            if path in uploaded:
+                continue
+            data = path.read_bytes()
+            image = client.call("POST", "/v1/appAssetLibraryImages", {"data": {
+                "type": "appAssetLibraryImages",
+                "attributes": {"fileName": path.name, "fileSize": len(data), "category": category,
+                               "referenceName": f"{app} {path.parent.name} {path.stem}"[:100]},
+                "relationships": {"assetLibrary": {"data": {"type": "appAssetLibraries", "id": library}}}}})["data"]
+            transfer(image["attributes"]["uploadOperations"], data)
+            client.call("PATCH", f"/v1/appAssetLibraryImages/{image['id']}",
+                        {"data": {"type": "appAssetLibraryImages", "id": image["id"], "attributes": {"uploaded": True}}})
+            uploaded[path] = image["id"]
+            print(f"  uploaded {path.name}")
+    deadline = time.time() + 600
+    waiting = dict(uploaded)
+    while waiting:
+        for path, image_id in list(waiting.items()):
+            attributes = client.call("GET", f"/v1/appAssetLibraryImages/{image_id}")["data"]["attributes"]
+            if attributes["state"] == "PREPARE_FOR_SUBMISSION":
+                del waiting[path]
+            elif attributes["state"] == "FAILED":
+                raise RuntimeError(f"{path.name} failed processing: {attributes.get('stateDetails')}. The listing is unchanged.")
+        if waiting:
+            if time.time() > deadline:
+                raise RuntimeError(f"still processing after 10 minutes: {', '.join(p.name for p in waiting)}. "
+                                   "The listing is unchanged; run again to retry.")
+            time.sleep(5)
+    print(f"  {len(uploaded)} images processed")
+
+    # Swap the placements, then put each screenshot group in order.
+    for (kind, group), files in plan.items():
+        for old in current[(kind, group)]:
+            client.call("DELETE", f"/v1/appAssetLibraryPlacements/{old['id']}")
+        placed = []
+        for path in files:
+            placement = client.call("POST", "/v1/appAssetLibraryPlacements", {"data": {
+                "type": "appAssetLibraryPlacements",
+                "attributes": {"placementType": kind, "placementGroup": group},
+                "relationships": {
+                    "image": {"data": {"type": "appAssetLibraryImages", "id": uploaded[path]}},
+                    "appStoreVersionLocalization": {"data": {"type": "appStoreVersionLocalizations",
+                                                             "id": localization["id"]}}}}})["data"]
+            placed.append(placement["id"])
+        if kind == SCREENSHOT and len(placed) > 1:
+            client.call("POST", "/v1/appAssetLibraryPlacementOrderingRequests", {"data": {
+                "type": "appAssetLibraryPlacementOrderingRequests",
+                "attributes": {"placementGroup": group},
+                "relationships": {
+                    "orderedPlacements": {"data": [{"type": "appAssetLibraryPlacements", "id": i} for i in placed]},
+                    "appStoreVersionLocalization": {"data": {"type": "appStoreVersionLocalizations",
+                                                             "id": localization["id"]}}}}})
+        print(f"  {kind} {group}: {len(placed)} placed")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -325,9 +486,28 @@ def main() -> int:
     send.add_argument("--app", choices=APPS, required=True)
     send.add_argument("--only", help="comma-separated fields to push (file names, or iap)")
     send.add_argument("--dry-run", action="store_true", help="show what would change; write nothing")
+    images = sub.add_parser("media", help="replace the editable version's screenshots and creative assets")
+    images.add_argument("--app", choices=APPS, required=True)
+    images.add_argument("--locale", default="en-US")
+    images.add_argument("--screenshots", type=Path, nargs="*", default=[],
+                        help="folders of PNGs, one per device size, uploaded in name order")
+    images.add_argument("--creative", type=Path, help="a 5244x2950 PNG for the product page header and search results")
+    images.add_argument("--header", type=Path, help="a 5244x2950 PNG for the product page header only")
+    images.add_argument("--search", type=Path, help="a 5244x2950 PNG for the search results asset only")
+    images.add_argument("--dry-run", action="store_true", help="show what would change; write nothing")
     args = parser.parse_args()
     if args.command == "check":
         return check()
+    if args.command == "media":
+        creatives = {kind: path for kind, path in ((HEADER, args.header or args.creative),
+                                                   (SEARCH, args.search or args.creative)) if path}
+        if not args.screenshots and not creatives:
+            raise SystemExit("nothing to do: give --screenshots folders, a --creative (or --header, --search) image")
+        try:
+            return media(args.app, args.locale, args.screenshots, creatives, args.dry_run)
+        except RuntimeError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
     if args.command == "validate":
         return validate([args.app] if args.app else [a for a in APPS if (HERE / a).exists()])
     only = set(args.only.split(",")) if args.only else None

@@ -19,7 +19,17 @@ python3 appstore/push.py check                                # the credentials 
 python3 appstore/push.py push --app bigger-fish --dry-run     # what would change, field by field
 python3 appstore/push.py push --app bigger-fish                # push only what differs
 python3 appstore/push.py push --app bigger-fish --only promotional_text
+python3 appstore/push.py media --app bigger-fish --screenshots DIR DIR --header FILE --search FILE --dry-run
 ```
+
+`media` replaces the editable version's screenshots (each folder's PNGs in name order, one folder per device size)
+and its product page header (`--header`) and search results asset (`--search`), each a 5244×2950 image; `--creative`
+puts one image in both. Check the header in App Store Connect's preview on an iPhone, which crops it hard. It goes
+through Apple's App Asset Library: each image is uploaded and processed first, and the old placements are swapped
+out only once all of them are ready, so a failure leaves the listing as it was. The device size comes from each
+image's dimensions, matched against Apple's reference data. For Bigger Fish, the files come from
+`scripts/bigger-fish-store-capture.sh` (and `--ipad`), `scripts/bigger-fish-store-frames.py` (captions), and
+`scripts/bigger-fish-creative.py` (the universal creative); see the main README.
 
 - **A push writes to the editable version** (Prepare for Submission and the like). Nothing goes public until that
   version is submitted and released. Always dry-run first.

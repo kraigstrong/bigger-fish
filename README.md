@@ -176,6 +176,35 @@ ahead, under its boat), `midnight-light` (Midnight Zone 5),
 are `StoreCapture.Moment.level`; to try another in Xcode, add `-arcadePlaytest world.N` beside
 `-storeCapture <moment>`.
 
+Then caption them and send them to App Store Connect:
+
+```bash
+scripts/bigger-fish-store-frames.py build/store-capture/bigger-fish/screenshots build/store-capture/bigger-fish/captioned
+scripts/bigger-fish-store-frames.py build/store-capture/bigger-fish/screenshots-ipad-13 build/store-capture/bigger-fish/captioned-ipad-13
+python3 appstore/push.py media --app bigger-fish --dry-run \
+  --screenshots build/store-capture/bigger-fish/captioned build/store-capture/bigger-fish/captioned-ipad-13 \
+  --header build/footage/bigger-fish-header.png --search build/footage/bigger-fish-universal-creative.png
+```
+
+The captions are the trailer's: 2–4 words in Avenir Next Heavy over a soft dark band, on full-size gameplay with no
+device frame, dodge first (it's the strongest single image, and search often shows only the first). The two app
+screens (conquered, The Deep End) have titles where the caption goes, so they're shrunk a little over a blur of
+themselves instead. The 6.5" size isn't uploaded: App Store Connect scales the 6.9" set down.
+
+The universal creative (iOS 27's product page header and search results image, 5244×2950) is gameplay drawn big
+enough by the footage recorder, then cropped and captioned. The header gets its own, with the game drawn smaller: an
+iPhone shows only the middle half of the header and its top 60% or so, which at full size is a close-up of one fish.
+
+```bash
+FOOTAGE_SCALE=2.4461 scripts/bigger-fish-footage.sh shallow-reef.9 collector 15.21 15.22
+scripts/bigger-fish-creative.py build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
+  build/footage/bigger-fish-universal-creative.png
+scripts/bigger-fish-creative.py --scale 0.6 build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
+  build/footage/bigger-fish-header.png
+```
+
+That's the dodge screenshot's moment (`[StoreCapture] dodge: collector bot, step 913`, 913/60 seconds in).
+
 ### Bigger Fish trailer and footage
 
 `scripts/bigger-fish-footage.sh` records gameplay for the trailer and App Store previews
