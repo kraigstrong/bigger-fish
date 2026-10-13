@@ -6,7 +6,7 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
 ## What the build already has
 
 - Bundle ID `com.kraigstrong.biggerfish`, team `MKACSCQ588`, automatic signing.
-- Version 0.3 (see the build log at the end). iPhone only, landscape.
+- Version 0.4.0 (see the build log at the end). iPhone and iPad (full screen), landscape.
 - App icon (no alpha), loading screen, and launch color.
 - `ITSAppUsesNonExemptEncryption = NO`: the only encryption is the system's HTTPS, so App Store
   Connect won't ask the export-compliance question on each upload.
@@ -16,13 +16,12 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
   tracking).
 - iCloud key-value storage (`BiggerFish/BiggerFish.entitlements`): progress is backed up to the player's own
   iCloud, which we can't read, so it isn't collected data and the privacy label doesn't change. Automatic signing
-  adds the capability to the App ID on the first device build or archive after it was added. **Before the first
-  build with it goes to testers:** the privacy policy says deleting the app removes the player's information, which
-  is no longer true of progress. Publish a sentence about the iCloud copy on both pages (biggerfish.app/privacy and
-  brightbench.app/bigger-fish/privacy, kept word for word the same) with Kraig's OK. PR #154 has suggested wording.
+  adds the capability to the App ID on the first device build or archive after it was added. Both privacy pages
+  (biggerfish.app/privacy and brightbench.app/bigger-fish/privacy, word for word the same) describe the iCloud copy
+  (kraigstrong/BrightBench#63).
 - Anonymous gameplay counts are on (`ArcadeAnalytics.isEnabled`), sent to
   `brightbench.app/api/bigger-fish/events` and tagged `testflight` for beta installs.
-- Privacy policy: https://brightbench.app/bigger-fish/privacy
+- Privacy policy: https://biggerfish.app/privacy
 - The Release build has none of the debug tools: no tuner, run recorder, playtest shortcuts, planner,
   or progress reset.
 
@@ -61,7 +60,11 @@ Since 0.3:
   a wall meal gets you eaten, and Retry starts the wall again. It ends on the world map. Settings > Replay
   tutorial plays it again.
 - **Update over 0.3:** no tutorial (you have cleared levels); progress, Deep End rings, and best times are kept.
-- Every world is open from the start (the unlock isn't sold yet, so everyone plays as if they'd bought it).
+- Every world is open from the start (the unlock isn't sold yet, so everyone plays as if they'd bought it), five
+  of them: Sunset Cove fourth, Midnight Zone fifth. Riptide Reef isn't there (it's an Xcode-only prototype).
+- Sunset Cove: boats and their lines show before their hooks; touching a bait reels you up out of the water to
+  "Caught on a hook."; a hook you've passed reels up near the surface; no hooked fish hangs behind you at a
+  level's start.
 - Each level starts on a short card: its name, the world's progress pips, and "Tap to start". A world's rules
   show only on its first level, until it's cleared. Retry skips the card.
 - The world map rings and the level map's bar fill in as you clear levels; the card after a win shows the pips
@@ -127,23 +130,26 @@ Smoke check, without the unlock:
 
 > Bigger Fish is an arcade game about working your way up the food chain. Hold to rise, release to
 > fall. Eat fish smaller than you, avoid the bigger ones, and grow until you're the last fish
-> swimming. This beta has four worlds of ten levels each: Shallow Reef; Jelly Bloom, where
+> swimming. This beta has five worlds of ten levels each: Shallow Reef; Jelly Bloom, where
 > jellyfish domes bounce you and their tentacles sting; Kelp Forest, where kelp slows you down and
-> hides what's inside it; and Midnight Zone, where it's dark but for your headlamp, and every other
-> fish carries the same little light, so you can't tell how big one is until your beam lands on it.
-> Play the worlds in any order, and beat a world's tenth level to open its Deep End: five extra-hard
-> levels for when you can't get enough.
+> hides what's inside it; Sunset Cove, where boats pass overhead dangling baited hooks, so the
+> easiest meal in the water is a trap; and Midnight Zone, where it's dark but for your headlamp, and
+> every other fish carries the same little light, so you can't tell how big one is until your beam
+> lands on it. Play the worlds in any order, and beat a world's tenth level to open its Deep End:
+> five extra-hard levels for when you can't get enough.
 
 **What to Test**
 
-> Thanks for playing! New in this build: Midnight Zone, a fourth world. Beat Kelp Forest's level 10 to
-> open it; if you already have, you'll be shown the way in once. Shallow Reef's levels are also
-> reordered to ramp up more smoothly, and your cleared levels stay cleared. We'd love to hear:
-> - How Midnight Zone's dark feels: is not knowing a fish's size until your light lands on it fair?
+> Thanks for playing! New in this build: Sunset Cove, a new fourth world (Midnight Zone is fifth now).
+> Boats pass overhead dangling baited hooks: the bait looks like an easy meal, but touch it and you're
+> reeled up. Your progress now backs up to iCloud, so it follows you to your other iPhone or iPad, and
+> on iPad the game fills the screen. There's also a credits game in Settings: eat the names. Your
+> cleared levels stay cleared. We'd love to hear:
+> - Whether Sunset Cove's hooks feel fair: do you see the boat and line in time?
 > - Which levels felt too hard or too easy, and roughly how many tries they took.
-> - Whether Shallow Reef's new order feels like a steady climb.
 > - Whether The Deep End is a fun challenge or just frustrating.
-> - Anything about how to play that was confusing.
+> - If you play on two devices, whether your progress shows up on both.
+> - On iPad, how it looks and feels.
 > - Bugs, crashes, or sound problems.
 >
 > To send feedback, take a screenshot while playing and share it with TestFlight, or use Send Beta
@@ -152,7 +158,7 @@ Smoke check, without the unlock:
 
 **Feedback Email:** the address you want testers' feedback to reach.
 
-**Privacy Policy URL:** https://brightbench.app/bigger-fish/privacy
+**Privacy Policy URL:** https://biggerfish.app/privacy
 
 **Beta App Review:** your name, phone, and email as the contact. Sign-in isn't required. Notes:
 
@@ -165,3 +171,4 @@ Smoke check, without the unlock:
 | 0.1 (1) | | `9385ced` (`bigger-fish-v0.1-beta.1`) | First external build. |
 | 0.2 (1) | 2026-10-09 | `f98f340` (`bigger-fish-v0.2-beta.1`) | Kelp Forest, The Deep End, worlds unlock in order, unlock screens. |
 | 0.3 (1) | 2026-10-09 | `6526c7c` (`bigger-fish-v0.3-beta.1`) | Midnight Zone (world four: a headlamp in the dark, anglerfish lures); Shallow Reef reordered from 0.1 testers' numbers; beating a level 10 goes straight to the conquered screen; players who'd beaten Kelp Forest are told once that Midnight Zone is open. |
+| 0.4.0 (1) | 2026-10-12 | (`bigger-fish-v0.4-beta.1`) | Sunset Cove (world four of five: boats, baited hooks), every level frozen; progress backed up to iCloud; full-screen iPad; the credits game; the pause menu in Settings' style; a touch shows on the frame it lands. The unlock still isn't on sale. |
