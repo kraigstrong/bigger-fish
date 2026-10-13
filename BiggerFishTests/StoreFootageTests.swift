@@ -22,9 +22,11 @@ struct StoreFootageTests {
         #expect(StoreFootage.request(in: base + ["-storeFootageFrom", "2.5", "-storeFootageTo", "9",
                                                  "-storeFootageEvery", "30", "-storeFootageScale", "0.25"])
                 == .init(policy: .cautious, from: 2.5, to: 9, every: 30, scale: 0.25))
-        // Nonsense is left out: an end before the start, no frames at all, or frames bigger than the screen.
+        // Frames up to three times the screen, for App Store art.
+        #expect(StoreFootage.request(in: base + ["-storeFootageScale", "2.45"]) == .init(policy: .cautious, scale: 2.45))
+        // Nonsense is left out: an end before the start, no frames at all, or frames too big to draw.
         #expect(StoreFootage.request(in: base + ["-storeFootageFrom", "5", "-storeFootageTo", "3",
-                                                 "-storeFootageEvery", "0", "-storeFootageScale", "2"])
+                                                 "-storeFootageEvery", "0", "-storeFootageScale", "4"])
                 == .init(policy: .cautious, from: 5))
     }
 }

@@ -80,6 +80,9 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   allowlist test in `MathReefTests/ReefAnalyticsTests.swift`, the brightbench.app privacy policy
   (kraigstrong/BrightBench, `apps/marketing/app/math-reef/privacy/page.tsx`), and
   `MathReef/PrivacyInfo.xcprivacy` before sending is enabled.
+- **App Store listing text lives in `appstore/<app>/`** as plain files, pushed with `appstore/push.py` (see its
+  README). The API key is in the 1Password Environment "App Store Connect", mounted at `~/.appstoreconnect/.env`:
+  never copy it into a file or into chat, and dry-run every push before writing.
 - **Purchases go behind the parental gate too.** Math Reef is free to try (`FreeSample` in
   `MathReef/ReefUnlock.swift`) with a one-time unlock; the unlock screen is only reachable through the
   gate. StoreKit test sessions can't run under `xcodebuild test`, so the purchase flow is checked by
