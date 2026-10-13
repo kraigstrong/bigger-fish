@@ -101,4 +101,5 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   explain the why in the body.
 - **Releases:** each app archives from `main` at a tagged commit (`math-reef-v1.0.1`,
   `bigger-fish-v0.4-beta.1`). Unreleased work for one app can sit on `main` while the other ships: they're
-  separate targets, and Bigger Fish's unlock stays off in Release until `ArcadeUnlock.isSelling` is turned on.
+  separate targets. From 1.0, Bigger Fish sells its unlock in every build (`ArcadeUnlock.isSelling`), TestFlight
+  in the sandbox.

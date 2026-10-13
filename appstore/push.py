@@ -7,6 +7,7 @@
     python3 appstore/push.py push --app bigger-fish             # push it (only the fields that differ)
     python3 appstore/push.py push --app bigger-fish --only promotional_text,description
     python3 appstore/push.py media --app bigger-fish --screenshots DIR [DIR ...] --creative FILE --dry-run
+    python3 appstore/push.py purchase --app bigger-fish --screenshot FILE --dry-run   # set up the in-app purchase
 
 The text lives in appstore/<app>/app/<locale>/<field>.txt, and the in-app purchase's display name and description in
 appstore/<app>/iap/<folder>/<locale>/. A push writes to the version that's still editable (Prepare for Submission and
@@ -44,6 +45,13 @@ APPS = {
                     "iap": {"allworlds": "com.kraigstrong.biggerfish.allworlds"}},
     "math-reef": {"app_id_env": "ASCC_APP_ID_MATH_REEF",
                   "iap": {"fullreef": "com.kraigstrong.mathreef.fullreef"}},
+}
+
+# How `purchase` sets up each in-app purchase, by product ID. The product ID is permanent once created, and Family
+# Sharing can't be turned off once it's on. The price is in US dollars, the base territory; Apple sets the others.
+PURCHASE_SETUP = {
+    "com.kraigstrong.biggerfish.allworlds": {"reference_name": "Unlock every world", "type": "NON_CONSUMABLE",
+                                             "price": "4.99", "family_sharable": True},
 }
 
 # Listing fields: file name -> (where App Store Connect keeps it, its attribute, character limit). Version
@@ -214,6 +222,24 @@ class Client:
 
     def get(self, path: str) -> list[dict]:
         return self.call("GET", path).get("data", [])
+
+    def get_all(self, path: str) -> list[dict]:
+        """Every page of a list."""
+        out = []
+        while path:
+            page = self.call("GET", path)
+            out += page.get("data", [])
+            path = (page.get("links") or {}).get("next", "").removeprefix(API)
+        return out
+
+    def get_one(self, path: str) -> dict | None:
+        """A to-one relationship's resource, or None when there isn't one yet."""
+        try:
+            return self.call("GET", path).get("data")
+        except RuntimeError as error:
+            if ": 404 " in str(error):
+                return None
+            raise
 
 
 def transfer(operations: list[dict], data: bytes) -> None:
@@ -528,6 +554,135 @@ def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path]
     return 0
 
 
+# --------------------------------------------------------------------------------------------------------------------
+# The in-app purchase
+
+def purchase(app: str, screenshot: Path | None, dry_run: bool) -> int:
+    """Sets up each of the app's in-app purchases so it reaches Ready to Submit: creates it if App Store Connect doesn't
+    have it (with `PURCHASE_SETUP`'s settings), then fills in whatever's missing: its localizations from the files, its
+    price, its availability (the app's own territories), and its review screenshot. Never changes a price or
+    availability that's already set; a new --screenshot replaces the review screenshot."""
+    if validate([app]):
+        print("Fix the text before setting up a purchase.")
+        return 1
+    if screenshot:
+        if screenshot.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+            raise SystemExit(f"{screenshot}: the review screenshot is a .png or .jpg")
+        if screenshot.suffix.lower() == ".png" and png_info(screenshot)[2]:
+            raise SystemExit(f"{screenshot}: has an alpha channel; save it as a JPEG or flatten it")
+        print(f"review screenshot: {screenshot.name}")
+    load_credentials()
+    app_id = os.environ.get(APPS[app]["app_id_env"])
+    if not app_id:
+        raise SystemExit(f"missing {APPS[app]['app_id_env']} in the 1Password Environment")
+    client = Client()
+    print(f"{app}" + (" — dry run, nothing is written" if dry_run else ""))
+    for folder, product_id in APPS[app]["iap"].items():
+        setup = PURCHASE_SETUP.get(product_id)
+        found = client.get(f"/v1/apps/{app_id}/inAppPurchasesV2?filter[productId]={product_id}&limit=1")
+        if found:
+            iap = found[0]
+            print(f"  {product_id}: exists ({iap['attributes'].get('state')})")
+        elif setup is None:
+            print(f"  {product_id}: not in App Store Connect, and PURCHASE_SETUP has no settings for it; skipped")
+            continue
+        elif dry_run:
+            print(f"  {product_id}: would be created: {setup['type']}, \"{setup['reference_name']}\", "
+                  f"${setup['price']}, Family Sharing {'on' if setup['family_sharable'] else 'off'}")
+            print(f"  then its localizations, price, availability (the app's territories), and review screenshot")
+            continue
+        else:
+            iap = client.call("POST", "/v2/inAppPurchases", {"data": {
+                "type": "inAppPurchases",
+                "attributes": {"name": setup["reference_name"], "productId": product_id,
+                               "inAppPurchaseType": setup["type"], "familySharable": setup["family_sharable"]},
+                "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}})["data"]
+            print(f"  {product_id}: created")
+        iap_id = iap["id"]
+
+        # Localizations, from the files.
+        locs = {l["attributes"]["locale"]: l
+                for l in client.get(f"/v2/inAppPurchases/{iap_id}/inAppPurchaseLocalizations?limit=50")}
+        for locale in locales(app):
+            fields = purchases(app, locale).get(folder)
+            if fields:
+                upsert(client, "inAppPurchaseLocalizations", locs.get(locale), fields,
+                       ("inAppPurchaseV2", "inAppPurchases", iap_id), locale, dry_run, f"  {locale}")
+
+        # The price, set once in the base territory.
+        schedule = client.get_one(f"/v2/inAppPurchases/{iap_id}/iapPriceSchedule")
+        if schedule:
+            print("  price: already set, left alone")
+        elif setup is None:
+            print("  price: not set, and PURCHASE_SETUP has none for it")
+        else:
+            points = client.get_all(f"/v2/inAppPurchases/{iap_id}/pricePoints?filter[territory]=USA&limit=200")
+            point = next((p for p in points if p["attributes"].get("customerPrice") == setup["price"]), None)
+            if point is None:
+                raise RuntimeError(f"no US price point of ${setup['price']}")
+            print(f"  price: ${setup['price']} in the US" + (" would be set" if dry_run else ""))
+            if not dry_run:
+                client.call("POST", "/v1/inAppPurchasePriceSchedules", {
+                    "data": {"type": "inAppPurchasePriceSchedules", "relationships": {
+                        "inAppPurchase": {"data": {"type": "inAppPurchases", "id": iap_id}},
+                        "baseTerritory": {"data": {"type": "territories", "id": "USA"}},
+                        "manualPrices": {"data": [{"type": "inAppPurchasePrices", "id": "${price}"}]}}},
+                    "included": [{"type": "inAppPurchasePrices", "id": "${price}",
+                                  "attributes": {"startDate": None},
+                                  "relationships": {"inAppPurchasePricePoint": {
+                                      "data": {"type": "inAppPurchasePricePoints", "id": point["id"]}}}}]})
+
+        # Availability: wherever the app itself is sold, and new territories as Apple adds them. Before the app's own
+        # availability is chosen, every territory, as App Store Connect does by default; a purchase is only ever sold
+        # where its app is.
+        if client.get_one(f"/v2/inAppPurchases/{iap_id}/inAppPurchaseAvailability"):
+            print("  availability: already set, left alone")
+        else:
+            app_availability = client.get_one(f"/v1/apps/{app_id}/appAvailabilityV2")
+            if app_availability:
+                territories = [t["relationships"]["territory"]["data"]["id"] for t in client.get_all(
+                    f"/v2/appAvailabilities/{app_availability['id']}/territoryAvailabilities?include=territory&limit=200")
+                    if t["attributes"].get("available")]
+                where = f"the app's {len(territories)} territories"
+            else:
+                territories = [t["id"] for t in client.get_all("/v1/territories?limit=200")]
+                where = f"all {len(territories)} territories (the app's own availability isn't chosen yet)"
+            print(f"  availability: {where}" + (" would be set" if dry_run else ""))
+            if not dry_run:
+                client.call("POST", "/v1/inAppPurchaseAvailabilities", {"data": {
+                    "type": "inAppPurchaseAvailabilities", "attributes": {"availableInNewTerritories": True},
+                    "relationships": {
+                        "inAppPurchase": {"data": {"type": "inAppPurchases", "id": iap_id}},
+                        "availableTerritories": {"data": [{"type": "territories", "id": t} for t in territories]}}}})
+
+        # The review screenshot.
+        current = client.get_one(f"/v2/inAppPurchases/{iap_id}/appStoreReviewScreenshot")
+        data = screenshot.read_bytes() if screenshot else None
+        checksum = hashlib.md5(data).hexdigest() if data else None
+        if data is None:
+            print(f"  review screenshot: {'there' if current else 'missing: give --screenshot'}")
+        elif current and current["attributes"].get("sourceFileChecksum") == checksum:
+            print("  review screenshot: already this one")
+        elif dry_run:
+            print(f"  review screenshot: would {'replace the current one' if current else 'upload'}")
+        else:
+            if current:
+                client.call("DELETE", f"/v1/inAppPurchaseAppStoreReviewScreenshots/{current['id']}")
+            shot = client.call("POST", "/v1/inAppPurchaseAppStoreReviewScreenshots", {"data": {
+                "type": "inAppPurchaseAppStoreReviewScreenshots",
+                "attributes": {"fileName": screenshot.name, "fileSize": len(data)},
+                "relationships": {"inAppPurchaseV2": {"data": {"type": "inAppPurchases", "id": iap_id}}}}})["data"]
+            transfer(shot["attributes"]["uploadOperations"], data)
+            client.call("PATCH", f"/v1/inAppPurchaseAppStoreReviewScreenshots/{shot['id']}", {"data": {
+                "type": "inAppPurchaseAppStoreReviewScreenshots", "id": shot["id"],
+                "attributes": {"uploaded": True, "sourceFileChecksum": checksum}}})
+            print("  review screenshot: uploaded")
+        if not dry_run:
+            state = client.call("GET", f"/v2/inAppPurchases/{iap_id}")["data"]["attributes"].get("state")
+            print(f"  {product_id}: {state}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -549,6 +704,10 @@ def main() -> int:
     images.add_argument("--preview", type=Path, help="the app preview video (1920x886), for the 6.9\" and 6.3\" iPhones")
     images.add_argument("--poster", help="the preview's poster frame, the still shown before it plays (HH:MM:SS:FF)")
     images.add_argument("--dry-run", action="store_true", help="show what would change; write nothing")
+    buy = sub.add_parser("purchase", help="create the app's in-app purchases and fill in what they're missing")
+    buy.add_argument("--app", choices=APPS, required=True)
+    buy.add_argument("--screenshot", type=Path, help="a PNG or JPEG of the purchase screen, for App Review")
+    buy.add_argument("--dry-run", action="store_true", help="show what would change; write nothing")
     args = parser.parse_args()
     if args.command == "check":
         return check()
@@ -562,6 +721,12 @@ def main() -> int:
                              "or a --preview video")
         try:
             return media(args.app, args.locale, args.screenshots, creatives, args.preview, args.poster, args.dry_run)
+        except RuntimeError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
+    if args.command == "purchase":
+        try:
+            return purchase(args.app, args.screenshot, args.dry_run)
         except RuntimeError as error:
             print(f"error: {error}", file=sys.stderr)
             return 2

@@ -102,12 +102,11 @@ final class ArcadeAnalytics {
 
     /// The paywall funnel (#123): where the unlock's screen was shown from, how buying or restoring it went, each
     /// world's "conquered" milestone (its tenth level beaten for the first time), and whether a run was played with the
-    /// unlock. Off until brightbench.app accepts these (it rejects a whole batch over one event, field, or value it
-    /// doesn't know) and the Bigger Fish privacy page describes them; then turn on `sendsPaywallEvents`. While it's
-    /// off, none of them is sent or saved, and every other event encodes exactly as it did before. Turn it on no later
-    /// than the release that turns on `ArcadeUnlock.isSelling`: an offer shown before it's on isn't remembered, so a
-    /// later one would be reported as the install's first.
-    static let sendsPaywallEvents = false
+    /// unlock. brightbench.app accepts these and the Bigger Fish privacy page describes them (BrightBench#62). It goes on
+    /// in the same release as `ArcadeUnlock.isSelling` (#156): before, there's nothing to count, and after, an offer
+    /// shown before it's on isn't remembered, so a later one would be reported as the install's first. Turned off, none
+    /// of them is sent or saved, and every other event encodes exactly as it did before.
+    static let sendsPaywallEvents = true
 
     /// Where the unlock's screen was opened from.
     enum OfferSource: String, CaseIterable {
