@@ -116,16 +116,7 @@ struct ArcadeCampaignTests {
         ]
         #expect(Set(frozen.keys) == Set(ArcadeWorld.campaign), "a campaign world has no frozen set here")
         for (world, levels) in frozen {
-            func check() {
-                #expect(Set(levels.specs.map(\.name)).isSubset(of: levels.frozen), "\(world.title) has levels that aren't frozen")
-            }
-            // Sunset Cove joined for 1.0 with its levels being frozen as Kraig plays them (#170). Once every one is, this
-            // reports that the known issue is gone: take the exception out then.
-            if world == .sunsetCove {
-                withKnownIssue("Sunset Cove's levels are frozen as they're played (#170)") { check() }
-            } else {
-                check()
-            }
+            #expect(Set(levels.specs.map(\.name)).isSubset(of: levels.frozen), "\(world.title) has levels that aren't frozen")
         }
     }
 

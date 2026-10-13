@@ -122,6 +122,7 @@ struct FrozenLevelTests {
         "Sunset Cove 4": "a0dca7d7c0c8d219",
         "Sunset Cove 5": "70726a8f422b3b25",
         "Sunset Cove 6": "3cf5446b8f88b209",
+        "Sunset Cove 7": "5d74fa3037b24bc5",
         "Sunset Cove 8": "b245059c8e60003f",
         "Sunset Cove 9": "a7e5a69cd663914d",
         "Sunset Cove 10": "daaab810f4775923",

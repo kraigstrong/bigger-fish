@@ -924,9 +924,9 @@ enum GameTuning {
     /// Sunset Cove 10 (Kraig, 2026-10-12, after its giants were sized to finish edible: "perfect. let's freeze level
     /// 10"), 11 ("11 is incredible"), 12 to 14 ("levels 10-14 on sunset cove are great"), and 15, once its last big fish
     /// had open water under it ("sunset 15 can be frozen. it's great"), then 1 to 6, 8 and 9 ("Levels 1-9 in sunset cove
-    /// are all great"; 7 after a replay). Take a level out of this set (with Kraig's OK) to tune it in code again, then
-    /// regenerate the file.
-    static let sunsetFrozen: Set<String> = Set([1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15].map { "Sunset Cove \($0)" })
+    /// are all great"), and 7 once no hooked fish hung behind the start ("level 7 looks good"). Take a level out of this
+    /// set (with Kraig's OK) to tune it in code again, then regenerate the file.
+    static let sunsetFrozen: Set<String> = Set((1...15).map { "Sunset Cove \($0)" })
     /// Sunset Cove's levels as the game plays them: from `SunsetPlans.json` for the frozen ones, otherwise planned in
     /// code (`sunsetPlan`) in Xcode builds. Release builds play the saved file for every level, so regenerate it after
     /// any change, and freeze every level before publishing.
