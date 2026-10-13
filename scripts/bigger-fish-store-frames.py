@@ -22,7 +22,7 @@ FONT = ("/System/Library/Fonts/Avenir Next.ttc", 8)  # Avenir Next Heavy, as in 
 SHOTS = [
     ("dodge", "DODGE BIGGER FISH"),
     ("eat", "EAT SMALLER ONES"),
-    ("missed", "THEY GROW TOO"),
+    ("missed", "WIN THE FOOD RACE"),
     ("jelly-tops", "BOUNCE OFF JELLYFISH"),
     ("kelp-shadows", "WHAT'S HIDING IN THE KELP?"),
     ("sunset-hooks", "LEAVE THE BAIT"),

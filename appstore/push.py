@@ -333,6 +333,17 @@ def check() -> int:
 # Screenshots and creative assets, through the App Asset Library
 
 SCREENSHOT, HEADER, SEARCH = "APP_SCREENSHOT", "PRODUCT_PAGE_HEADER_ASSET", "APP_STORE_SEARCH_RESULTS_ASSET"
+PREVIEW = "APP_PREVIEW"
+# The app preview goes to the 6.9" and 6.3" iPhones; Apple fills in smaller sizes from these.
+PREVIEW_GROUPS = ("IPHONE_DYNAMIC_ISLAND_LARGE_PROFILE", "IPHONE_DYNAMIC_ISLAND_MEDIUM_PROFILE")
+VIDEO_SUFFIXES = {".mp4", ".m4v", ".mov"}
+
+
+def library_kind(path: Path) -> tuple[str, str, str]:
+    """Where a file lives in the asset library: its collection, resource type, and placement relationship."""
+    if path.suffix.lower() in VIDEO_SUFFIXES:
+        return "videos", "appAssetLibraryVideos", "video"
+    return "images", "appAssetLibraryImages", "image"
 
 
 def png_info(path: Path) -> tuple[int, int, bool]:
@@ -345,10 +356,12 @@ def png_info(path: Path) -> tuple[int, int, bool]:
     return width, height, head[25] in (4, 6)
 
 
-def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path], dry_run: bool) -> int:
-    """Replaces the editable version's screenshots (each folder's PNGs, in name order) and its product page header
-    and search results asset (`creatives`, by placement type). New images are uploaded and processed first; the old placements are
-    only swapped out once every one is ready, so a failure leaves the listing as it was."""
+def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path], preview: Path | None,
+          poster: str | None, dry_run: bool) -> int:
+    """Replaces the editable version's screenshots (each folder's PNGs, in name order), its product page header and
+    search results asset (`creatives`, by placement type), and its app preview video, with `poster` as the frame shown
+    before it plays. New files are uploaded and processed first; the old placements are only swapped out once every
+    one is ready, so a failure leaves the listing as it was."""
     load_credentials()
     app_id = os.environ.get(APPS[app]["app_id_env"])
     if not app_id:
@@ -390,6 +403,13 @@ def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path]
         if not groups:
             raise SystemExit(f"{creative}: {width}x{height} doesn't fit {kind}")
         plan[(kind, groups[0])] = [creative]
+    if preview:
+        if preview.suffix.lower() not in VIDEO_SUFFIXES:
+            raise SystemExit(f"{preview}: an app preview is a .mp4, .m4v or .mov")
+        if poster and not re.fullmatch(r"\d\d:\d\d:\d\d:\d\d", poster):
+            raise SystemExit(f"--poster {poster}: a timecode into the video, HH:MM:SS:FF (FF is the frame)")
+        for group in PREVIEW_GROUPS:
+            plan[(PREVIEW, group)] = [preview]
     for (kind, group), files in plan.items():
         if kind == SCREENSHOT and len(files) > 10:
             raise SystemExit(f"{group}: {len(files)} screenshots, over Apple's 10")
@@ -413,54 +433,61 @@ def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path]
     current = {key: existing(*key) for key in plan}
     for (kind, group), files in plan.items():
         print(f"  {kind} {group}: replace {len(current[(kind, group)])} with {len(files)}: "
-              + ", ".join(p.name for p in files))
+              + ", ".join(p.name for p in files) + (f" (poster at {poster})" if kind == PREVIEW and poster else ""))
     if dry_run:
         return 0
 
-    # Upload every distinct file once, and wait until each is processed. Apple wants each image's reference name
-    # unique, so it ends with a hash of the contents; an image the library already has under that name is reused.
+    # Upload every distinct file once, and wait until each is processed. Apple wants each asset's reference name
+    # unique, so it ends with a hash of the contents; an asset the library already has under that name is reused.
     library = client.call("GET", f"/v1/apps/{app_id}/assetLibrary")["data"]["id"]
     uploaded: dict[Path, str] = {}
     for (kind, group), files in plan.items():
-        category = "APP_SCREENSHOTS_AND_PREVIEWS" if kind == SCREENSHOT else "CREATIVE_ASSETS"
+        category = "CREATIVE_ASSETS" if kind in (HEADER, SEARCH) else "APP_SCREENSHOTS_AND_PREVIEWS"
         for path in files:
             if path in uploaded:
                 continue
+            collection, resource, _ = library_kind(path)
             data = path.read_bytes()
             digest = hashlib.sha256(data).hexdigest()[:8]
             name = f"{app} {path.parent.name} {path.stem}"[:91] + f" {digest}"
-            found = [i for i in client.get(f"/v1/appAssetLibraries/{library}/images?filter[referenceName]="
+            found = [a for a in client.get(f"/v1/appAssetLibraries/{library}/{collection}?filter[referenceName]="
                                            f"{urllib.parse.quote(name)}&limit=5")
-                     if i["attributes"].get("state") != "FAILED"]
+                     if a["attributes"].get("state") != "FAILED"]
             if found:
                 uploaded[path] = found[0]["id"]
                 print(f"  {path.name}: already in the library")
+                if resource == "appAssetLibraryVideos" and poster and found[0]["attributes"].get("previewFrameTimeCode") != poster:
+                    client.call("PATCH", f"/v1/{resource}/{found[0]['id']}", {"data": {
+                        "type": resource, "id": found[0]["id"], "attributes": {"previewFrameTimeCode": poster}}})
+                    print(f"  {path.name}: poster frame moved to {poster}")
                 continue
-            image = client.call("POST", "/v1/appAssetLibraryImages", {"data": {
-                "type": "appAssetLibraryImages",
-                "attributes": {"fileName": path.name, "fileSize": len(data), "category": category,
-                               "referenceName": name},
+            attributes = {"fileName": path.name, "fileSize": len(data), "category": category, "referenceName": name}
+            if resource == "appAssetLibraryVideos" and poster:
+                attributes["previewFrameTimeCode"] = poster
+            asset = client.call("POST", f"/v1/{resource}", {"data": {
+                "type": resource, "attributes": attributes,
                 "relationships": {"assetLibrary": {"data": {"type": "appAssetLibraries", "id": library}}}}})["data"]
-            transfer(image["attributes"]["uploadOperations"], data)
-            client.call("PATCH", f"/v1/appAssetLibraryImages/{image['id']}",
-                        {"data": {"type": "appAssetLibraryImages", "id": image["id"], "attributes": {"uploaded": True}}})
-            uploaded[path] = image["id"]
+            transfer(asset["attributes"]["uploadOperations"], data)
+            client.call("PATCH", f"/v1/{resource}/{asset['id']}",
+                        {"data": {"type": resource, "id": asset["id"], "attributes": {"uploaded": True}}})
+            uploaded[path] = asset["id"]
             print(f"  uploaded {path.name}")
-    deadline = time.time() + 600
+    minutes = 20 if any(library_kind(p)[0] == "videos" for p in uploaded) else 10
+    deadline = time.time() + minutes * 60
     waiting = dict(uploaded)
     while waiting:
-        for path, image_id in list(waiting.items()):
-            attributes = client.call("GET", f"/v1/appAssetLibraryImages/{image_id}")["data"]["attributes"]
+        for path, asset_id in list(waiting.items()):
+            attributes = client.call("GET", f"/v1/{library_kind(path)[1]}/{asset_id}")["data"]["attributes"]
             if attributes["state"] == "PREPARE_FOR_SUBMISSION":
                 del waiting[path]
             elif attributes["state"] == "FAILED":
                 raise RuntimeError(f"{path.name} failed processing: {attributes.get('stateDetails')}. The listing is unchanged.")
         if waiting:
             if time.time() > deadline:
-                raise RuntimeError(f"still processing after 10 minutes: {', '.join(p.name for p in waiting)}. "
+                raise RuntimeError(f"still processing after {minutes} minutes: {', '.join(p.name for p in waiting)}. "
                                    "The listing is unchanged; run again to retry.")
             time.sleep(5)
-    print(f"  {len(uploaded)} images processed")
+    print(f"  {len(uploaded)} files processed")
 
     # Swap the placements, then put each screenshot group in order.
     for (kind, group), files in plan.items():
@@ -468,11 +495,12 @@ def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path]
             client.call("DELETE", f"/v1/appAssetLibraryPlacements/{old['id']}")
         placed = []
         for path in files:
+            _, resource, relationship = library_kind(path)
             placement = client.call("POST", "/v1/appAssetLibraryPlacements", {"data": {
                 "type": "appAssetLibraryPlacements",
                 "attributes": {"placementType": kind, "placementGroup": group},
                 "relationships": {
-                    "image": {"data": {"type": "appAssetLibraryImages", "id": uploaded[path]}},
+                    relationship: {"data": {"type": resource, "id": uploaded[path]}},
                     "appStoreVersionLocalization": {"data": {"type": "appStoreVersionLocalizations",
                                                              "id": localization["id"]}}}}})["data"]
             placed.append(placement["id"])
@@ -506,6 +534,8 @@ def main() -> int:
     images.add_argument("--creative", type=Path, help="a 5244x2950 PNG for the product page header and search results")
     images.add_argument("--header", type=Path, help="a 5244x2950 PNG for the product page header only")
     images.add_argument("--search", type=Path, help="a 5244x2950 PNG for the search results asset only")
+    images.add_argument("--preview", type=Path, help="the app preview video (1920x886), for the 6.9\" and 6.3\" iPhones")
+    images.add_argument("--poster", help="the preview's poster frame, the still shown before it plays (HH:MM:SS:FF)")
     images.add_argument("--dry-run", action="store_true", help="show what would change; write nothing")
     args = parser.parse_args()
     if args.command == "check":
@@ -513,10 +543,13 @@ def main() -> int:
     if args.command == "media":
         creatives = {kind: path for kind, path in ((HEADER, args.header or args.creative),
                                                    (SEARCH, args.search or args.creative)) if path}
-        if not args.screenshots and not creatives:
-            raise SystemExit("nothing to do: give --screenshots folders, a --creative (or --header, --search) image")
+        if args.poster and not args.preview:
+            raise SystemExit("--poster sets the frame of the --preview video it comes with")
+        if not args.screenshots and not creatives and not args.preview:
+            raise SystemExit("nothing to do: give --screenshots folders, a --creative (or --header, --search) image, "
+                             "or a --preview video")
         try:
-            return media(args.app, args.locale, args.screenshots, creatives, args.dry_run)
+            return media(args.app, args.locale, args.screenshots, creatives, args.preview, args.poster, args.dry_run)
         except RuntimeError as error:
             print(f"error: {error}", file=sys.stderr)
             return 2
