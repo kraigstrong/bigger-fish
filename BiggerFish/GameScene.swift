@@ -623,7 +623,8 @@ final class GameScene: SKScene {
         fishByID[f.id] = f
         let node = FishNode(style: style, isPlayer: f.isPlayer, tailPhase: CGFloat(f.id) * 1.7)
         node.zPosition = f.isPlayer ? 30 : 1 + CGFloat(f.id) * 0.5
-        if headlamp != nil && T.anglerLures && !f.isPlayer { node.addChild(Self.anglerLure(phase: CGFloat(f.id))) }
+        // Yours shines your headlamp; every other fish's glows over the dark.
+        if headlamp != nil && (f.isPlayer || T.anglerLures) { node.addChild(Self.anglerLure(phase: CGFloat(f.id), yours: f.isPlayer)) }
         nodes[f.id] = node
         fishLayer.addChild(node)
     }
@@ -1294,16 +1295,19 @@ final class GameScene: SKScene {
 
     /// An anglerfish lure at the fish's reference size, facing right: a stalk from its forehead, under the dark so
     /// it only shows in your beam, and at its tip a light over the dark, held to one size whatever the fish's.
+    /// Your own is gold, as in Midnight Zone's picture, and burns steady: your beam shines from it.
     private static let anglerLureName = "anglerLure", anglerLightName = "anglerLight"
-    private static func anglerLure(phase: CGFloat) -> SKNode {
-        let r = FishNode.referenceRadius, tip = CGPoint(x: 1.4 * r, y: 1.25 * r)
+    /// Where the lure's light hangs, at the fish's reference size facing right.
+    static let anglerLureTip = CGPoint(x: 1.4 * FishNode.referenceRadius, y: 1.25 * FishNode.referenceRadius)
+    private static func anglerLure(phase: CGFloat, yours: Bool) -> SKNode {
+        let r = FishNode.referenceRadius, tip = anglerLureTip
         let rig = SKNode()
         rig.name = anglerLureName
         let path = CGMutablePath()
         path.move(to: CGPoint(x: 0.75 * r, y: 0.72 * r))
         path.addQuadCurve(to: tip, control: CGPoint(x: 1.0 * r, y: 1.6 * r))
         let stalk = SKShapeNode(path: path)
-        stalk.strokeColor = SKColor(white: 0.8, alpha: 0.9)
+        stalk.strokeColor = yours ? SKColor(red: 1, green: 0.84, blue: 0.4, alpha: 1) : SKColor(white: 0.8, alpha: 0.9)
         stalk.lineWidth = 2
         stalk.lineCap = .round
         stalk.zPosition = 2
@@ -1322,9 +1326,9 @@ final class GameScene: SKScene {
         core.zPosition = 0.1
         light.addChild(halo)
         light.addChild(core)
-        light.run(.sequence([.wait(forDuration: Double(phase.truncatingRemainder(dividingBy: 7)) * 0.13), .repeatForever(.sequence([
+        if !yours { light.run(.sequence([.wait(forDuration: Double(phase.truncatingRemainder(dividingBy: 7)) * 0.13), .repeatForever(.sequence([
             .fadeAlpha(to: 0.7, duration: 0.8), .fadeAlpha(to: 1, duration: 0.8),
-        ]))]))
+        ]))])) }
         rig.addChild(light)
         return rig
     }
@@ -2709,12 +2713,11 @@ final class GameScene: SKScene {
                 wake.position = CGPoint(x: node.position.x + (currentPace > 1 ? -1.3 : 1.2) * r, y: node.position.y)
                 wake.particleBirthRate = push > 0.08 ? T.currentBubbles * min(1, push) : 0
             }
-            if f.isPlayer, let headlamp {
-                // Strapped to your head, pointing where you're swimming: rising or falling fast swings it off the
-                // far right of the screen.
-                let r = pose.radius * zoom
-                headlamp.position = CGPoint(x: node.position.x + r * (0.75 * cos(tilt) - 0.3 * sin(tilt)),
-                                            y: node.position.y + r * (0.75 * sin(tilt) + 0.3 * cos(tilt)))
+            if f.isPlayer, let headlamp, let lure = node.childNode(withName: Self.anglerLureName),
+               let light = lure.childNode(withName: Self.anglerLightName) {
+                // Shining from your lure's light, pointing where you're swimming: rising or falling fast swings it
+                // off the far right of the screen.
+                headlamp.position = convert(light.position, from: lure)
                 headlamp.zRotation = (pose.velocity.dy * zoom / T.motion.maxRiseSpeed).clamped(-1, 1) * T.headlampMaxTilt
             }
         }
