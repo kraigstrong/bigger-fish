@@ -696,6 +696,14 @@ enum GameTuning {
     static let kelpDrag: CGFloat = 0.65
     /// Other fish inside kelp darken to this one color, behind the fronds. Each part keeps its own transparency.
     static let kelpSilhouette = SKColor(red: 0.03, green: 0.09, blue: 0.07, alpha: 1)
+    /// Deep in the kelp a fish shows only its eye, the same size for every fish, so you see where it is but not how
+    /// big it is. Its silhouette fades in as it comes within this range of you (shares of the screen's width, center
+    /// to center: hidden beyond the far end, all there inside the near end), or as it swims out of the kelp.
+    /// False for silhouettes alone.
+    static let kelpHidesFish = true
+    static let kelpRevealDistance: ClosedRange<CGFloat> = 0.3...0.45
+    /// A hidden fish's eye, in screen points.
+    static let kelpEyeRadius: CGFloat = 5
 
     // MARK: Midnight Zone
 
