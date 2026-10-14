@@ -312,8 +312,9 @@ final class GameScene: SKScene {
     /// Fish drawn as silhouettes while in kelp, and the colors each of their shapes had before.
     /// How far each fish has faded into its silhouette (0: its own colors, 1: one dark shape).
     private var silhouetteShade: [Int: CGFloat] = [:]
-    /// The eye each fish hidden deep in the kelp shows instead of itself (`kelpHidesFish`).
-    private var kelpEyes: [Int: SKSpriteNode] = [:]
+    /// Bubbles rising from fish hidden deep in the kelp (`kelpHidesFish`), and when each fish lets out its next.
+    private var kelpBubbles: [KelpBubble] = []
+    private var nextKelpBubble: [Int: (time: CGFloat, count: Int)] = [:]
     /// After a sting, the result waits until the death animation has played.
     private var pendingLossResultAt: CGFloat?
     /// When a world-conquering win leaves for the conquered screen (see `leavesForConqueredScreen`).
@@ -1219,8 +1220,9 @@ final class GameScene: SKScene {
 
     private func spawnKelp() {
         silhouetteShade.removeAll()
-        for eye in kelpEyes.values { eye.removeFromParent() }
-        kelpEyes.removeAll()
+        for bubble in kelpBubbles { bubble.node.removeFromParent() }
+        kelpBubbles.removeAll()
+        nextKelpBubble.removeAll()
         for bed in kelpBeds { bed.back.removeFromParent(); bed.front.removeFromParent() }
         kelpBeds = (level.meetingPlan?.kelp ?? []).enumerated().map { index, bed in
             // Drawn from below the bottom of the screen to just above its top.
@@ -1281,37 +1283,63 @@ final class GameScene: SKScene {
         return depth * ((share - near.lowerBound) / (near.upperBound - near.lowerBound)).clamped(0, 1)
     }
 
-    /// A hidden fish's eye where its own eye is, facing its way: the same size for every fish, so it gives away
-    /// where the fish is but not how big. Over the front fronds (26) and under all of you (30, tail at -2).
-    private func showKelpEye(_ id: Int, hidden: CGFloat, at position: CGPoint, facing: CGFloat) {
-        guard hidden > 0 else {
-            kelpEyes[id]?.isHidden = true
-            return
-        }
-        let eye = kelpEyes[id] ?? {
-            let eye = SKSpriteNode(texture: Self.kelpEyeTexture,
-                                   size: CGSize(width: T.kelpEyeRadius * 2, height: T.kelpEyeRadius * 2))
-            eye.zPosition = 27 + CGFloat(id) * 0.001
-            fishLayer.addChild(eye)
-            kelpEyes[id] = eye
-            return eye
-        }()
-        eye.isHidden = false
-        eye.alpha = hidden
-        eye.position = position
-        eye.xScale = facing < 0 ? -1 : 1
+    /// A bubble rising from a fish hidden in the kelp: where it rose in the world, when, and how it wobbles.
+    private struct KelpBubble {
+        let node: SKSpriteNode
+        let x: CGFloat, y: CGFloat, born: CGFloat, alpha: CGFloat, phase: CGFloat
     }
-    private static let kelpEyeTexture: SKTexture = {
+
+    /// A hidden fish lets out a bubble from its mouth every so often, as faint as the fish is hidden. Over the front
+    /// fronds (26) and under all of you (30, tail at -2).
+    private func releaseKelpBubble(_ fish: Fish, at mouth: CGPoint, hidden: CGFloat, time: CGFloat) {
+        guard hidden > 0.3 else { return }
+        let next = nextKelpBubble[fish.id] ?? (time, 0)
+        guard time >= next.time else { return }
+        // Spacing and sizes vary bubble by bubble, the same way every run, never with the fish's size.
+        func jitter(_ salt: Double) -> CGFloat {
+            let x = sin(Double(fish.id) * 12.9898 + Double(next.count) * 78.233 + salt) * 43758.5453
+            return CGFloat(x - x.rounded(.down))
+        }
+        let every = T.kelpBubbleEvery, size = T.kelpBubbleRadius
+        nextKelpBubble[fish.id] = (time + every.lowerBound + (every.upperBound - every.lowerBound) * jitter(1), next.count + 1)
+        let radius = size.lowerBound + (size.upperBound - size.lowerBound) * jitter(2)
+        let node = SKSpriteNode(texture: Self.kelpBubbleTexture, size: CGSize(width: radius * 2, height: radius * 2))
+        // Each a hair apart, so two can't swap: no two from one fish ten apart are ever up at once.
+        node.zPosition = 27 + CGFloat(fish.id) * 0.01 + CGFloat(next.count % 10) * 0.001
+        fishLayer.addChild(node)
+        kelpBubbles.append(KelpBubble(node: node, x: mouth.x, y: mouth.y, born: time, alpha: 0.85 * min(1, hidden),
+                                      phase: jitter(3) * 2 * .pi))
+    }
+
+    /// Each bubble where it rose in the water, risen and wobbling, fading out as it goes.
+    private func renderKelpBubbles(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
+        guard !kelpBubbles.isEmpty else { return }
+        kelpBubbles.removeAll { bubble in
+            let age = time - bubble.born
+            guard age < T.kelpBubbleSeconds else {
+                bubble.node.removeFromParent()
+                return true
+            }
+            bubble.node.position = CGPoint(
+                x: screenAnchorX + world.delta(from: cameraX, to: bubble.x) * zoom + sin(age * 9 + bubble.phase) * 1.5,
+                y: waterCenter + (bubble.y - waterCenter) * zoom + age * T.kelpBubbleRise)
+            bubble.node.alpha = bubble.alpha * min(1, age / 0.1) * (1 - age / T.kelpBubbleSeconds)
+            bubble.node.setScale(1 + 0.3 * age / T.kelpBubbleSeconds)
+            return false
+        }
+    }
+    private static let kelpBubbleTexture: SKTexture = {
         let side: CGFloat = 32
         let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
             let cg = context.cgContext
-            cg.setFillColor(SKColor(white: 0, alpha: 0.35).cgColor)
-            cg.fillEllipse(in: CGRect(x: 0, y: 0, width: side, height: side))
-            cg.setFillColor(SKColor.white.cgColor)
+            cg.setFillColor(SKColor(white: 1, alpha: 0.18).cgColor)
             cg.fillEllipse(in: CGRect(x: 2, y: 2, width: side - 4, height: side - 4))
-            // The pupil looks ahead, as the fish's own does.
-            cg.setFillColor(SKColor(white: 0.08, alpha: 1).cgColor)
-            cg.fillEllipse(in: CGRect(x: side * 0.42, y: side * 0.27, width: side * 0.46, height: side * 0.46))
+            cg.setStrokeColor(SKColor(white: 1, alpha: 0.9).cgColor)
+            cg.setLineWidth(3)
+            cg.strokeEllipse(in: CGRect(x: 2.5, y: 2.5, width: side - 5, height: side - 5))
+            // A glint up top, toward the light.
+            cg.setFillColor(SKColor.white.cgColor)
+            cg.fillEllipse(in: CGRect(x: side * 0.24, y: side * 0.2, width: side * 0.24, height: side * 0.24))
         }
         return SKTexture(image: image)
     }()
@@ -2362,7 +2390,7 @@ final class GameScene: SKScene {
         encounterLeases[id] = nil
         approachEnds[id] = nil
         silhouetteShade[id] = nil
-        kelpEyes.removeValue(forKey: id)?.removeFromParent()
+        nextKelpBubble[id] = nil
         previousPresentation[id] = nil
         tutorialPaths[id] = nil
         tutorialSwims[id] = nil
@@ -2711,10 +2739,7 @@ final class GameScene: SKScene {
             let screenX = anchorX + world.delta(from: cameraX, to: pose.position.x) * zoom
             let margin = pose.radius * zoom * 3
             node.isHidden = screenX < -margin || screenX > size.width + margin
-            if node.isHidden {
-                kelpEyes[f.id]?.isHidden = true
-                continue
-            }
+            if node.isHidden { continue }
             node.position = CGPoint(x: screenX, y: waterCenter + (pose.position.y - waterCenter) * zoom)
             let inKelp = !kelpBeds.isEmpty && !f.isPlayer
             var hidden: CGFloat = 0
@@ -2754,12 +2779,10 @@ final class GameScene: SKScene {
                 time: time, tailRate: f.isPlayer ? 14 : 9
             )
             if inKelp {
-                // Where the fish's own eye is (`FishNode`'s, at 0.68 and 0.28 of its radius), turned with it.
-                let r = pose.radius * zoom, flip = (pose.facing < 0 ? -1 : 1) * max(abs(pose.facing), 0.05)
-                let eyeX = 0.68 * r * stretchX * flip, eyeY = 0.28 * r * stretchY
-                showKelpEye(f.id, hidden: hidden, at: CGPoint(x: node.position.x + eyeX * cos(tilt) - eyeY * sin(tilt),
-                                                              y: node.position.y + eyeX * sin(tilt) + eyeY * cos(tilt)),
-                            facing: pose.facing)
+                // From its mouth (`FishNode`'s, about 0.8 of its radius ahead).
+                let ahead: CGFloat = pose.facing < 0 ? -0.8 : 0.8
+                releaseKelpBubble(f, at: CGPoint(x: pose.position.x + ahead * pose.radius, y: pose.position.y),
+                                  hidden: hidden, time: time)
             }
             if let lure = node.childNode(withName: Self.anglerLureName) {
                 // Turned and scaled like the fish's own rig, so the stalk grows from its forehead.
@@ -2788,6 +2811,7 @@ final class GameScene: SKScene {
             }
         }
         renderStungFish(cameraX: cameraX, zoom: zoom, time: time)
+        renderKelpBubbles(cameraX: cameraX, zoom: zoom, time: time)
         if let glow = winGlow, let playerNode = nodes[player.id] {
             glow.position = playerNode.position
         }
