@@ -6,7 +6,7 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
 ## What the build already has
 
 - Bundle ID `com.kraigstrong.biggerfish`, team `MKACSCQ588`, automatic signing.
-- Version 0.4.0 (see the build log at the end). iPhone and iPad (full screen), landscape.
+- Version 0.4.1 (see the build log at the end). iPhone and iPad (full screen), landscape.
 - App icon (no alpha), loading screen, and launch color.
 - `ITSAppUsesNonExemptEncryption = NO`: the only encryption is the system's HTTPS, so App Store
   Connect won't ask the export-compliance question on each upload.
@@ -140,7 +140,10 @@ Smoke check, without the unlock:
 
 **What to Test**
 
-> Thanks for playing! New in this build: Sunset Cove, a new fourth world (Midnight Zone is fifth now).
+> Thanks for playing! New in 0.4.1: Sunset Cove's level 12 is fixed. Its green fish was just too big to eat
+> with the meals you can reach before it, so now it's a little smaller.
+>
+> New in 0.4.0: Sunset Cove, a new fourth world (Midnight Zone is fifth now).
 > Boats pass overhead dangling baited hooks: the bait looks like an easy meal, but touch it and you're
 > reeled up. Your progress now backs up to iCloud, so it follows you to your other iPhone or iPad, and
 > on iPad the game fills the screen. There's also a credits game in Settings: eat the names. Your
@@ -172,3 +175,4 @@ Smoke check, without the unlock:
 | 0.2 (1) | 2026-10-09 | `f98f340` (`bigger-fish-v0.2-beta.1`) | Kelp Forest, The Deep End, worlds unlock in order, unlock screens. |
 | 0.3 (1) | 2026-10-09 | `6526c7c` (`bigger-fish-v0.3-beta.1`) | Midnight Zone (world four: a headlamp in the dark, anglerfish lures); Shallow Reef reordered from 0.1 testers' numbers; beating a level 10 goes straight to the conquered screen; players who'd beaten Kelp Forest are told once that Midnight Zone is open. |
 | 0.4.0 (1) | 2026-10-12 | `19a652f` (`bigger-fish-v0.4-beta.1`) | Sunset Cove (world four of five: boats, baited hooks), every level frozen; progress backed up to iCloud; full-screen iPad; the credits game; the pause menu in Settings' style; a touch shows on the frame it lands; 60 fps while the screen is recorded. The unlock still isn't on sale. |
+| 0.4.1 (1) | 2026-10-13 | (`bigger-fish-v0.4.1-beta.1`) | Sunset Cove 12's green gate fish (16) a little smaller, 32.2 to 30.9, so the six meals you can reach before it eat it (in 0.4.0 only a glitch got past it). |

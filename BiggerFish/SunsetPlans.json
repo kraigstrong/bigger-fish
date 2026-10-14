@@ -17029,17 +17029,17 @@
             "distance" : 2059.128505946932,
             "fishID" : 16,
             "headOn" : true,
-            "radius" : 32.167914850976736,
+            "radius" : 30.9,
             "time" : 5.833333333333333,
-            "y" : 191.32720925580563,
+            "y" : 191.27324189013802,
             "zoom" : 0.8053326434281903
           },
           "danger" : true,
           "maximumMeals" : 8,
           "minimumMeals" : 6,
           "robustSlack" : 1,
-          "routes" : 16,
-          "sizeRatio" : 0.960215087365447
+          "routes" : 22,
+          "sizeRatio" : 0.9223677175547921
         },
         {
           "crossing" : {
@@ -17205,8 +17205,8 @@
           "maximumMeals" : 13,
           "minimumMeals" : 9,
           "robustSlack" : 1,
-          "routes" : 196,
-          "sizeRatio" : 0.9491011901388569
+          "routes" : 231,
+          "sizeRatio" : 0.9565308050971065
         },
         {
           "crossing" : {
@@ -17317,7 +17317,7 @@
           "minimumMeals" : 12,
           "robustSlack" : 1,
           "routes" : 999,
-          "sizeRatio" : 0.9555528892891276
+          "sizeRatio" : 0.9590071078710803
         }
       ]
     },
@@ -17795,14 +17795,14 @@
         "lane" : 0,
         "meetingDistance" : 2059.128505946932,
         "phase" : 2.7035783460041047,
-        "radius" : 32.167914850976736,
+        "radius" : 30.9,
         "referenceMeal" : true,
         "retargetTimer" : 2.2562355300766357,
         "role" : "gate",
         "segment" : 1,
         "spawn" : [
           2263.0127758728963,
-          191.32720925580563
+          191.27324189013802
         ],
         "startHeading" : -1,
         "styleSeed" : 17865961659844475426,
@@ -18659,9 +18659,9 @@
         "distance" : 2059.128505946932,
         "fishID" : 16,
         "headOn" : true,
-        "radius" : 32.167914850976736,
+        "radius" : 30.9,
         "time" : 5.833333333333333,
-        "y" : 191.32720925580563,
+        "y" : 191.27324189013802,
         "zoom" : 0.8053326434281903
       },
       {

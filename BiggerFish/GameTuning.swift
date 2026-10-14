@@ -906,14 +906,21 @@ enum GameTuning {
     ]
     /// Levels re-rolled to another layout of the same settings, fish and hooks both (`MeetingPlanner.kelpPlan`'s
     /// variation): one line to try another. Sunset Cove 10 is pinned to the layout Kraig loves ("might be my favorite
-    /// level yet... it's near perfection"), so its fish tweaks below can't pick another.
-    static let sunsetRerolls: [String: Int] = ["Sunset Cove 10": 9]
+    /// level yet... it's near perfection"), and 12 to the one he played and approved, so their fish tweaks below can't
+    /// pick another.
+    static let sunsetRerolls: [String: Int] = ["Sunset Cove 10": 9, "Sunset Cove 12": 2]
     /// Fish made a different size by hand. In Sunset Cove 10 the two giants ate the medium fish meant for your lap
     /// two in every one of Kraig's 52 runs (10 ate 6 and 11, 16 ate 15), finishing at 76.9 and 75.8, just over the
     /// 74.5 a run that eats everything reaches; his one run through ate a spare fish. They start smaller, so after
     /// those meals they're the sizes the level was designed for (70.3, 69): giants all through lap one, edible at the
     /// end.
-    static let sunsetFishRadius: [String: [Int: CGFloat]] = ["Sunset Cove 10": [10: 63, 16: 61.5]]
+    /// In Sunset Cove 12 the gate fish 16 (32.2) needed a lap-two meal on top of the six before it, and none fits: 12
+    /// swims in the giant 10's shadow, and after 11 or 13, up top, 14 and 15 come at you too close together to dive
+    /// between. The six meals you can reach (1, 2, 3 or 4, 5, 7, 9) left you at 31.3, just too small: none of Kraig's
+    /// 42 recorded runs got through ("The green fish needs to be just a little smaller"). At 30.9 those six eat it,
+    /// and five (30.3 at most) still can't.
+    static let sunsetFishRadius: [String: [Int: CGFloat]] = ["Sunset Cove 10": [10: 63, 16: 61.5],
+                                                             "Sunset Cove 12": [16: 30.9]]
     /// Trolling hooks retimed by hand, numbered in the order you pass them, to be at the top of their sweep as you pass
     /// (`HookLayout.sweptHigh`). In Sunset Cove 15 (Kraig, 2026-10-12: "might be impossible") the giant over you and
     /// the big fish coming at you under it leave only the floor, and the fourth hook's bait was at the bottom of its sweep
@@ -924,8 +931,9 @@ enum GameTuning {
     /// Sunset Cove 10 (Kraig, 2026-10-12, after its giants were sized to finish edible: "perfect. let's freeze level
     /// 10"), 11 ("11 is incredible"), 12 to 14 ("levels 10-14 on sunset cove are great"), and 15, once its last big fish
     /// had open water under it ("sunset 15 can be frozen. it's great"), then 1 to 6, 8 and 9 ("Levels 1-9 in sunset cove
-    /// are all great"), and 7 once no hooked fish hung behind the start ("level 7 looks good"). Take a level out of this
-    /// set (with Kraig's OK) to tune it in code again, then regenerate the file.
+    /// are all great"), and 7 once no hooked fish hung behind the start ("level 7 looks good"). 12 was frozen again once
+    /// its gate fish 16 was made a little smaller (`sunsetFishRadius`). Take a level out of this set (with Kraig's OK)
+    /// to tune it in code again, then regenerate the file.
     static let sunsetFrozen: Set<String> = Set((1...15).map { "Sunset Cove \($0)" })
     /// Sunset Cove's levels as the game plays them: from `SunsetPlans.json` for the frozen ones, otherwise planned in
     /// code (`sunsetPlan`) in Xcode builds. Release builds play the saved file for every level, so regenerate it after
