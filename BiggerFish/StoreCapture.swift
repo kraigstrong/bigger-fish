@@ -265,9 +265,11 @@ enum StoreCapture {
         (rising / GameTuning.motion.maxRiseSpeed).clamped(-1, 1) * GameTuning.headlampMaxTilt
     }
 
-    /// Well inside the headlamp's beam: ahead of your fish, within its reach and near the middle of the cone.
+    /// Well inside the headlamp's beam, which shines from your lure: ahead of it, within its reach and near the middle
+    /// of the cone.
     static func isLit(_ fish: Swimmer, by player: Swimmer, tilt: CGFloat, width: CGFloat) -> Bool {
-        let dx = fish.center.x - (player.center.x + player.radius * 0.75), dy = fish.center.y - player.center.y
+        let lure = GameScene.anglerLureTip, scale = player.radius / FishNode.referenceRadius
+        let dx = fish.center.x - (player.center.x + lure.x * scale), dy = fish.center.y - (player.center.y + lure.y * scale)
         let distance = hypot(dx, dy)
         return dx > 0 && distance > player.radius * 2 && distance < width * GameTuning.headlampReach * 0.85
             && abs(atan2(dy, dx) - tilt) < GameTuning.headlampHalfAngle * 0.8

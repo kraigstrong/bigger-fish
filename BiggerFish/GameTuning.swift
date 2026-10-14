@@ -847,7 +847,7 @@ enum GameTuning {
     /// The beam tilts with you, up to this far (radians) at full rising or falling speed, so diving or climbing
     /// fast leaves the far right of the screen dark.
     static let headlampMaxTilt: CGFloat = 0.6
-    /// A soft glow around your head, as a share of the beam's reach, so a fish right beside you is never invisible.
+    /// A soft glow around your lure, as a share of the beam's reach, so a fish right beside you is never invisible.
     static let headlampGlow: CGFloat = 0.14
 
     // MARK: Sunset Cove (world 4)
