@@ -276,6 +276,8 @@ struct SunsetCoveTests {
         }
         // Sunset Cove 10's giants were sized by hand so they finish edible (`sunsetFishRadius`).
         #expect(plans[9].variation == 9 && plans[9].fish[9].radius == 63 && plans[9].fish[15].radius == 61.5)
+        // So was Sunset Cove 12's gate fish 16, so the six meals you can reach before it eat it.
+        #expect(plans[11].variation == 2 && plans[11].fish[15].radius == 30.9)
     }
 
     /// Writes BiggerFish/SunsetPlans.json when build/arcade-development/sunset-plans.request exists. Frozen levels keep
