@@ -138,24 +138,27 @@ Smoke check, without the unlock:
 
 **What to Test**
 
-> Thanks for playing! New in 0.4.1: Sunset Cove's level 12 is fixed. Its green fish was just too big to eat
-> with the meals you can reach before it, so now it's a little smaller.
+> Thanks for playing! This is Bigger Fish 1.0, the version going on the App Store on November 3.
 >
-> New in 0.4.0: Sunset Cove, a new fourth world (Midnight Zone is fifth now).
-> Boats pass overhead dangling baited hooks: the bait looks like an easy meal, but touch it and you're
-> reeled up. Your progress now backs up to iCloud, so it follows you to your other iPhone or iPad, and
-> on iPad the game fills the screen. There's also a credits game in Settings: eat the names. Your
-> cleared levels stay cleared. We'd love to hear:
-> - Whether Sunset Cove's hooks feel fair: do you see the boat and line in time?
-> - Which levels felt too hard or too easy, and roughly how many tries they took.
-> - Whether The Deep End is a fun challenge or just frustrating.
-> - If you play on two devices, whether your progress shows up on both.
-> - On iPad, how it looks and feels.
+> New in 1.0:
+> - The unlock is on sale. All of Shallow Reef and the first two levels of every other world are free, and one
+>   purchase opens the rest of every world: levels still open in order, and each world's Deep End opens once
+>   you beat its level 10. In TestFlight, buying is free, so please try it: tap a padlocked level or Unlock
+>   all, buy, and check the padlocks are gone. Then delete the app and reinstall it: your progress and the
+>   unlock should come back on their own, with nothing to restore.
+> - Kelp Forest: deep in the kelp, fish hide. Only their bubbles show until you get close.
+> - Midnight Zone: your fish carries a lure, and your light shines from it.
+>
+> If you'd cleared levels past the free ones, they're padlocked until you unlock. Your progress is still
+> there. We'd love to hear:
+> - Whether buying works, whether the unlock comes back after a reinstall, and whether the unlock screen makes
+>   sense.
+> - Whether Kelp Forest's hidden fish feel fair: do the bubbles tell you enough?
 > - Bugs, crashes, or sound problems.
 >
-> To send feedback, take a screenshot while playing and share it with TestFlight, or use Send Beta
-> Feedback in the TestFlight app. The beta sends anonymous gameplay counts, like which levels were
-> cleared, with no names or device IDs.
+> To send feedback, take a screenshot while playing and share it with TestFlight, or use Send Beta Feedback in
+> the TestFlight app. The beta sends anonymous gameplay counts, like which levels were cleared, with no names
+> or device IDs.
 
 **Feedback Email:** the address you want testers' feedback to reach.
 
@@ -163,7 +166,10 @@ Smoke check, without the unlock:
 
 **Beta App Review:** your name, phone, and email as the contact. Sign-in isn't required. Notes:
 
-> No account or sign-in. Tap a world, then a level, and hold anywhere to rise.
+> No account or sign-in. Tap a world, then a level, and hold anywhere to rise. From 1.0, a one-time
+> in-app purchase opens the rest of every world (free in TestFlight); levels still open in order, and a
+> world's Deep End opens once its level 10 is beaten. To reach the purchase, tap Unlock all on the world
+> map, or a padlocked level such as Jelly Bloom 3. Restore purchase is on the same screen.
 
 ## Build log
 
@@ -174,3 +180,4 @@ Smoke check, without the unlock:
 | 0.3 (1) | 2026-10-09 | `6526c7c` (`bigger-fish-v0.3-beta.1`) | Midnight Zone (world four: a headlamp in the dark, anglerfish lures); Shallow Reef reordered from 0.1 testers' numbers; beating a level 10 goes straight to the conquered screen; players who'd beaten Kelp Forest are told once that Midnight Zone is open. |
 | 0.4.0 (1) | 2026-10-12 | `19a652f` (`bigger-fish-v0.4-beta.1`) | Sunset Cove (world four of five: boats, baited hooks), every level frozen; progress backed up to iCloud; full-screen iPad; the credits game; the pause menu in Settings' style; a touch shows on the frame it lands; 60 fps while the screen is recorded. The unlock still isn't on sale. |
 | 0.4.1 (1) | 2026-10-13 | `fd163a8` (`bigger-fish-v0.4.1-beta.1`) | Sunset Cove 12's green gate fish (16) a little smaller, 32.2 to 30.9, so the six meals you can reach before it eat it (in 0.4.0 only a glitch got past it). |
+| 1.0.0 (1) | 2026-10-14 | `6fc9a83` (`bigger-fish-v1.0.0-rc.1`) | The first 1.0 candidate. The unlock on sale (free in TestFlight) with the paywall analytics on (#192); Kelp Forest hides fish deep in the kelp but for their bubbles (#196); the unlock screen's Kelp Forest and Midnight Zone clips re-recorded (#197); Midnight Zone's beam shines from your own lure (#195). Internal testers first; external once 0.4.1 is out of Beta App Review. |
