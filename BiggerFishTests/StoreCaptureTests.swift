@@ -118,13 +118,21 @@ struct StoreCaptureTests {
         #expect(score(bounced: 4) == nil)
     }
 
-    @Test func kelpShadowsAreFishGoneDarkAhead() {
-        func score(shade: CGFloat) -> Double? {
-            StoreCapture.score(.kelpShadows, StoreCapture.SceneView(player: player,
-                fish: [Swimmer(id: 1, center: CGPoint(x: 600, y: 200), radius: 20, shade: shade)]))
+    @Test func kelpShadowsAreFishHiddenAhead() throws {
+        func score(_ fish: Swimmer...) -> Double? {
+            StoreCapture.score(.kelpShadows, StoreCapture.SceneView(player: player, fish: fish))
         }
-        #expect(score(shade: 1) != nil)
-        #expect(score(shade: 0) == nil)
+        let hidden = Swimmer(id: 1, center: CGPoint(x: 600, y: 200), radius: 20, shade: 1, hidden: 1)
+        let seen = Swimmer(id: 2, center: CGPoint(x: 400, y: 150), radius: 20, shade: 1, hidden: 0)
+        #expect(score(Swimmer(id: 1, center: CGPoint(x: 600, y: 200), radius: 20)) == nil)
+        if GameTuning.kelpHidesFish {
+            // Only its bubbles show far off in the kelp; one near you shows as a dark shape.
+            let alone = try #require(score(hidden))
+            #expect(score(seen) == nil)
+            #expect(try #require(score(hidden, seen)) > alone)
+        } else {
+            #expect(score(seen) != nil)
+        }
     }
 
     @Test func sunsetHooksHangAheadUnderTheirBoat() {
@@ -160,7 +168,7 @@ struct StoreCaptureTests {
     }
 
     @Test func fishCutOffByAnEdgeCountAgainstAFrame() throws {
-        let fish = [Swimmer(id: 1, center: CGPoint(x: 600, y: 200), radius: 20, shade: 1)]
+        let fish = [Swimmer(id: 1, center: CGPoint(x: 600, y: 200), radius: 20, shade: 1, hidden: 1)]
         let clean = try #require(StoreCapture.score(.kelpShadows, StoreCapture.SceneView(player: player, fish: fish)))
         let cut = Swimmer(id: 2, center: CGPoint(x: 870, y: 100), radius: 20)
         let edged = try #require(StoreCapture.score(.kelpShadows, StoreCapture.SceneView(player: player, fish: fish + [cut])))

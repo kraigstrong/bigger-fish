@@ -3917,9 +3917,11 @@ extension GameScene {
             if case .swallowing(let id) = f.state { prey = id }
             var eaten = false
             if case .beingSwallowed = f.state { eaten = true }
-            return StoreCapture.Swimmer(id: f.id, center: screen(f.position), radius: f.radius * zoom, prey: prey,
-                                        isEaten: eaten, shrink: f.shrink,
-                                        shade: kelpBeds.isEmpty || f.isPlayer ? 0 : kelpShade(f.position, radius: f.radius))
+            let center = screen(f.position), you = screen(player.position)
+            let depth = kelpBeds.isEmpty || f.isPlayer ? 0 : kelpShade(f.position, radius: f.radius)
+            return StoreCapture.Swimmer(id: f.id, center: center, radius: f.radius * zoom, prey: prey,
+                                        isEaten: eaten, shrink: f.shrink, shade: depth,
+                                        hidden: kelpHidden(depth: depth, screenDistance: hypot(center.x - you.x, center.y - you.y)))
         }
         return StoreCapture.SceneView(size: size, time: simClock, playing: phase == .playing, won: phase == .won,
                                       player: swimmer(player), rising: player.velocity.dy * zoom,

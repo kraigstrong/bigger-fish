@@ -22,7 +22,7 @@ enum StoreCapture {
         case missed
         /// Bouncing off a jellyfish's top.
         case jellyTops = "jelly-tops"
-        /// Fish hiding in the kelp, drawn as dark shapes.
+        /// Fish hiding in the kelp: hidden but for their bubbles (`GameTuning.kelpHidesFish`), or drawn as dark shapes.
         case kelpShadows = "kelp-shadows"
         /// A baited hook hanging ahead of you, its boat at the surface above it.
         case sunsetHooks = "sunset-hooks"
@@ -119,6 +119,8 @@ enum StoreCapture {
         var shrink: CGFloat = 1
         /// How far it has faded into a dark shape in the kelp (0 its own colors, 1 a silhouette).
         var shade: CGFloat = 0
+        /// How hidden it is deep in the kelp, away from you (0 drawn, 1 only its bubbles show).
+        var hidden: CGFloat = 0
     }
 
     /// A Sunset Cove hook, in screen points: where its bait hangs, and where its line meets the boat's rod at the surface.
@@ -229,12 +231,16 @@ enum StoreCapture {
             return 50 + Double(onScreen.count) * 6 + Double(min(shown.count, 5)) * 4
                 + Double(min(view.jellyRadius / player.radius, 3)) * 10 - Double(view.playerOffCenter) * 20 - edges
         case .kelpShadows:
-            // Dark shapes in the kelp ahead, and a fish or two still in their colors.
-            let dark = shown.filter { $0.shade >= 0.85 && $0.center.x > player.center.x }
+            // Fish hidden in the kelp ahead, showing only their bubbles (or, without the hiding, dark shapes there), a
+            // dark shape close enough to you to see, and a fish or two still in their colors.
+            let dark = shown.filter {
+                (GameTuning.kelpHidesFish ? $0.hidden >= 0.7 : $0.shade >= 0.85) && $0.center.x > player.center.x
+            }
             guard !dark.isEmpty else { return nil }
+            let seen = GameTuning.kelpHidesFish && shown.contains { $0.shade >= 0.85 && $0.hidden <= 0.3 }
             let bright = shown.filter { $0.shade == 0 }
             let middle = dark.map(\.center.x).reduce(0, +) / CGFloat(dark.count)
-            return Double(min(dark.count, 4)) * 25 + Double(min(bright.count, 3)) * 8
+            return Double(min(dark.count, 4)) * 25 + (seen ? 15 : 0) + Double(min(bright.count, 3)) * 8
                 - Double(abs(middle - view.size.width * 0.6) / view.size.width) * 40 - Double(view.playerOffCenter) * 20 - edges
         case .midnightLight:
             // Your beam level, lighting up a fish ahead, with lures glowing round about.
@@ -327,7 +333,12 @@ enum StoreCapture {
             fail(moment, "no frame showed the moment in \(moment.policies.count) runs of \(Int(runLimit)) seconds")
             return
         }
-        play(scene, policy: take.policy) { step, _ in step < take.step }
+        // Kelp Forest's bubbles rise over the second before the frame, so that second is drawn too.
+        let drawn = moment == .kelpShadows ? Int((GameTuning.kelpBubbleSeconds / GameTuning.simulationStep).rounded(.up)) : 0
+        play(scene, policy: take.policy) { step, _ in
+            if step > take.step - drawn { scene.debugRender() }
+            return step < take.step
+        }
         scene.debugRender()
         scene.debugHideInterface()
         // Drawn on screen before the frame is saved.
