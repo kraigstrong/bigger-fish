@@ -312,6 +312,9 @@ final class GameScene: SKScene {
     /// Fish drawn as silhouettes while in kelp, and the colors each of their shapes had before.
     /// How far each fish has faded into its silhouette (0: its own colors, 1: one dark shape).
     private var silhouetteShade: [Int: CGFloat] = [:]
+    /// Bubbles rising from fish hidden deep in the kelp (`kelpHidesFish`), and when each fish lets out its next.
+    private var kelpBubbles: [KelpBubble] = []
+    private var nextKelpBubble: [Int: (time: CGFloat, count: Int)] = [:]
     /// After a sting, the result waits until the death animation has played.
     private var pendingLossResultAt: CGFloat?
     /// When a world-conquering win leaves for the conquered screen (see `leavesForConqueredScreen`).
@@ -1217,6 +1220,9 @@ final class GameScene: SKScene {
 
     private func spawnKelp() {
         silhouetteShade.removeAll()
+        for bubble in kelpBubbles { bubble.node.removeFromParent() }
+        kelpBubbles.removeAll()
+        nextKelpBubble.removeAll()
         for bed in kelpBeds { bed.back.removeFromParent(); bed.front.removeFromParent() }
         kelpBeds = (level.meetingPlan?.kelp ?? []).enumerated().map { index, bed in
             // Drawn from below the bottom of the screen to just above its top.
@@ -1269,6 +1275,74 @@ final class GameScene: SKScene {
         return SKColor(red: red + (toRed - red) * shade, green: green + (toGreen - green) * shade,
                        blue: blue + (toBlue - blue) * shade, alpha: alpha)
     }
+
+    /// How hidden a fish in the kelp is: as deep as it is in the kelp, unless it's near you (`kelpRevealDistance`).
+    private func kelpHidden(depth: CGFloat, screenDistance: CGFloat) -> CGFloat {
+        guard T.kelpHidesFish, depth > 0 else { return 0 }
+        let near = T.kelpRevealDistance, share = screenDistance / size.width
+        return depth * ((share - near.lowerBound) / (near.upperBound - near.lowerBound)).clamped(0, 1)
+    }
+
+    /// A bubble rising from a fish hidden in the kelp: where it rose in the world, when, and how it wobbles.
+    private struct KelpBubble {
+        let node: SKSpriteNode
+        let x: CGFloat, y: CGFloat, born: CGFloat, alpha: CGFloat, phase: CGFloat
+    }
+
+    /// A hidden fish lets out a bubble from its mouth every so often, as faint as the fish is hidden. Over the front
+    /// fronds (26) and under all of you (30, tail at -2).
+    private func releaseKelpBubble(_ fish: Fish, at mouth: CGPoint, hidden: CGFloat, time: CGFloat) {
+        guard hidden > 0.3 else { return }
+        let next = nextKelpBubble[fish.id] ?? (time, 0)
+        guard time >= next.time else { return }
+        // Spacing and sizes vary bubble by bubble, the same way every run, never with the fish's size.
+        func jitter(_ salt: Double) -> CGFloat {
+            let x = sin(Double(fish.id) * 12.9898 + Double(next.count) * 78.233 + salt) * 43758.5453
+            return CGFloat(x - x.rounded(.down))
+        }
+        let every = T.kelpBubbleEvery, size = T.kelpBubbleRadius
+        nextKelpBubble[fish.id] = (time + every.lowerBound + (every.upperBound - every.lowerBound) * jitter(1), next.count + 1)
+        let radius = size.lowerBound + (size.upperBound - size.lowerBound) * jitter(2)
+        let node = SKSpriteNode(texture: Self.kelpBubbleTexture, size: CGSize(width: radius * 2, height: radius * 2))
+        // Each a hair apart, so two can't swap: no two from one fish ten apart are ever up at once.
+        node.zPosition = 27 + CGFloat(fish.id) * 0.01 + CGFloat(next.count % 10) * 0.001
+        fishLayer.addChild(node)
+        kelpBubbles.append(KelpBubble(node: node, x: mouth.x, y: mouth.y, born: time, alpha: 0.85 * min(1, hidden),
+                                      phase: jitter(3) * 2 * .pi))
+    }
+
+    /// Each bubble where it rose in the water, risen and wobbling, fading out as it goes.
+    private func renderKelpBubbles(cameraX: CGFloat, zoom: CGFloat, time: CGFloat) {
+        guard !kelpBubbles.isEmpty else { return }
+        kelpBubbles.removeAll { bubble in
+            let age = time - bubble.born
+            guard age < T.kelpBubbleSeconds else {
+                bubble.node.removeFromParent()
+                return true
+            }
+            bubble.node.position = CGPoint(
+                x: screenAnchorX + world.delta(from: cameraX, to: bubble.x) * zoom + sin(age * 9 + bubble.phase) * 1.5,
+                y: waterCenter + (bubble.y - waterCenter) * zoom + age * T.kelpBubbleRise)
+            bubble.node.alpha = bubble.alpha * min(1, age / 0.1) * (1 - age / T.kelpBubbleSeconds)
+            bubble.node.setScale(1 + 0.3 * age / T.kelpBubbleSeconds)
+            return false
+        }
+    }
+    private static let kelpBubbleTexture: SKTexture = {
+        let side: CGFloat = 32
+        let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
+            let cg = context.cgContext
+            cg.setFillColor(SKColor(white: 1, alpha: 0.18).cgColor)
+            cg.fillEllipse(in: CGRect(x: 2, y: 2, width: side - 4, height: side - 4))
+            cg.setStrokeColor(SKColor(white: 1, alpha: 0.9).cgColor)
+            cg.setLineWidth(3)
+            cg.strokeEllipse(in: CGRect(x: 2.5, y: 2.5, width: side - 5, height: side - 5))
+            // A glint up top, toward the light.
+            cg.setFillColor(SKColor.white.cgColor)
+            cg.fillEllipse(in: CGRect(x: side * 0.24, y: side * 0.2, width: side * 0.24, height: side * 0.24))
+        }
+        return SKTexture(image: image)
+    }()
 
     /// How far into the kelp a fish is: 0 a body's width outside every column, 1/2 centered on an edge, 1 a body's
     /// width inside.
@@ -2316,6 +2390,7 @@ final class GameScene: SKScene {
         encounterLeases[id] = nil
         approachEnds[id] = nil
         silhouetteShade[id] = nil
+        nextKelpBubble[id] = nil
         previousPresentation[id] = nil
         tutorialPaths[id] = nil
         tutorialSwims[id] = nil
@@ -2649,8 +2724,10 @@ final class GameScene: SKScene {
         let fraction = presentationFraction
         let zoom = previousZoom + (self.zoom - previousZoom) * fraction
         let time = realClock + frameAccumulator
-        let cameraX = presentationPose(player, fraction: fraction).position.x
+        let playerPose = presentationPose(player, fraction: fraction)
+        let cameraX = playerPose.position.x
         let anchorX = screenAnchorX
+        let playerScreen = CGPoint(x: anchorX, y: waterCenter + (playerPose.position.y - waterCenter) * zoom)
         renderJellies(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
         renderKelp(cameraX: cameraX, zoom: zoom, time: time)
         renderHooks(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
@@ -2664,13 +2741,19 @@ final class GameScene: SKScene {
             node.isHidden = screenX < -margin || screenX > size.width + margin
             if node.isHidden { continue }
             node.position = CGPoint(x: screenX, y: waterCenter + (pose.position.y - waterCenter) * zoom)
-            if !kelpBeds.isEmpty && !f.isPlayer {
+            let inKelp = !kelpBeds.isEmpty && !f.isPlayer
+            var hidden: CGFloat = 0
+            if inKelp {
                 // In steps of a twentieth, so a fish is only recolored while it's crossing an edge.
-                let shade = (kelpShade(pose.position, radius: pose.radius) * 20).rounded() / 20
+                let depth = kelpShade(pose.position, radius: pose.radius)
+                let shade = (depth * 20).rounded() / 20
                 if shade != silhouetteShade[f.id] ?? 0 {
                     silhouetteShade[f.id] = shade > 0 ? shade : nil
                     setSilhouette(node, shade)
                 }
+                hidden = kelpHidden(depth: depth, screenDistance: hypot(node.position.x - playerScreen.x,
+                                                                        node.position.y - playerScreen.y))
+                node.alpha = 1 - hidden
             }
 
             var stretch: CGFloat = 1
@@ -2695,6 +2778,12 @@ final class GameScene: SKScene {
                 stretchX: stretchX, stretchY: stretchY, mouthOpen: mouth,
                 time: time, tailRate: f.isPlayer ? 14 : 9
             )
+            if inKelp {
+                // From its mouth (`FishNode`'s, about 0.8 of its radius ahead).
+                let ahead: CGFloat = pose.facing < 0 ? -0.8 : 0.8
+                releaseKelpBubble(f, at: CGPoint(x: pose.position.x + ahead * pose.radius, y: pose.position.y),
+                                  hidden: hidden, time: time)
+            }
             if let lure = node.childNode(withName: Self.anglerLureName) {
                 // Turned and scaled like the fish's own rig, so the stalk grows from its forehead.
                 let flip = (pose.facing < 0 ? -1 : 1) * max(abs(pose.facing), 0.05)
@@ -2722,6 +2811,7 @@ final class GameScene: SKScene {
             }
         }
         renderStungFish(cameraX: cameraX, zoom: zoom, time: time)
+        renderKelpBubbles(cameraX: cameraX, zoom: zoom, time: time)
         if let glow = winGlow, let playerNode = nodes[player.id] {
             glow.position = playerNode.position
         }
@@ -3827,9 +3917,11 @@ extension GameScene {
             if case .swallowing(let id) = f.state { prey = id }
             var eaten = false
             if case .beingSwallowed = f.state { eaten = true }
-            return StoreCapture.Swimmer(id: f.id, center: screen(f.position), radius: f.radius * zoom, prey: prey,
-                                        isEaten: eaten, shrink: f.shrink,
-                                        shade: kelpBeds.isEmpty || f.isPlayer ? 0 : kelpShade(f.position, radius: f.radius))
+            let center = screen(f.position), you = screen(player.position)
+            let depth = kelpBeds.isEmpty || f.isPlayer ? 0 : kelpShade(f.position, radius: f.radius)
+            return StoreCapture.Swimmer(id: f.id, center: center, radius: f.radius * zoom, prey: prey,
+                                        isEaten: eaten, shrink: f.shrink, shade: depth,
+                                        hidden: kelpHidden(depth: depth, screenDistance: hypot(center.x - you.x, center.y - you.y)))
         }
         return StoreCapture.SceneView(size: size, time: simClock, playing: phase == .playing, won: phase == .won,
                                       player: swimmer(player), rising: player.velocity.dy * zoom,
