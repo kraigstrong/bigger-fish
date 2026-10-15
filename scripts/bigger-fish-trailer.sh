@@ -39,7 +39,7 @@ built=0
 while read -r level policy from to; do
     [ -n "$level" ] || continue
     echo "recording $level ($policy bot, $from-${to}s)"
-    FOOTAGE_NO_BUILD=$built scripts/bigger-fish-footage.sh "$level" "$policy" "$from" "$to" >/dev/null
+    FOOTAGE_NO_BUILD=$built scripts/bigger-fish-footage.sh "$level" "$policy" "$from" "$to" >/dev/null </dev/null
     built=1
 done <<< "$missing"
 
