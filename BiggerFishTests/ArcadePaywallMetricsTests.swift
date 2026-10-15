@@ -4,7 +4,7 @@ import Testing
 @testable import BiggerFish
 
 /// The paywall funnel (#123): offers, purchases, restores, the conquered milestone, and runs with the unlock. All of it
-/// stays silent until `ArcadeAnalytics.sendsPaywallEvents` is turned on, after brightbench.app accepts it.
+/// goes on with the unlock's sale (`ArcadeAnalytics.sendsPaywallEvents`, #156), and stays silent while it's off.
 @MainActor
 struct ArcadePaywallMetricsTests {
     private typealias Sender = ArcadeMetricsTests.Sender
@@ -16,9 +16,14 @@ struct ArcadePaywallMetricsTests {
         ArcadeMetricContext(world: "shallow-reef", level: level, setup: level, seed: "7", mode: mode, revision: "golden.1")
     }
 
-    @Test func paywallEventsStayOffUntilTheServerAndPolicyAreLive() {
-        #expect(!ArcadeAnalytics.sendsPaywallEvents)
-        let a = ArcadeAnalytics(defaults: defaults(), sender: Sender(), enabled: true)
+    /// The funnel goes on in the same release as the sale: not before (nothing to count), and not after (an offer
+    /// shown before it's on isn't remembered, so a later one would be reported as the install's first).
+    @Test func paywallEventsGoOnWithTheSale() {
+        #expect(ArcadeAnalytics.sendsPaywallEvents == ArcadeUnlock.isSelling)
+    }
+
+    @Test func paywallEventsStaySilentWhileOff() {
+        let a = ArcadeAnalytics(defaults: defaults(), sender: Sender(), enabled: true, paywallEvents: false)
         a.hasUnlock = true
         a.offerShown(.padlockedLevel); a.purchase(.unlocked, from: .padlockedLevel); a.restoreInSettings(found: true)
         a.start(reef(10)); a.finish("win", summary: ArcadeRunMetrics())

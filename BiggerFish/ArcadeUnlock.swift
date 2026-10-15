@@ -11,14 +11,11 @@ enum ArcadeUnlock {
     /// A non-consumable. Product IDs are permanent once created in App Store Connect.
     static let productID = "com.kraigstrong.biggerfish.allworlds"
 
-    /// Whether the game sells the unlock. Off in Release until the product is set up in App Store Connect (see
-    /// docs/bigger-fish-testflight.md); until then everyone plays as if they'd bought it. Xcode builds sell it
-    /// against BiggerFish.storekit.
-    #if DEBUG
+    /// Whether the game sells the unlock: on from 1.0, in every build. Xcode builds sell it against
+    /// BiggerFish.storekit, TestFlight builds in the sandbox (free), and the App Store for real. Turned off, everyone
+    /// plays as if they'd bought it. The paywall funnel's analytics go on and off with it
+    /// (`ArcadeAnalytics.sendsPaywallEvents`).
     static let isSelling = true
-    #else
-    static let isSelling = false
-    #endif
 
     /// The main levels free in each world: all of Shallow Reef's, and the first few of every other world
     /// (`GameTuning.freeLevelsPerWorld`) so a player can see what they'd be buying. The Deep End is never free.

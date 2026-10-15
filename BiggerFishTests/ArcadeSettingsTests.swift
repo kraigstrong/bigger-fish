@@ -36,7 +36,7 @@ struct ArcadeSettingsTests {
         #expect(SettingsView.showsRestore(selling: true, unlocked: false))
         #expect(!SettingsView.showsRestore(selling: true, unlocked: true) && !SettingsView.showsRestore(selling: false, unlocked: false))
         #expect(SettingsView.versionLine(["CFBundleShortVersionString": "0.4", "CFBundleVersion": "7"]) == "Version 0.4 (7)")
-        #expect(SettingsView.versionLine(Bundle.main.infoDictionary ?? [:]).hasPrefix("Version 0."))
+        #expect(SettingsView.versionLine(Bundle.main.infoDictionary ?? [:]).hasPrefix("Version 1."))
     }
 
     /// The scenes ask for 120 frames a second; on a ProMotion iPhone, iOS only allows more than 60 with this key, and

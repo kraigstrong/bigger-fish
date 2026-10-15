@@ -21,7 +21,16 @@ python3 appstore/push.py push --app bigger-fish                # push only what 
 python3 appstore/push.py push --app bigger-fish --only promotional_text
 python3 appstore/push.py media --app bigger-fish --screenshots DIR DIR --header FILE --search FILE --dry-run
 python3 appstore/push.py media --app bigger-fish --preview VIDEO --poster 00:00:26:20 --dry-run
+python3 appstore/push.py purchase --app bigger-fish --screenshot FILE --dry-run   # set up the in-app purchase
 ```
+
+`purchase` takes an in-app purchase to Ready to Submit. If App Store Connect doesn't have it yet, it creates it with
+the settings in `push.py`'s `PURCHASE_SETUP` (type, reference name, US price, Family Sharing); **the product ID and
+Family Sharing can't be undone once created**, so dry-run first. Then it fills in only what's missing: the display name
+and description from `iap/<purchase>/<locale>/`, the price, the availability (the app's territories, or all of them
+before the app's are chosen, plus new ones as Apple adds them), and the review screenshot (`--screenshot`, a PNG or
+JPEG of the purchase screen; a different one replaces it). It never changes a price or availability that's set. Bigger
+Fish's `com.kraigstrong.biggerfish.allworlds` was created this way on 2026-10-12.
 
 `media` replaces the editable version's screenshots (each folder's PNGs in name order, one folder per device size)
 and its product page header (`--header`) and search results asset (`--search`), each a 5244×2950 image; `--creative`

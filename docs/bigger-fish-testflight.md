@@ -6,7 +6,7 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
 ## What the build already has
 
 - Bundle ID `com.kraigstrong.biggerfish`, team `MKACSCQ588`, automatic signing.
-- Version 0.4.1 (see the build log at the end). iPhone and iPad (full screen), landscape.
+- Version 1.0.0 (see the build log at the end). iPhone and iPad (full screen), landscape.
 - App icon (no alpha), loading screen, and launch color.
 - `ITSAppUsesNonExemptEncryption = NO`: the only encryption is the system's HTTPS, so App Store
   Connect won't ask the export-compliance question on each upload.
@@ -96,20 +96,18 @@ and one or two best times before each step.
 - **Different Apple ID** (a test device only): signing in to another account never removes the device's progress;
   it merges into that account's.
 
-## Turning on the unlock
+## The unlock
 
 Bigger Fish is free to try: all ten of Shallow Reef's levels and the first two of every other world
 (`GameTuning.freeLevelsPerWorld`). A one-time purchase opens every world from the start and every Deep End; a
-world's Deep End still opens when its level 10 is beaten. Xcode builds sell it against `BiggerFish.storekit`.
-Release builds don't sell it until `ArcadeUnlock.isSelling` is turned on, and until then everyone plays
-as if they'd bought it. To turn it on:
+world's Deep End still opens when its level 10 is beaten. It's on sale from 1.0 (`ArcadeUnlock.isSelling`), with the
+paywall analytics on in the same release (`ArcadeAnalytics.sendsPaywallEvents`, #156). Xcode builds sell it against
+`BiggerFish.storekit`, and TestFlight testers buy it free in the sandbox.
 
-1. In App Store Connect, under the app's Monetization > In-App Purchases, create a **Non-Consumable** with
-   product ID `com.kraigstrong.biggerfish.allworlds` (permanent once created), reference name "Unlock every
-   world", price $4.99, display name "Every World", and description "Every world and every Deep End, for
-   good." Turn on Family Sharing. Add the review screenshot (the unlock screen) so it reaches Ready to Submit.
-2. Set `ArcadeUnlock.isSelling` to `true` for Release, and archive. TestFlight testers buy it free in the sandbox.
-3. Submit the in-app purchase with the first App Store version that sells it.
+The in-app purchase in App Store Connect: a **Non-Consumable**, product ID `com.kraigstrong.biggerfish.allworlds`
+(permanent once created), reference name "Unlock every world", $4.99, Family Sharing on, with the unlock screen as its
+review screenshot. Its display name and description are in `appstore/bigger-fish/iap/allworlds/` (`push.py` sends
+them), and `BiggerFish.storekit` matches them. Submit it with the first App Store version, 1.0.0.
 
 In Xcode, Debug > StoreKit > Manage Transactions deletes a test purchase to play as a new player again.
 Launching with `-arcadeUnlocked YES` (or `NO`) skips StoreKit and plays with (or without) the unlock.
