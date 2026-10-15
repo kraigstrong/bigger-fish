@@ -142,15 +142,17 @@ Smoke check, without the unlock:
 >
 > New in 1.0:
 > - The unlock is on sale. All of Shallow Reef and the first two levels of every other world are free, and one
->   purchase opens every world and every Deep End. In TestFlight, buying is free, so please try it: tap a
->   padlocked level or Unlock all, buy, and check that everything opens. Then delete the app, reinstall it,
->   and tap Restore purchase.
+>   purchase opens the rest of every world: levels still open in order, and each world's Deep End opens once
+>   you beat its level 10. In TestFlight, buying is free, so please try it: tap a padlocked level or Unlock
+>   all, buy, and check the padlocks are gone. Then delete the app and reinstall it: your progress and the
+>   unlock should come back on their own, with nothing to restore.
 > - Kelp Forest: deep in the kelp, fish hide. Only their bubbles show until you get close.
 > - Midnight Zone: your fish carries a lure, and your light shines from it.
 >
 > If you'd cleared levels past the free ones, they're padlocked until you unlock. Your progress is still
 > there. We'd love to hear:
-> - Whether buying and restoring work, and whether the unlock screen makes sense.
+> - Whether buying works, whether the unlock comes back after a reinstall, and whether the unlock screen makes
+>   sense.
 > - Whether Kelp Forest's hidden fish feel fair: do the bubbles tell you enough?
 > - Bugs, crashes, or sound problems.
 >
@@ -165,8 +167,9 @@ Smoke check, without the unlock:
 **Beta App Review:** your name, phone, and email as the contact. Sign-in isn't required. Notes:
 
 > No account or sign-in. Tap a world, then a level, and hold anywhere to rise. From 1.0, a one-time
-> in-app purchase opens every world and Deep End (free in TestFlight). To reach it, tap Unlock all on
-> the world map, or a padlocked level such as Jelly Bloom 3. Restore purchase is on the same screen.
+> in-app purchase opens the rest of every world (free in TestFlight); levels still open in order, and a
+> world's Deep End opens once its level 10 is beaten. To reach the purchase, tap Unlock all on the world
+> map, or a padlocked level such as Jelly Bloom 3. Restore purchase is on the same screen.
 
 ## Build log
 
