@@ -12,8 +12,7 @@ struct OpenWaterTests {
     /// A stage goes round every world at one difficulty: each world's level 5 on stage 1, level 6 on stage 2.
     @Test func aStageGoesRoundEveryWorld() {
         let worlds = GameTuning.openWaterWorlds
-        // The campaign's worlds in order, Jelly Bloom sitting out until its jellies can be planned in time.
-        #expect(worlds == ArcadeWorld.campaign.filter { $0 != .jellyBloom })
+        #expect(worlds == ArcadeWorld.campaign)
         for (index, world) in worlds.enumerated() {
             #expect(OpenWater.leg(index) == OpenWater.Leg(stage: 1, world: world, level: 5))
             #expect(OpenWater.leg(worlds.count + index) == OpenWater.Leg(stage: 2, world: world, level: 6))
@@ -87,9 +86,31 @@ struct OpenWaterTests {
             #expect(plan.issues.isEmpty, "level \(index) (\(world)): \(plan.issues)")
             #expect(!plan.hasGiantWall, "level \(index) (\(world)) has a wall of giants")
             #expect(OpenWater.finale(plan) != nil, "level \(index) (\(world)) has no gate")
+            // Jelly Bloom's bells, planned just in time like the other worlds' fish.
+            #expect((plan.jellies?.isEmpty == false) == (world == .jellyBloom), "level \(index) (\(world))")
+            #expect(plan.fish.allSatisfy { $0.appearsAt != nil }, "level \(index) (\(world))")
         }
         print("[OpenWater] seed \(seed), slowest plan (ms): "
               + slowest.map { "\($0.key.rawValue) \(Int($0.value * 1000))" }.sorted().joined(separator: ", "))
+    }
+
+    /// Jelly Bloom's levels plan just in time like the other worlds': its bells where the designer puts them, every
+    /// fish's way in clear of them, three stages deep across a handful of runs, in a few seconds at most.
+    @Test func jellyLevelsPlanInTime() {
+        let worlds = GameTuning.openWaterWorlds, jelly = worlds.firstIndex(of: .jellyBloom)!
+        var slowest = 0.0, fewer = 0, levels = 0
+        for seed in UInt64(11)...16 {
+            for stage in 0..<3 {
+                let index = stage * worlds.count + jelly, started = Date()
+                let plan = OpenWater.plan(index, seed: seed)
+                slowest = max(slowest, Date().timeIntervalSince(started))
+                levels += 1
+                if plan.spec.extraThreats < OpenWater.spec(index, seed: seed).extraThreats { fewer += 1 }
+                #expect(plan.issues.isEmpty && !plan.hasGiantWall, "seed \(seed), stage \(stage + 1): \(plan.issues)")
+                #expect(plan.jellies?.isEmpty == false)
+            }
+        }
+        print("[OpenWater] Jelly Bloom: slowest plan \(Int(slowest * 1000)) ms, \(fewer) of \(levels) with one fewer big fish")
     }
 
     /// Each level ends once you eat its last gate, and the next world's begins the way a level does: you at your
@@ -102,7 +123,7 @@ struct OpenWaterTests {
         scene.onClear = { _, _ in cleared = true }
         let worlds = GameTuning.openWaterWorlds
         let run = scene.debugPlayOpenWater(untilLevel: worlds.count + 1, safeFromFish: true)
-        #expect(run.index == worlds.count + 1 && !run.lost && !run.won && !cleared)
+        #expect(run.index == worlds.count + 1 && !run.lost && !run.won && !cleared, "stopped at level \(run.index): \(run.reason)")
         #expect(run.starts.map(\.world) == worlds + [worlds[0], worlds[1]])
         for start in run.starts {
             let name = "level \(start.index) (\(start.world))"

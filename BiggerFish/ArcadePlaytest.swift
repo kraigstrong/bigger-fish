@@ -96,10 +96,12 @@ enum ArcadePlaytest {
         }
     }
 
-    /// `-openWater <seed>` (or `-openWater random`): straight into an Open Water run (`OpenWater`) with that seed.
+    /// `-openWater <seed>` (or `-openWater random`): straight into an Open Water run (`OpenWater`) with that seed, and
+    /// with `-openWaterLevel <n>`, from its nth level (from 1: 2 is stage 1's Jelly Bloom).
     static var openWaterSeed: UInt64? {
         argument("-openWater").map { UInt64($0) ?? .random(in: 1...UInt64(UInt32.max)) }
     }
+    static var openWaterStart: Int { argument("-openWaterLevel").flatMap(Int.init).map { max(0, $0 - 1) } ?? 0 }
 
     private static func argument(_ flag: String) -> String? {
         let args = ProcessInfo.processInfo.arguments

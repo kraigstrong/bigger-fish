@@ -686,6 +686,9 @@ enum GameTuning {
     /// many seconds before the meeting.
     static let kelpTurnAwaySpeed: ClosedRange<CGFloat> = 0.45...0.7
     static let kelpTurnBefore: ClosedRange<CGFloat> = 0.55...0.9
+    /// On a jelly level (the Open Water's Jelly Bloom), a fish whose way in would cross a bell glides in from this much
+    /// higher or lower instead (screen points), nearest first, or swims straight in.
+    static let plannerJellyDetours: [CGFloat] = [60, 100, 140, 190]
     /// Columns start this many screens into the lap, so you start in open water, and stop as far before its end.
     static let kelpFirstColumnScreens: CGFloat = 0.8
     /// Kelp grows from this far below the bottom of the screen, so it's rooted in the seabed.
@@ -865,10 +868,9 @@ enum GameTuning {
     // MARK: Open Water (prototype, Xcode builds only)
 
     /// The Open Water's worlds, in the order a stage takes you round them (`OpenWater`). Each plays a new level made
-    /// at the stage's difficulty with the world's own hazards. Jelly Bloom sits out for now: its jellies are planned by
-    /// the searching planner, minutes a level, far too slow to plan as a run reaches it (the others' fish appear just
-    /// in time, planned in under a second).
-    static let openWaterWorlds: [ArcadeWorld] = [.shallowReef, .kelpForest, .sunsetCove, .midnightZone]
+    /// at the stage's difficulty with the world's own hazards, every one planned just in time (Jelly Bloom's jellies
+    /// too: `MeetingPlanner.kelpPlan` keeps the designer's bells and every fish's way in clear of them).
+    static let openWaterWorlds: [ArcadeWorld] = [.shallowReef, .jellyBloom, .kelpForest, .sunsetCove, .midnightZone]
     /// Stage 1's levels are made like each world's level 5, stage 2's like its level 6, and on (Kraig, 2026-10-19:
     /// "shallow reef 5, then jellyfish 5, then kelp 5 all the way through midnight zone 5, then shallow reef 6").
     static let openWaterFirstLevel = 5
@@ -876,8 +878,13 @@ enum GameTuning {
     /// the fish's), up to `openWaterSpeedUpLimit`.
     static let openWaterSpeedUp: Double = 0.05
     static let openWaterSpeedUpLimit: Double = 0.15
-    /// How many times a level's segments are re-dealt (`OpenWater.spec`) before taking the deal that planned best.
-    static let openWaterDeals = 6
+    /// How many times a level's segments are re-dealt (`OpenWater.spec`), and layouts of each tried, before taking
+    /// the deal that planned best.
+    static let openWaterDeals = 12
+    static let openWaterLayouts = 32
+    /// When no deal fits every open-water big fish its template asks for, plan the level with one fewer rather than
+    /// play it with planner issues. Around Jelly Bloom's bells there's sometimes no room for them all.
+    static let openWaterFewerToFit = true
     /// Seconds (of game time) from eating a level's last gate to the next level starting. The win's slow motion plays
     /// over the first `openWaterHoldShare`; then you shrink back to your starting size as the camera comes back in,
     /// done by `openWaterShrinkEnd`. The level's fish fade away over the first `openWaterFadeShare`, and nothing can

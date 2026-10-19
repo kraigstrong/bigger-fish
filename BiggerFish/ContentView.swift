@@ -168,7 +168,7 @@ struct ContentView: View {
             if scene == nil, let planner = ArcadePlaytest.planner {
                 playPlanner(planner.spec, variation: planner.variation)
             }
-            if scene == nil, let seed = ArcadePlaytest.openWaterSeed { playOpenWater(seed: seed) }
+            if scene == nil, let seed = ArcadePlaytest.openWaterSeed { playOpenWater(seed: seed, from: ArcadePlaytest.openWaterStart) }
             if let screen = ArcadePlaytest.screen { open(screen) }
             #endif
         }
@@ -307,15 +307,15 @@ struct ContentView: View {
     /// The Open Water, the endless run's prototype (`OpenWater`): always a practice run, so no progress or analytics.
     /// Its first level is planned off the main thread first (planning one takes a moment); leaving goes back to the
     /// world map.
-    private func playOpenWater(seed: UInt64 = .random(in: 1...UInt64(UInt32.max))) {
+    private func playOpenWater(seed: UInt64 = .random(in: 1...UInt64(UInt32.max)), from start: Int = 0) {
         guard !startingOpenWater else { return }
         startingOpenWater = true
         Task {
-            let plan = await Task.detached(priority: .userInitiated) { OpenWater.plan(0, seed: seed) }.value
+            let plan = await Task.detached(priority: .userInitiated) { OpenWater.plan(start, seed: seed) }.value
             startingOpenWater = false
             guard scene == nil else { return }
             let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-            game.debugStartOpenWater(seed: seed, firstLevel: plan)
+            game.debugStartOpenWater(seed: seed, firstLevel: plan, from: start)
             game.onExit = { scene = nil }
             show(game)
         }

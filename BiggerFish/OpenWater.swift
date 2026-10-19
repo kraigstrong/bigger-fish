@@ -68,22 +68,31 @@ enum OpenWater {
             segment.dangerFoods = min(base.dangerFoods, segment.mostMeals)
             return segment
         }
+        // Bells only where the designer puts them: the first level's demo bounce is the searching planner's.
+        spec.jellies?.demoBounce = false
         spec.name = "Open Water \(seed).\(index).\(recipe)"
         return spec
     }
 
     /// The run `seed`'s `index`th level: the same every time for the same two. The first deal that plans with no
-    /// issues and no wall of giants, trying a few layouts of each.
+    /// issues and no wall of giants, trying many layouts of each (a layout that can't fit is passed over in a moment).
+    /// If none does with every open-water big fish the template asks for, and `GameTuning.openWaterFewerToFit` allows,
+    /// the same again with one fewer: around bells there's sometimes no room for them all (Jelly Bloom 7's recipe).
     static func plan(_ index: Int, seed: UInt64) -> MeetingPlan {
         var best: MeetingPlan?
-        for recipe in 0..<GameTuning.openWaterDeals {
-            let spec = spec(index, seed: seed, recipe: recipe)
-            let plans: [MeetingPlan] = spec.jellies == nil
-                ? (0..<4).map { MeetingPlanner.kelpPlan(spec, variation: $0) } : [MeetingPlanner.plan(spec)]
-            if let clean = plans.first(where: { $0.issues.isEmpty && !$0.hasGiantWall }) { return clean }
-            best = best ?? plans.first
+        for fewer in 0...(GameTuning.openWaterFewerToFit ? 1 : 0) {
+            for recipe in 0..<GameTuning.openWaterDeals {
+                var spec = spec(index, seed: seed, recipe: recipe)
+                guard spec.extraThreats > fewer else { break }
+                spec.extraThreats -= fewer
+                for variation in 0..<GameTuning.openWaterLayouts where MeetingPlanner.kelpLayoutFits(spec, variation: variation) {
+                    let plan = MeetingPlanner.kelpPlan(spec, variation: variation)
+                    if plan.issues.isEmpty && !plan.hasGiantWall { return plan }
+                    best = best ?? plan
+                }
+            }
         }
-        return best!
+        return best ?? MeetingPlanner.kelpPlan(spec(index, seed: seed), variation: 0)
     }
 
     /// The level's last gate: eating it ends the level.
@@ -107,8 +116,10 @@ struct OpenWaterRun {
     /// Levels planned ahead (off the main thread, as the one before starts).
     private var planned: [Int: MeetingPlan] = [:]
 
-    init(seed: UInt64) {
+    /// `index`: start further on (playtesting a world: `-openWaterLevel`).
+    init(seed: UInt64, index: Int = 0) {
         self.seed = seed
+        self.index = index
     }
 
     /// A level's plan: planned ahead if it's ready, otherwise now.

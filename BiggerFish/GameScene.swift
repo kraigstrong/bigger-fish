@@ -2573,7 +2573,9 @@ final class GameScene: SKScene {
     /// Off screen, a planned fish you haven't met passes jellies by, like it passes other unmet fish, so
     /// bells can't throw its meeting off; on screen it steers and bounces as usual.
     private func plannedFishMeetsJellies(_ f: Fish) -> Bool {
-        level.meetingPlan == nil || f.isPlayer || !encounterProtected(f.id) || plannedContactVisible(f.position.x)
+        // A fish held to its way in (planned just in time) passes bells by: the plan keeps its way clear of them.
+        if approachEnds[f.id] != nil { return false }
+        return level.meetingPlan == nil || f.isPlayer || !encounterProtected(f.id) || plannedContactVisible(f.position.x)
     }
 
     /// Off screen, two planned fish you haven't met pass each other so their meetings stay on time.
@@ -3992,10 +3994,10 @@ final class GameScene: SKScene {
 extension GameScene {
     /// Plays the Open Water from its first level (`firstLevel`, if it's planned already), as a practice run: nothing
     /// is saved or reported. Set before the scene is shown.
-    func debugStartOpenWater(seed: UInt64, firstLevel plan: MeetingPlan? = nil) {
-        var run = OpenWaterRun(seed: seed)
-        if let plan { run.store(plan, index: 0) }
-        plannerLevel = run.plan(0).level
+    func debugStartOpenWater(seed: UInt64, firstLevel plan: MeetingPlan? = nil, from index: Int = 0) {
+        var run = OpenWaterRun(seed: seed, index: index)
+        if let plan { run.store(plan, index: index) }
+        plannerLevel = run.plan(index).level
         arcadeWorld = run.leg.world
         openWater = run
         debugPracticeRun = true
@@ -4237,7 +4239,7 @@ extension GameScene {
     /// does, then cleaning up like the collector bot. `safeFromFish`: nothing can eat you. Returns where it got, each
     /// level's start, the biggest you grew, and whether a level was ever won (it never should be).
     func debugPlayOpenWater(untilLevel: Int, limit: CGFloat = 400, safeFromFish: Bool = false)
-        -> (index: Int, lost: Bool, won: Bool, starts: [OpenWaterLevelStart], largest: CGFloat) {
+        -> (index: Int, lost: Bool, won: Bool, reason: String, starts: [OpenWaterLevelStart], largest: CGFloat) {
         simulationHeadless = true
         simulationEcologyProbe = false
         simulationHolding = false
@@ -4273,7 +4275,16 @@ extension GameScene {
                 next += 1
             }
             if steps % 3 == 0 {
-                var observation = botObservation
+                // What the bots see, and the bells too, so it swims over domes and round tentacles.
+                let seen = botObservation
+                let bells = level.jellies.map { layout in
+                    jellies.filter { abs(world.delta(from: player.position.x, to: $0.position.x)) < size.width / zoom }
+                        .map { ArcadeSimulation.Bell(x: $0.position.x, y: $0.position.y, radius: layout.radius,
+                                                     tentacles: layout.tentacleLength) }
+                } ?? []
+                var observation = ArcadeSimulation.Observation(player: seen.player, fish: seen.fish, bells: bells,
+                    width: seen.width, screenWidth: seen.screenWidth, zoom: seen.zoom, bottom: seen.bottom, top: seen.top,
+                    speed: seen.speed, bouncing: seen.bouncing, bounceSpeed: seen.bounceSpeed, hooks: seen.hooks)
                 if next < route.count {
                     let visible = fish.filter { !$0.isPlayer && $0.state == .swimming && !reference.contains($0.id)
                         && abs(world.delta(from: player.position.x, to: $0.position.x)) < size.width * 0.8 / zoom }
@@ -4306,7 +4317,7 @@ extension GameScene {
                 load()
             }
         }
-        return (openWater?.index ?? -1, phase == .lost, phase == .won, starts, largest)
+        return (openWater?.index ?? -1, phase == .lost, phase == .won, phase == .lost ? lossReason : "", starts, largest)
     }
 
     /// The result card's line, once the run has ended.
