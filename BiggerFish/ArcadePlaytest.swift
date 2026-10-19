@@ -96,6 +96,11 @@ enum ArcadePlaytest {
         }
     }
 
+    /// `-openWater <seed>` (or `-openWater random`): straight into an Open Water run (`OpenWater`) with that seed.
+    static var openWaterSeed: UInt64? {
+        argument("-openWater").map { UInt64($0) ?? .random(in: 1...UInt64(UInt32.max)) }
+    }
+
     private static func argument(_ flag: String) -> String? {
         let args = ProcessInfo.processInfo.arguments
         guard let index = args.firstIndex(of: flag), args.indices.contains(index + 1) else { return nil }

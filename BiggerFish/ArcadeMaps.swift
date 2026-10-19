@@ -25,6 +25,8 @@ struct ArcadeWorldMap: View {
     let onUnlock: (ArcadeWorld?) -> Void
     /// Settings: sound, vibration, the tutorial, restoring, privacy and support.
     let onSettings: () -> Void
+    /// The Open Water, the endless run's prototype: a button beside Settings in Xcode builds, none otherwise.
+    var onOpenWater: (() -> Void)? = nil
 
     var body: some View {
         ScreenScaled { size, _ in
@@ -70,6 +72,7 @@ struct ArcadeWorldMap: View {
                 Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
                     .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
                 HStack(spacing: 14) {
+                    if let onOpenWater { OpenWaterButton(action: onOpenWater) }
                     if !unlocked { UnlockButton { onUnlock(nil) } }
                     SettingsButton(action: onSettings)
                 }
@@ -100,6 +103,23 @@ private struct UnlockButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Unlock every world")
+    }
+}
+
+/// On the world map in Xcode builds: the way into the Open Water, the endless run's prototype.
+private struct OpenWaterButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Open Water", systemImage: "infinity")
+                .font(.custom("AvenirNext-Heavy", size: 15))
+                .padding(.horizontal, 16).frame(height: 40)
+                .background(Capsule().fill(.white.opacity(0.18)))
+                .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open Water, endless run")
     }
 }
 

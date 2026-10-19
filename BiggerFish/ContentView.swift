@@ -42,6 +42,8 @@ struct ContentView: View {
     @State private var menuScale: CGFloat = 1
     #if DEBUG
     @State private var showsTuning = false
+    /// An Open Water run's first stage is being planned (`playOpenWater`).
+    @State private var startingOpenWater = false
     #endif
 
     var body: some View {
@@ -63,7 +65,8 @@ struct ContentView: View {
                                onUnlock: { world in
                                    withAnimation { offer = UnlockOffer(featured: world, source: world == nil ? .unlockAll : .lockedWorld) }
                                },
-                               onSettings: { withAnimation { showsSettings = true } })
+                               onSettings: { withAnimation { showsSettings = true } },
+                               onOpenWater: openWaterAction)
             }
         }
         .overlay {
@@ -165,6 +168,7 @@ struct ContentView: View {
             if scene == nil, let planner = ArcadePlaytest.planner {
                 playPlanner(planner.spec, variation: planner.variation)
             }
+            if scene == nil, let seed = ArcadePlaytest.openWaterSeed { playOpenWater(seed: seed) }
             if let screen = ArcadePlaytest.screen { open(screen) }
             #endif
         }
@@ -269,7 +273,7 @@ struct ContentView: View {
         // A new player starts with the tutorial, then lands on Shallow Reef (not a level launched for playtesting).
         var startsWithTutorial = progress.needsTutorial
         #if DEBUG
-        startsWithTutorial = startsWithTutorial && ArcadePlaytest.selection == nil
+        startsWithTutorial = startsWithTutorial && ArcadePlaytest.selection == nil && ArcadePlaytest.openWaterSeed == nil
         #endif
         if startsWithTutorial {
             playTutorial()
@@ -299,7 +303,34 @@ struct ContentView: View {
         selectedWorld = .shallowReef
         show(game)
     }
+
+    /// The Open Water, the endless run's prototype (`OpenWater`): always a practice run, so no progress or analytics.
+    /// Its first stage is planned off the main thread first (planning one takes a moment); leaving goes back to the
+    /// world map.
+    private func playOpenWater(seed: UInt64 = .random(in: 1...UInt64(UInt32.max))) {
+        guard !startingOpenWater else { return }
+        startingOpenWater = true
+        Task {
+            let plan = await Task.detached(priority: .userInitiated) { OpenWater.plan(stage: 1, seed: seed) }.value
+            startingOpenWater = false
+            guard scene == nil else { return }
+            let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+            game.debugStartOpenWater(seed: seed, firstStage: plan)
+            game.onExit = { scene = nil }
+            show(game)
+        }
+    }
     #endif
+
+    /// The world map's way into the Open Water: Xcode builds only, and never in a capture or screen check.
+    private var openWaterAction: (() -> Void)? {
+        #if DEBUG
+        guard StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil else { return nil }
+        return { playOpenWater() }
+        #else
+        return nil
+        #endif
+    }
 
     /// The first-launch tutorial (`ArcadeTutorial`): seen once however it ends, then on to Shallow Reef's levels.
     /// `beat` (Xcode builds, from the tuner): start partway, to playtest one beat.

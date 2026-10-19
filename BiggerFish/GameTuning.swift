@@ -862,6 +862,30 @@ enum GameTuning {
     /// A soft glow around your lure, as a share of the beam's reach, so a fish right beside you is never invisible.
     static let headlampGlow: CGFloat = 0.14
 
+    // MARK: Open Water (prototype, Xcode builds only)
+
+    /// The Open Water's stages (`OpenWater`), in order: which Reef Lab level's settings each plays, each with a layout
+    /// of its own. Shallow Reef's levels in play order (testers' difficulty order), then its Deep End.
+    static let openWaterRamp: [Int] = shallowReefOrder
+    /// Past the ramp, the Deep End's five settings again and again, each time round this much faster (your swim and
+    /// the fish's), up to `openWaterSpeedUpLimit`.
+    static let openWaterLoop: [Int] = [10, 11, 12, 13, 14]
+    static let openWaterSpeedUp: Double = 0.05
+    static let openWaterSpeedUpLimit: Double = 0.15
+    /// Seconds from a stage's end to the next one starting. Over the first `openWaterShrinkShare` of it you shrink
+    /// back to your starting size as the camera comes back in, and the stage's fish fade away over the first
+    /// `openWaterFadeShare`; nothing can eat or be eaten meanwhile.
+    static let openWaterStageChangeSeconds: CGFloat = 1.8
+    static let openWaterShrinkShare: CGFloat = 0.75
+    static let openWaterFadeShare: CGFloat = 0.35
+    /// The bigger fish that swims by under you as a stage ends: its radius and height (screen points, and share of
+    /// the water from the floor) and how strongly it shows.
+    static let openWaterGiantRadius: CGFloat = 150
+    static let openWaterGiantHeight: CGFloat = 0.3
+    static let openWaterGiantAlpha: CGFloat = 0.55
+    /// "Stage 2" in the middle of the water as a stage starts: how long it stays (seconds, fades included).
+    static let openWaterBannerSeconds: Double = 1.6
+
     // MARK: Sunset Cove (world 4)
 
     /// Sunset Cove's fifteen levels, ten and the Deep End: Shallow Reef's, borrowed by index as Kelp Forest borrows them,

@@ -17,7 +17,11 @@ and backed up to the player's own iCloud, so they come back after a reinstall an
 device; the two copies merge so that syncing never un-clears a level.
 
 Free to try: all of Shallow Reef, plus two levels of each other world; a one-time purchase opens every world
-from the start and every Deep End (`ArcadeUnlock.swift`). No endless mode, pearls, or shop yet. See
+from the start and every Deep End (`ArcadeUnlock.swift`). No endless mode, pearls, or shop yet in the released game;
+Xcode builds have the endless run's prototype, **Open Water** (`OpenWater.swift`, from the world map's button, or launch
+with `-openWater <seed>`): stage after stage of Shallow Reef's planned levels, each planned as the run reaches it and
+harder than the last (`GameTuning.openWaterRamp`), shrinking you back to your starting size between them, until you're
+eaten. See
 [`docs/bigger-fish-playable-scope.md`](docs/bigger-fish-playable-scope.md) for the accepted scope and deferred vision.
 
 ## Running
