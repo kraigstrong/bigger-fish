@@ -864,26 +864,30 @@ enum GameTuning {
 
     // MARK: Open Water (prototype, Xcode builds only)
 
-    /// The Open Water's stages (`OpenWater`), in order: which Reef Lab level's settings each plays, each with a layout
-    /// of its own. Shallow Reef's levels in play order (testers' difficulty order), then its Deep End.
-    static let openWaterRamp: [Int] = shallowReefOrder
-    /// Past the ramp, the Deep End's five settings again and again, each time round this much faster (your swim and
+    /// The Open Water's worlds, in the order a stage takes you round them (`OpenWater`). Each plays a new level made
+    /// at the stage's difficulty with the world's own hazards. Jelly Bloom sits out for now: its jellies are planned by
+    /// the searching planner, minutes a level, far too slow to plan as a run reaches it (the others' fish appear just
+    /// in time, planned in under a second).
+    static let openWaterWorlds: [ArcadeWorld] = [.shallowReef, .kelpForest, .sunsetCove, .midnightZone]
+    /// Stage 1's levels are made like each world's level 5, stage 2's like its level 6, and on (Kraig, 2026-10-19:
+    /// "shallow reef 5, then jellyfish 5, then kelp 5 all the way through midnight zone 5, then shallow reef 6").
+    static let openWaterFirstLevel = 5
+    /// Past the Deep End's last level (15), its five again and again, each time round this much faster (your swim and
     /// the fish's), up to `openWaterSpeedUpLimit`.
-    static let openWaterLoop: [Int] = [10, 11, 12, 13, 14]
     static let openWaterSpeedUp: Double = 0.05
     static let openWaterSpeedUpLimit: Double = 0.15
-    /// Seconds from a stage's end to the next one starting. Over the first `openWaterShrinkShare` of it you shrink
-    /// back to your starting size as the camera comes back in, and the stage's fish fade away over the first
-    /// `openWaterFadeShare`; nothing can eat or be eaten meanwhile.
-    static let openWaterStageChangeSeconds: CGFloat = 1.8
-    static let openWaterShrinkShare: CGFloat = 0.75
+    /// How many times a level's segments are re-dealt (`OpenWater.spec`) before taking the deal that planned best.
+    static let openWaterDeals = 6
+    /// Seconds (of game time) from eating a level's last gate to the next level starting. The win's slow motion plays
+    /// over the first `openWaterHoldShare`; then you shrink back to your starting size as the camera comes back in,
+    /// done by `openWaterShrinkEnd`. The level's fish fade away over the first `openWaterFadeShare`, and nothing can
+    /// eat or be eaten meanwhile.
+    static let openWaterChangeSeconds: CGFloat = 1.8
+    static let openWaterHoldShare: CGFloat = 0.2
+    static let openWaterShrinkEnd: CGFloat = 0.85
     static let openWaterFadeShare: CGFloat = 0.35
-    /// The bigger fish that swims by under you as a stage ends: its radius and height (screen points, and share of
-    /// the water from the floor) and how strongly it shows.
-    static let openWaterGiantRadius: CGFloat = 150
-    static let openWaterGiantHeight: CGFloat = 0.3
-    static let openWaterGiantAlpha: CGFloat = 0.55
-    /// "Stage 2" in the middle of the water as a stage starts: how long it stays (seconds, fades included).
+    /// The next world's name (or "Stage 2", back at the first) in the middle of the water as its level starts: how
+    /// long it stays (seconds, fades included).
     static let openWaterBannerSeconds: Double = 1.6
 
     // MARK: Sunset Cove (world 4)

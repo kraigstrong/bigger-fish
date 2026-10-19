@@ -42,7 +42,7 @@ struct ContentView: View {
     @State private var menuScale: CGFloat = 1
     #if DEBUG
     @State private var showsTuning = false
-    /// An Open Water run's first stage is being planned (`playOpenWater`).
+    /// An Open Water run's first level is being planned (`playOpenWater`).
     @State private var startingOpenWater = false
     #endif
 
@@ -305,17 +305,17 @@ struct ContentView: View {
     }
 
     /// The Open Water, the endless run's prototype (`OpenWater`): always a practice run, so no progress or analytics.
-    /// Its first stage is planned off the main thread first (planning one takes a moment); leaving goes back to the
+    /// Its first level is planned off the main thread first (planning one takes a moment); leaving goes back to the
     /// world map.
     private func playOpenWater(seed: UInt64 = .random(in: 1...UInt64(UInt32.max))) {
         guard !startingOpenWater else { return }
         startingOpenWater = true
         Task {
-            let plan = await Task.detached(priority: .userInitiated) { OpenWater.plan(stage: 1, seed: seed) }.value
+            let plan = await Task.detached(priority: .userInitiated) { OpenWater.plan(0, seed: seed) }.value
             startingOpenWater = false
             guard scene == nil else { return }
             let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-            game.debugStartOpenWater(seed: seed, firstStage: plan)
+            game.debugStartOpenWater(seed: seed, firstLevel: plan)
             game.onExit = { scene = nil }
             show(game)
         }
