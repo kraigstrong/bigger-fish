@@ -885,16 +885,16 @@ enum GameTuning {
     /// When no deal fits every open-water big fish its template asks for, plan the level with one fewer rather than
     /// play it with planner issues. Around Jelly Bloom's bells there's sometimes no room for them all.
     static let openWaterFewerToFit = true
-    /// Seconds (of game time) from eating a level's last gate to the next level starting. The win's slow motion plays
-    /// over the first `openWaterHoldShare`; then you shrink back to your starting size as the camera comes back in,
-    /// done by `openWaterShrinkEnd`. The level's fish fade away over the first `openWaterFadeShare`, and nothing can
-    /// eat or be eaten meanwhile.
-    static let openWaterChangeSeconds: CGFloat = 1.8
-    static let openWaterHoldShare: CGFloat = 0.2
-    static let openWaterShrinkEnd: CGFloat = 0.85
-    static let openWaterFadeShare: CGFloat = 0.35
-    /// The next world's name (or "Stage 2", back at the first) in the middle of the water as its level starts: how
-    /// long it stays (seconds, fades included).
+    /// Between levels (Kraig, 2026-10-19: "Bring a huge fish in the foreground, new level"): the win's slow motion
+    /// plays for `openWaterHoldSeconds` of game time after you eat a level's last gate, nothing eating or being eaten.
+    /// Then a huge fish (radius in screen points, big enough that its body covers the whole screen) swims across in
+    /// front of everything in `openWaterGiantSeconds`, right to left. As it fills the screen the next level is swapped
+    /// in behind it, you back at your starting size with the camera all the way in.
+    static let openWaterHoldSeconds: CGFloat = 0.36
+    static let openWaterGiantRadius: CGFloat = 420
+    static let openWaterGiantSeconds: CGFloat = 1.3
+    /// "Stage 2" in the middle of the water as a new time round the worlds starts: how long it stays (seconds, fades
+    /// included). The worlds aren't named: you can see which one you're in.
     static let openWaterBannerSeconds: Double = 1.6
 
     // MARK: Sunset Cove (world 4)
