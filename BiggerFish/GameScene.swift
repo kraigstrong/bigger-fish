@@ -106,8 +106,10 @@ final class GameScene: SKScene {
     private var openWaterGiant: FishNode?
     private var openWaterGiantAge: CGFloat = 0
     private var openWaterGiantSwapped = false
-    /// The level's pearls still in the water, each with its node.
+    /// The level's pearls still in the water, each with its node, and those being gulped: each one's node, where it was
+    /// on screen when you touched it, and when (real seconds).
     private var openWaterPearls: [(pearl: OpenWaterPearl, node: SKNode)] = []
+    private var openWaterGulps: [(node: SKNode, from: CGPoint, start: CGFloat)] = []
     private let openWaterCounts = SKNode()
     #endif
     private var isOpenWater: Bool {
@@ -4193,6 +4195,19 @@ extension GameScene {
             node.position = CGPoint(x: x, y: waterCenter + (pearl.position.y - waterCenter) * zoom
                                     + sin(time * T.openWaterPearlBobRate + pearl.phase) * T.openWaterPearlBob)
         }
+        if let you = nodes[player.id] {
+            // Pearls being gulped slide into your mouth (about 0.8 of your radius ahead) and shrink away.
+            let r = presentationPose(player, fraction: fraction).radius * zoom
+            let mouth = CGPoint(x: you.position.x + 0.8 * r, y: you.position.y - 0.1 * r)
+            openWaterGulps.removeAll { gulp in
+                let t = ((time - gulp.start) / T.openWaterPearlGulpSeconds).clamped(0, 1), eased = t * (2 - t)
+                gulp.node.position = CGPoint(x: gulp.from.x + (mouth.x - gulp.from.x) * eased,
+                                             y: gulp.from.y + (mouth.y - gulp.from.y) * eased)
+                gulp.node.setScale(1 - 0.85 * eased)
+                if t >= 1 { gulp.node.removeFromParent() }
+                return t >= 1
+            }
+        }
         if let glow = openWaterGlow, let node = nodes[player.id] { glow.position = node.position }
         guard let giant = openWaterGiant else { return }
         let r = T.openWaterGiantRadius
@@ -4205,6 +4220,8 @@ extension GameScene {
     fileprivate func spawnOpenWaterPearls() {
         for entry in openWaterPearls { entry.node.removeFromParent() }
         openWaterPearls.removeAll()
+        for gulp in openWaterGulps { gulp.node.removeFromParent() }
+        openWaterGulps.removeAll()
         guard openWater != nil, let plan = level.meetingPlan else { return }
         let look = T.openWaterPearlLook(arcadeWorld)
         openWaterPearls = OpenWater.pearls(plan).map { pearl in
@@ -4242,7 +4259,9 @@ extension GameScene {
         for index in openWaterPearls.indices.reversed() where world.distance(player.position, openWaterPearls[index].pearl.position) < reach {
             let taken = openWaterPearls.remove(at: index)
             openWater?.pearls += 1
-            taken.node.run(.sequence([.group([.scale(to: 1.9, duration: 0.22), .fadeOut(withDuration: 0.22)]), .removeFromParent()]))
+            // A gulp: your mouth snaps open (and closes as after any bite), and the pearl goes into it.
+            player.mouth = 1
+            openWaterGulps.append((taken.node, taken.node.position, realClock))
             playSound(.eat)
             buzz(.meal)
             updateOpenWaterCounts()

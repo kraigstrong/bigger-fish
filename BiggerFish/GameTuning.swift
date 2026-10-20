@@ -906,6 +906,8 @@ enum GameTuning {
     /// How far a pearl bobs up and down (screen points), and how fast (radians a second).
     static let openWaterPearlBob: CGFloat = 2.5
     static let openWaterPearlBobRate: CGFloat = 2.2
+    /// Seconds a pearl takes to slide into your mouth once you touch it.
+    static let openWaterPearlGulpSeconds: CGFloat = 0.16
     /// Each world's pearl: its color and its rim, and how strongly it glows (brightly in Midnight Zone's dark).
     static func openWaterPearlLook(_ world: ArcadeWorld) -> (fill: SKColor, rim: SKColor, glow: CGFloat) {
         switch world {
