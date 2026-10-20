@@ -1,4 +1,5 @@
 import CoreGraphics
+import FishKit
 import Foundation
 import SpriteKit
 import Testing
@@ -111,6 +112,46 @@ struct OpenWaterTests {
             }
         }
         print("[OpenWater] Jelly Bloom: slowest plan \(Int(slowest * 1000)) ms, \(fewer) of \(levels) with one fewer big fish")
+    }
+
+    /// Pearls sit beside danger, a few a level: each just outside a big fish's body where you pass it, never on top
+    /// of it, and most levels have some.
+    @Test func pearlsSitBesideDanger() {
+        var levels = 0, withPearls = 0
+        for seed in UInt64(1)...3 {
+            for index in 0..<(2 * GameTuning.openWaterWorlds.count) {
+                let plan = OpenWater.plan(index, seed: seed), pearls = OpenWater.pearls(plan)
+                let world = WrappedWorld(width: GameTuning.playfieldSize.width * CGFloat(plan.spec.worldScreens))
+                levels += 1
+                if !pearls.isEmpty { withPearls += 1 }
+                #expect(pearls.count <= GameTuning.openWaterPearlsPerLevel)
+                let threats = Set(plan.fish.filter { $0.role == .threat }.map(\.id))
+                for pearl in pearls {
+                    let beside = plan.predicted.contains { crossing in
+                        let off = abs(CGFloat(crossing.y) - pearl.position.y), r = CGFloat(crossing.radius)
+                        return threats.contains(crossing.fishID)
+                            && abs(world.delta(from: CGFloat(crossing.distance), to: pearl.position.x)) < 1
+                            && off > r * GameTuning.collisionScale && off < 3 * r + 3 * GameTuning.openWaterPearlGap
+                    }
+                    #expect(beside, "level \(index), seed \(seed): a pearl at \(pearl.position) beside no big fish")
+                }
+            }
+        }
+        #expect(withPearls * 4 >= levels * 3, "only \(withPearls) of \(levels) levels have pearls")
+        print("[OpenWater] pearls on \(withPearls) of \(levels) levels")
+    }
+
+    /// Touching a pearl takes it: it counts, and it doesn't grow you.
+    @Test func takingAPearlCountsItWithoutGrowingYou() throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 1)
+        _ = scene.debugPlayOpenWater(untilLevel: 0)
+        let count = scene.debugOpenWaterPearls.count
+        let taken = try #require(scene.debugTakeFirstPearl())
+        #expect(taken.pearls == 1 && taken.after == taken.before)
+        #expect(scene.debugOpenWaterPearls.count == count - 1)
+        scene.debugLose()
+        #expect(scene.debugResultDetail?.hasSuffix("· 1 pearl") == true)
     }
 
     /// Each level ends once you eat its last gate, and the next world's begins the way a level does: you at your

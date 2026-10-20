@@ -893,6 +893,29 @@ enum GameTuning {
     static let openWaterHoldSeconds: CGFloat = 0.36
     static let openWaterGiantRadius: CGFloat = 420
     static let openWaterGiantSeconds: CGFloat = 1.3
+    /// Pearls (`OpenWater.pearls`): one kind, looking a little different in each world, beside danger and never needed.
+    /// Up to this many a level, spread along it, none in its first seconds. Each sits this many screen points of water
+    /// from a big fish's body as you pass it (on the reference route), within reach of your way, with nothing else
+    /// that could hurt you that close for this many steps either side. Their radius on screen.
+    static let openWaterPearlsPerLevel = 4
+    static let openWaterPearlEarliest: CGFloat = 1.0
+    static let openWaterPearlGap: CGFloat = 14
+    static let openWaterPearlReach: CGFloat = 110
+    static let openWaterPearlClearSteps = 12
+    static let openWaterPearlRadius: CGFloat = 7
+    /// How far a pearl bobs up and down (screen points), and how fast (radians a second).
+    static let openWaterPearlBob: CGFloat = 2.5
+    static let openWaterPearlBobRate: CGFloat = 2.2
+    /// Each world's pearl: its color and its rim, and how strongly it glows (brightly in Midnight Zone's dark).
+    static func openWaterPearlLook(_ world: ArcadeWorld) -> (fill: SKColor, rim: SKColor, glow: CGFloat) {
+        switch world {
+        case .jellyBloom: (SKColor(red: 0.99, green: 0.88, blue: 0.97, alpha: 1), SKColor(red: 0.78, green: 0.6, blue: 0.86, alpha: 1), 0.4)
+        case .kelpForest: (SKColor(red: 0.95, green: 0.97, blue: 0.84, alpha: 1), SKColor(red: 0.62, green: 0.72, blue: 0.5, alpha: 1), 0.35)
+        case .sunsetCove: (SKColor(red: 1, green: 0.87, blue: 0.78, alpha: 1), SKColor(red: 0.9, green: 0.56, blue: 0.5, alpha: 1), 0.4)
+        case .midnightZone: (SKColor(red: 0.88, green: 0.95, blue: 1, alpha: 1), SKColor(red: 0.55, green: 0.75, blue: 1, alpha: 1), 0.95)
+        case .shallowReef, .riptideReef: (SKColor(red: 0.97, green: 0.95, blue: 0.92, alpha: 1), SKColor(red: 0.8, green: 0.76, blue: 0.86, alpha: 1), 0.35)
+        }
+    }
     /// "Stage 2" in the middle of the water as a new time round the worlds starts: how long it stays (seconds, fades
     /// included). The worlds aren't named: you can see which one you're in.
     static let openWaterBannerSeconds: Double = 1.6

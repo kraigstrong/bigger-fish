@@ -106,6 +106,8 @@ final class GameScene: SKScene {
     private var openWaterGiant: FishNode?
     private var openWaterGiantAge: CGFloat = 0
     private var openWaterGiantSwapped = false
+    /// The level's pearls still in the water, each with its node.
+    private var openWaterPearls: [(pearl: OpenWaterPearl, node: SKNode)] = []
     private let openWaterCounts = SKNode()
     #endif
     private var isOpenWater: Bool {
@@ -119,7 +121,8 @@ final class GameScene: SKScene {
     private var openWaterSummary: String? {
         #if DEBUG
         guard let openWater else { return nil }
-        return "Stage \(openWater.leg.stage) · \(openWater.leg.world.title) · \(mealsEaten) fish eaten"
+        return "Stage \(openWater.leg.stage) · \(openWater.leg.world.title) · \(mealsEaten) fish · "
+            + (openWater.pearls == 1 ? "1 pearl" : "\(openWater.pearls) pearls")
         #else
         return nil
         #endif
@@ -597,6 +600,7 @@ final class GameScene: SKScene {
         openWater?.change = nil
         openWater?.finished = false
         openWaterFinale = openWater == nil ? nil : level.meetingPlan.flatMap(OpenWater.finale)
+        spawnOpenWaterPearls()
         if let run = openWater { prefetchOpenWaterLevel(run.index + 1) }
         #endif
 
@@ -2901,7 +2905,7 @@ final class GameScene: SKScene {
         renderStungFish(cameraX: cameraX, zoom: zoom, time: time)
         renderKelpBubbles(cameraX: cameraX, zoom: zoom, time: time)
         #if DEBUG
-        renderOpenWaterGlow(fraction: fraction, time: time)
+        renderOpenWater(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
         #endif
         if let glow = winGlow, let playerNode = nodes[player.id] {
             glow.position = playerNode.position
@@ -4057,6 +4061,7 @@ extension GameScene {
             }
         }
         guard let change = run.change else {
+            takeTouchedOpenWaterPearls()
             // A level with no gate (none should be) ends once you come round to its start.
             let done = openWaterFinale == nil ? forwardDistance >= world.width : run.finished
             let swallowing = swallows.contains { $0.predatorID == player.id || $0.preyID == player.id }
@@ -4157,6 +4162,7 @@ extension GameScene {
         spawnKelp()
         spawnHooks()
         spawnPlanned(plan)
+        spawnOpenWaterPearls()
         capturePresentation()
         buildLevelIndicator()
         // "Stage 2" once you're back round to the first world; the worlds speak for themselves.
@@ -4179,14 +4185,82 @@ extension GameScene {
         openWaterBanner = banner
     }
 
-    /// The win's ring stays round you, and the huge fish swims across.
-    fileprivate func renderOpenWaterGlow(fraction: CGFloat, time: CGFloat) {
+    /// The level's pearls bobbing where they sit, the win's ring round you, and the huge fish swimming across.
+    fileprivate func renderOpenWater(cameraX: CGFloat, zoom: CGFloat, fraction: CGFloat, time: CGFloat) {
+        for (pearl, node) in openWaterPearls {
+            let x = screenAnchorX + world.delta(from: cameraX, to: pearl.position.x) * zoom
+            node.isHidden = x < -20 || x > size.width + 20
+            node.position = CGPoint(x: x, y: waterCenter + (pearl.position.y - waterCenter) * zoom
+                                    + sin(time * T.openWaterPearlBobRate + pearl.phase) * T.openWaterPearlBob)
+        }
         if let glow = openWaterGlow, let node = nodes[player.id] { glow.position = node.position }
         guard let giant = openWaterGiant else { return }
         let r = T.openWaterGiantRadius
         giant.isHidden = false
         giant.position = CGPoint(x: openWaterGiantX(openWaterGiantAge - T.simulationStep * (1 - fraction)), y: waterCenter)
         giant.apply(radius: r, facing: -1, tilt: 0, stretchX: 1, stretchY: 1, mouthOpen: 0, time: time, tailRate: 6)
+    }
+
+    /// The level's pearls (`OpenWater.pearls`), in the world's look, replacing the last level's.
+    fileprivate func spawnOpenWaterPearls() {
+        for entry in openWaterPearls { entry.node.removeFromParent() }
+        openWaterPearls.removeAll()
+        guard openWater != nil, let plan = level.meetingPlan else { return }
+        let look = T.openWaterPearlLook(arcadeWorld)
+        openWaterPearls = OpenWater.pearls(plan).map { pearl in
+            let node = SKNode()
+            // Over the kelp's front fronds (26) and, at the fish layer's 10, Midnight Zone's dark (39.5), so it glints there;
+            // under your fish (30).
+            node.zPosition = Self.openWaterPearlDepth
+            let glow = SKSpriteNode(texture: ArcadeArt.glow, size: CGSize(width: 34, height: 34))
+            glow.color = look.fill
+            glow.colorBlendFactor = 1
+            glow.blendMode = .add
+            glow.alpha = look.glow
+            glow.zPosition = -0.1
+            let ball = SKShapeNode(circleOfRadius: T.openWaterPearlRadius)
+            ball.fillColor = look.fill
+            ball.strokeColor = look.rim
+            ball.lineWidth = 1.5
+            let shine = SKShapeNode(circleOfRadius: 2.2)
+            shine.fillColor = .white
+            shine.strokeColor = .clear
+            shine.position = CGPoint(x: -2.5, y: 2.5)
+            shine.zPosition = 0.1
+            for part in [glow, ball, shine] as [SKNode] { node.addChild(part) }
+            node.isHidden = true
+            fishLayer.addChild(node)
+            return (pearl, node)
+        }
+    }
+    private static let openWaterPearlDepth: CGFloat = 29.7
+
+    /// Touching a pearl takes it: it counts, and that's all (it doesn't grow you or slow you down).
+    private func takeTouchedOpenWaterPearls() {
+        guard player.isAlive else { return }
+        let reach = player.radius + T.openWaterPearlRadius / zoom
+        for index in openWaterPearls.indices.reversed() where world.distance(player.position, openWaterPearls[index].pearl.position) < reach {
+            let taken = openWaterPearls.remove(at: index)
+            openWater?.pearls += 1
+            taken.node.run(.sequence([.group([.scale(to: 1.9, duration: 0.22), .fadeOut(withDuration: 0.22)]), .removeFromParent()]))
+            playSound(.eat)
+            buzz(.meal)
+            updateOpenWaterCounts()
+            recordRunEvent("open_water_pearl", fields: ["pearls": openWater?.pearls ?? 0, "x": taken.pearl.position.x,
+                                                        "y": taken.pearl.position.y])
+        }
+    }
+
+    /// The level's pearls still in the water.
+    var debugOpenWaterPearls: [OpenWaterPearl] { openWaterPearls.map(\.pearl) }
+
+    /// Puts your fish on the level's first pearl and plays a step: the run's pearls, and your radius before and after.
+    func debugTakeFirstPearl() -> (pearls: Int, before: CGFloat, after: CGFloat)? {
+        guard let first = openWaterPearls.first else { return nil }
+        let before = player.radius
+        player.position = first.pearl.position
+        advanceFrame(T.simulationStep)
+        return (openWater?.pearls ?? 0, before, player.radius)
     }
 
     /// The run's fish eaten and pearls, top middle: a fish and a pearl, each with its count.

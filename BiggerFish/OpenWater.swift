@@ -95,10 +95,94 @@ enum OpenWater {
         return best ?? MeetingPlanner.kelpPlan(spec(index, seed: seed), variation: 0)
     }
 
+    /// The level's pearls (`OpenWaterPearl`): up to `GameTuning.openWaterPearlsPerLevel`, spread along it, each just
+    /// beside a big fish's line as you pass it (with `openWaterPearlGap` of water between your body and it on the
+    /// reference route), on the side nearer your way and within `openWaterPearlReach` of it, and clear of every other
+    /// fish bigger than you, bell, and hook around then. Taking one means brushing past danger; none is ever needed.
+    static func pearls(_ plan: MeetingPlan) -> [OpenWaterPearl] {
+        typealias T = GameTuning
+        let world = WrappedWorld(width: T.playfieldSize.width * CGFloat(plan.spec.worldScreens)), dt = T.simulationStep
+        let reference = plan.fish.filter(\.referenceMeal)
+        let timeline = PlayerTimeline.reference(meals: reference.map { ($0.meetingDistance, $0.radius) },
+            crossSeconds: CGFloat(plan.spec.crossSeconds), until: world.width * 1.05, currents: plan.currents ?? [],
+            lap: world.width)
+        // Your way: a straight swim from each reference meal's meeting to the next, from the middle of the water.
+        let ids = Set(reference.map(\.id))
+        let start = PlayerTimeline.waterBounds(zoom: 1)
+        let meals: [(time: CGFloat, y: CGFloat)] = plan.predicted.filter { ids.contains($0.fishID) }.sorted { $0.time < $1.time }
+            .map { (time: CGFloat($0.time), y: CGFloat($0.y)) }
+        let stops = [(time: CGFloat(0), y: (start.bottom + start.top) / 2)] + meals
+        func way(at time: CGFloat) -> CGFloat {
+            guard let after = stops.firstIndex(where: { $0.time > time }) else { return stops.last!.y }
+            let a = stops[max(0, after - 1)], b = stops[after]
+            return a.y + (b.y - a.y) * ((time - a.time) / max(0.01, b.time - a.time)).clamped(0, 1)
+        }
+        let byID = Dictionary(uniqueKeysWithValues: plan.fish.map { ($0.id, $0) })
+        /// Nothing else that could hurt you is near the pearl while you'd be taking it.
+        func clear(_ at: CGPoint, step: Int, you: CGFloat, except id: Int) -> Bool {
+            for around in stride(from: step - T.openWaterPearlClearSteps, through: step + T.openWaterPearlClearSteps, by: 3) {
+                let time = CGFloat(around) * dt
+                for f in plan.fish where f.id != id && f.radius > you {
+                    guard let p = MeetingSolver.wayInPosition(f, step: around, timeline: timeline) else { continue }
+                    if hypot(world.delta(from: p.x, to: at.x), p.y - at.y) < (f.radius + you) * T.collisionScale + T.openWaterPearlGap {
+                        return false
+                    }
+                }
+                if let spec = plan.spec.jellies {
+                    for jelly in plan.jellies ?? [] {
+                        let bell = JellyDrift.position(origin: jelly.origin, phase: jelly.phase, time: time,
+                                                       screenWidth: T.playfieldSize.width, world: world)
+                        let p = CGPoint(x: world.delta(from: bell.x, to: at.x), y: at.y - bell.y)
+                        if MeetingSolver.touchesBell(p, body: you * T.hazardHitboxScale + T.openWaterPearlGap, spec: spec) { return false }
+                    }
+                }
+                for hook in plan.hooks ?? [] {
+                    let p = HookMotion.position(hook, time: time)
+                    if hypot(world.delta(from: p.x, to: at.x), p.y - at.y) < 1.15 * hook.baitRadius + you + T.openWaterPearlGap {
+                        return false
+                    }
+                }
+            }
+            return true
+        }
+        var spots: [CGPoint] = []
+        for crossing in plan.predicted.sorted(by: { $0.time < $1.time }) where byID[crossing.fishID]?.role == .threat {
+            let step = timeline.step(reaching: CGFloat(crossing.distance))
+            let zoom = timeline.zoom[step], you = timeline.radius[step], time = CGFloat(step) * dt
+            // A big fish you'd be eaten by, past the level's opening.
+            guard time >= T.openWaterPearlEarliest, CGFloat(crossing.radius) > you * (1 + T.nearEqualThreshold) else { continue }
+            let offset = (CGFloat(crossing.radius) + you) * T.collisionScale + T.openWaterPearlGap / zoom
+            let bounds = PlayerTimeline.waterBounds(zoom: zoom), route = way(at: time), y = CGFloat(crossing.y)
+            // The side nearer your way first.
+            let sides: [CGFloat] = abs(y + offset - route) <= abs(y - offset - route) ? [1, -1] : [-1, 1]
+            for side in sides {
+                let at = CGPoint(x: world.wrap(CGFloat(crossing.distance)), y: y + side * offset)
+                guard (bounds.bottom + you...bounds.top - you).contains(at.y), abs(at.y - route) <= T.openWaterPearlReach / zoom,
+                      clear(at, step: step, you: you, except: crossing.fishID) else { continue }
+                spots.append(at)
+                break
+            }
+        }
+        // Spread along the level: every so many of the spots, as many as a level has.
+        let count = min(spots.count, T.openWaterPearlsPerLevel)
+        guard count > 0 else { return [] }
+        return (0..<count).map { k in
+            let at = spots[spots.count > 1 ? (k * (spots.count - 1)) / max(1, count - 1) : 0]
+            return OpenWaterPearl(position: at, phase: CGFloat(k) * 1.9)
+        }
+    }
+
     /// The level's last gate: eating it ends the level.
     static func finale(_ plan: MeetingPlan) -> Int? {
         plan.fish.filter { $0.role == .gate }.max { $0.meetingDistance < $1.meetingDistance }?.id
     }
+}
+
+/// A pearl in an Open Water level: where it sits in the water (world point), and when it bobs. Touch it to take it:
+/// it doesn't grow you, other fish leave it alone, and no gate needs it.
+struct OpenWaterPearl: Equatable {
+    let position: CGPoint
+    let phase: CGFloat
 }
 
 /// One Open Water run: its seed, the level you're on, and the change to the next while it plays out.
@@ -109,7 +193,7 @@ struct OpenWaterRun {
     var leg: OpenWater.Leg { OpenWater.leg(index) }
     /// You've eaten this level's last gate.
     var finished = false
-    /// Pearls picked up this run (none are placed yet).
+    /// Pearls taken this run.
     var pearls = 0
     /// The change to the next level in progress: when it began (game seconds), and your size and the camera's zoom then.
     var change: (start: CGFloat, radius: CGFloat, zoom: CGFloat)?

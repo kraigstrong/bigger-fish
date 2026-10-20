@@ -1921,33 +1921,47 @@ extension MeetingSolver {
         }
     }
 
+    /// Where a fish planned just in time is at `step` (world point, x unwrapped), while it's held to its way in:
+    /// from appearing just off screen until it's let go past its meeting. Nil before or after.
+    static func wayInPosition(_ f: PlannedFish, step: Int, timeline: PlayerTimeline) -> CGPoint? {
+        guard let appears = f.appearsAt else { return nil }
+        let first = timeline.step(reaching: appears)
+        let last = timeline.step(reaching: f.meetingDistance + T.playfieldSize.width * T.kelpApproachReleaseScreens)
+        guard (first...max(first, last)).contains(step) else { return nil }
+        let elapsed = CGFloat(step - first) * T.simulationStep, heading: CGFloat = f.headOn ? -1 : 1
+        return f.approach.map { path in
+            let offset = path.offset(at: elapsed, heading: heading, speed: f.cruiseSpeed)
+            return CGPoint(x: path.meeting.x + offset.dx, y: path.meeting.y + offset.dy)
+        } ?? CGPoint(x: f.spawn.x + heading * f.cruiseSpeed * elapsed, y: f.spawn.y)
+    }
+
     /// The first bell (its index) `f` would touch between appearing and being let go, if any.
     static func wayInHitsJelly(_ f: PlannedFish, jellies: [PlannedJelly], spec: MeetingSpec, timeline: PlayerTimeline) -> Int? {
         guard let jellySpec = spec.jellies, let appears = f.appearsAt else { return nil }
         let width = T.playfieldSize.width, dt = T.simulationStep
         let world = WrappedWorld(width: width * CGFloat(spec.worldScreens))
-        let R = CGFloat(jellySpec.radius), L = CGFloat(jellySpec.tentacleLength)
         let first = timeline.step(reaching: appears)
         let last = timeline.step(reaching: f.meetingDistance + width * T.kelpApproachReleaseScreens)
-        let heading: CGFloat = f.headOn ? -1 : 1, body = f.radius * T.hazardHitboxScale, reach = R + body
+        let body = f.radius * T.hazardHitboxScale
         for step in stride(from: first, through: last, by: 2) {
-            let elapsed = CGFloat(step - first) * dt
-            let at = f.approach.map { path in
-                let offset = path.offset(at: elapsed, heading: heading, speed: f.cruiseSpeed)
-                return CGPoint(x: path.meeting.x + offset.dx, y: path.meeting.y + offset.dy)
-            } ?? CGPoint(x: f.spawn.x + heading * f.cruiseSpeed * elapsed, y: f.spawn.y)
+            guard let at = wayInPosition(f, step: step, timeline: timeline) else { continue }
             for (index, jelly) in jellies.enumerated() where jelly.fishID != f.id {
                 let bell = JellyDrift.position(origin: jelly.origin, phase: jelly.phase, time: CGFloat(step) * dt,
                                                screenWidth: width, world: world)
-                // Relative to the bell's rim: the dome above it (with the fish's body), the tentacles below.
-                let p = CGPoint(x: world.delta(from: bell.x, to: at.x), y: at.y - bell.y)
-                let across = min(1, abs(p.x) / reach)
-                let dome = abs(p.x) <= reach && p.y >= -body && p.y <= R * 0.65 * sqrt(1 - across * across) + body
-                let tentacles = CGRect(x: -R * 0.72, y: -L, width: R * 1.44, height: L).insetBy(dx: -body, dy: -body).contains(p)
-                if dome || tentacles { return index }
+                if touchesBell(CGPoint(x: world.delta(from: bell.x, to: at.x), y: at.y - bell.y), body: body, spec: jellySpec) {
+                    return index
+                }
             }
         }
         return nil
+    }
+
+    /// Whether a body this big, centered at `p` from a bell's rim, touches the bell: its dome above, its tentacles below.
+    static func touchesBell(_ p: CGPoint, body: CGFloat, spec: JellySpec) -> Bool {
+        let R = CGFloat(spec.radius), L = CGFloat(spec.tentacleLength), reach = R + body
+        let across = min(1, abs(p.x) / reach)
+        let dome = abs(p.x) <= reach && p.y >= -body && p.y <= R * 0.65 * sqrt(1 - across * across) + body
+        return dome || CGRect(x: -R * 0.72, y: -L, width: R * 1.44, height: L).insetBy(dx: -body, dy: -body).contains(p)
     }
 
     /// A Kelp Forest fish's way in, so no two arrive alike: meals glide, weave, or turn toward you; big fish
