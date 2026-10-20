@@ -88,11 +88,11 @@ enum ArcadeWorld: String, CaseIterable, Identifiable, Codable {
         Self.campaign.firstIndex(of: self).flatMap { Self.campaign.indices.contains($0 + 1) ? Self.campaign[$0 + 1] : nil }
     }
     /// What's new in the world, on the card before its first level until that's beaten (every other card is just the
-    /// level and its pips). Shallow Reef has nothing new: the tutorial teaches the controls, eating and avoiding, and
-    /// being the last fish swimming.
+    /// level and its pips). Shallow Reef's is how a level is won, in the tutorial's words: the tutorial teaches it in its
+    /// last beat, so a player who skips it hears it nowhere else (one wasn't sure how to get to the next level).
     var rules: [String] {
         switch self {
-        case .shallowReef: []
+        case .shallowReef: ["Be the last fish swimming."]
         case .jellyBloom: ["Bounce the tops.", "Dodge the tentacles."]
         case .kelpForest: ["Kelp slows you down.", "Fish in the kelp show only bubbles."]
         case .midnightZone: ["Your light shows the way.", "Fish lurk in the dark."]
