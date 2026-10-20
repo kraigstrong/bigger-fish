@@ -141,6 +141,26 @@ struct OpenWaterTests {
         print("[OpenWater] pearls on \(withPearls) of \(levels) levels")
     }
 
+    /// Once a level's last gate is eaten nothing can end the run before the next level starts: no tentacle and no hook,
+    /// as no fish can. (Mid-level, the same tentacle does.)
+    @Test func nothingCatchesYouBetweenLevels() {
+        let worlds = GameTuning.openWaterWorlds
+        func scene(at world: ArcadeWorld) -> GameScene {
+            let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+            let index = worlds.firstIndex(of: world)!
+            scene.debugStartOpenWater(seed: 1, from: index)
+            _ = scene.debugPlayOpenWater(untilLevel: index)
+            return scene
+        }
+        #expect(scene(at: .jellyBloom).debugTouchTentacles(playerVictim: true))
+        let jelly = scene(at: .jellyBloom)
+        jelly.debugFinishOpenWaterLevel()
+        #expect(!jelly.debugTouchTentacles(playerVictim: true))
+        let sunset = scene(at: .sunsetCove)
+        sunset.debugFinishOpenWaterLevel()
+        #expect(!sunset.debugTouchHook(0, at: .bait))
+    }
+
     /// Touching a pearl takes it: it counts, and it doesn't grow you.
     @Test func takingAPearlCountsItWithoutGrowingYou() throws {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)

@@ -119,6 +119,15 @@ final class GameScene: SKScene {
         return false
         #endif
     }
+    /// An Open Water level is over and the next is on its way (the win's slow motion, then the huge fish): nothing
+    /// eats or is eaten, and no tentacle or hook can catch you.
+    private var openWaterChanging: Bool {
+        #if DEBUG
+        return openWater?.change != nil
+        #else
+        return false
+        #endif
+    }
     /// The Open Water's result line: how far the run got.
     private var openWaterSummary: String? {
         #if DEBUG
@@ -206,6 +215,8 @@ final class GameScene: SKScene {
     var onExit: (() -> Void)?
     /// Pausing and resuming, so the screen around the playfield (on an iPad) can darken with the pause menu.
     var onPause: ((Bool) -> Void)?
+    /// The world changed mid-run (the Open Water), so the screen around the playfield can take its water.
+    var onWorldChange: ((ArcadeWorld) -> Void)?
     /// The first-launch tutorial was played to the end (called at once, before the win plays out and it leaves).
     var onTutorialFinished: (() -> Void)?
     /// Set from `onClear` when this win conquers the world for the first time: instead of its result card, the
@@ -2184,7 +2195,8 @@ final class GameScene: SKScene {
     /// Your fish touching a bait or a hook is caught. The line is harmless, and other fish pass hooks by: they never
     /// take the bait.
     private func updateHooks() {
-        guard !hookRigs.isEmpty, reel == nil, player.isAlive else { return }
+        // Between Open Water levels no hook can catch you.
+        guard !hookRigs.isEmpty, reel == nil, player.isAlive, !openWaterChanging else { return }
         #if DEBUG
         if simulationEcologyProbe { return }
         #endif
@@ -2379,6 +2391,8 @@ final class GameScene: SKScene {
             jellies[i].position = JellyDrift.position(origin: jellies[i].origin, phase: jellies[i].phase, time: simClock,
                                                       screenWidth: size.width, world: world)
             let jelly = jellies[i]
+            // Between Open Water levels the bells drift on, touching no one.
+            if openWaterChanging { continue }
             for f in fish.filter({ $0.isAlive }) {
                 #if DEBUG
                 if simulationEcologyProbe && f.isPlayer { continue }
@@ -4039,6 +4053,7 @@ extension GameScene {
     private func enterOpenWaterWorld(_ next: ArcadeWorld) {
         guard next != arcadeWorld else { return }
         arcadeWorld = next
+        onWorldChange?(next)
         layoutStatic()
         guard let node = nodes[player.id] else { return }
         node.childNode(withName: Self.anglerLureName)?.removeFromParent()
@@ -4272,6 +4287,9 @@ extension GameScene {
 
     /// The level's pearls still in the water.
     var debugOpenWaterPearls: [OpenWaterPearl] { openWaterPearls.map(\.pearl) }
+
+    /// Ends the level as eating its last gate does: the change to the next begins.
+    func debugFinishOpenWaterLevel() { finishOpenWaterLevel() }
 
     /// Puts your fish on the level's first pearl and plays a step: the run's pearls, and your radius before and after.
     func debugTakeFirstPearl() -> (pearls: Int, before: CGFloat, after: CGFloat)? {

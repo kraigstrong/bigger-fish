@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var scene: GameScene?
     /// The level's pause menu is up (`GameScene.onPause`).
     @State private var scenePaused = false
+    /// The world the level on screen is in, for the water around the playfield: the Open Water moves through them.
+    @State private var sceneWorld: ArcadeWorld?
     /// The level last played in `selectedWorld`, so its map opens there; nil on first entry.
     @State private var returnedFrom: Int?
     /// A level just cleared for the first time, when coming back to its map: your fish swims on to the next.
@@ -53,7 +55,7 @@ struct ContentView: View {
             } else if let credits {
                 CreditsView(scene: credits).transition(.opacity)
             } else if let scene {
-                PlayfieldScreen(scene: scene, water: .of(scene.arcadeWorld), paused: scenePaused)
+                PlayfieldScreen(scene: scene, water: .of(sceneWorld ?? scene.arcadeWorld), paused: scenePaused)
                     .transition(.opacity)
             } else if let world = selectedWorld {
                 ArcadeLevelMap(world: world, progress: progress, unlocked: unlocked, returnedFrom: returnedFrom,
@@ -358,6 +360,8 @@ struct ContentView: View {
     private func show(_ game: GameScene) {
         scenePaused = false
         game.onPause = { scenePaused = $0 }
+        sceneWorld = game.arcadeWorld
+        game.onWorldChange = { sceneWorld = $0 }
         scene = game
     }
 
