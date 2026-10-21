@@ -63,8 +63,10 @@ struct WorldProgressTests {
         #expect(card(.kelpForest, 0, cleared: []) == ["Level 1"] + ArcadeWorld.kelpForest.rules + ["Tap to start"])
         #expect(card(.kelpForest, 0, cleared: [0]) == ["Level 1", "Tap to start"])
         #expect(card(.kelpForest, 3, cleared: [0, 1, 2]) == ["Level 4", "Tap to start"])
-        // Shallow Reef has nothing new to say: the tutorial taught it all.
-        #expect(card(.shallowReef, 0, cleared: []) == ["Level 1", "Tap to start"])
+        // Shallow Reef's first card says how a level is won, for players who skipped the tutorial, until it's beaten.
+        #expect(card(.shallowReef, 0, cleared: []) == ["Level 1", "Be the last fish swimming.", "Tap to start"])
+        #expect(card(.shallowReef, 0, cleared: [0]) == ["Level 1", "Tap to start"])
+        #expect(card(.shallowReef, 1, cleared: [0]) == ["Level 2", "Tap to start"])
 
         // Lose, Retry: straight back in, with just the prompt; the next level gets its card again.
         let scene = GameScene(world: .jellyBloom, levelIndex: 1)

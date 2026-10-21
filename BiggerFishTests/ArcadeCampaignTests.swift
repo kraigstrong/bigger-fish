@@ -41,7 +41,9 @@ struct ArcadeCampaignTests {
         for world in ArcadeWorld.campaign where world != .shallowReef {
             #expect(world.rules.count == 2)
         }
-        #expect(ArcadeWorld.shallowReef.rules.isEmpty)
+        // Shallow Reef's one line is how a level is won, as the tutorial's last beat says it.
+        #expect(ArcadeWorld.shallowReef.rules == ["Be the last fish swimming."])
+        #expect(ArcadeTutorial.Beat.lastFish.caption.hasPrefix(ArcadeWorld.shallowReef.rules[0].dropLast()))
         let jelly = ([ArcadeWorld.jellyBloom.subtitle] + ArcadeWorld.jellyBloom.rules).joined(separator: " ").lowercased()
         #expect(jelly.contains("tops") && jelly.contains("tentacles"))
         for other in ["bell", "dome", "bottom", "sting"] { #expect(!jelly.contains(other), "Jelly Bloom says \(other)") }
