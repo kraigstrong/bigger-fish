@@ -23,6 +23,10 @@ cd Packages/FishKit && xcodebuild test -scheme FishKit -destination 'platform=iO
 The FishKit scheme inside the Xcode project can't run tests; run the package's tests from its own
 folder as shown.
 
+**Shut down every simulator you boot as soon as you're done with it** (`xcrun simctl shutdown <udid>`):
+test runs, app runs, and screenshots alike. Simulators left running cost Kraig money: in October 2026
+they ran up his Upstash bill. Leave alone any simulator you didn't boot.
+
 CI (`.github/workflows/ci.yml`) tests only the app a pull request changes: FishKit, the project, or CI
 changes test all three, and docs alone test nothing. A push to main tests all three. CI uses the Xcode in
 `.xcode-version` and treats warnings as errors, so keep the build warning-free.
