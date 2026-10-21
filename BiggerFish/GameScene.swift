@@ -757,7 +757,8 @@ final class GameScene: SKScene {
             } else {
                 // The level and its pips; a world's first level also says what's new in it, until it's beaten.
                 messageNode.position = CGPoint(x: size.width * 0.63, y: size.height / 2)
-                let introduces = levelIndex == 0 && hasCleared?(0) != true
+                // The Open Water's levels end on their last gate, not as a world's are won: its card names no rules.
+                let introduces = !isOpenWater && levelIndex == 0 && hasCleared?(0) != true
                 showMessage(levelTitle, lines: introduces ? arcadeWorld.rules : [],
                             progress: worldProgress(won: false).map { WorldProgressStrip(progress: $0, next: levelIndex, captioned: false) })
             }

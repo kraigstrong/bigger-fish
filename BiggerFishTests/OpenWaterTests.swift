@@ -161,6 +161,17 @@ struct OpenWaterTests {
         #expect(!sunset.debugTouchHook(0, at: .bait))
     }
 
+    /// The run's card is just its name: a level here ends on its last gate, so Shallow Reef's "Be the last fish
+    /// swimming." (its first level's card) doesn't belong on it.
+    @Test func theRunsCardNamesNoRules() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 1)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        defer { withExtendedLifetime(view) {} }
+        #expect(scene.debugCardTexts == ["Open Water", "Tap to start"])
+    }
+
     /// Touching a pearl takes it: it counts, and it doesn't grow you.
     @Test func takingAPearlCountsItWithoutGrowingYou() throws {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
