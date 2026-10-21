@@ -207,6 +207,19 @@ Bell Field and Night Heavyweights each have one fish slightly off its planned he
 make it: a level of forks split by jellies everywhere left no room for its big fish and bounce meals, and
 Gauntlet's six full-size big fish steered around bells into about 130 bumps.
 
+## Just-in-time jellies (Open Water)
+
+The Open Water (Xcode builds only, `OpenWater.swift`) plans each level as the run reaches it, so Jelly Bloom's levels
+there can't wait minutes for the searching solver. `MeetingPlanner.kelpPlan` plans them like Kelp Forest's, fish
+appearing just off screen before their meetings, and keeps the bells where the designer puts them (pockets, stings,
+split forks, open water), with the route's passes by them in the analysis, so bounce meals and close calls check as in
+Jelly Bloom's own levels. A fish held to its way in can't bounce or steer round a bell without missing its meeting, so
+it passes bells by (`GameScene.plannedFishMeetsJellies`), and the plan keeps every way in clear of them: a fish whose
+usual way in would touch one glides in from higher or lower instead (`plannerJellyDetours`), or swims straight, while a
+meal placed by a bell keeps its straight way in. `MeetingPlanner.kelpLayoutFits` turns down a layout whose design or
+ways in don't fit in milliseconds, before the analyzer's second or so, so a run can try many. Planned this way, a
+jelly level takes up to about 3 seconds in a Debug build, planned while the level before it plays.
+
 ## Shipped as data
 
 Plans are deterministic, so every world's are made on the Mac and shipped as data: `ReefLabPlans.json`,

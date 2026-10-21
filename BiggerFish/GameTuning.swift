@@ -686,6 +686,9 @@ enum GameTuning {
     /// many seconds before the meeting.
     static let kelpTurnAwaySpeed: ClosedRange<CGFloat> = 0.45...0.7
     static let kelpTurnBefore: ClosedRange<CGFloat> = 0.55...0.9
+    /// On a jelly level (the Open Water's Jelly Bloom), a fish whose way in would cross a bell glides in from this much
+    /// higher or lower instead (screen points), nearest first, or swims straight in.
+    static let plannerJellyDetours: [CGFloat] = [60, 100, 140, 190]
     /// Columns start this many screens into the lap, so you start in open water, and stop as far before its end.
     static let kelpFirstColumnScreens: CGFloat = 0.8
     /// Kelp grows from this far below the bottom of the screen, so it's rooted in the seabed.
@@ -861,6 +864,63 @@ enum GameTuning {
     static let headlampMaxTilt: CGFloat = 0.6
     /// A soft glow around your lure, as a share of the beam's reach, so a fish right beside you is never invisible.
     static let headlampGlow: CGFloat = 0.14
+
+    // MARK: Open Water (prototype, Xcode builds only)
+
+    /// The Open Water's worlds, in the order a stage takes you round them (`OpenWater`). Each plays a new level made
+    /// at the stage's difficulty with the world's own hazards, every one planned just in time (Jelly Bloom's jellies
+    /// too: `MeetingPlanner.kelpPlan` keeps the designer's bells and every fish's way in clear of them).
+    static let openWaterWorlds: [ArcadeWorld] = [.shallowReef, .jellyBloom, .kelpForest, .sunsetCove, .midnightZone]
+    /// Stage 1's levels are made like each world's level 5, stage 2's like its level 6, and on (Kraig, 2026-10-19:
+    /// "shallow reef 5, then jellyfish 5, then kelp 5 all the way through midnight zone 5, then shallow reef 6").
+    static let openWaterFirstLevel = 5
+    /// Past the Deep End's last level (15), its five again and again, each time round this much faster (your swim and
+    /// the fish's), up to `openWaterSpeedUpLimit`.
+    static let openWaterSpeedUp: Double = 0.05
+    static let openWaterSpeedUpLimit: Double = 0.15
+    /// How many times a level's segments are re-dealt (`OpenWater.spec`), and layouts of each tried, before taking
+    /// the deal that planned best.
+    static let openWaterDeals = 12
+    static let openWaterLayouts = 32
+    /// When no deal fits every open-water big fish its template asks for, plan the level with one fewer rather than
+    /// play it with planner issues. Around Jelly Bloom's bells there's sometimes no room for them all.
+    static let openWaterFewerToFit = true
+    /// Between levels (Kraig, 2026-10-19: "Bring a huge fish in the foreground, new level"): the win's slow motion
+    /// plays for `openWaterHoldSeconds` of game time after you eat a level's last gate, nothing eating or being eaten.
+    /// Then a huge fish (radius in screen points, big enough that its body covers the whole screen) swims across in
+    /// front of everything in `openWaterGiantSeconds`, right to left. As it fills the screen the next level is swapped
+    /// in behind it, you back at your starting size with the camera all the way in.
+    static let openWaterHoldSeconds: CGFloat = 0.36
+    static let openWaterGiantRadius: CGFloat = 420
+    static let openWaterGiantSeconds: CGFloat = 1.3
+    /// Pearls (`OpenWater.pearls`): one kind, looking a little different in each world, beside danger and never needed.
+    /// Up to this many a level, spread along it, none in its first seconds. Each sits this many screen points of water
+    /// from a big fish's body as you pass it (on the reference route), within reach of your way, with nothing else
+    /// that could hurt you that close for this many steps either side. Their radius on screen.
+    static let openWaterPearlsPerLevel = 4
+    static let openWaterPearlEarliest: CGFloat = 1.0
+    static let openWaterPearlGap: CGFloat = 14
+    static let openWaterPearlReach: CGFloat = 110
+    static let openWaterPearlClearSteps = 12
+    static let openWaterPearlRadius: CGFloat = 7
+    /// How far a pearl bobs up and down (screen points), and how fast (radians a second).
+    static let openWaterPearlBob: CGFloat = 2.5
+    static let openWaterPearlBobRate: CGFloat = 2.2
+    /// Seconds a pearl takes to slide into your mouth once you touch it.
+    static let openWaterPearlGulpSeconds: CGFloat = 0.16
+    /// Each world's pearl: its color and its rim, and how strongly it glows (brightly in Midnight Zone's dark).
+    static func openWaterPearlLook(_ world: ArcadeWorld) -> (fill: SKColor, rim: SKColor, glow: CGFloat) {
+        switch world {
+        case .jellyBloom: (SKColor(red: 0.99, green: 0.88, blue: 0.97, alpha: 1), SKColor(red: 0.78, green: 0.6, blue: 0.86, alpha: 1), 0.4)
+        case .kelpForest: (SKColor(red: 0.95, green: 0.97, blue: 0.84, alpha: 1), SKColor(red: 0.62, green: 0.72, blue: 0.5, alpha: 1), 0.35)
+        case .sunsetCove: (SKColor(red: 1, green: 0.87, blue: 0.78, alpha: 1), SKColor(red: 0.9, green: 0.56, blue: 0.5, alpha: 1), 0.4)
+        case .midnightZone: (SKColor(red: 0.88, green: 0.95, blue: 1, alpha: 1), SKColor(red: 0.55, green: 0.75, blue: 1, alpha: 1), 0.95)
+        case .shallowReef, .riptideReef: (SKColor(red: 0.97, green: 0.95, blue: 0.92, alpha: 1), SKColor(red: 0.8, green: 0.76, blue: 0.86, alpha: 1), 0.35)
+        }
+    }
+    /// "Stage 2" in the middle of the water as a new time round the worlds starts: how long it stays (seconds, fades
+    /// included). The worlds aren't named: you can see which one you're in.
+    static let openWaterBannerSeconds: Double = 1.6
 
     // MARK: Sunset Cove (world 4)
 

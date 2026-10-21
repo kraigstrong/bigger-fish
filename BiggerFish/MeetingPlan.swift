@@ -414,7 +414,7 @@ enum MeetingPlanner {
     /// meeting, so its spawn is worked out directly rather than searched for. One layout, in milliseconds.
     /// `seedName` plans the layout another name would get, for a level renamed after it was played.
     static func kelpPlan(_ spec: MeetingSpec, variation: Int = 0, seedName: String? = nil) -> MeetingPlan {
-        let seed = GameTuning.spawnSeed &+ 7_000 &+ stableHash(seedName ?? spec.name) &+ UInt64(variation) &* 1_000_003
+        let seed = kelpSeed(spec, variation: variation, seedName: seedName)
         let design = MeetingDesigner.design(spec, seed: seed)
         var meetings = design.meetings
         for id in GameTuning.kelpSwimsAtYou[spec.name] ?? [] where meetings.indices.contains(id - 1) {
@@ -429,17 +429,42 @@ enum MeetingPlanner {
             let step = design.timeline.step(reaching: meetings[id - 1].distance)
             meetings[id - 1].distance = design.timeline.distance[max(0, step - Int((seconds / GameTuning.simulationStep).rounded()))]
         }
-        let solved = MeetingSolver.justInTime(meetings, spec: spec, seed: seed, timeline: design.timeline)
-        let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: [], reachScale: spec.reachScale)
+        let solved = MeetingSolver.justInTime(meetings, spec: spec, seed: seed, timeline: design.timeline,
+                                              jellies: spec.jellies == nil ? [] : design.jellies)
+        // Jellies where the designer put them (the Open Water's Jelly Bloom), and the route's passes by them, so the
+        // analyzer reckons with domes, tentacles, and bounces as it does for Jelly Bloom's own levels.
+        let jellies = spec.jellies == nil ? nil : design.jellies
+        let passes = spec.jellies.map { jellyPasses(design.jellies, spec: $0, crossSeconds: CGFloat(spec.crossSeconds),
+            worldWidth: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens), timeline: design.timeline) } ?? []
+        let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: passes, reachScale: spec.reachScale)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
-            predicted: solved.crossings, analysis: analysis, issues: [])
+            predicted: solved.crossings, analysis: analysis, issues: [], jellies: jellies)
+        let jellyIssues = spec.jellies == nil ? []
+            : MeetingSolver.waysInThroughJellies(solved.fish, jellies: design.jellies, spec: spec, timeline: design.timeline)
         let hooks = spec.hooks.map { HookLayout.place($0, fish: solved.fish, crossings: solved.crossings,
                                                       timeline: design.timeline, seed: seed) }
         let high = GameTuning.sunsetHooksSweptHigh[spec.name] ?? []
         let placed = hooks?.hooks.enumerated().map { high.contains($0.offset + 1) ? HookLayout.sweptHigh($0.element) : $0.element }
         return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
-            analysis: analysis, issues: design.issues + check(unchecked) + (hooks?.issues ?? []),
+            analysis: analysis, issues: design.issues + check(unchecked) + (hooks?.issues ?? []) + jellyIssues, jellies: jellies,
             kelp: KelpLayout.columns(spec, seed: seed), hooks: placed, currents: design.currents.isEmpty ? nil : design.currents)
+    }
+
+    private static func kelpSeed(_ spec: MeetingSpec, variation: Int, seedName: String?) -> UInt64 {
+        GameTuning.spawnSeed &+ 7_000 &+ stableHash(seedName ?? spec.name) &+ UInt64(variation) &* 1_000_003
+    }
+
+    /// Whether `kelpPlan`'s layout gets past its designer and, on a jelly level, keeps every way in clear of the bells:
+    /// a look of milliseconds before the second or so a whole plan takes (the analyzer's checks), so many layouts can be
+    /// tried. A layout that fails here would fail as a whole plan too.
+    static func kelpLayoutFits(_ spec: MeetingSpec, variation: Int = 0, seedName: String? = nil) -> Bool {
+        let seed = kelpSeed(spec, variation: variation, seedName: seedName)
+        let design = MeetingDesigner.design(spec, seed: seed)
+        guard design.issues.isEmpty else { return false }
+        guard spec.jellies != nil else { return true }
+        let solved = MeetingSolver.justInTime(design.meetings, spec: spec, seed: seed, timeline: design.timeline,
+                                              jellies: design.jellies)
+        return MeetingSolver.waysInThroughJellies(solved.fish, jellies: design.jellies, spec: spec, timeline: design.timeline).isEmpty
     }
 
     /// How far off plan a plan's fish are, in total ("fish 4 is off its plan (score 21)" counts 21).
@@ -1790,8 +1815,8 @@ extension MeetingSolver {
     /// Kelp Forest: each fish appears as late as it can while still just beyond the edge of the screen it comes
     /// from, swimming straight at its meeting height, so it meets the reference route exactly as designed. It
     /// only exists for those last seconds, so nothing it passes on the way can knock it off schedule.
-    static func justInTime(_ meetings: [DesignedMeeting], spec: MeetingSpec, seed: UInt64, timeline: PlayerTimeline)
-        -> (fish: [PlannedFish], crossings: [EncounterCrossing]) {
+    static func justInTime(_ meetings: [DesignedMeeting], spec: MeetingSpec, seed: UInt64, timeline: PlayerTimeline,
+                           jellies: [PlannedJelly] = []) -> (fish: [PlannedFish], crossings: [EncounterCrossing]) {
         let width = T.playfieldSize.width, dt = T.simulationStep
         let world = WrappedWorld(width: width * CGFloat(spec.worldScreens))
         var fish: [PlannedFish] = []
@@ -1807,57 +1832,147 @@ extension MeetingSolver {
             let heading: CGFloat = meeting.headOn ? -1 : 1
             let meetingPoint = CGPoint(x: world.wrap(meeting.distance), y: y)
             // A fish turned to swim at you so it stops walling you in comes straight, to pass in a moment.
-            var approach = (T.kelpSwimsAtYou[spec.name] ?? []).contains(id)
+            let picked = (T.kelpSwimsAtYou[spec.name] ?? []).contains(id)
                 ? Approach(style: .straight, meeting: meetingPoint, seconds: 0)
                 : pickApproach(meeting, meetingPoint: meetingPoint, zoom: zoom, spec: spec, rng: &draw)
-            /// How far ahead of you (negative: behind) the fish is at `step`.
-            func lead(_ step: Int) -> CGFloat {
-                meeting.distance - timeline.distance[step] + Approach.dx(beforeMeeting: CGFloat(meetStep - step) * dt,
-                    style: approach.style, heading: heading, speed: meeting.speed,
-                    awaySpeed: approach.awaySpeed, turnBefore: approach.turnBefore)
-            }
-            func offScreen(_ step: Int) -> Bool {
-                let z = timeline.zoom[step], margin = radius + T.kelpAppearMargin / z
-                return lead(step) > width * (1 - T.playerScreenX) / z + margin || lead(step) < -(width * T.playerScreenX / z + margin)
-            }
-            var step = meetStep
-            while step > 0 && !offScreen(step) { step -= 1 }
-            // A fish that has to be there from the start just swims in: shown swimming away first, it would
-            // be in view the whole time.
-            if step == 0 && approach.style == .turn {
-                approach.style = .straight
-                step = meetStep
+            let phase = CGFloat.random(in: 0..<(2 * .pi), using: &draw)
+            let turnTimer = CGFloat.random(in: T.aiTurnIntervalRange, using: &draw)
+            let retargetTimer = CGFloat.random(in: T.aiRetargetRange, using: &draw)
+            /// The fish on `chosen`'s way in: where it appears, and the path to its meeting.
+            func make(_ chosen: Approach) -> PlannedFish {
+                var approach = chosen
+                /// How far ahead of you (negative: behind) the fish is at `step`.
+                func lead(_ step: Int) -> CGFloat {
+                    meeting.distance - timeline.distance[step] + Approach.dx(beforeMeeting: CGFloat(meetStep - step) * dt,
+                        style: approach.style, heading: heading, speed: meeting.speed,
+                        awaySpeed: approach.awaySpeed, turnBefore: approach.turnBefore)
+                }
+                func offScreen(_ step: Int) -> Bool {
+                    let z = timeline.zoom[step], margin = radius + T.kelpAppearMargin / z
+                    return lead(step) > width * (1 - T.playerScreenX) / z + margin || lead(step) < -(width * T.playerScreenX / z + margin)
+                }
+                var step = meetStep
                 while step > 0 && !offScreen(step) { step -= 1 }
+                // A fish that has to be there from the start just swims in: shown swimming away first, it would
+                // be in view the whole time.
+                if step == 0 && approach.style == .turn {
+                    approach.style = .straight
+                    step = meetStep
+                    while step > 0 && !offScreen(step) { step -= 1 }
+                }
+                approach.seconds = CGFloat(meetStep - step) * dt
+                // Keep a glide or weave in the water it appears in.
+                let start = PlayerTimeline.waterBounds(zoom: timeline.zoom[step])
+                let room = min(start.top - radius - y, y - start.bottom - radius)
+                if approach.style == .glide, !(start.bottom + radius...start.top - radius).contains(y + approach.height) {
+                    approach.height = -approach.height
+                    if !(start.bottom + radius...start.top - radius).contains(y + approach.height) { approach.style = .straight }
+                }
+                if approach.style == .weave { approach.height = min(approach.height, max(0, room)) }
+                let opening = approach.offset(at: 0, heading: heading, speed: meeting.speed)
+                return PlannedFish(id: id, role: meeting.role, segment: meeting.segment, fork: meeting.fork,
+                    lane: meeting.lane, radius: radius, meetingDistance: meeting.distance, headOn: meeting.headOn,
+                    startHeading: approach.style == .turn && approach.seconds > approach.turnBefore ? -heading : heading,
+                    spawn: CGPoint(x: world.wrap(approach.meeting.x + opening.dx), y: y + opening.dy),
+                    cruiseSpeed: meeting.speed, phase: phase, turnTimer: turnTimer, retargetTimer: retargetTimer,
+                    variant: 0, styleSeed: 0, referenceMeal: meeting.onReferenceRoute, appearsAt: timeline.distance[step],
+                    approach: approach.style == .straight ? nil : approach)
             }
-            approach.seconds = CGFloat(meetStep - step) * dt
-            // Keep a glide or weave in the water it appears in.
-            let start = PlayerTimeline.waterBounds(zoom: timeline.zoom[step])
-            let room = min(start.top - radius - y, y - start.bottom - radius)
-            if approach.style == .glide, !(start.bottom + radius...start.top - radius).contains(y + approach.height) {
-                approach.height = -approach.height
-                if !(start.bottom + radius...start.top - radius).contains(y + approach.height) { approach.style = .straight }
+            var planned = make(picked)
+            // Held to its way in, a fish can't swim round a bell, so on a jelly level it takes a way in that misses
+            // them all: straight in, or gliding down or up to its meeting from further. A meal placed by a bell (on its
+            // dome, under its tentacles, bounced up to) keeps its straight way in, the room the designer left it.
+            let byABell = meeting.jelly != nil || meeting.under != nil || meeting.bounceFrom != nil
+            if !jellies.isEmpty, !byABell, wayInHitsJelly(planned, jellies: jellies, spec: spec, timeline: timeline) != nil {
+                var others = [Approach(style: .straight, meeting: meetingPoint, seconds: 0)]
+                for lift in T.plannerJellyDetours {
+                    for side: CGFloat in [1, -1] {
+                        var glide = Approach(style: .glide, meeting: meetingPoint, seconds: 0)
+                        glide.height = side * lift / zoom
+                        others.append(glide)
+                    }
+                }
+                if meeting.headOn {
+                    var turn = Approach(style: .turn, meeting: meetingPoint, seconds: 0)
+                    turn.awaySpeed = T.playfieldSize.width / CGFloat(spec.crossSeconds) * T.kelpTurnAwaySpeed.lowerBound
+                    turn.turnBefore = T.kelpTurnBefore.upperBound
+                    others.append(turn)
+                }
+                if let clear = others.lazy.map(make).first(where: {
+                    wayInHitsJelly($0, jellies: jellies, spec: spec, timeline: timeline) == nil
+                }) {
+                    planned = clear
+                }
             }
-            if approach.style == .weave { approach.height = min(approach.height, max(0, room)) }
-            let opening = approach.offset(at: 0, heading: heading, speed: meeting.speed)
-            fish.append(PlannedFish(id: id, role: meeting.role, segment: meeting.segment, fork: meeting.fork,
-                lane: meeting.lane, radius: radius, meetingDistance: meeting.distance, headOn: meeting.headOn,
-                startHeading: approach.style == .turn && approach.seconds > approach.turnBefore ? -heading : heading,
-                spawn: CGPoint(x: world.wrap(approach.meeting.x + opening.dx), y: y + opening.dy),
-                cruiseSpeed: meeting.speed, phase: CGFloat.random(in: 0..<(2 * .pi), using: &draw),
-                turnTimer: CGFloat.random(in: T.aiTurnIntervalRange, using: &draw),
-                retargetTimer: CGFloat.random(in: T.aiRetargetRange, using: &draw), variant: 0, styleSeed: 0,
-                referenceMeal: meeting.onReferenceRoute, appearsAt: timeline.distance[step],
-                approach: approach.style == .straight ? nil : approach))
+            fish.append(planned)
             crossings.append(EncounterCrossing(fishID: id, time: Double(CGFloat(meetStep) * dt), distance: Double(meeting.distance),
                 y: Double(y), radius: Double(radius), headOn: meeting.headOn, zoom: Double(zoom)))
         }
         return (styled(fish, seed: seed), crossings)
     }
 
+    /// A fish held to its way in can't bounce off a jelly or steer round one (it would miss its meeting), so it would
+    /// swim straight through. Every way in, from where the fish appears until it's let go, keeps clear of every bell
+    /// but its own meal's (a pocket meal sits on its dome, a sting meal under its tentacles).
+    static func waysInThroughJellies(_ fish: [PlannedFish], jellies: [PlannedJelly], spec: MeetingSpec,
+                                     timeline: PlayerTimeline) -> [String] {
+        fish.compactMap { f in
+            wayInHitsJelly(f, jellies: jellies, spec: spec, timeline: timeline).map { "fish \(f.id) swims through jelly \($0 + 1) on its way in" }
+        }
+    }
+
+    /// Where a fish planned just in time is at `step` (world point, x unwrapped), while it's held to its way in:
+    /// from appearing just off screen until it's let go past its meeting. Nil before or after.
+    static func wayInPosition(_ f: PlannedFish, step: Int, timeline: PlayerTimeline) -> CGPoint? {
+        guard let appears = f.appearsAt else { return nil }
+        let first = timeline.step(reaching: appears)
+        let last = timeline.step(reaching: f.meetingDistance + T.playfieldSize.width * T.kelpApproachReleaseScreens)
+        guard (first...max(first, last)).contains(step) else { return nil }
+        let elapsed = CGFloat(step - first) * T.simulationStep, heading: CGFloat = f.headOn ? -1 : 1
+        return f.approach.map { path in
+            let offset = path.offset(at: elapsed, heading: heading, speed: f.cruiseSpeed)
+            return CGPoint(x: path.meeting.x + offset.dx, y: path.meeting.y + offset.dy)
+        } ?? CGPoint(x: f.spawn.x + heading * f.cruiseSpeed * elapsed, y: f.spawn.y)
+    }
+
+    /// The first bell (its index) `f` would touch between appearing and being let go, if any.
+    static func wayInHitsJelly(_ f: PlannedFish, jellies: [PlannedJelly], spec: MeetingSpec, timeline: PlayerTimeline) -> Int? {
+        guard let jellySpec = spec.jellies, let appears = f.appearsAt else { return nil }
+        let width = T.playfieldSize.width, dt = T.simulationStep
+        let world = WrappedWorld(width: width * CGFloat(spec.worldScreens))
+        let first = timeline.step(reaching: appears)
+        let last = timeline.step(reaching: f.meetingDistance + width * T.kelpApproachReleaseScreens)
+        let body = f.radius * T.hazardHitboxScale
+        for step in stride(from: first, through: last, by: 2) {
+            guard let at = wayInPosition(f, step: step, timeline: timeline) else { continue }
+            for (index, jelly) in jellies.enumerated() where jelly.fishID != f.id {
+                let bell = JellyDrift.position(origin: jelly.origin, phase: jelly.phase, time: CGFloat(step) * dt,
+                                               screenWidth: width, world: world)
+                if touchesBell(CGPoint(x: world.delta(from: bell.x, to: at.x), y: at.y - bell.y), body: body, spec: jellySpec) {
+                    return index
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Whether a body this big, centered at `p` from a bell's rim, touches the bell: its dome above, its tentacles below.
+    static func touchesBell(_ p: CGPoint, body: CGFloat, spec: JellySpec) -> Bool {
+        let R = CGFloat(spec.radius), L = CGFloat(spec.tentacleLength), reach = R + body
+        let across = min(1, abs(p.x) / reach)
+        let dome = abs(p.x) <= reach && p.y >= -body && p.y <= R * 0.65 * sqrt(1 - across * across) + body
+        return dome || CGRect(x: -R * 0.72, y: -L, width: R * 1.44, height: L).insetBy(dx: -body, dy: -body).contains(p)
+    }
+
     /// A Kelp Forest fish's way in, so no two arrive alike: meals glide, weave, or turn toward you; big fish
     /// do the same more gently, so they don't sweep across lanes before their meeting; gate walls only turn.
     private static func pickApproach(_ meeting: DesignedMeeting, meetingPoint: CGPoint, zoom: CGFloat, spec: MeetingSpec,
                                      rng: inout SeededGenerator) -> Approach {
+        // A meal placed by a bell (on its dome, under its tentacles, or bounced up to) comes straight in at its height,
+        // keeping the room the designer left it.
+        if meeting.jelly != nil || meeting.under != nil || meeting.bounceFrom != nil {
+            return Approach(style: .straight, meeting: meetingPoint, seconds: 0)
+        }
         let big = meeting.role == .threat
         var styles: [(Approach.Style, Double)] = meeting.wall != nil ? [(.straight, 0.6), (.turn, 0.4)]
             : big ? [(.straight, 0.25), (.weave, 0.3), (.glide, 0.25), (.turn, 0.2)]
