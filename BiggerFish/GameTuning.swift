@@ -886,8 +886,8 @@ enum GameTuning {
     /// play it with planner issues. Around Jelly Bloom's bells there's sometimes no room for them all.
     static let openWaterFewerToFit = true
     /// Between levels (Kraig, 2026-10-22: "I don't like it feeling like multiple scenes", "without the last slow motion
-    /// bite"): eating a level's last gate chimes and the next level starts at once, the world you left sliding away
-    /// behind you and fading over this many seconds as the camera eases back from your fish (`beginOpenWaterLevel`).
+    /// bite"): eating a level's last gate chimes and the next level starts at once, the camera easing back from your
+    /// fish over this many seconds as the world you left fades (`beginOpenWaterLevel`).
     static let openWaterWashSeconds: CGFloat = 1.0
     /// Pearls (`OpenWater.pearls`): one kind, looking a little different in each world, beside danger and never needed.
     /// Up to this many a level, spread along it, none in its first seconds. Each sits this many screen points of water

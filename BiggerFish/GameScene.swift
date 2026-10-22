@@ -100,9 +100,9 @@ final class GameScene: SKScene {
     /// "Stage 2" as a new time round starts, and the fish and pearl counts at the top of the screen.
     private var openWaterBanner: SKLabelNode?
     /// The change into a new level (`beginOpenWaterLevel`), drawn over its first moments: when it began (real seconds),
-    /// how much closer the camera starts than it ends (so your fish starts the size on screen it was), a picture of the
-    /// world you left, and how fast its water was passing you (screen points a second).
-    private var openWaterWash: (start: CGFloat, closer: CGFloat, leaving: SKSpriteNode?, passing: CGFloat)?
+    /// how much closer the camera starts than it ends (so your fish starts the size on screen it was), and a picture of
+    /// the world you left.
+    private var openWaterWash: (start: CGFloat, closer: CGFloat, leaving: SKSpriteNode?)?
     /// The level's pearls still in the water, each with its node, and those being gulped: each one's node, where it was
     /// on screen when you touched it, and when (real seconds).
     private var openWaterPearls: [(pearl: OpenWaterPearl, node: SKNode)] = []
@@ -4076,8 +4076,10 @@ extension GameScene {
         beginOpenWaterLevel()
     }
 
-    /// The world on screen as you leave it, without your fish or the counts: a picture to fade out over the next. Over
-    /// the new level's water and hazards (the hazards' 8), under every fish (the fish layer's 10).
+    /// The world on screen as you leave it, without your fish or the counts: a picture to fade out over the next. It
+    /// hides all of the new level but you (Kraig, 2026-10-22: "the world is visible before the camera zoom"): over its
+    /// highest part, the pearls (the fish layer's 10, plus 29.7), and under your fish, lifted for the change
+    /// (`openWaterWashYouDepth`).
     private func pictureOfLeavingWorld() -> SKSpriteNode? {
         guard let view, let you = nodes[player.id] else { return nil }
         you.isHidden = true
@@ -4089,14 +4091,19 @@ extension GameScene {
         guard let texture = view.texture(from: self) else { return nil }
         let picture = SKSpriteNode(texture: texture, size: size)
         picture.anchorPoint = .zero
-        picture.zPosition = 9.5
+        picture.zPosition = 39.8
         return picture
     }
+    /// Your fish's depth while the change plays (usually 30): its tail (2 under) clear of the last world's picture.
+    private static let openWaterWashYouDepth: CGFloat = 33
 
-    /// The change into a level, over: the last world's picture gone and the camera where the level has it.
+    /// The change into a level, over: the last world's picture gone, your fish at its usual depth, and the camera where
+    /// the level has it. (With none playing there's nothing to undo, and before the first level there's no fish yet.)
     private func endOpenWaterWash() {
-        openWaterWash?.leaving?.removeFromParent()
+        guard let wash = openWaterWash else { return }
+        wash.leaving?.removeFromParent()
         openWaterWash = nil
+        nodes[player.id]?.zPosition = 30
         for layer in [backgroundLayer, hazardLayer, fishLayer] {
             layer.setScale(1)
             layer.position = .zero
@@ -4106,15 +4113,14 @@ extension GameScene {
 
     /// The next level, from the start of its lap as a level starts: the last one's fish gone, its world's water and
     /// hazards, you at your starting size, the camera all the way in. It's one shot, not a cut (Kraig, 2026-10-22: "I
-    /// don't like it feeling like multiple scenes"): the world you left slides away behind you as it fades, and the
-    /// camera starts close enough that your fish is the size on screen it was, easing back as the new level plays.
+    /// don't like it feeling like multiple scenes"): the camera starts close enough that your fish is the size on screen
+    /// it was and eases back as the new level plays, the world you left fading away as it moves.
     private func beginOpenWaterLevel() {
         guard var run = openWater else { return }
         let stage = run.leg.stage
-        // As you leave: your fish's size and height on screen, how fast the water was passing, and a picture of it all.
+        // As you leave: your fish's size and height on screen, and a picture of it all.
         let onScreen = player.radius * zoom
         let height = (player.position.y - waterCenter) * zoom, rising = player.velocity.dy * zoom
-        let passing = size.width / level.screenCrossSeconds
         endOpenWaterWash()
         let leaving = pictureOfLeavingWorld()
         for f in fish where !f.isPlayer { removeFish(f) }
@@ -4157,7 +4163,8 @@ extension GameScene {
         capturePresentation()
         buildLevelIndicator()
         if let leaving { addChild(leaving) }
-        openWaterWash = (realClock + frameAccumulator, max(0.01, onScreen / T.baseRadius), leaving, passing)
+        nodes[player.id]?.zPosition = Self.openWaterWashYouDepth
+        openWaterWash = (realClock + frameAccumulator, max(0.01, onScreen / T.baseRadius), leaving)
         // Midnight Zone's dark comes on as the last world fades.
         headlamp?.alpha = 0
         // "Stage 2" once you're back round to the first world; the worlds speak for themselves.
@@ -4204,13 +4211,13 @@ extension GameScene {
         renderOpenWaterWash(time: time)
     }
 
-    /// The change into a level: the world you left sliding away behind you as it fades, and the camera, which starts
-    /// close on your fish, easing back to where the level has it. The water, hazards, and fish are drawn as the level
-    /// has them and then scaled about your fish, so it stays put on screen.
+    /// The change into a level: the camera, which starts close on your fish, easing back to where the level has it,
+    /// and the world you left fading as it goes. Both start at once and slow as they finish, so the new level shows
+    /// only as the camera moves. The water, hazards, and fish are drawn as the level has them and then scaled about
+    /// your fish, so it stays put on screen.
     private func renderOpenWaterWash(time: CGFloat) {
         guard let wash = openWaterWash else { return }
-        let age = max(0, time - wash.start)
-        let t = (age / T.openWaterWashSeconds).clamped(0, 1), eased = t * t * (3 - 2 * t)
+        let t = (max(0, time - wash.start) / T.openWaterWashSeconds).clamped(0, 1), eased = 1 - pow(1 - t, 3)
         guard t < 1 else {
             endOpenWaterWash()
             return
@@ -4221,7 +4228,6 @@ extension GameScene {
             layer.setScale(closer)
             layer.position = CGPoint(x: you.x * (1 - closer), y: you.y * (1 - closer))
         }
-        wash.leaving?.position = CGPoint(x: -wash.passing * age, y: 0)
         wash.leaving?.alpha = 1 - eased
         headlamp?.alpha = eased
     }
