@@ -185,7 +185,7 @@ struct OpenWaterPearl: Equatable {
     let phase: CGFloat
 }
 
-/// One Open Water run: its seed, the level you're on, and the change to the next while it plays out.
+/// One Open Water run: its seed, the level you're on, and the levels planned ahead.
 struct OpenWaterRun {
     let seed: UInt64
     /// Which of the run's levels you're on (from 0; `OpenWater.leg`).
@@ -195,8 +195,6 @@ struct OpenWaterRun {
     var finished = false
     /// Pearls taken this run.
     var pearls = 0
-    /// The change to the next level in progress: when it began (game seconds), and your size and the camera's zoom then.
-    var change: (start: CGFloat, radius: CGFloat, zoom: CGFloat)?
     /// Levels planned ahead (off the main thread, as the one before starts).
     private var planned: [Int: MeetingPlan] = [:]
 
@@ -225,7 +223,6 @@ struct OpenWaterRun {
         planned[index] = nil
         index += 1
         finished = false
-        change = nil
     }
 }
 #endif

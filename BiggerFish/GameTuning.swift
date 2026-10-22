@@ -885,14 +885,10 @@ enum GameTuning {
     /// When no deal fits every open-water big fish its template asks for, plan the level with one fewer rather than
     /// play it with planner issues. Around Jelly Bloom's bells there's sometimes no room for them all.
     static let openWaterFewerToFit = true
-    /// Between levels (Kraig, 2026-10-19: "Bring a huge fish in the foreground, new level"): the win's slow motion
-    /// plays for `openWaterHoldSeconds` of game time after you eat a level's last gate, nothing eating or being eaten.
-    /// Then a huge fish (radius in screen points, big enough that its body covers the whole screen) swims across in
-    /// front of everything in `openWaterGiantSeconds`, right to left. As it fills the screen the next level is swapped
-    /// in behind it, you back at your starting size with the camera all the way in.
-    static let openWaterHoldSeconds: CGFloat = 0.36
-    static let openWaterGiantRadius: CGFloat = 420
-    static let openWaterGiantSeconds: CGFloat = 1.3
+    /// Between levels (Kraig, 2026-10-22: "I don't like it feeling like multiple scenes", "without the last slow motion
+    /// bite"): eating a level's last gate chimes and the next level starts at once, the world you left sliding away
+    /// behind you and fading over this many seconds as the camera eases back from your fish (`beginOpenWaterLevel`).
+    static let openWaterWashSeconds: CGFloat = 1.0
     /// Pearls (`OpenWater.pearls`): one kind, looking a little different in each world, beside danger and never needed.
     /// Up to this many a level, spread along it, none in its first seconds. Each sits this many screen points of water
     /// from a big fish's body as you pass it (on the reference route), within reach of your way, with nothing else

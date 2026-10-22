@@ -141,24 +141,21 @@ struct OpenWaterTests {
         print("[OpenWater] pearls on \(withPearls) of \(levels) levels")
     }
 
-    /// Once a level's last gate is eaten nothing can end the run before the next level starts: no tentacle and no hook,
-    /// as no fish can. (Mid-level, the same tentacle does.)
-    @Test func nothingCatchesYouBetweenLevels() {
-        let worlds = GameTuning.openWaterWorlds
-        func scene(at world: ArcadeWorld) -> GameScene {
-            let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-            let index = worlds.firstIndex(of: world)!
-            scene.debugStartOpenWater(seed: 1, from: index)
-            _ = scene.debugPlayOpenWater(untilLevel: index)
-            return scene
-        }
-        #expect(scene(at: .jellyBloom).debugTouchTentacles(playerVictim: true))
-        let jelly = scene(at: .jellyBloom)
-        jelly.debugFinishOpenWaterLevel()
-        #expect(!jelly.debugTouchTentacles(playerVictim: true))
-        let sunset = scene(at: .sunsetCove)
-        sunset.debugFinishOpenWaterLevel()
-        #expect(!sunset.debugTouchHook(0, at: .bait))
+    /// Eating a level's last gate starts the next at once, in one shot rather than a cut: your fish keeps its size and
+    /// height on screen, the camera starting that much closer and easing back.
+    @Test func theNextLevelStartsAtOnceWithTheCameraClose() throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 1)
+        let played = scene.debugPlayOpenWater(untilLevel: 1, limit: 5, safeFromFish: true)
+        #expect(played.index == 0 && !played.lost)
+        let before = scene.debugYouOnScreen
+        #expect(before.radius > GameTuning.baseRadius)
+        scene.debugFinishOpenWaterLevel()
+        #expect(scene.debugOpenWaterIndex == 1 && scene.arcadeWorld == GameTuning.openWaterWorlds[1])
+        let closer = try #require(scene.debugOpenWaterWashCloser)
+        let after = scene.debugYouOnScreen
+        #expect(after.radius == GameTuning.baseRadius)
+        #expect(abs(after.radius * closer - before.radius) < 0.01 && abs(after.height - before.height) < 0.01)
     }
 
     /// The run's card is just its name: a level here ends on its last gate, so Shallow Reef's "Be the last fish
