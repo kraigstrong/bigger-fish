@@ -111,6 +111,10 @@ final class GameScene: SKScene {
     private var openWaterPearls: [(pearl: OpenWaterPearl, node: SKNode)] = []
     private var openWaterGulps: [(node: SKNode, from: CGPoint, start: CGFloat)] = []
     private let openWaterCounts = SKNode()
+    /// A pearl was taken (the run's count is the scene's; the player's saved pearls are the app's), and the run's
+    /// result card's Shop was tapped.
+    var onPearl: (() -> Void)?
+    var onShop: (() -> Void)?
     #endif
     private var isOpenWater: Bool {
         #if DEBUG
@@ -213,6 +217,8 @@ final class GameScene: SKScene {
 
     var onClear: ((Int, Double) -> Void)?
     var onExit: (() -> Void)?
+    /// What your fish wears (`PlayerLook`), from the next time it's drawn: a change on the result card shows from Retry.
+    var playerLook = PlayerLook.plain
     /// Pausing and resuming, so the screen around the playfield (on an iPad) can darken with the pause menu.
     var onPause: ((Bool) -> Void)?
     /// The world changed mid-run (the Open Water), so the screen around the playfield can take its water.
@@ -366,6 +372,8 @@ final class GameScene: SKScene {
     private var silhouetteShade: [Int: CGFloat] = [:]
     /// Bubbles rising from fish hidden deep in the kelp (`kelpHidesFish`), and when each fish lets out its next.
     private var kelpBubbles: [KelpBubble] = []
+    /// Your trail's motes, when what you wear has one.
+    private let trailMotes = PearlTrailMotes()
     private var nextKelpBubble: [Int: (time: CGFloat, count: Int)] = [:]
     /// After a sting, the result waits until the death animation has played.
     private var pendingLossResultAt: CGFloat?
@@ -640,7 +648,9 @@ final class GameScene: SKScene {
         let p = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: (waterBottom + waterTop) / 2), radius: base)
         p.velocity = CGVector(dx: playerSpeed, dy: 0)
         player = p
-        add(p, style: .player)
+        add(p, style: playerLook.style)
+        if let node = nodes[p.id] { playerLook.dress(node) }
+        trailMotes.removeAll()
 
         if isTutorial {
             startTutorial()
@@ -829,7 +839,7 @@ final class GameScene: SKScene {
         noteHitch(.result, passed ? "won" : "lost")
         #endif
         let panel = ArcadeResultPanel(size: size, passed: passed, hasNext: !isFinalLevel && !isWorldFinale, detail: detail,
-                                      progress: strip, retryOnly: isTutorial)
+                                      progress: strip, retryOnly: isTutorial, shop: isOpenWater)
         panel.onSelect = { [weak self] action in self?.selectResult(action) }
         messageNode.addChild(panel)
         resultPanel = panel
@@ -885,6 +895,11 @@ final class GameScene: SKScene {
             finishRunRecording("level_map")
             #endif
             onExit?()
+        case .shop:
+            // Over the card, which waits underneath: closing the shop comes back to it.
+            #if DEBUG
+            onShop?()
+            #endif
         }
     }
 
@@ -2905,6 +2920,11 @@ final class GameScene: SKScene {
                     light.yScale = 1 / lure.yScale
                 }
             }
+            if f.isPlayer, let trail = playerLook.trail, phase == .playing, f.isAlive {
+                // Under your tail (28), over the kelp's bubbles (27).
+                trailMotes.release(trail, position: pose.position, radius: pose.radius, facing: pose.facing, time: time,
+                                   into: fishLayer, z: 27.9)
+            }
             if f.isPlayer, let wake {
                 // Off your tail in a fast current, from your face in a slow one, more the stronger it pushes.
                 let r = pose.radius * zoom, push = abs(currentPace - 1) / 0.35
@@ -2921,6 +2941,9 @@ final class GameScene: SKScene {
         }
         renderStungFish(cameraX: cameraX, zoom: zoom, time: time)
         renderKelpBubbles(cameraX: cameraX, zoom: zoom, time: time)
+        trailMotes.render(playerLook.trail, time: time, scale: zoom) { point in
+            CGPoint(x: anchorX + world.delta(from: cameraX, to: point.x) * zoom, y: waterCenter + (point.y - waterCenter) * zoom)
+        }
         #if DEBUG
         renderOpenWater(cameraX: cameraX, zoom: zoom, fraction: fraction, time: time)
         #endif
@@ -4173,6 +4196,7 @@ extension GameScene {
         player.position = CGPoint(x: 0, y: player.position.y)
         player.velocity = CGVector(dx: playerSpeed, dy: player.velocity.dy)
         lastCameraX = player.position.x
+        trailMotes.removeAll()
         enterOpenWaterWorld(run.leg.world)
         hazardLayer.removeAllChildren()
         jellies.removeAll()
@@ -4275,6 +4299,7 @@ extension GameScene {
         for index in openWaterPearls.indices.reversed() where world.distance(player.position, openWaterPearls[index].pearl.position) < reach {
             let taken = openWaterPearls.remove(at: index)
             openWater?.pearls += 1
+            onPearl?()
             // A gulp: your mouth snaps open (and closes as after any bite), and the pearl goes into it.
             player.mouth = 1
             openWaterGulps.append((taken.node, taken.node.position, realClock))

@@ -3,7 +3,7 @@ import UIKit
 
 /// Arcade-owned destinations; one prominent action keeps each result moving forward.
 enum ArcadeResultAction: Equatable {
-    case nextLevel, playAgain, tryAgain, levels, world
+    case nextLevel, playAgain, tryAgain, levels, world, shop
 
     var title: String {
         switch self {
@@ -12,12 +12,15 @@ enum ArcadeResultAction: Equatable {
         case .tryAgain: "Retry"
         case .levels: "Levels"
         case .world: "Back to world"
+        case .shop: "Shop"
         }
     }
 
-    /// `retryOnly`: the tutorial's, where being eaten just tries again.
-    static func choices(passed: Bool, hasNext: Bool, retryOnly: Bool = false) -> [Self] {
+    /// `retryOnly`: the tutorial's, where being eaten just tries again. `shop`: an Open Water run's end, where the
+    /// pearl shop sits between trying again and leaving.
+    static func choices(passed: Bool, hasNext: Bool, retryOnly: Bool = false, shop: Bool = false) -> [Self] {
         if retryOnly && !passed { return [.tryAgain] }
+        if shop && !passed { return [.tryAgain, .shop, .levels] }
         if passed && hasNext { return [.nextLevel, .playAgain, .levels] }
         return passed ? [.world, .playAgain] : [.tryAgain, .levels]
     }
@@ -35,10 +38,11 @@ final class ArcadeResultPanel: SKNode {
     private(set) var primaryAction: ArcadeResultAction?
 
     /// `progress`, after a win: the world's pips and crown, in place of the detail line. `retryOnly`: one button, Retry,
-    /// on a shorter card (the tutorial's).
-    init(size: CGSize, passed: Bool, hasNext: Bool, detail: String, progress: WorldProgressStrip? = nil, retryOnly: Bool = false) {
+    /// on a shorter card (the tutorial's). `shop`: the pearl shop's button too (an Open Water run's end).
+    init(size: CGSize, passed: Bool, hasNext: Bool, detail: String, progress: WorldProgressStrip? = nil, retryOnly: Bool = false,
+         shop: Bool = false) {
         super.init()
-        let choices = ArcadeResultAction.choices(passed: passed, hasNext: hasNext, retryOnly: retryOnly)
+        let choices = ArcadeResultAction.choices(passed: passed, hasNext: hasNext, retryOnly: retryOnly, shop: shop)
         primaryAction = choices.first
         let maxWidth = size.width - 100
         let heading = text(passed ? "Level passed!" : "Try again!", size: 32, heavy: true)

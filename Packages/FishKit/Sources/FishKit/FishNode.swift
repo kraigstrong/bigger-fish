@@ -66,6 +66,7 @@ public final class FishNode: SKNode {
     private let mouthLine: SKShapeNode
     private let mouthGape: SKShapeNode
     private var headwear: SKNode?
+    private var markings: SKNode?
 
     public init(style: FishStyle, isPlayer: Bool, tailPhase: CGFloat) {
         let R = FishNode.referenceRadius
@@ -193,6 +194,20 @@ public final class FishNode: SKNode {
 
     /// Where headwear sits, in this node's coordinates at the reference radius facing right.
     public static let headwearAnchor = CGPoint(x: 0.55 * referenceRadius, y: 1.05 * referenceRadius)
+
+    /// Markings painted on the body (Bigger Fish's patterns), over its own pattern and under the fins and eye. Draw them
+    /// at the reference radius facing right, around the body's center, and keep them inside the body: an ellipse
+    /// `bodySize` across. They scale, flip, and tilt with the fish. Pass nil to take them off.
+    public func setMarkings(_ node: SKNode?) {
+        markings?.removeFromParent()
+        markings = node
+        guard let node else { return }
+        node.zPosition = 1.5
+        rig.addChild(node)
+    }
+
+    /// The body's ellipse at the reference radius.
+    public static let bodySize = CGSize(width: 2.7 * referenceRadius, height: 1.9 * referenceRadius)
 
     /// - Parameters:
     ///   - facing: -1...1; negative mirrors the fish to face left.

@@ -172,17 +172,24 @@ struct OpenWaterTests {
         #expect(scene.debugCardTexts == ["Open Water", "Tap to start"])
     }
 
-    /// Touching a pearl takes it: it counts, and it doesn't grow you.
+    /// Touching a pearl takes it: it counts, it's kept for the shop at once, and it doesn't grow you. The run's card
+    /// offers the shop.
     @Test func takingAPearlCountsItWithoutGrowingYou() throws {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
         scene.debugStartOpenWater(seed: 1)
+        var kept = 0, shopped = 0
+        scene.onPearl = { kept += 1 }
+        scene.onShop = { shopped += 1 }
         _ = scene.debugPlayOpenWater(untilLevel: 0)
         let count = scene.debugOpenWaterPearls.count
         let taken = try #require(scene.debugTakeFirstPearl())
-        #expect(taken.pearls == 1 && taken.after == taken.before)
+        #expect(taken.pearls == 1 && taken.after == taken.before && kept == 1)
         #expect(scene.debugOpenWaterPearls.count == count - 1)
         scene.debugLose()
         #expect(scene.debugResultDetail?.hasSuffix("· 1 pearl") == true)
+        #expect(scene.debugResultTitles == ["Retry", "Shop", "Levels"])
+        scene.debugTapResult(.shop)
+        #expect(shopped == 1 && scene.debugResultTitles == ["Retry", "Shop", "Levels"])
     }
 
     /// Each level ends once you eat its last gate, and the next world's begins the way a level does: you at your

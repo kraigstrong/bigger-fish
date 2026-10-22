@@ -70,10 +70,10 @@ enum ArcadePlaytest {
     }
 
     /// A screen to open at launch, to check its layout at a device's size (an iPad, a small phone):
-    /// -arcadeScreen worlds, settings, unlock, conquered, credits, tutorial, or pause (with -arcadePlaytest for the
-    /// level to pause). Add -arcadeMap <world ID> for a level map, -arcadeUnlocked YES or NO for either side of the
+    /// -arcadeScreen worlds, settings, unlock, conquered, credits, tutorial, shop (the pearl shop), or pause (with
+    /// -arcadePlaytest for the level to pause). Add -arcadeMap <world ID> for a level map, -arcadeUnlocked YES or NO for either side of the
     /// unlock ("conquered" shows the unlock's offer without it), or -arcadePlaytest with -arcadeResult for a result card.
-    enum Screen: String { case worlds, settings, unlock, conquered, credits, tutorial, pause }
+    enum Screen: String { case worlds, settings, unlock, conquered, credits, tutorial, pause, shop }
 
     static let screen: Screen? = argument("-arcadeScreen").flatMap(Screen.init(rawValue:))
 
@@ -110,14 +110,21 @@ enum ArcadePlaytest {
     }
 
     /// A screen check's own saved state, wiped and staged at launch as the App Store captures stage theirs: Shallow
-    /// Reef conquered with a best time on each level, the tutorial and every "conquered" screen seen. Never backed up
-    /// to iCloud (`ArcadeProgress.backup`).
+    /// Reef conquered with a best time on each level, the tutorial and every "conquered" screen seen; for the pearl
+    /// shop, a few pearls and two looks bought and on. Never backed up to iCloud (`ArcadeProgress.backup`).
     static let screenSuiteName = "biggerFish.screen"
 
-    private static let screenDefaults: UserDefaults? = screen.map { _ in
+    private static let screenDefaults: UserDefaults? = screen.map { screen in
         let defaults = UserDefaults(suiteName: screenSuiteName)!
         defaults.removePersistentDomain(forName: screenSuiteName)
-        if let data = try? JSONEncoder().encode(StoreCapture.stagedSave(for: .conquered)) {
+        var save = StoreCapture.stagedSave(for: .conquered)
+        if screen == .shop {
+            save.pearlsEarned = ["screen": 160]
+            save.pearlsSpent = ["screen": 115]
+            save.ownedLooks = ["color.gold", "hat.beanie"]
+            save.wornLook = ArcadeSave.WornLook(items: ["color": "color.gold", "hat": "hat.beanie"], changed: 0)
+        }
+        if let data = try? JSONEncoder().encode(save) {
             defaults.set(data, forKey: ArcadeProgress.key)
         }
         return defaults

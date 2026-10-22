@@ -17,6 +17,13 @@ struct ArcadeSave: Codable, Equatable {
     var seenUnlocks: Set<String>? = nil
     /// The first-launch tutorial has been shown (finished, skipped, or left).
     var hasSeenTutorial: Bool? = nil
+    /// The Open Water's pearls: taken and spent, each counted by the install that took or spent them
+    /// (`ArcadeProgress.install`), so two devices' pearls add up and spending on one can't be undone by the other.
+    var pearlsEarned: [String: Int]? = nil
+    var pearlsSpent: [String: Int]? = nil
+    /// The pearl shop's items bought (`PearlItem` IDs), and what's worn.
+    var ownedLooks: Set<String>? = nil
+    var wornLook: WornLook? = nil
     /// Fields this version doesn't know, from a later version, kept as they were.
     var laterFields: [String: SaveValue] = [:]
 
@@ -24,6 +31,23 @@ struct ArcadeSave: Codable, Equatable {
     /// saved and has a merge rule.
     enum CodingKeys: String, CodingKey, CaseIterable {
         case clearedLevels, bestTimes, hasSeenJellyLesson, seenUnlocks, hasSeenTutorial
+        case pearlsEarned, pearlsSpent, ownedLooks, wornLook
+    }
+
+    /// What's worn (`PlayerLook`): an item ID for each kind worn, and when it was last changed (seconds since 1970),
+    /// so the latest change on any device is what you wear everywhere.
+    struct WornLook: Codable, Equatable {
+        var items: [String: String]
+        var changed: Double
+
+        /// The later change; at the same moment, either way round the same one.
+        static func latest(_ a: WornLook, _ b: WornLook) -> WornLook {
+            if a.changed != b.changed { return a.changed > b.changed ? a : b }
+            let order = { (look: WornLook) in
+                look.items.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            }
+            return order(a) >= order(b) ? a : b
+        }
     }
 
     init() {}
@@ -35,6 +59,10 @@ struct ArcadeSave: Codable, Equatable {
         hasSeenJellyLesson = (try? values.decodeIfPresent(Bool.self, forKey: .hasSeenJellyLesson)) ?? false
         seenUnlocks = try? values.decodeIfPresent(Set<String>.self, forKey: .seenUnlocks)
         hasSeenTutorial = try? values.decodeIfPresent(Bool.self, forKey: .hasSeenTutorial)
+        pearlsEarned = try? values.decodeIfPresent([String: Int].self, forKey: .pearlsEarned)
+        pearlsSpent = try? values.decodeIfPresent([String: Int].self, forKey: .pearlsSpent)
+        ownedLooks = try? values.decodeIfPresent(Set<String>.self, forKey: .ownedLooks)
+        wornLook = try? values.decodeIfPresent(WornLook.self, forKey: .wornLook)
         let all = try decoder.container(keyedBy: SaveKey.self)
         for key in all.allKeys where CodingKeys(stringValue: key.stringValue) == nil {
             laterFields[key.stringValue] = try? all.decode(SaveValue.self, forKey: key)
@@ -54,14 +82,20 @@ struct ArcadeSave: Codable, Equatable {
             case .hasSeenJellyLesson: try container.encode(hasSeenJellyLesson, forKey: field)
             case .seenUnlocks: try container.encodeIfPresent(seenUnlocks, forKey: field)
             case .hasSeenTutorial: try container.encodeIfPresent(hasSeenTutorial, forKey: field)
+            case .pearlsEarned: try container.encodeIfPresent(pearlsEarned, forKey: field)
+            case .pearlsSpent: try container.encodeIfPresent(pearlsSpent, forKey: field)
+            case .ownedLooks: try container.encodeIfPresent(ownedLooks, forKey: field)
+            case .wornLook: try container.encodeIfPresent(wornLook, forKey: field)
             }
         }
     }
 
     /// This save with iCloud's merged in. Merging only ever adds, so syncing can never un-clear a level: cleared levels
     /// and seen "conquered" screens are united, each level keeps the faster best time, and a lesson or tutorial seen on
-    /// either side stays seen. It comes out the same whichever save is which, except for fields from a later version:
-    /// this version never changes those, so iCloud's (the latest any device wrote) is kept when both sides have one.
+    /// either side stays seen. Each install's pearls taken and spent keep the larger count, things bought are united,
+    /// and the look changed last is worn. It comes out the same whichever save is which, except for fields from a later
+    /// version: this version never changes those, so iCloud's (the latest any device wrote) is kept when both sides have
+    /// one.
     func merged(withCloud cloud: ArcadeSave) -> ArcadeSave {
         var merged = self
         for key in CodingKeys.allCases {
@@ -73,6 +107,14 @@ struct ArcadeSave: Codable, Equatable {
                 if let theirs = cloud.seenUnlocks { merged.seenUnlocks = (seenUnlocks ?? []).union(theirs) }
             case .hasSeenTutorial:
                 if let theirs = cloud.hasSeenTutorial { merged.hasSeenTutorial = hasSeenTutorial == true || theirs }
+            case .pearlsEarned:
+                if let theirs = cloud.pearlsEarned { merged.pearlsEarned = (pearlsEarned ?? [:]).merging(theirs, uniquingKeysWith: Swift.max) }
+            case .pearlsSpent:
+                if let theirs = cloud.pearlsSpent { merged.pearlsSpent = (pearlsSpent ?? [:]).merging(theirs, uniquingKeysWith: Swift.max) }
+            case .ownedLooks:
+                if let theirs = cloud.ownedLooks { merged.ownedLooks = (ownedLooks ?? []).union(theirs) }
+            case .wornLook:
+                if let theirs = cloud.wornLook { merged.wornLook = wornLook.map { WornLook.latest($0, theirs) } ?? theirs }
             }
         }
         merged.laterFields.merge(cloud.laterFields) { _, theirs in theirs }
@@ -287,6 +329,62 @@ final class ArcadeProgress: ObservableObject {
         save.hasSeenJellyLesson = true
         persist()
     }
+
+    // MARK: Pearls
+
+    /// This install's name in the pearl counts (`ArcadeSave.pearlsEarned`): made once and kept on the device, it goes
+    /// nowhere but the player's own iCloud, with their progress.
+    private lazy var install: String = {
+        let key = Self.key + ".install"
+        if let id = defaults.string(forKey: key) { return id }
+        let id = UUID().uuidString
+        defaults.set(id, forKey: key)
+        return id
+    }()
+
+    /// Pearls to spend: every install's taken, less every install's spent.
+    var pearls: Int {
+        max(0, (save.pearlsEarned ?? [:]).values.reduce(0, +) - (save.pearlsSpent ?? [:]).values.reduce(0, +))
+    }
+
+    /// Pearls taken in the Open Water (or, in Xcode builds, the shop's gift).
+    func earnPearls(_ count: Int) {
+        guard count > 0 else { return }
+        save.pearlsEarned = (save.pearlsEarned ?? [:]).merging([install: count], uniquingKeysWith: +)
+        persist()
+    }
+
+    func owns(_ item: PearlItem) -> Bool { save.ownedLooks?.contains(item.id) == true }
+
+    /// Buys `item` and puts it on, if there are pearls enough and it isn't owned already. Whether it was bought.
+    @discardableResult func buy(_ item: PearlItem, now: Date = Date()) -> Bool {
+        guard !owns(item), pearls >= item.price else { return false }
+        save.pearlsSpent = (save.pearlsSpent ?? [:]).merging([install: item.price], uniquingKeysWith: +)
+        save.ownedLooks = (save.ownedLooks ?? []).union([item.id])
+        save.wornLook = ArcadeSave.WornLook(items: wornLook.wearing(item).ids, changed: now.timeIntervalSince1970)
+        persist()
+        return true
+    }
+
+    /// Puts on `look`, as much of it as is owned.
+    func wear(_ look: PlayerLook, now: Date = Date()) {
+        let ids = look.ids.filter { save.ownedLooks?.contains($0.value) == true }
+        guard ids != (save.wornLook?.items ?? [:]) else { return }
+        save.wornLook = ArcadeSave.WornLook(items: ids, changed: now.timeIntervalSince1970)
+        persist()
+    }
+
+    /// What your fish wears everywhere it swims. Xcode builds only for now: the shop is a prototype, so a released
+    /// build shows the plain orange fish, whatever's saved.
+    var look: PlayerLook {
+        #if DEBUG
+        wornLook
+        #else
+        .plain
+        #endif
+    }
+
+    private var wornLook: PlayerLook { PlayerLook(ids: save.wornLook?.items ?? [:]) }
 
     /// Saves on the device first, then backs up to iCloud, merged with anything there this device hasn't seen yet.
     private func persist() {

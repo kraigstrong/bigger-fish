@@ -27,6 +27,8 @@ struct ArcadeWorldMap: View {
     let onSettings: () -> Void
     /// The Open Water, the endless run's prototype: a button beside Settings in Xcode builds, none otherwise.
     var onOpenWater: (() -> Void)? = nil
+    /// The pearl shop, the Open Water's: a button beside it, showing your pearls, in Xcode builds only.
+    var onPearlShop: (() -> Void)? = nil
 
     var body: some View {
         ScreenScaled { size, _ in
@@ -44,7 +46,7 @@ struct ArcadeWorldMap: View {
             ZStack(alignment: .topLeading) {
                 // Your fish swims just above the world you're on, clear of its Deep End ring.
                 MapArtLayer(size: size, points: centers,
-                            fishHome: CGPoint(x: centers[focus].x, y: centers[focus].y + 72))
+                            fishHome: CGPoint(x: centers[focus].x, y: centers[focus].y + 72), look: progress.look)
                 ForEach(worlds.indices, id: \.self) { index in
                     let world = worlds[index]
                     let open = isOpen(world)
@@ -73,6 +75,7 @@ struct ArcadeWorldMap: View {
                     .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
                 HStack(spacing: 14) {
                     if let onOpenWater { OpenWaterButton(action: onOpenWater) }
+                    if let onPearlShop { PearlShopButton(pearls: progress.pearls, action: onPearlShop) }
                     if !unlocked { UnlockButton { onUnlock(nil) } }
                     SettingsButton(action: onSettings)
                 }
@@ -120,6 +123,26 @@ private struct OpenWaterButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Open Water, endless run")
+    }
+}
+
+/// On the world map in Xcode builds, beside the Open Water: the pearl shop, with how many pearls you have.
+private struct PearlShopButton: View {
+    let pearls: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                PearlIcon(size: 15)
+                Text("\(pearls)").font(.custom("AvenirNext-Heavy", size: 15)).monospacedDigit()
+            }
+            .padding(.horizontal, 14).frame(height: 40)
+            .background(Capsule().fill(.white.opacity(0.18)))
+            .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Pearl shop, \(pearls) pearls")
     }
 }
 
@@ -189,7 +212,8 @@ struct ArcadeLevelMap: View {
                             MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
                                         fishHome: centers.indices.contains(focus) ? fishSpot(focus, centers) : nil,
                                         fishFrom: advanced.map { fishSpot($0, centers) },
-                                        pulsingStops: centers.indices.contains(focus) ? [centers[focus]] : [])
+                                        pulsingStops: centers.indices.contains(focus) ? [centers[focus]] : [],
+                                        look: progress.look)
                                 .frame(width: width, height: size.height)
                             ForEach(0..<world.levelCount, id: \.self) { index in
                                 // Past the free levels, a stop offers the unlock (tapping it shows what it opens).
@@ -362,9 +386,11 @@ private struct MapLevelStop: View {
 
 private struct MapArtLayer: View {
     private let scene: MapDecorationScene
-    /// `fishFrom`: where your fish starts, swimming on to `fishHome`.
-    init(size: CGSize, points: [CGPoint], fishHome: CGPoint?, fishFrom: CGPoint? = nil, pulsingStops: [CGPoint] = []) {
-        scene = MapDecorationScene(size: size, points: points, fishHome: fishHome, fishFrom: fishFrom, pulsingStops: pulsingStops)
+    /// `fishFrom`: where your fish starts, swimming on to `fishHome`. `look`: what your fish wears.
+    init(size: CGSize, points: [CGPoint], fishHome: CGPoint?, fishFrom: CGPoint? = nil, pulsingStops: [CGPoint] = [],
+         look: PlayerLook = .plain) {
+        scene = MapDecorationScene(size: size, points: points, fishHome: fishHome, fishFrom: fishFrom, pulsingStops: pulsingStops,
+                                   look: look)
     }
     var body: some View {
         MapArtView(scene: scene).allowsHitTesting(false).accessibilityHidden(true)
@@ -406,14 +432,15 @@ private struct MapArtView: UIViewRepresentable {
 }
 
 final class MapDecorationScene: SKScene {
-    private let marker = FishNode(style: .player, isPlayer: true, tailPhase: 0)
+    private let marker: FishNode
     private let home: CGPoint?
     /// A swim from a level just cleared to the next: where it starts, and when (the first frame).
     private let from: CGPoint?
     private var swimStart: TimeInterval?
     private static let swimDelay: TimeInterval = 0.35
     private static let swimSeconds: TimeInterval = 1.1
-    init(size: CGSize, points: [CGPoint], fishHome: CGPoint?, fishFrom: CGPoint?, pulsingStops: [CGPoint]) {
+    init(size: CGSize, points: [CGPoint], fishHome: CGPoint?, fishFrom: CGPoint?, pulsingStops: [CGPoint], look: PlayerLook = .plain) {
+        marker = look.fish()
         home = fishHome
         from = fishFrom
         super.init(size: size)
