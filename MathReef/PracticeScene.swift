@@ -724,6 +724,10 @@ final class PracticeScene: SKScene {
         /// Aims a little off the fish's center, as a thumb would.
         var aimOffset: CGFloat = 0
         var wanderPhase: CGFloat = 0
+        /// How far to one side of the answer the swoop into it starts (points), and which side: the fish's, once it
+        /// commits.
+        var swoop: CGFloat = 0
+        var swoopSide: CGFloat?
     }
 
     private func autopilotHolds() -> Bool {
@@ -735,7 +739,8 @@ final class PracticeScene: SKScene {
                 commitAt: .random(in: 0.3...0.5, using: &rng),
                 glanceAt: Bool.random(using: &rng) ? .random(in: 0.65...0.8, using: &rng) : nil,
                 aimOffset: .random(in: -10...10, using: &rng),
-                wanderPhase: .random(in: 0...(2 * .pi), using: &rng)
+                wanderPhase: .random(in: 0...(2 * .pi), using: &rng),
+                swoop: .random(in: 90...130, using: &rng)
             )
             autopilotRNG = rng
         }
@@ -748,7 +753,14 @@ final class PracticeScene: SKScene {
         if phase == .answering, let target = nearest(ahead.filter { $0.isCorrect != miss }) {
             let distance = (target.fish.position.x - player.position.x) / size.width
             if distance < plan.commitAt {
-                goal = target.fish.position.y + plan.aimOffset
+                // A swoop, not a line: the aim waits off to the fish's side of the answer, then sweeps through it and
+                // a little past, so the fish dives or climbs into the bite, as a kid's does, rather than lining up and
+                // coasting in.
+                let side = autopilotPlan.swoopSide ?? (player.position.y > target.fish.position.y ? 1 : -1)
+                autopilotPlan.swoopSide = side
+                let progress = distance / plan.commitAt  // 1 on committing, 0 at the bite
+                let sweep = ((progress - 0.15) / 0.55).clamped(-0.25, 1)
+                goal = target.fish.position.y + plan.aimOffset + side * plan.swoop * sweep
             } else if let glance = plan.glanceAt, distance < glance,
                       let decoy = nearest(ahead.filter { $0 !== target }) {
                 // Leaning toward another answer before thinking again.
@@ -756,6 +768,16 @@ final class PracticeScene: SKScene {
             } else {
                 // Drifting toward the wave while it's still far off.
                 goal = goal * 0.7 + target.fish.position.y * 0.3
+            }
+            // Never another answer by accident. One coming up is passed on the side the answer to eat is on, while there's
+            // time to get there; once it's close, on whichever side the fish is already on, until it's gone by.
+            let clearance: CGFloat = 80
+            for other in answers where other !== target && !other.fading {
+                let ahead = (other.fish.position.x - player.position.x) / size.width
+                guard ahead > -0.08, ahead < 0.45 else { continue }
+                let pass = ahead > 0.25 ? target.fish.position.y : player.position.y
+                let side: CGFloat = pass >= other.fish.position.y ? 1 : -1
+                if (goal - other.fish.position.y) * side < clearance { goal = other.fish.position.y + side * clearance }
             }
         }
         // Lead the motion a little, so it eases in and bobs rather than slamming into place.
@@ -765,7 +787,7 @@ final class PracticeScene: SKScene {
     /// Saves what the scene draws, at full resolution, to Documents/StoreCapture. Unlike a simulator
     /// screenshot, it has no Dynamic Island drawn over it.
     private func saveCaptureFrame(_ name: String) {
-        guard let view, let image = view.texture(from: self)?.cgImage() else { return }
+        guard let image = StoreCapture.image(of: self) else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             let dir = StoreCapture.framesDirectory
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -784,10 +806,44 @@ final class PracticeScene: SKScene {
         run(.sequence(frames), withKey: "storeCapture")
     }
 
-    /// The simulator draws the Dynamic Island over the right edge of a landscape screen; keep the
-    /// level path's stops out from under it.
-    private func keepPathClearOfIsland() {
-        levelMap?.debugKeepClear(ofX: size.width - StoreCapture.islandInset, clearance: 56)
+    /// The video scene's frames while it records (`StoreCapture.VideoRecorder`).
+    private var videoRecorder: StoreCapture.VideoRecorder?
+    /// Frame by frame (`StoreCapture.isFrameByFrame`): a node whose action reads SpriteKit's clock for actions, where
+    /// that clock was when it started, and how long frames take, after a saved frame and otherwise.
+    private let actionClock = SKNode()
+    private var actionTime: TimeInterval = 0
+    private var actionClockStart: TimeInterval?
+    private var frameSeconds = (afterSave: 0.15, plain: 0.02)
+
+    /// One step of play, and the scene's speed for the next frame, so its actions take one step too. SpriteKit runs a
+    /// frame's actions at the speed set before the frame began (measured), so the speed is set a frame ahead, from
+    /// how long that frame should take, and corrected by where the actions' clock actually got to, so it never drifts.
+    private func frameByFrameStep(frameSeconds seconds: TimeInterval) -> CGFloat {
+        let step = StoreCapture.frameStep
+        let play = StoreCapture.playClock + step
+        guard let start = actionClockStart else {
+            actionClock.run(.customAction(withDuration: 1e7) { [weak self] _, elapsed in self?.actionTime = TimeInterval(elapsed) })
+            addChild(actionClock)
+            actionClockStart = play
+            return CGFloat(step)
+        }
+        if StoreCapture.savedFrame {
+            frameSeconds.afterSave += (seconds - frameSeconds.afterSave) * 0.2
+        } else {
+            frameSeconds.plain += (seconds - frameSeconds.plain) * 0.2
+        }
+        StoreCapture.savedFrame = false
+        // Where this frame leaves the actions' clock, and how long the next frame will take: long if this one saves.
+        let actionsNow = actionTime + seconds * TimeInterval(speed)
+        let saves = videoRecorder?.isDue(at: play) ?? false
+        let next = saves ? frameSeconds.afterSave : frameSeconds.plain
+        speed = CGFloat(max(0, play + step - start - actionsNow) / next)
+        return CGFloat(step)
+    }
+
+    override func didFinishUpdate() {
+        // Each frame as it's about to be drawn.
+        if let recorder = videoRecorder, !recorder.capture(self) { videoRecorder = nil }
     }
 
     private func stageCapture(_ scene: StoreCapture.Scene) {
@@ -825,11 +881,12 @@ final class PracticeScene: SKScene {
             previewCrown(.gold)
         case .video:
             // The reef, then Multiplication's path, then a round of × 7 with one wrong answer.
+            videoRecorder = StoreCapture.VideoRecorder(seconds: StoreCapture.videoSeconds)
             worldIndex = multiplication
             showHome()
             run(.sequence([
                 .wait(forDuration: 2.5),
-                .run { [weak self] in self?.showWorld(); self?.keepPathClearOfIsland() },
+                .run { [weak self] in self?.showWorld() },
                 .wait(forDuration: 2.5),
                 .run { play(world: "multiplication", level: StoreCapture.videoLevel, misses: [2]) },
             ]))
@@ -1481,9 +1538,12 @@ final class PracticeScene: SKScene {
 
     override func update(_ currentTime: TimeInterval) {
         guard isBuilt else { return }
-        let realDt = min(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 1.0 / 30)
+        let realDt = playStep(at: currentTime)
         lastUpdate = currentTime
         realClock += realDt
+        #if DEBUG
+        StoreCapture.playClock = TimeInterval(realClock)
+        #endif
 
         // Wrong answers: the struggle plays at full speed, then gameplay slows while the panel shows.
         let slow = phase == .feedback && !lastCorrect && swallow == nil
@@ -1502,6 +1562,16 @@ final class PracticeScene: SKScene {
         worldMap?.update(time: realClock)
         levelMap?.update(time: realClock)
         render()
+    }
+
+    /// Seconds of play this frame: the time since the last, up to a 30th of a second. A store capture plays frame by
+    /// frame instead (`StoreCapture.isFrameByFrame`).
+    private func playStep(at currentTime: TimeInterval) -> CGFloat {
+        guard let last = lastUpdate else { return 0 }
+        #if DEBUG
+        if StoreCapture.isFrameByFrame, currentTime > last { return frameByFrameStep(frameSeconds: currentTime - last) }
+        #endif
+        return min(CGFloat(currentTime - last), 1.0 / 30)
     }
 
     private func simulate(_ dt: CGFloat) {

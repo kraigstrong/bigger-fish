@@ -42,12 +42,13 @@ def main():
         if len(parts) >= 4 and parts[0] == "STORE-CAPTURE-AUDIO":
             cues.append((float(parts[1]) - start, parts[2], parts[3:]))
 
-    # Effects.
+    # Effects. One that started just before the first frame (the reef's jingle, at launch) plays from where it had
+    # got to.
     for t, kind, args in cues:
-        if kind != "sound" or t < 0:
+        if kind != "sound":
             continue
-        audio = clip(args[0], "caf")
-        i = int(t * RATE)
+        audio = clip(args[0], "caf")[max(0, int(-t * RATE)):]
+        i = max(0, int(t * RATE))
         n = min(len(audio), len(mix) - i)
         if n > 0:
             mix[i:i + n] += audio[:n]

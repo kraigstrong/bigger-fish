@@ -138,7 +138,7 @@ final class ReefAudio {
     private func logForCapture(_ cue: String) {
         #if DEBUG
         guard StoreCapture.scene != nil else { return }
-        print("STORE-CAPTURE-AUDIO \(Date().timeIntervalSince1970) \(cue)")
+        print("STORE-CAPTURE-AUDIO \(StoreCapture.now()) \(cue)")
         #endif
     }
 
