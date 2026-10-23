@@ -797,56 +797,28 @@ final class PracticeScene: SKScene {
 
     /// Saves `count` frames `interval` seconds apart, starting after `delay`.
     private func captureFrames(_ scene: StoreCapture.Scene, count: Int, every interval: TimeInterval, after delay: TimeInterval) {
-        let frames = (1...count).map { index in
-            SKAction.sequence([
-                .wait(forDuration: index == 1 ? delay : interval),
-                .run { [weak self] in self?.saveCaptureFrame(count == 1 ? scene.rawValue : String(format: "%@-%02d", scene.rawValue, index)) },
-            ])
-        }
-        run(.sequence(frames), withKey: "storeCapture")
+        let names = (1...count).map { count == 1 ? scene.rawValue : String(format: "%@-%02d", scene.rawValue, $0) }
+        dueFrames = names.enumerated().map { (StoreCapture.playClock + delay + Double($0.offset) * interval, $0.element) }
     }
+
+    /// A burst's frames, saved as play reaches them, once a frame has finished, as the video's are: saved from an
+    /// action, partway through SpriteKit's pass, one could catch other nodes before they'd moved.
+    private var dueFrames: [(at: TimeInterval, name: String)] = []
 
     /// The video scene's frames while it records (`StoreCapture.VideoRecorder`).
     private var videoRecorder: StoreCapture.VideoRecorder?
-    /// Frame by frame (`StoreCapture.isFrameByFrame`): a node whose action reads SpriteKit's clock for actions, where
-    /// that clock was when it started, and how long frames take, after a saved frame and otherwise.
-    private let actionClock = SKNode()
-    private var actionTime: TimeInterval = 0
-    private var actionClockStart: TimeInterval?
-    private var frameSeconds = (afterSave: 0.15, plain: 0.02)
-
-    /// One step of play, and the scene's speed for the next frame, so its actions take one step too. SpriteKit runs a
-    /// frame's actions at the speed set before the frame began (measured), so the speed is set a frame ahead, from
-    /// how long that frame should take, and corrected by where the actions' clock actually got to, so it never drifts.
-    private func frameByFrameStep(frameSeconds seconds: TimeInterval) -> CGFloat {
-        let step = StoreCapture.frameStep
-        let play = StoreCapture.playClock + step
-        guard let start = actionClockStart else {
-            actionClock.run(.customAction(withDuration: 1e7) { [weak self] _, elapsed in self?.actionTime = TimeInterval(elapsed) })
-            addChild(actionClock)
-            actionClockStart = play
-            return CGFloat(step)
-        }
-        if StoreCapture.savedFrame {
-            frameSeconds.afterSave += (seconds - frameSeconds.afterSave) * 0.2
-        } else {
-            frameSeconds.plain += (seconds - frameSeconds.plain) * 0.2
-        }
-        StoreCapture.savedFrame = false
-        // Where this frame leaves the actions' clock, and how long the next frame will take: long if this one saves.
-        let actionsNow = actionTime + seconds * TimeInterval(speed)
-        let saves = videoRecorder?.isDue(at: play) ?? false
-        let next = saves ? frameSeconds.afterSave : frameSeconds.plain
-        speed = CGFloat(max(0, play + step - start - actionsNow) / next)
-        return CGFloat(step)
-    }
 
     override func didFinishUpdate() {
         // Each frame as it's about to be drawn.
         if let recorder = videoRecorder, !recorder.capture(self) { videoRecorder = nil }
+        if let due = dueFrames.first, StoreCapture.playClock >= due.at - 0.001 {
+            dueFrames.removeFirst()
+            saveCaptureFrame(due.name)
+        }
     }
 
     private func stageCapture(_ scene: StoreCapture.Scene) {
+        StoreCapture.stepper = StoreCapture.Stepper(scene: self) { [weak self] in self?.lastUpdate }
         for world in Curriculum.worlds {
             store.debugSetStars(StoreCapture.stars(for: world, in: scene), in: world)
         }
@@ -1538,7 +1510,7 @@ final class PracticeScene: SKScene {
 
     override func update(_ currentTime: TimeInterval) {
         guard isBuilt else { return }
-        let realDt = playStep(at: currentTime)
+        let realDt = min(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 1.0 / 30)
         lastUpdate = currentTime
         realClock += realDt
         #if DEBUG
@@ -1562,16 +1534,6 @@ final class PracticeScene: SKScene {
         worldMap?.update(time: realClock)
         levelMap?.update(time: realClock)
         render()
-    }
-
-    /// Seconds of play this frame: the time since the last, up to a 30th of a second. A store capture plays frame by
-    /// frame instead (`StoreCapture.isFrameByFrame`).
-    private func playStep(at currentTime: TimeInterval) -> CGFloat {
-        guard let last = lastUpdate else { return 0 }
-        #if DEBUG
-        if StoreCapture.isFrameByFrame, currentTime > last { return frameByFrameStep(frameSeconds: currentTime - last) }
-        #endif
-        return min(CGFloat(currentTime - last), 1.0 / 30)
     }
 
     private func simulate(_ dt: CGFloat) {

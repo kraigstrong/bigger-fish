@@ -1,14 +1,16 @@
 import CoreGraphics
 import Foundation
+import Metal
 import SpriteKit
 import UIKit
 
 #if DEBUG
 /// App Store screenshots and the preview video, from debug builds only. Launching with
 /// `-storeCapture <scene>` opens a staged scene with believable progress. The autopilot swims
-/// during play, since simulator taps are unreliable in landscape. Screenshots and the video are
-/// the frames the app draws (`image(of:)`), which, unlike the simulator's screenshots and
-/// recordings, have no Dynamic Island over them, at the screen's full resolution, an iPad's too.
+/// during play, since simulator taps are unreliable in landscape. A capture plays frame by frame
+/// (`Stepper`), and its screenshots and video are frames the app draws, which, unlike the
+/// simulator's screenshots and recordings, have no Dynamic Island over them, at the screen's full
+/// resolution, an iPad's too.
 /// Progress, the unlock, and the sound setting live in their own UserDefaults suite (wiped at each
 /// launch), so real progress, purchases, and analytics are untouched; analytics are off.
 /// `scripts/store-capture.sh` drives it.
@@ -100,17 +102,11 @@ enum StoreCapture {
     /// path, the card, a full round, and the results and crown.
     static let videoSeconds: TimeInterval = number(after: "-storeCaptureSeconds") ?? 86
 
-    /// Frame by frame, each frame plays exactly `frameStep` of the game, its actions too, however long the simulator
-    /// took over the last one (`PracticeScene.update`). Saving a full-size frame takes it far longer than a frame, and
-    /// in real time the game would jump ahead in big steps after each (the autopilot's taps then show as a jerky bob)
-    /// or fall behind a burst of screenshots. Always for the video; for screenshots, `-storeCaptureFrameByFrame`.
-    static let isFrameByFrame = scene == .video || ProcessInfo.processInfo.arguments.contains("-storeCaptureFrameByFrame")
+    /// How much play each frame of a capture is (`Stepper`).
     static let frameStep: TimeInterval = 1.0 / 60
     private static let launched = Date().timeIntervalSince1970
     /// Seconds of play, which the scene keeps up to date each frame: the clock that moves the fish.
     static var playClock: TimeInterval = 0
-    /// A frame was saved since the scene last looked: the next frame comes late.
-    static var savedFrame = false
 
     /// Seconds since 1970 on the game's clock: when the app launched, plus the seconds of play since.
     static func now() -> TimeInterval {
@@ -119,26 +115,86 @@ enum StoreCapture {
 
     // MARK: Frames
 
-    /// The scene as the screen shows it, at the screen's full resolution. A scene's texture comes out at the scene's
-    /// own size, which on an iPad is smaller than the screen's (`ReefScreen.scale`), so there every node is drawn that
-    /// much bigger inside a holder, just for this frame, and put back after (as Bigger Fish's `StoreFootage.image`).
+    /// The scene as the screen shows it, at the screen's full resolution: on an iPad, `ReefScreen.scale` times the
+    /// scene's own size, at the screen's scale.
     @MainActor static func image(of scene: SKScene) -> CGImage? {
-        guard let view = scene.view else { return nil }
-        savedFrame = true
-        let scale = ReefScreen.scale(for: view.window?.bounds.size ?? view.bounds.size)
-        let crop = CGRect(x: -scene.anchorPoint.x * scene.size.width, y: -scene.anchorPoint.y * scene.size.height,
-                          width: scene.size.width, height: scene.size.height)
-        guard scale > 1 else { return view.texture(from: scene, crop: crop)?.cgImage() }
-        let children = scene.children
-        let holder = SKNode()
-        for node in children { node.removeFromParent(); holder.addChild(node) }
-        holder.setScale(scale)
-        scene.addChild(holder)
-        let big = CGRect(x: crop.minX * scale, y: crop.minY * scale, width: crop.width * scale, height: crop.height * scale)
-        let image = view.texture(from: holder, crop: big)?.cgImage()
-        holder.removeFromParent()
-        for node in children { node.removeFromParent(); scene.addChild(node) }
-        return image
+        guard let view = scene.view, let stepper else { return nil }
+        let window = view.window?.bounds.size ?? view.bounds.size
+        let pixels = view.traitCollection.displayScale
+        return stepper.image(size: CGSize(width: (window.width * pixels).rounded(), height: (window.height * pixels).rounded()))
+    }
+
+    /// A capture plays frame by frame, as Bigger Fish's footage does: its clock is driven from here rather than by the
+    /// view. The view is paused (which pauses the scene too, undone), and a renderer steps the scene, its update and
+    /// its actions alike, exactly `frameStep` at a time, as fast as the simulator manages, however long it takes to
+    /// save a frame (far longer than a frame). In real time, the game would jump ahead in big steps after each save
+    /// (the autopilot's taps then show as a jerky bob) and fall behind a burst of screenshots; and changing the scene's
+    /// speed to keep its actions in step left eased moves, like the crown's drop, stuck. The view can't draw a scene a
+    /// renderer has, so the renderer draws the saved frames too, offscreen.
+    @MainActor static var stepper: Stepper?
+
+    @MainActor final class Stepper {
+        private let renderer: SKRenderer
+        private let queue: MTLCommandQueue
+        private let device: MTLDevice
+        private let scene: SKScene
+        private var timer: Timer?
+        private let background: MTLClearColor
+        private let lastFrame: () -> TimeInterval?
+
+        init?(scene: SKScene, lastFrame: @escaping () -> TimeInterval?) {
+            guard let view = scene.view, let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue()
+            else { return nil }
+            self.device = device
+            self.queue = queue
+            self.scene = scene
+            self.lastFrame = lastFrame
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            scene.backgroundColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+            background = MTLClearColor(red: Double(r), green: Double(g), blue: Double(b), alpha: 1)
+            renderer = SKRenderer(device: device)
+            view.isPaused = true
+            scene.isPaused = false
+            // Drawn bigger as it is, not resized to the frame (which would rebuild it at that size).
+            scene.scaleMode = .fill
+            renderer.scene = scene
+            timer = Timer.scheduledTimer(withTimeInterval: 0.001, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.step() }
+            }
+        }
+
+        /// A step on from the scene's last frame, whichever clock drew it (the view may draw one more after pausing).
+        private func step() {
+            guard let last = lastFrame() else { return }
+            renderer.update(atTime: last + frameStep)
+        }
+
+        /// The scene as it stands, drawn `size` pixels big.
+        func image(size: CGSize) -> CGImage? {
+            let width = Int(size.width), height = Int(size.height)
+            let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
+            descriptor.usage = [.renderTarget, .shaderRead]
+            descriptor.storageMode = .shared
+            guard let texture = device.makeTexture(descriptor: descriptor), let commands = queue.makeCommandBuffer() else { return nil }
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = texture
+            pass.colorAttachments[0].loadAction = .clear
+            pass.colorAttachments[0].clearColor = background
+            pass.colorAttachments[0].storeAction = .store
+            renderer.render(withViewport: CGRect(x: 0, y: 0, width: width, height: height), commandBuffer: commands,
+                            renderPassDescriptor: pass)
+            commands.commit()
+            commands.waitUntilCompleted()
+            let bytesPerRow = width * 4
+            var bytes = [UInt8](repeating: 0, count: bytesPerRow * height)
+            texture.getBytes(&bytes, bytesPerRow: bytesPerRow, from: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0)
+            guard let provider = CGDataProvider(data: Data(bytes) as CFData) else { return nil }
+            return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: bytesPerRow,
+                           space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                           bitmapInfo: CGBitmapInfo(rawValue: CGBitmapInfo.byteOrder32Little.rawValue
+                                                    | CGImageAlphaInfo.noneSkipFirst.rawValue),
+                           provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        }
     }
 
     /// The preview video's frames: the app saves what it draws while the video scene plays, 30 a second of play, as

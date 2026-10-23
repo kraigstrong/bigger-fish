@@ -19,10 +19,8 @@
 #
 # STORE_CAPTURE_DEVICE picks the simulator (default iPhone 17 Pro Max; 'iPad Pro 13-inch (M5)' for the
 # iPad), STORE_CAPTURE_OUT the output folder, and STORE_CAPTURE_SECONDS the video's length (default 86).
-# The video plays frame by frame, a 60th of a second of play each however long the simulator takes to
-# save one (about 15 minutes for 86 seconds), so it comes out smooth. Screenshots play in real time unless
-# STORE_CAPTURE_FRAME_BY_FRAME=1: on an iPad, where saving a full-size frame holds the game up, set it so
-# a burst keeps pace with the game.
+# A capture plays frame by frame, a 60th of a second of play each however long the simulator takes to save
+# one, so the video comes out smooth and a burst of screenshots catches the same moments on any device.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -45,9 +43,7 @@ pause() { perl -e "select(undef, undef, undef, $1)"; }
 
 launch() {
     xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
-    local steady=()
-    [ "${STORE_CAPTURE_FRAME_BY_FRAME:-0}" = 1 ] && steady=(-storeCaptureFrameByFrame)
-    xcrun simctl launch "$DEVICE" "$BUNDLE" -storeCapture "$1" "${steady[@]}" >/dev/null
+    xcrun simctl launch "$DEVICE" "$BUNDLE" -storeCapture "$1" >/dev/null
 }
 
 # Screenshot scenes save the frames the app draws (no Dynamic Island over them) in its Documents
