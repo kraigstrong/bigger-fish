@@ -91,6 +91,9 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   Checkpoint levels are skip tests: always playable, and passing one passes everything before it.
   Worlds sit on a reef map and levels along a scrolling path. A world earns a silver crown when every
   level is passed and a gold crown for three stars everywhere. Progress is saved on the device.
+  It runs on iPhone and iPad, in landscape. An iPad draws the app as the biggest iPhone does, only taller,
+  scaled up to fill the screen: the maps and cards use the extra height, and a round plays in a band of
+  water as tall as that iPhone's, with darker water above and below, so lanes and reach match every phone.
   - `MathFacts.swift` — facts, solutions, and plausible wrong answers
   - `Curriculum.swift` — worlds, levels, and fact decks
   - `Progress.swift` — stars, passing, and saved progress
@@ -104,6 +107,9 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     and Xcode builds don't consume requests; Xcode has a gated review-sheet preview.
   - `ReefUnlock.swift` — the free sample (first 3 levels per world, 1 in Exponents) and the one-time StoreKit unlock; `MathReef.storekit` at the repo root backs it when running from Xcode
   - `PracticeScene.swift` — screen flow and gameplay; tuning is `ReefTuning` at the top
+  - `ReefScreen.swift` — the iPad: how much bigger the scene draws (`ReefScreen.scale`), the band of water
+    a round plays in (`ReefScreen.playfield`), and the scene's view (`ReefView`), which draws it bigger at
+    the screen's own resolution. Every iPhone draws exactly as before
   - `Tutorial.swift` — the first-launch tutorial (Hold, Let go, Eat the answer with 1 + 1), played with the
     real movement before the reef map on a fresh install. It never fails or times out; a stuck kid
     sees the hint again. The first catch gets "Yes!", then "Ready to play!", then a fade to the map

@@ -223,6 +223,9 @@ final class PracticeScene: SKScene {
     private enum GateDestination { case links, unlock }
     private var buttons: [(frame: CGRect, action: () -> Void)] = []
     private var specks: [(node: SKSpriteNode, parallax: CGFloat)] = []
+    /// The water's gradient, and the darker water above and below a round on a tall screen (`fitWater`).
+    private var waterGradient: SKSpriteNode?
+    private var bands: [SKSpriteNode] = []
 
     private var holdTouches = Set<UITouch>()
     private var lastUpdate: TimeInterval?
@@ -237,8 +240,10 @@ final class PracticeScene: SKScene {
     private let positiveHaptic = UINotificationFeedbackGenerator()
     private let gentleHaptic = UIImpactFeedbackGenerator(style: .soft)
 
-    private var waterBottom: CGFloat { L.waterBottomMargin }
-    private var waterTop: CGFloat { size.height - L.waterTopMargin }
+    /// Where a round plays: the whole screen on a phone, and a band across the middle of an iPad's (ReefScreen.swift).
+    private var playfield: CGRect { ReefScreen.playfield(in: size) }
+    private var waterBottom: CGFloat { playfield.minY + L.waterBottomMargin }
+    private var waterTop: CGFloat { playfield.maxY - L.waterTopMargin }
     private var playerMinY: CGFloat { waterBottom + L.playerRadius * 0.95 }
     private var playerMaxY: CGFloat { waterTop - L.playerRadius * 0.95 }
     private var playerSpeed: CGFloat { size.width / L.screenCrossSeconds }
@@ -422,6 +427,7 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = true
         settingsButton.isHidden = false
         settingsScreen = nil
+        fitWater(toPlayfield: false)
         render()
     }
 
@@ -738,7 +744,7 @@ final class PracticeScene: SKScene {
         let nearest = { (fish: [AnswerFish]) in fish.min { $0.fish.position.x < $1.fish.position.x } }
         let miss = autopilotMisses.contains(questionNumber)
         // Where the fish wants to be: idling around mid-water until the wave is close.
-        var goal = size.height * 0.5 + sin(realClock * 1.3 + plan.wanderPhase) * size.height * 0.14
+        var goal = playfield.midY + sin(realClock * 1.3 + plan.wanderPhase) * playfield.height * 0.14
         if phase == .answering, let target = nearest(ahead.filter { $0.isCorrect != miss }) {
             let distance = (target.fish.position.x - player.position.x) / size.width
             if distance < plan.commitAt {
@@ -871,7 +877,8 @@ final class PracticeScene: SKScene {
         )
         timeScale = 1
 
-        player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: size.height / 2), radius: L.playerRadius)
+        fitWater(toPlayfield: true)
+        player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: playfield.midY), radius: L.playerRadius)
         playerNode = FishNode(style: .player, isPlayer: true, tailPhase: 0)
         // The fish wears a world's crown only inside that world.
         playerNode.setHeadwear(fishCrown(store.crown(for: world)))
@@ -1272,7 +1279,7 @@ final class PracticeScene: SKScene {
         tutorial = TutorialFlow()
         tutorialPasses = 0
         tutorialRingsAnswer = false
-        let overlay = TutorialOverlay(size: size)
+        let overlay = TutorialOverlay(size: size, field: playfield)
         overlay.zPosition = 5  // over the question, under the panel
         uiLayer.addChild(overlay)
         tutorialOverlay = overlay
@@ -1696,7 +1703,8 @@ final class PracticeScene: SKScene {
 
     /// Fades the question out, moves it to the other side of the fish, and fades it back in.
     private func updatePromptPlacement() {
-        guard promptPlacement.update(playerY: player.position.y, screenHeight: size.height) else { return }
+        // Measured in the playfield, so the question turns where the water ends on an iPad too.
+        guard promptPlacement.update(playerY: player.position.y - playfield.minY, screenHeight: playfield.height) else { return }
         let fade = TimeInterval(L.promptFlipFadeSeconds)
         playerPrompt.run(.sequence([
             .fadeOut(withDuration: fade),
@@ -1874,10 +1882,25 @@ final class PracticeScene: SKScene {
         gradient.size = size
         gradient.zPosition = -1  // behind the specks; the scene ignores sibling order
         backgroundLayer.addChild(gradient)
+        waterGradient = gradient
+
+        // Above and below, over the specks, which drift through the whole screen.
+        bands = [
+            SKSpriteNode(texture: ReefScreen.bandTexture(ReefScreen.waterTop, fieldBelow: true)),
+            SKSpriteNode(texture: ReefScreen.bandTexture(ReefScreen.waterBottom, fieldBelow: false)),
+        ]
+        for band in bands {
+            band.anchorPoint = .zero
+            band.zPosition = 1
+            band.isHidden = true
+            backgroundLayer.addChild(band)
+        }
 
         var speckRNG = SeededGenerator(seed: 7)
         let dot = WaterTextures.dot()
-        for _ in 0..<40 {
+        // 40 in a round's water, however tall the screen.
+        let speckCount = Int((40 * size.height / playfield.height).rounded())
+        for _ in 0..<speckCount {
             let node = SKSpriteNode(texture: dot)
             let parallax = CGFloat.random(in: 0.15...0.7, using: &speckRNG)
             let d = 1.5 + parallax * 4
@@ -1890,6 +1913,21 @@ final class PracticeScene: SKScene {
             )
             backgroundLayer.addChild(node)
         }
+    }
+
+    /// The water fills the screen behind the maps. A round's water is the playfield: on a phone that's the whole
+    /// screen too, and on a taller screen (an iPad) it leaves bands of darker water above and below.
+    private func fitWater(toPlayfield: Bool) {
+        let water = toPlayfield ? playfield : CGRect(origin: .zero, size: size)
+        waterGradient?.position = water.origin
+        waterGradient?.size = water.size
+        guard bands.count == 2 else { return }
+        let (above, below) = (bands[0], bands[1])
+        above.position = CGPoint(x: 0, y: water.maxY)
+        above.size = CGSize(width: size.width, height: size.height - water.maxY)
+        below.position = .zero
+        below.size = CGSize(width: size.width, height: water.minY)
+        for band in bands { band.isHidden = band.size.height <= 0 }
     }
 
     private func label(_ text: String, fontSize: CGFloat, heavy: Bool, color: SKColor = .white) -> SKLabelNode {
