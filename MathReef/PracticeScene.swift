@@ -110,6 +110,15 @@ enum ReefTuning {
     static let tutorialClosingLineFontSize: CGFloat = 52
     static let tutorialFadeOutSeconds: TimeInterval = 0.35
     static let tutorialFadeInSeconds: TimeInterval = 0.4
+
+    // MARK: Round-start hint (RoundHint.swift)
+
+    /// A kid's first rounds after install start with the tutorial's "Hold", until they hold: this many rounds in which
+    /// they held while it showed. 0 never shows it; `Int.max` shows it at the start of every round.
+    static let roundHintRounds = 3
+    /// A little smaller than the question, which stays the thing to read, and than the tutorial's words, so "Hold to
+    /// swim up" stays clear of the question on the narrowest phone (RoundHintTests).
+    static let roundHintCaptionFontSize: CGFloat = 32
 }
 
 /// Which side of the player fish the question rides on. It starts above and stays on its side until
@@ -179,6 +188,9 @@ final class PracticeScene: SKScene {
     private var tutorialPasses = 0
     /// Once a kid has missed the 2 or eaten the 3, a ring marks the 2.
     private var tutorialRingsAnswer = false
+    private let roundHint = RoundHint(defaults: PracticeScene.savedState)
+    /// The round's control hint while it shows (see RoundHint.swift).
+    private var roundHintOverlay: TutorialOverlay?
     private var worldMap: WorldMapNode?
     private var levelMap: LevelMapNode?
     private var phase: Phase = .home {
@@ -968,12 +980,48 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = false
         analytics.roundStarted(level: level, target: session.targetCorrect)
         spawnWave()
+        showRoundHint()
     }
 
     /// Play Again skips the instructions.
     private func replay() {
         resetSession()
         startSession()
+    }
+
+    /// A kid's first few rounds start with the tutorial's "Hold" (RoundHint.swift), until they hold.
+    private func showRoundHint() {
+        roundHintOverlay?.removeFromParent()
+        roundHintOverlay = nil
+        guard roundHint.roundStarted() else { return }
+        let overlay = TutorialOverlay(size: size, field: playfield, skippable: false)
+        // Over the water, under the answers (20) and your fish (30), so it never covers them: the scene ignores sibling
+        // order.
+        overlay.zPosition = 5
+        fishLayer.addChild(overlay)
+        overlay.showRoundHint(RoundHint.caption, fontSize: L.roundHintCaptionFontSize)
+        roundHintOverlay = overlay
+        advanceRoundHint()
+    }
+
+    /// Keeps the hint's arrows over the fish and its question, and takes the hint away at the kid's first hold, with the
+    /// tutorial's fade, or at once when the round is over or left.
+    private func advanceRoundHint() {
+        guard let overlay = roundHintOverlay else { return }
+        guard phase == .answering || phase == .feedback else {
+            roundHint.roundEnded()
+            overlay.removeFromParent()
+            roundHintOverlay = nil
+            return
+        }
+        // As far above the question, while it rides above the fish, as the tutorial's arrows sit above the fish.
+        let lift = promptBelow ? 0 : L.promptOffset + L.promptPillHeight / 2 - L.playerRadius
+        overlay.follow(fish: CGPoint(x: size.width * L.playerScreenX, y: player.position.y), lift: lift)
+        if roundHint.update(holding: isHolding) {
+            roundHintOverlay = nil
+            overlay.show(.done)
+            overlay.run(.sequence([.wait(forDuration: 0.3), .removeFromParent()]))
+        }
     }
 
     private func spawnWave() {
@@ -1541,6 +1589,7 @@ final class PracticeScene: SKScene {
             updatePromptPlacement()
         }
         if phase == .tutorial { advanceTutorial(realDt) }
+        advanceRoundHint()
         if phase == .feedback {
             feedbackRemaining -= realDt
             if feedbackRemaining <= 0 { finishFeedback() }
@@ -2061,5 +2110,6 @@ extension PracticeScene {
     }
     var debugPhase: Phase { phase }
     var debugTutorialStep: TutorialFlow.Step? { tutorial?.step }
+    var debugRoundHintShowing: Bool { roundHintOverlay != nil }
 }
 #endif

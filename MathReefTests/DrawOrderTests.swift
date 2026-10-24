@@ -10,7 +10,8 @@ import Testing
 /// The scene draws in an order fixed by depth alone (`DrawOrderAudit`), at the moments that matter, on a phone, the
 /// smallest phone, and an iPad: the reef and every world's level path, padlocks and all; Settings, the parental gate, and
 /// the grown-ups' links; the unlock's screens; a level's card; rounds played right and wrong, with their questions,
-/// panels, and swallows; the results, their stars, and a crown; and the tutorial, from Hold to the reef.
+/// panels, and swallows; a first round's control hint; the results, their stars, and a crown; and the tutorial, from
+/// Hold to the reef.
 @MainActor
 struct DrawOrderTests {
     /// A moment: its name, the stage showing it, and whether it's one of the frames `manualRenderDrawOrderMoments`
@@ -123,6 +124,7 @@ struct DrawOrderTests {
             try maps(screen.size, named)
             try unlock(screen.size, named)
             try rounds(screen.size, named)
+            try roundHint(screen.size, named)
             try tutorial(screen.size, named)
         }
         try fish(capture)
@@ -227,6 +229,22 @@ struct DrawOrderTests {
         }
         scene.debugPreviewCrown(.gold)
         stage.play(6, "crown", keyframesEvery: 0.5, capture)
+    }
+
+    /// A fresh install's first round, left alone with its control hint up while the first answers swim over it and the
+    /// fish sinks, then played until the kid's first hold fades it away.
+    private static func roundHint(_ size: CGSize, _ capture: @escaping Capture) throws {
+        let (stage, scene) = try reef(size, unlocked: true)
+        scene.debugOpenLevel(world: world("addition"), level: 0)
+        scene.debugAutopilot = false
+        scene.debugStartRound()
+        #expect(scene.debugRoundHintShowing, "The first round didn't start with the hint")
+        stage.play(6, "round hint", keyframesEvery: 1, capture)
+        #expect(scene.debugRoundHintShowing, "The hint went without a hold")
+        scene.debugAutopilot = true
+        stage.play(5, "round hint going", keyframesEvery: 0.25, until: { !scene.debugRoundHintShowing }, capture)
+        #expect(!scene.debugRoundHintShowing, "The hint stayed after a hold")
+        stage.play(0.5, "round hint gone", keyframesEvery: 0.25, capture)
     }
 
     /// The tutorial: Hold, left alone until its hint plays again; Let go; Eat the answer, the 2 missed once so a ring
