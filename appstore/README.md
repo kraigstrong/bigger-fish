@@ -37,12 +37,13 @@ Fish's `com.kraigstrong.biggerfish.allworlds` was created this way on 2026-10-12
 
 `pull` copies what App Store Connect has into the files, so a push doesn't undo an edit made on the website: the
 editable version's text, or the live version's when nothing is editable (leaving out the live version's What's New and
-App Review notes, which were for it), and the in-app purchases' names and descriptions. Math Reef's files started
-this way on 2026-10-24.
+App Review notes, which were for it), and the in-app purchases' names and descriptions. A field emptied on the website
+empties its file, and push keeps an empty file's field empty; a missing file leaves its field alone. Math Reef's
+files started this way on 2026-10-24.
 
 `version` creates the next version (Prepare for Submission) when none is editable; it submits nothing. App Store
 Connect starts it with the live version's text, screenshots, preview, and App Review notes, but no promotional text or
-What's New, so push the text next.
+What's New, so push the text next: a pull first would empty `promotional_text.txt` to match.
 
 `media` replaces the editable version's screenshots (each folder's PNGs in name order, one folder per device size)
 and its product page header (`--header`) and search results asset (`--search`), each a 5244×2950 image; `--creative`

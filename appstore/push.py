@@ -124,15 +124,16 @@ def problems(app: str, locale: str) -> list[str]:
     """Everything wrong with one locale's text, by Apple's limits and a few house rules."""
     found = []
     text = listing(app, locale)
+    # An empty file is a field kept empty in App Store Connect, which only an optional field can be.
     for name in REQUIRED:
-        if name not in text:
-            found.append(f"{name}.txt is missing")
+        if not text.get(name):
+            found.append(f"{name}.txt is {'empty' if name in text else 'missing'}")
     for name, value in text.items():
         limit = FIELDS[name][2]
         if measure(name, value) > limit:
             unit = "bytes" if name == "keywords" else "characters"
             found.append(f"{name}: {measure(name, value)} {unit}, over the limit of {limit}")
-        if name.endswith("_url") and not value.startswith("https://"):
+        if name.endswith("_url") and value and not value.startswith("https://"):
             found.append(f"{name}: not an https:// link")
     keywords = text.get("keywords", "")
     if ", " in keywords:
@@ -276,6 +277,8 @@ def upsert(client: Client, kind: str, existing: dict | None, attrs: dict, parent
               + (f" ({len(current.get(k) or '')} -> {len(attrs[k])} characters)" if k in changed else ""))
     if not changed or dry_run:
         return bool(changed)
+    # An empty file empties the field: null clears an attribute, where an empty URL may be refused as invalid.
+    changed = {k: v or None for k, v in changed.items()}
     if existing:
         client.call("PATCH", f"/v1/{kind}/{existing['id']}",
                     {"data": {"type": kind, "id": existing["id"], "attributes": changed}})
@@ -380,17 +383,17 @@ def new_version(app: str, version_string: str, dry_run: bool) -> int:
 
 
 def save(path: Path, value: str | None, label: str) -> bool:
-    """Writes one field's file from App Store Connect's text; an empty field leaves the file alone."""
-    if not value:
-        print(f"  {label}: empty in App Store Connect, left alone")
-        return False
+    """Writes one field's file from App Store Connect's text. A field emptied there empties its file, so the next push
+    keeps it empty; an empty field with no file is left without one."""
+    value = value or ""
     current = read(path)
-    if current == value:
-        print(f"  {label}: same")
+    if current == value or (current is None and not value):
+        print(f"  {label}: " + ("same" if current is not None else "empty in App Store Connect, no file"))
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(value + "\n", encoding="utf-8")
-    print(f"  {label}: " + ("written" if current is None else f"updated ({len(current)} -> {len(value)} characters)"))
+    path.write_text(value + "\n" if value else "", encoding="utf-8")
+    print(f"  {label}: " + ("written" if current is None else "emptied, as in App Store Connect" if not value
+                            else f"updated ({len(current)} -> {len(value)} characters)"))
     return True
 
 
