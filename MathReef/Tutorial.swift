@@ -167,12 +167,14 @@ enum TutorialEnding {
 
 /// What the tutorial draws over the water: the demo finger, each step's word, arrows by the player
 /// fish, and a small Skip button for grown-ups. Built from the game's own shapes, font, and SF Symbols.
+/// A round's control hint (RoundHint.swift) is its "Hold" step, without the Skip.
 final class TutorialOverlay: SKNode {
     private typealias L = ReefTuning
     static let answerRingName = "tutorialAnswerRing"
 
     private let fingerSpot: CGPoint
-    private let captionSpot: CGPoint
+    /// Where "Hold" and "Let go" show, above the finger.
+    let captionSpot: CGPoint
     /// Where the "Yes!" card shows, right of the fish: the closing line takes its place.
     private let closingSpot: CGPoint
     private let eatCaptionSpot: CGPoint
@@ -189,7 +191,7 @@ final class TutorialOverlay: SKNode {
     private(set) var skipFrame = CGRect.zero
 
     /// `field` is the water the fish swims in: the whole screen on a phone, a band across an iPad's (`ReefScreen`).
-    init(size: CGSize, field: CGRect) {
+    init(size: CGSize, field: CGRect, skippable: Bool = true) {
         fingerSpot = CGPoint(x: field.minX + field.width * L.tutorialFingerSpot.x,
                              y: field.minY + field.height * L.tutorialFingerSpot.y)
         captionSpot = CGPoint(x: fingerSpot.x, y: fingerSpot.y + 74)
@@ -239,7 +241,7 @@ final class TutorialOverlay: SKNode {
         arrows.alpha = 0
         addChild(arrows)
 
-        buildSkip(size: size)
+        if skippable { buildSkip(size: size) }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -310,6 +312,13 @@ final class TutorialOverlay: SKNode {
         ]))
     }
 
+    /// A round's control hint: the "Hold" step, in the round's own words.
+    func showRoundHint(_ text: String, fontSize: CGFloat) {
+        setCaption(text, at: captionSpot, fontSize: fontSize)
+        press()
+        showArrows(up: true)
+    }
+
     /// Plays the step's hint again, for a kid who hasn't done it yet.
     func replayHint(_ step: TutorialFlow.Step) {
         caption.run(.sequence([.scale(to: 1.25, duration: 0.15), .scale(to: 1, duration: 0.2)]))
@@ -320,9 +329,11 @@ final class TutorialOverlay: SKNode {
         }
     }
 
-    /// Keeps the arrows by the player fish (its center on screen).
-    func follow(fish: CGPoint) {
-        arrows.position = CGPoint(x: fish.x, y: fish.y + (arrowsPointUp ? 1 : -1) * (L.playerRadius + 24))
+    /// Keeps the arrows by the player fish (its center on screen), `lift` further up for arrows pointing up: over a
+    /// round's question, which rides above the fish.
+    func follow(fish: CGPoint, lift: CGFloat = 0) {
+        let offset = arrowsPointUp ? L.playerRadius + 24 + lift : -(L.playerRadius + 24)
+        arrows.position = CGPoint(x: fish.x, y: fish.y + offset)
     }
 
     /// A gold ring around the right answer, once a kid needs help finding it.

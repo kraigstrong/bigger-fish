@@ -1,0 +1,23 @@
+Math Reef is a math practice game for children in grades 1–5. No account or sign-in is needed, and it plays offline.
+
+New in 1.1: Math Reef runs on iPad. Settings has separate switches for sound effects, music, and vibration, and a button to replay the tutorial. ProMotion iPhones run at up to 120 frames a second.
+
+How to play: pick a world on the reef map (Addition, Subtraction, Multiplication, Division, or Exponents), then a level. Touch and hold anywhere to swim up, and let go to sink. Swim into the fish carrying the right answer.
+
+In-app purchase: the first three levels of Addition, Subtraction, Multiplication, and Division, and the first level of Exponents, are free. "The Whole Reef" (com.kraigstrong.mathreef.fullreef), a one-time non-consumable purchase shared with Family Sharing, unlocks every level. It can only be reached through the parental gate, in either of two ways:
+1. Open a world and tap a level with a padlock (for example Addition level 4). "More of the reef" asks the child to get a grown-up. Tap Grown-ups and pass the gate to see the unlock screen: the price, Unlock, and Restore purchases.
+2. Settings (gear icon, top right of the reef map) → For grown-ups → pass the gate → Unlock the whole reef.
+
+Parental gate: it asks two-digit addition written in words, such as "What is forty-two plus thirty-seven?", answered on a number pad. A wrong answer closes the gate. The only links out of the app are behind the same gate at Settings → For grown-ups: the privacy policy (https://brightbench.app/math-reef/privacy) and the support page (https://brightbench.app/math-reef/support), which open in Safari.
+
+Sound plays even when the device is on silent, on purpose, so children using a parent's phone can hear the game. Sound effects, music, and vibration can each be turned off in Settings.
+
+Kids Category (Guideline 1.3), as answered for 1.0.1; nothing about the app's data has changed since:
+- Does the app include third-party analytics? If so, please provide details about what data is collected for this purpose.
+  - No. This app has first-party analytics to control exactly what is being sent: which levels were started and passed, whether a round was finished, quit, or abandoned, correct answers out of that round's target, stars and crowns earned, whether the unlock screen was shown, and whether the full game was unlocked (milestones counted at most once per install). Reports contain no identifiers of any kind (no name, email, account, device ID, advertising ID, or IP address), no timestamps, no device model or OS version, no location or language, no record of which answers were selected, and no play durations. Reports from different installs cannot be distinguished or linked to each other or to any user.
+- Does the app include third-party advertising? If so, please provide a link to the ad network's publicly-documented practices and policies for kids apps.
+  - No. This app has no advertising.
+- Will the data be shared with any third parties? If so, for what purposes and where will this information be stored?
+  - No, the data will not be shared with any third parties.
+- Is the app collecting any user or device data for purposes beyond third-party analytics or third-party advertising? If so, please provide a complete and clear explanation of all planned uses of this data.
+  - No. The only data collected is the anonymous aggregate analytics described above, used solely for analytics. We collect no personal information, contact information, photos, or location. The one-time full-game unlock is purchased through Apple's StoreKit; we receive no payment details and learn only that the game is unlocked (counted as the aggregate "unlocked" milestone above). This matches our privacy policy (https://brightbench.app/math-reef/privacy) and our App Privacy declaration (Product Interaction and Purchase History, used for Analytics, not linked to the user's identity, not used for tracking).

@@ -120,9 +120,14 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     sees the hint again. The first catch gets "Yes!", then "Ready to play!", then a fade to the map
     (Skip just fades). Saved as done the moment the 2 is eaten or Skip is tapped, and skipped for
     players who already have progress. Settings can replay it.
+  - `RoundHint.swift` — the control hint at the start of a round: the tutorial's "Hold" step (finger,
+    "Hold to swim up", arrows over the fish and its question), drawn under the answer fish. A kid's first
+    3 rounds after install start with it (`ReefTuning.roundHintRounds`), and it goes at their first hold;
+    a round only counts once they've held, so a kid who hasn't found the control keeps seeing it.
   - `ReefAudio.swift` / `ReefHaptics.swift` — sound effects, music, and haptics, each with its own
     switch in Settings (Sound, Music, Vibration), saved on the device. A 1.0 install that turned sound
-    off keeps the music off too
+    off keeps the music off too. Sound and music play on their own queue, as Bigger Fish's do, so a slow
+    start can't stall a frame
   - `ReefAnalytics.swift` — anonymous first-party counts (milestones and round outcomes), queued on the device and sent in batches to brightbench.app (off during test runs)
   - `StoreCapture.swift` — debug-only staged scenes and an autopilot for App Store screenshots and the preview video
 - `Packages/FishKit/` — shared fish engine used by both apps:
@@ -139,7 +144,8 @@ cd Packages/FishKit && xcodebuild test -scheme FishKit -destination 'platform=iO
 second, which a ProMotion iPhone allows only with the key in `MathReef-Info.plist` (the rest of its Info.plist is
 generated from build settings). `MathReefTests/DrawOrderTests` plays the app's one scene frame by frame, as a store
 capture does, through the moments that matter on an iPhone, the iPhone SE, and an iPad: the reef and every level path,
-Settings and the parental gate, the unlock, rounds answered right and wrong, the results and a crown, and the tutorial.
+Settings and the parental gate, the unlock, rounds answered right and wrong, a first round's control hint, the results
+and a crown, and the tutorial.
 It checks each with a copy of Bigger Fish's `DrawOrderAudit` (a fix to one belongs in the other). Its renders hash every
 moment the audit looks at, so a change of depths can be checked frame by frame:
 

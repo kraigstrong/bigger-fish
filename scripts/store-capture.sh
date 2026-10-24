@@ -104,8 +104,10 @@ video() {
     # Apple's app preview size: wider than 2:1 is an iPhone, anything else an iPad.
     size=$(ffprobe -v error -select_streams v -show_entries stream=width,height -of csv=p=0 "$dir/frames/00000.jpg" |
         awk -F, '{ print ($1 > 2 * $2) ? "1920:886" : "1600:1200" }')
+    # Square pixels and video range: the 6.9" screen is a little wider than 1920x886, and App Store Connect
+    # refuses a preview whose pixels are stretched to make up the difference (SPEC_MISMATCH).
     ffmpeg -v error -y -framerate 30 -i "$dir/frames/%05d.jpg" -i "$dir/soundtrack.wav" \
-        -vf "scale=$size:flags=lanczos,format=yuv420p" \
+        -vf "scale=$size:flags=lanczos:out_range=tv,setsar=1,format=yuv420p" \
         -c:v libx264 -profile:v high -level 4.0 -b:v 11M -maxrate 12M -bufsize 24M \
         -c:a aac -b:a 256k -ar 48000 -ac 2 -shortest -movflags +faststart "$dir/full.mp4"
     echo "wrote $dir/full.mp4 ($(cat "$dir/frames/done.txt"), ${size/:/x})"

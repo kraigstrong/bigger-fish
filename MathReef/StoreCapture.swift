@@ -47,6 +47,8 @@ enum StoreCapture {
         defaults.removePersistentDomain(forName: name)
         // Screenshots show the whole reef, without padlocks.
         defaults.set(true, forKey: "mathReef.unlocked")
+        // Played long enough not to need the round's control hint.
+        defaults.set(ReefTuning.roundHintRounds, forKey: RoundHint.key)
         return defaults
     }()
 
