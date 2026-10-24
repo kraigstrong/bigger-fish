@@ -27,11 +27,9 @@ enum ReefScreen {
     /// `WaterTextures.gradient()`'s ends (FishKit), which the bands above and below the playfield carry on.
     static let waterTop = UIColor(red: 0.20, green: 0.62, blue: 0.80, alpha: 1)
     static let waterBottom = UIColor(red: 0.03, green: 0.12, blue: 0.30, alpha: 1)
-    /// How much of the water's color the bands keep beside the playfield, and at the screen's edge (Bigger Fish's).
-    static let bandBrightness: (field: CGFloat, edge: CGFloat) = (0.55, 0.3)
 
-    /// A band's texture: `color`, darkened, and darker still away from the playfield, which is at its bottom for the
-    /// band above (`fieldBelow`) and at its top for the band below.
+    /// A band's texture: `color`, darkened (`ReefTuning.bandBrightness`), and darker still away from the playfield,
+    /// which is at its bottom for the band above (`fieldBelow`) and at its top for the band below.
     static func bandTexture(_ color: UIColor, fieldBelow: Bool) -> SKTexture {
         func shade(_ brightness: CGFloat) -> CGColor {
             var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
@@ -39,7 +37,7 @@ enum ReefScreen {
             return UIColor(red: r * brightness, green: g * brightness, blue: b * brightness, alpha: 1).cgColor
         }
         let size = CGSize(width: 4, height: 64)
-        let edge = shade(bandBrightness.edge), field = shade(bandBrightness.field)
+        let edge = shade(ReefTuning.bandBrightness.edge), field = shade(ReefTuning.bandBrightness.field)
         let image = UIGraphicsImageRenderer(size: size).image { context in
             // The image's top is the band's top.
             let colors = (fieldBelow ? [edge, field] : [field, edge]) as CFArray

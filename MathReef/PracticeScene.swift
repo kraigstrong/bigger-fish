@@ -75,6 +75,12 @@ enum ReefTuning {
     static let promptEdgeClearance: CGFloat = 6
     static let promptFlipFadeSeconds: CGFloat = 0.08
 
+    // MARK: iPad (ReefScreen.swift)
+
+    /// How much of the water's color the darker water above and below a round keeps beside the playfield, and at the
+    /// screen's edge (Bigger Fish's).
+    static let bandBrightness: (field: CGFloat, edge: CGFloat) = (0.55, 0.3)
+
     // MARK: First-launch tutorial (Tutorial.swift)
 
     /// "Hold" is done once one hold lifts the fish this far (a fraction of the water it can reach),
