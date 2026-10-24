@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Lets the scene run at up to 120 frames a second on ProMotion iPhones, as its view asks (ReefView). Without it,
+	     iOS caps an iPhone app at 60, however many frames the view asks for (Bigger Fish's credits stuttered without
+	     it). The rest of the Info.plist is generated from the target's build settings. -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+</dict>
+</plist>

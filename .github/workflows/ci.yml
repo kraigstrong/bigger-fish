@@ -39,7 +39,7 @@ jobs:
               while IFS= read -r file; do
                 case "$file" in
                   "") ;;
-                  MathReef/*|MathReefTests/*|MathReef.storekit) math_reef=true ;;
+                  MathReef/*|MathReefTests/*|MathReef.storekit|MathReef-Info.plist) math_reef=true ;;
                   BiggerFish/*|BiggerFishTests/*|BiggerFish.storekit|BiggerFish-Info.plist) bigger_fish=true ;;
                   *.md|docs/*|Art/*|scripts/*|LICENSE) ;;
                   *) math_reef=true bigger_fish=true fishkit=true ;;
