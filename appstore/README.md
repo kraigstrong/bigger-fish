@@ -10,12 +10,15 @@ appstore/
 └── <app>/                                  # bigger-fish, math-reef
     ├── app/<locale>/<field>.txt            # name, subtitle, promotional_text, description, keywords,
     │                                       # release_notes, support_url, marketing_url, privacy_policy_url
-    └── iap/<purchase>/<locale>/{name,description}.txt
+    ├── iap/<purchase>/<locale>/{name,description}.txt
+    └── review_notes.txt                    # App Review's notes, for the version (not a locale)
 ```
 
 ```bash
 python3 appstore/push.py validate                             # Apple's limits and a few house rules; no network
 python3 appstore/push.py check                                # the credentials work; lists each app's Apple ID
+python3 appstore/push.py pull --app math-reef                 # App Store Connect's text into the files; reads only
+python3 appstore/push.py version --app math-reef 1.1.0 --dry-run   # create the next version to push to
 python3 appstore/push.py push --app bigger-fish --dry-run     # what would change, field by field
 python3 appstore/push.py push --app bigger-fish                # push only what differs
 python3 appstore/push.py push --app bigger-fish --only promotional_text
@@ -32,12 +35,22 @@ before the app's are chosen, plus new ones as Apple adds them), and the review s
 JPEG of the purchase screen; a different one replaces it). It never changes a price or availability that's set. Bigger
 Fish's `com.kraigstrong.biggerfish.allworlds` was created this way on 2026-10-12.
 
+`pull` copies what App Store Connect has into the files, so a push doesn't undo an edit made on the website: the
+editable version's text, or the live version's when nothing is editable (leaving out the live version's What's New and
+App Review notes, which were for it), and the in-app purchases' names and descriptions. Math Reef's files started
+this way on 2026-10-24.
+
+`version` creates the next version (Prepare for Submission) when none is editable; it submits nothing. App Store
+Connect starts it with the live version's text, screenshots, preview, and App Review notes, but no promotional text or
+What's New, so push the text next.
+
 `media` replaces the editable version's screenshots (each folder's PNGs in name order, one folder per device size)
 and its product page header (`--header`) and search results asset (`--search`), each a 5244×2950 image; `--creative`
 puts one image in both. Check the header in App Store Connect's preview on an iPhone, which crops it hard.
-`--preview` replaces the app preview video on the 6.9" and 6.3" iPhones, and `--poster` picks the frame the App Store
-shows until it plays (a timecode into the video, HH:MM:SS:FF; it can only be a frame of the video). It goes
-through Apple's App Asset Library: each file is uploaded and processed first, and the old placements are swapped
+`--preview` replaces the app preview video on the app's iPhone sizes: the 6.9" and 6.3" for Bigger Fish, and the 6.5"
+for Math Reef, whose iPhone screenshots are there too (`preview_groups` in `push.py`'s `APPS`). `--poster` picks the
+frame the App Store shows until it plays (a timecode into the video, HH:MM:SS:FF; it can only be a frame of the
+video). It goes through Apple's App Asset Library: each file is uploaded and processed first, and the old placements are swapped
 out only once all of them are ready, so a failure leaves the listing as it was. A screenshot's device size comes from
 its dimensions, matched against Apple's reference data. For Bigger Fish, the files come from
 `scripts/bigger-fish-store-capture.sh` (and `--ipad`), `scripts/bigger-fish-store-frames.py` (captions),
@@ -48,11 +61,12 @@ the main README.
   version is submitted and released. Always dry-run first.
 - **Promotional text can change any time** without review. A new version can come up with it empty: push it again
   with `--only promotional_text`.
-- **Edited something in App Store Connect's website?** Copy it back into the file, or the next push overwrites it.
+- **Edited something in App Store Connect's website?** Run `pull` (or copy it into the file), or the next push
+  overwrites it.
 - **An app's first version has no What's New**, so `release_notes.txt` waits for the second.
-- **validate checks**: the character limits (name and subtitle 30, promotional text 170, keywords 100, description
-  and What's New 4000, an in-app purchase's name 30 and description 45), https links, no space after a keyword's
-  comma, and no keyword that's already in the name or subtitle (those are searched anyway).
+- **validate checks**: the character limits (name and subtitle 30, promotional text 170, keywords 100, description,
+  What's New, and App Review notes 4000, an in-app purchase's name 30 and description 55), https links, no space after
+  a keyword's comma, and no keyword that's already in the name or subtitle (those are searched anyway).
 
 ## Credentials
 
