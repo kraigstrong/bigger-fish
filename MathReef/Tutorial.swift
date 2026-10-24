@@ -332,7 +332,8 @@ final class TutorialOverlay: SKNode {
         ring.strokeColor = ReefStyle.gold
         ring.fillColor = ReefStyle.gold.withAlphaComponent(0.15)
         ring.lineWidth = 3
-        ring.zPosition = -1
+        // Over the fish's tail and fin (-2, -1), under its body (0): the scene ignores sibling order.
+        ring.zPosition = -0.5
         ring.setScale(0.2)
         ring.run(.sequence([
             .scale(to: 1, duration: 0.2),

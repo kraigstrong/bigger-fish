@@ -6,7 +6,7 @@ import UIKit
 /// nodes are drawn by global depth alone: the sum of the zPositions from the root down. A parent still draws before
 /// its children, but any other two nodes at one depth come out in whatever order the renderer likes. The simulator
 /// keeps the order they were added; a phone doesn't, which is how the pause menu's backdrop once drew over its own
-/// controls.
+/// controls. Math Reef has a copy (MathReefTests/DrawOrderAudit.swift): a fix to one belongs in the other.
 ///
 /// The audit walks a node tree as drawn (hidden subtrees skipped; alpha ignored, since what's faded out now fades in
 /// later) and reports every two nodes, neither inside the other, at one depth, whose frames overlap on screen, where

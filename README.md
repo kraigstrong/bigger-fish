@@ -39,8 +39,9 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'p
 **Draw order.** Every SpriteView draws with `ignoresSiblingOrder`, so nodes at the same global depth come out in any
 order on a phone, though the simulator keeps the order they were added. Anything drawn over something else needs its own
 zPosition. `DrawOrderTests` walks every scene at the moments that matter (cards, play, pause, the result, the tutorial,
-the credits, the maps) with `DrawOrderAudit`, which reports overlapping nodes that share a depth. To check that a change
-of depths keeps the look, render the key moments before and after and compare:
+the credits, the maps) with `DrawOrderAudit`, which reports overlapping nodes that share a depth (Math Reef has a copy;
+see Math Reef's draw order below). To check that a change of depths keeps the look, render the key moments before and
+after and compare:
 
 ```bash
 TEST_RUNNER_DRAW_ORDER_RENDERS=before xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish \
@@ -125,6 +126,21 @@ FishKit tests:
 
 ```bash
 cd Packages/FishKit && xcodebuild test -scheme FishKit -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
+
+**Math Reef's draw order.** Its view (`ReefView`) draws with `ignoresSiblingOrder` too, and asks for 120 frames a
+second, which a ProMotion iPhone allows only with the key in `MathReef-Info.plist` (the rest of its Info.plist is
+generated from build settings). `MathReefTests/DrawOrderTests` plays the app's one scene frame by frame, as a store
+capture does, through the moments that matter on an iPhone, the iPhone SE, and an iPad: the reef and every level path,
+Settings and the parental gate, the unlock, rounds answered right and wrong, the results and a crown, and the tutorial.
+It checks each with a copy of Bigger Fish's `DrawOrderAudit` (a fix to one belongs in the other). Its renders hash every
+moment the audit looks at, so a change of depths can be checked frame by frame:
+
+```bash
+TEST_RUNNER_DRAW_ORDER_RENDERS=before xcodebuild test -project BiggerFish.xcodeproj -scheme MathReef \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' '-only-testing:MathReefTests/DrawOrderTests/manualRenderDrawOrderMoments()'
+# change the depths, render again as `after`, then:
+diff build/math-reef-draw-order/before/hashes.txt build/math-reef-draw-order/after/hashes.txt
 ```
 
 ## App Store screenshots and preview

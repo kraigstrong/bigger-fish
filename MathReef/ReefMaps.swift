@@ -61,9 +61,12 @@ final class WorldMapNode: SKNode {
         trail.zPosition = -1
         addChild(trail)
 
-        for (world, center) in zip(worlds, centers) {
+        for (index, (world, center)) in zip(worlds, centers).enumerated() {
             let stop = SKNode()
             stop.position = center
+            // Each over the one before: on a narrow screen a world's name meets the next world's circle, and the scene
+            // ignores sibling order.
+            stop.zPosition = CGFloat(index) / 100
             stop.alpha = world.comingSoon ? 0.5 : 1
 
             let circle = SKShapeNode(circleOfRadius: 40)
@@ -279,7 +282,9 @@ final class LevelMapNode: SKNode {
             number = SKColor(white: 1, alpha: 0.7)
             let lock = padlock(size: r * 0.8)
             lock.position = CGPoint(x: r * 0.72, y: r * 0.72)
-            lock.zPosition = 2
+            // Over the number (1); its badge under the stars (2) of a level played before, and its symbol (+1) over
+            // them: the scene ignores sibling order.
+            lock.zPosition = 1.5
             stop.addChild(lock)
         }
         circle.lineWidth = 4

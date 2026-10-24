@@ -254,10 +254,11 @@ final class PracticeScene: SKScene {
     private var playerMaxY: CGFloat { waterTop - L.playerRadius * 0.95 }
     private var playerSpeed: CGFloat { size.width / L.screenCrossSeconds }
 
-    /// Debug builds launched for App Store captures use their own saved state (see StoreCapture).
+    /// Debug builds launched for App Store captures use their own saved state (see StoreCapture), as do tests' scenes
+    /// (`testDefaults`).
     private static var isCapturing: Bool {
         #if DEBUG
-        StoreCapture.scene != nil
+        StoreCapture.scene != nil || testDefaults != nil
         #else
         false
         #endif
@@ -265,6 +266,7 @@ final class PracticeScene: SKScene {
 
     private static var savedState: UserDefaults {
         #if DEBUG
+        if let testDefaults { return testDefaults }
         if isCapturing { return StoreCapture.defaults }
         #endif
         return .standard
@@ -294,6 +296,8 @@ final class PracticeScene: SKScene {
         // Above the maps, which share the UI layer (the scene ignores sibling order).
         settingsButton.zPosition = 10
         panel.zPosition = 20
+        // Over the question's pill, which rises to meet it near the top, and under its words.
+        progressLabel.zPosition = 0.5
         NotificationCenter.default.addObserver(
             self, selector: #selector(appWillResignActive),
             name: UIApplication.willResignActiveNotification, object: nil
@@ -737,7 +741,9 @@ final class PracticeScene: SKScene {
     }
 
     private func autopilotHolds() -> Bool {
-        guard autopilot, phase == .answering || phase == .feedback else { return false }
+        guard autopilot, phase == .answering || phase == .feedback || phase == .tutorial else { return false }
+        // The tutorial, for tests (a store capture never plays it): Hold, Let go, then eat the answer as in a round.
+        if phase == .tutorial, tutorial?.step != .eat { return tutorial?.step == .hold }
         if autopilotPlan.question != questionNumber {
             var rng = autopilotRNG
             autopilotPlan = AutopilotPlan(
@@ -756,7 +762,7 @@ final class PracticeScene: SKScene {
         let miss = autopilotMisses.contains(questionNumber)
         // Where the fish wants to be: idling around mid-water until the wave is close.
         var goal = playfield.midY + sin(realClock * 1.3 + plan.wanderPhase) * playfield.height * 0.14
-        if phase == .answering, let target = nearest(ahead.filter { $0.isCorrect != miss }) {
+        if phase == .answering || phase == .tutorial, let target = nearest(ahead.filter { $0.isCorrect != miss }) {
             let distance = (target.fish.position.x - player.position.x) / size.width
             if distance < plan.commitAt {
                 // A swoop, not a line: the aim waits off to the fish's side of the answer, then sweeps through it and
@@ -830,12 +836,7 @@ final class PracticeScene: SKScene {
         }
         let multiplication = Curriculum.worlds.firstIndex { $0.id == "multiplication" } ?? 0
         func play(world: String, level: Int, misses: Set<Int> = []) {
-            worldIndex = Curriculum.worlds.firstIndex { $0.id == world } ?? 0
-            levelIndex = level
-            autopilot = true
-            autopilotMisses = misses
-            questionNumber = 0
-            showInstructions()
+            debugOpenLevel(world: Curriculum.worlds.firstIndex { $0.id == world } ?? 0, level: level, misses: misses)
             run(.wait(forDuration: 1)) { [weak self] in self?.startSession() }
         }
         switch scene {
@@ -1237,12 +1238,15 @@ final class PracticeScene: SKScene {
 
     /// Little stars flying out from where the crown lands.
     private func sparkleBurst(at point: CGPoint, in parent: SKNode) {
+        // The same burst every time in a store capture or a test, so their frames can be retaken and compared.
+        var rng = SeededGenerator(seed: Self.isCapturing ? 3 : UInt64.random(in: 0...UInt64.max))
         for i in 0..<14 {
-            let angle = CGFloat(i) / 14 * 2 * .pi + CGFloat.random(in: -0.15...0.15)
-            let distance = CGFloat.random(in: 110...170)
-            let sparkle = starShape(radius: CGFloat.random(in: 5...9), filled: true)
+            let angle = CGFloat(i) / 14 * 2 * .pi + CGFloat.random(in: -0.15...0.15, using: &rng)
+            let distance = CGFloat.random(in: 110...170, using: &rng)
+            let sparkle = starShape(radius: CGFloat.random(in: 5...9, using: &rng), filled: true)
             sparkle.position = point
-            sparkle.zPosition = 2
+            // Each over the one before, as they start together: the scene ignores sibling order.
+            sparkle.zPosition = 2 + CGFloat(i) / 100
             parent.addChild(sparkle)
             let fly = SKAction.move(by: CGVector(dx: cos(angle) * distance, dy: sin(angle) * distance), duration: 0.7)
             fly.timingMode = .easeOut
@@ -1380,7 +1384,7 @@ final class PracticeScene: SKScene {
         guard var flow = tutorial else { return }
         tutorialOverlay?.follow(fish: CGPoint(x: size.width * L.playerScreenX, y: player.position.y))
         let event = flow.update(
-            fishY: player.position.y, holding: !holdTouches.isEmpty, dt: dt, minY: playerMinY, maxY: playerMaxY
+            fishY: player.position.y, holding: isHolding, dt: dt, minY: playerMinY, maxY: playerMaxY
         )
         tutorial = flow
         if let event { handleTutorial(event) }
@@ -1542,9 +1546,12 @@ final class PracticeScene: SKScene {
         render()
     }
 
+    /// A finger on the screen, or in Xcode builds the autopilot's hold.
+    private var isHolding: Bool { !holdTouches.isEmpty || autopilotHolds() }
+
     private func simulate(_ dt: CGFloat) {
         let (y, vy) = PlayerMotion.step(
-            y: player.position.y, vy: player.velocity.dy, holding: !holdTouches.isEmpty || autopilotHolds(), dt: dt,
+            y: player.position.y, vy: player.velocity.dy, holding: isHolding, dt: dt,
             minY: playerMinY, maxY: playerMaxY, tuning: L.motion
         )
         player.velocity = CGVector(dx: playerSpeed, dy: vy)
@@ -1972,3 +1979,83 @@ final class PracticeScene: SKScene {
         reefLabel(text, fontSize: fontSize, heavy: heavy, color: color)
     }
 }
+
+#if DEBUG
+// MARK: - Test hooks
+
+/// For tests that walk the scene through its screens (`DrawOrderTests`), as a kid's taps would reach them. Xcode builds
+/// only.
+extension PracticeScene {
+    /// Saved state for the scenes a test makes, set before making one. Such a scene plays like a store capture: the
+    /// same shuffles every time, no analytics or App Store, and no tutorial at launch.
+    static var testDefaults: UserDefaults?
+
+    enum DebugScreen { case home, world(Int), settings, parentalGate, unlockPrompt, unlock, waiting, unlocked }
+
+    /// Opens a screen: `.world` is that world's level path, and the screens reached from Settings open over whatever is
+    /// showing.
+    func debugShow(_ screen: DebugScreen) {
+        switch screen {
+        case .home: showHome()
+        case .world(let index):
+            worldIndex = index
+            showWorld()
+        case .settings: showSettings()
+        case .parentalGate:
+            // The same question every time, so it draws the same.
+            var rng = SeededGenerator(seed: 1)
+            gateLeadsTo = .links
+            parentalGate = ParentalGate(using: &rng)
+            drawParentalGate()
+        case .unlockPrompt: showUnlockPrompt()
+        case .unlock: showUnlockScreen()
+        case .waiting: showWaiting()
+        case .unlocked: showUnlocked()
+        }
+    }
+
+    /// Types the next `count` digits of the parental gate's answer on its keypad: all of them pass it.
+    func debugTypeGateAnswer(digits count: Int) {
+        guard let gate = parentalGate else { return }
+        for digit in String(gate.answer).dropFirst(gate.entry.count).prefix(count) {
+            typeGateDigit(Int(String(digit))!)
+        }
+    }
+
+    /// Scrolls the level path as a drag `dx` long would.
+    func debugDragLevelPath(by dx: CGFloat) {
+        guard let levelMap else { return }
+        let start = CGPoint(x: size.width / 2, y: size.height / 2), end = CGPoint(x: start.x + dx, y: start.y)
+        levelMap.touchBegan(at: start)
+        levelMap.touchMoved(to: end)
+        levelMap.touchEnded(at: end)
+    }
+
+    /// A level's card, for a round (`debugStartRound`) the autopilot plays, answering the questions in `misses` wrong
+    /// (numbered from 0 within the round).
+    func debugOpenLevel(world: Int, level: Int, misses: Set<Int> = []) {
+        worldIndex = world
+        levelIndex = level
+        autopilot = true
+        autopilotMisses = misses
+        questionNumber = 0
+        showInstructions()
+    }
+
+    func debugStartRound() { startSession() }
+
+    /// A perfect round's results, earning `crown`, as Settings' previews show them (saved progress untouched).
+    func debugPreviewCrown(_ crown: Crown) { previewCrown(crown) }
+
+    /// The tutorial from its first step. The autopilot plays it while `debugAutopilot` is on.
+    func debugStartTutorial() { startTutorial() }
+    func debugSkipTutorial() { endTutorial(skipped: true) }
+
+    var debugAutopilot: Bool {
+        get { autopilot }
+        set { autopilot = newValue }
+    }
+    var debugPhase: Phase { phase }
+    var debugTutorialStep: TutorialFlow.Step? { tutorial?.step }
+}
+#endif
