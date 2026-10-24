@@ -322,6 +322,11 @@ final class PracticeScene: SKScene {
         if let i = args.firstIndex(of: "-previewCrown"), args.indices.contains(i + 1) {
             previewCrown(args[i + 1] == "gold" ? .gold : .silver)
         }
+        // `-unlockScreen` opens on the grown-ups' unlock screen, past the gate (with `-unlockPrice` for its price).
+        if args.contains("-unlockScreen") {
+            showHome()
+            showUnlockScreen()
+        }
         if let scene = StoreCapture.scene { stageCapture(scene) }
         #endif
     }
@@ -606,20 +611,24 @@ final class PracticeScene: SKScene {
         )
     }
 
-    /// Behind the parental gate: what the purchase includes, its price, and restore.
+    /// Behind the parental gate: what the purchase includes, its price, and restore (UnlockScreen.swift).
     private func showUnlockScreen() {
-        let price = purchases.displayPrice
-        showSettingsPanel(
-            .unlock, title: "Unlock the whole reef",
-            lines: [("Every level in all five worlds, for good.", 18, false),
-                    ("One purchase, shared with your family.", 18, false)],
-            buttons: [
-                (price.map { "Unlock for \($0)" } ?? "Unlock", { [weak self] in self?.buyUnlock() }),
-                ("Restore purchases", { [weak self] in self?.restorePurchases() }),
-                ("Not now", { [weak self] in self?.hideSettings() }),
-            ],
-            animated: false
+        var price = purchases.displayPrice
+        #if DEBUG
+        price = price ?? Self.standInPrice
+        #endif
+        hidePanel()
+        settingsScreen = .unlock
+        holdTouches.removeAll()
+        let screen = UnlockScreen(
+            size: size, price: price, featured: phase == .world ? world.id : nil,
+            onBuy: { [weak self] in self?.buyUnlock() }, onRestore: { [weak self] in self?.restorePurchases() },
+            onClose: { [weak self] in self?.hideSettings() }
         )
+        panel.position = .zero
+        panel.alpha = 1
+        panel.addChild(screen)
+        buttons = screen.buttons
         // The price loads in the background at launch; redraw once it arrives.
         if price == nil {
             Task { [weak self] in
@@ -1993,6 +2002,14 @@ extension PracticeScene {
     /// Saved state for the scenes a test makes, set before making one. Such a scene plays like a store capture: the
     /// same shuffles every time, no analytics or App Store, and no tutorial at launch.
     static var testDefaults: UserDefaults?
+
+    /// A price for the unlock screen while the App Store has none, as in a simulator run outside Xcode, which has no
+    /// StoreKit test configuration: `-unlockPrice '$4.99'` at launch, or a test's.
+    static var standInPrice: String? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-unlockPrice"), args.indices.contains(i + 1) else { return nil }
+        return args[i + 1]
+    }()
 
     enum DebugScreen { case home, world(Int), settings, parentalGate, unlockPrompt, unlock, waiting, unlocked }
 

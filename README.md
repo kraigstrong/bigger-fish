@@ -107,6 +107,10 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     successful round at least 90 days later (two requests total). Timing stays on-device. TestFlight
     and Xcode builds don't consume requests; Xcode has a gated review-sheet preview.
   - `ReefUnlock.swift` — the free sample (first 3 levels per world, 1 in Exponents) and the one-time StoreKit unlock; `MathReef.storekit` at the repo root backs it when running from Xcode
+  - `UnlockScreen.swift` — the grown-ups' unlock screen, behind the parental gate: each world in its color and
+    symbol with its grades, its first and hardest question, and a pip per level (the free ones white), then the free
+    levels against all of them, Family Sharing, and the App Store's price. Debug builds open on it with
+    `-unlockScreen`, and `-unlockPrice '$4.99'` stands in for the price outside Xcode, which has no StoreKit config
   - `PracticeScene.swift` — screen flow and gameplay; tuning is `ReefTuning` at the top
   - `ReefScreen.swift` — the iPad: how much bigger the scene draws (`ReefScreen.scale`), the band of water
     a round plays in (`ReefScreen.playfield`), and the scene's view (`ReefView`), which draws it bigger at
