@@ -1006,7 +1006,7 @@ final class PracticeScene: SKScene {
 
     /// Keeps the hint's arrows over the fish and its question, and takes the hint away at the kid's first hold, with the
     /// tutorial's fade, or at once when the round is over or left.
-    private func advanceRoundHint() {
+    private func advanceRoundHint(_ dt: CGFloat = 0) {
         guard let overlay = roundHintOverlay else { return }
         guard phase == .answering || phase == .feedback else {
             roundHint.roundEnded()
@@ -1014,6 +1014,8 @@ final class PracticeScene: SKScene {
             roundHintOverlay = nil
             return
         }
+        // Out of the way while a panel explains an answer, and back for the next question.
+        overlay.alpha += ((phase == .feedback ? 0 : 1) - overlay.alpha) * min(1, dt * 12)
         // As far above the question, while it rides above the fish, as the tutorial's arrows sit above the fish.
         let lift = promptBelow ? 0 : L.promptOffset + L.promptPillHeight / 2 - L.playerRadius
         overlay.follow(fish: CGPoint(x: size.width * L.playerScreenX, y: player.position.y), lift: lift)
@@ -1589,7 +1591,7 @@ final class PracticeScene: SKScene {
             updatePromptPlacement()
         }
         if phase == .tutorial { advanceTutorial(realDt) }
-        advanceRoundHint()
+        advanceRoundHint(realDt)
         if phase == .feedback {
             feedbackRemaining -= realDt
             if feedbackRemaining <= 0 { finishFeedback() }
