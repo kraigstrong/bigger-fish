@@ -22,7 +22,7 @@ private final class FakeVoice: AudioVoice {
     func setVolume(_ volume: Float, fadeDuration: TimeInterval) { self.volume = volume }
 }
 
-/// Sound on/off and the music handoffs between screens. Music starts and fades on the main queue,
+/// The sound and music switches and the music handoffs between screens. Music starts and fades on the main queue,
 /// so tests pass no fade and give the queue a moment (`settle`) before checking.
 @MainActor
 struct ReefAudioTests {
@@ -56,6 +56,38 @@ struct ReefAudioTests {
         #expect(!makeAudio().0.isSoundOn)
     }
 
+    @Test func musicIsOnByDefaultAndTheSettingIsRemembered() {
+        let (audio, _) = makeAudio()
+        #expect(audio.isMusicOn)
+        audio.isMusicOn = false
+        let relaunched = makeAudio().0
+        #expect(!relaunched.isMusicOn)
+        #expect(relaunched.isSoundOn)
+    }
+
+    /// 1.0's one switch silenced the music too, so an install that turned it off stays silent after
+    /// the update, and the music stays off once the sound comes back on.
+    @Test func anOldSaveWithSoundOffKeepsTheMusicOff() {
+        defaults.set(false, forKey: "mathReef.soundOn")
+        let (audio, _) = makeAudio()
+        #expect(!audio.isSoundOn)
+        #expect(!audio.isMusicOn)
+
+        audio.isSoundOn = true
+        let relaunched = makeAudio().0
+        #expect(relaunched.isSoundOn)
+        #expect(!relaunched.isMusicOn)
+    }
+
+    @Test func anOldSaveWithSoundOnKeepsTheMusicOn() {
+        defaults.set(true, forKey: "mathReef.soundOn")
+        let (audio, _) = makeAudio()
+        #expect(audio.isMusicOn)
+
+        audio.isSoundOn = false
+        #expect(makeAudio().0.isMusicOn)
+    }
+
     @Test func starsRingOnSeparateVoicesSoTheyOverlap() {
         let (audio, voices) = makeAudio()
         audio.play(.star)
@@ -63,7 +95,7 @@ struct ReefAudioTests {
         #expect(voices("star").filter(\.isPlaying).count == 2)
     }
 
-    @Test func turningSoundOffSilencesEverythingAtOnce() async {
+    @Test func turningSoundOffSilencesTheEffectsAtOnceAndLeavesTheMusic() async {
         let (audio, voices) = makeAudio()
         audio.play(.gulp)
         audio.playMusic(.menu, fade: 0)
@@ -71,20 +103,35 @@ struct ReefAudioTests {
         #expect(voices("gulp")[0].isPlaying && voices("menu-music")[0].isPlaying)
 
         audio.isSoundOn = false
-        #expect(!voices("gulp")[0].isPlaying && !voices("menu-music")[0].isPlaying)
+        #expect(!voices("gulp")[0].isPlaying)
+        #expect(voices("menu-music")[0].isPlaying)
         audio.play(.gulp)
         #expect(!voices("gulp")[0].isPlaying)
     }
 
-    @Test func soundBackOnResumesTheMusicTheCurrentScreenWants() async {
+    @Test func turningMusicOffSilencesTheMusicAtOnceAndLeavesTheEffects() async {
         let (audio, voices) = makeAudio()
-        audio.isSoundOn = false
+        audio.playMusic(.menu, fade: 0)
+        await settle()
+        audio.isMusicOn = false
+        #expect(!voices("menu-music")[0].isPlaying)
+
+        audio.play(.gulp)
+        #expect(voices("gulp")[0].isPlaying)
+        audio.playMusic(.game, fade: 0)
+        await settle()
+        #expect(!voices("game-music")[0].isPlaying)
+    }
+
+    @Test func musicBackOnResumesTheMusicTheCurrentScreenWants() async {
+        let (audio, voices) = makeAudio()
+        audio.isMusicOn = false
         audio.playMusic(.game, fade: 0)
         await settle()
         #expect(audio.currentMusic == .game)
         #expect(!voices("game-music")[0].isPlaying)
 
-        audio.isSoundOn = true
+        audio.isMusicOn = true
         #expect(voices("game-music")[0].isPlaying)
         #expect(voices("game-music")[0].volume == ReefAudio.musicVolume)
     }
@@ -125,7 +172,7 @@ struct ReefAudioTests {
         audio.resumeFromBackground()
         #expect(voices("menu-music")[0].isPlaying)
 
-        audio.isSoundOn = false
+        audio.isMusicOn = false
         audio.resumeFromBackground()
         #expect(!voices("menu-music")[0].isPlaying)
     }

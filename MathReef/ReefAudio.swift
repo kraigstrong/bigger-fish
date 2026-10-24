@@ -43,36 +43,49 @@ final class ReefAudio {
     private let defaults: UserDefaults
     private var players: [ReefSound: [AudioVoice]] = [:]
     private var musicPlayers: [ReefMusic: AudioVoice] = [:]
-    /// The track the current screen wants, even while sound is off.
+    /// The track the current screen wants, even while music is off.
     private(set) var currentMusic: ReefMusic?
     /// Bumped on every music change so a stale delayed start or fade-out pause does nothing.
     private var musicGeneration = 0
     private static let soundOnKey = "mathReef.soundOn"
+    private static let musicOnKey = "mathReef.musicOn"
 
-    /// Parents can turn all sound off in Settings; remembered across launches. Turning it back on
-    /// resumes whatever music the current screen wants.
+    /// The sound effects. Parents can turn them off in Settings; remembered across launches.
     var isSoundOn: Bool {
         didSet {
             guard isSoundOn != oldValue else { return }
             defaults.set(isSoundOn, forKey: Self.soundOnKey)
+            if !isSoundOn { players.values.joined().forEach { $0.stop() } }
+        }
+    }
+
+    /// The music, with its own switch in Settings; remembered across launches. Turning it back on
+    /// resumes whatever music the current screen wants.
+    var isMusicOn: Bool {
+        didSet {
+            guard isMusicOn != oldValue else { return }
+            defaults.set(isMusicOn, forKey: Self.musicOnKey)
             musicGeneration += 1
-            if isSoundOn {
+            if isMusicOn {
                 guard let player = currentMusic.flatMap({ musicPlayers[$0] }) else { return }
                 player.play()
                 player.setVolume(Self.musicVolume, fadeDuration: 0.5)
             } else {
-                players.values.joined().forEach { $0.stop() }
                 musicPlayers.values.forEach { $0.pause(); $0.volume = 0 }
             }
         }
     }
 
     /// - Parameters:
-    ///   - defaults: where the sound setting is remembered.
+    ///   - defaults: where the sound and music settings are remembered.
     ///   - makeVoice: loads a sound file by name and extension; tests pass stand-ins.
     init(defaults: UserDefaults = .standard, makeVoice: (String, String) -> AudioVoice? = ReefAudio.bundleVoice) {
         self.defaults = defaults
         isSoundOn = defaults.object(forKey: Self.soundOnKey) as? Bool ?? true
+        // Before 1.1 the sound switch silenced the music too, so an install that turned it off keeps
+        // the music off. Saved now, so the music no longer follows that switch.
+        if defaults.object(forKey: Self.musicOnKey) == nil { defaults.set(isSoundOn, forKey: Self.musicOnKey) }
+        isMusicOn = defaults.bool(forKey: Self.musicOnKey)
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, options: .mixWithOthers)
         try? session.setActive(true)
@@ -110,7 +123,7 @@ final class ReefAudio {
 
     /// Fades to `music` (or to silence with nil). Asking for the track that's already playing does
     /// nothing, so moving between menus doesn't restart it. Each track resumes where it left off.
-    /// With sound off, this only records which track the screen wants.
+    /// With music off, this only records which track the screen wants.
     func playMusic(_ music: ReefMusic?, after delay: TimeInterval = 0, fade: TimeInterval = 1.0) {
         guard music != currentMusic else { return }
         logForCapture("music \(music?.rawValue ?? "none") \(delay) \(fade)")
@@ -127,7 +140,7 @@ final class ReefAudio {
         currentMusic = music
         guard let music, let player = musicPlayers[music] else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, self.musicGeneration == generation, self.isSoundOn else { return }
+            guard let self, self.musicGeneration == generation, self.isMusicOn else { return }
             player.play()
             player.setVolume(Self.musicVolume, fadeDuration: fade)
         }
@@ -147,7 +160,7 @@ final class ReefAudio {
     }
 
     @objc func resumeFromBackground() {
-        guard isSoundOn, let player = currentMusic.flatMap({ musicPlayers[$0] }), player.volume > 0 else { return }
+        guard isMusicOn, let player = currentMusic.flatMap({ musicPlayers[$0] }), player.volume > 0 else { return }
         player.play()
     }
 }

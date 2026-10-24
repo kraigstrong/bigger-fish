@@ -243,8 +243,7 @@ final class PracticeScene: SKScene {
     private let analytics = PracticeScene.isCapturing ? ReefAnalytics(enabled: false) : ReefAnalytics()
     private let purchases = ReefPurchases(defaults: PracticeScene.savedState)
     private var hasPlayedJingle = false
-    private let positiveHaptic = UINotificationFeedbackGenerator()
-    private let gentleHaptic = UIImpactFeedbackGenerator(style: .soft)
+    private let haptics = ReefHaptics(defaults: PracticeScene.savedState)
 
     /// Where a round plays: the whole screen on a phone, and a band across the middle of an iPad's (ReefScreen.swift).
     private var playfield: CGRect { ReefScreen.playfield(in: size) }
@@ -302,8 +301,7 @@ final class PracticeScene: SKScene {
             self, selector: #selector(appDidBecomeActive),
             name: UIApplication.didBecomeActiveNotification, object: nil
         )
-        positiveHaptic.prepare()
-        gentleHaptic.prepare()
+        haptics.prepare()
 
         buildBackground()
         buildCloseButton()
@@ -439,19 +437,25 @@ final class PracticeScene: SKScene {
 
     // MARK: - Settings
 
+    /// Sound, music, and vibration switches on the top row; replaying the tutorial, the grown-ups' screen, and Done
+    /// below, the same on every screen size.
     private func showSettings(animated: Bool = true) {
         parentalGate = nil
         var lines: [PanelLine] = []
         var buttons: [(title: String, action: () -> Void)] = [
-            (audio.isSoundOn ? "Sound: On" : "Sound: Off", { [weak self] in self?.toggleSound() }),
+            ("Sound: \(audio.isSoundOn ? "On" : "Off")", { [weak self] in self?.toggleSetting(\.audio.isSoundOn) }),
+            ("Music: \(audio.isMusicOn ? "On" : "Off")", { [weak self] in self?.toggleSetting(\.audio.isMusicOn) }),
+            ("Vibration: \(haptics.isVibrationOn ? "On" : "Off")", { [weak self] in self?.toggleSetting(\.haptics.isVibrationOn) }),
+            ("Replay tutorial", { [weak self] in self?.startTutorial() }),
             ("For grown-ups", { [weak self] in self?.showParentalGate(leadingTo: .links) }),
             ("Done", { [weak self] in self?.hideSettings() }),
         ]
+        var rowStarts: Set<Int> = [3]
         #if DEBUG
         // For seeing rare moments on a device. Debug builds only, so never in the App Store.
-        lines.append(("Xcode builds only: the tutorial, crown previews, and Multiplication's saved progress", 15, false))
+        lines.append(("Xcode builds only: crown previews and Multiplication's saved progress", 15, false))
+        rowStarts.insert(buttons.count)
         buttons += [
-            ("Replay tutorial", { [weak self] in self?.startTutorial() }),
             ("Preview silver", { [weak self] in self?.previewCrown(.silver) }),
             ("Preview gold", { [weak self] in self?.previewCrown(.gold) }),
             ("× silver", { [weak self] in self?.debugSetUpMultiplication(.silver) }),
@@ -460,7 +464,7 @@ final class PracticeScene: SKScene {
             ("Reset ×", { [weak self] in self?.debugSetUpMultiplication(.reset) }),
         ]
         #endif
-        showSettingsPanel(.settings, title: "Settings", lines: lines, buttons: buttons, animated: animated)
+        showSettingsPanel(.settings, title: "Settings", lines: lines, buttons: buttons, rowStarts: rowStarts, animated: animated)
     }
 
     /// Settings and its grown-up screens: centered over the dimmed map. `animated: false` redraws in
@@ -482,8 +486,8 @@ final class PracticeScene: SKScene {
         }
     }
 
-    private func toggleSound() {
-        audio.isSoundOn.toggle()
+    private func toggleSetting(_ setting: ReferenceWritableKeyPath<PracticeScene, Bool>) {
+        self[keyPath: setting].toggle()
         showSettings(animated: false)
     }
 
@@ -1041,13 +1045,13 @@ final class PracticeScene: SKScene {
 
         if lastCorrect {
             beginSwallow(answer, failing: false)
-            positiveHaptic.notificationOccurred(.success)
+            haptics.success()
             feedbackRemaining = L.correctFeedbackSeconds
             showPanel(title: "Yes!", lines: [(fact.solution, 28, true)], buttons: [], style: .correct)
         } else {
             // The wrong-answer panel appears when the fish is spat out (see `spit`).
             beginSwallow(answer, failing: true)
-            gentleHaptic.impactOccurred(intensity: 0.4)
+            haptics.bump(intensity: 0.4)
             feedbackRemaining = L.struggleSeconds + L.incorrectFeedbackSeconds
         }
     }
@@ -1157,7 +1161,7 @@ final class PracticeScene: SKScene {
         crownNode.run(.sequence([
             drop,
             .run { [weak self] in
-                self?.positiveHaptic.notificationOccurred(.success)
+                self?.haptics.success()
                 self?.sparkleBurst(at: center, in: stage)
             },
             .scaleX(to: 1.15, y: 0.85, duration: 0.08),
@@ -1212,7 +1216,7 @@ final class PracticeScene: SKScene {
                 fish.setHeadwear(worn)
                 worn.setScale(1.5)
                 worn.run(.scale(to: 1, duration: 0.2))
-                self.positiveHaptic.notificationOccurred(.success)
+                self.haptics.success()
             },
             .removeFromParent(),
         ]))
@@ -1393,7 +1397,7 @@ final class PracticeScene: SKScene {
             overlay.show(step)
             switch step {
             case .hold: break
-            case .letGo: gentleHaptic.impactOccurred(intensity: 0.5)
+            case .letGo: haptics.bump(intensity: 0.5)
             case .eat:
                 setPrompt(TutorialFlow.fact.prompt)
                 spawnTutorialAnswers()
@@ -1448,10 +1452,10 @@ final class PracticeScene: SKScene {
                 for other in answers where other !== hit { fadeOut(other) }
                 hit.node.childNode(withName: TutorialOverlay.answerRingName)?.removeFromParent()
                 beginSwallow(hit, failing: false)
-                positiveHaptic.notificationOccurred(.success)
+                haptics.success()
             } else {
                 bounce(hit)
-                gentleHaptic.impactOccurred(intensity: 0.5)
+                haptics.bump(intensity: 0.5)
             }
             if let event = tutorial?.ate(correct: hit.isCorrect) { handleTutorial(event) }
         } else if swimming.allSatisfy({ $0.fish.position.x < player.position.x - size.width * L.missedBehindScreens }) {
@@ -1650,7 +1654,7 @@ final class PracticeScene: SKScene {
         answer.fish.shrink = 1
         answer.fish.struggle = 0
         bounce(answer)
-        gentleHaptic.impactOccurred(intensity: 0.7)
+        haptics.bump(intensity: 0.7)
         audio.play(.wrong)
         showWrongFeedback()
     }
