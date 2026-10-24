@@ -188,12 +188,14 @@ final class TutorialOverlay: SKNode {
     /// Where a tap skips the tutorial, in scene coordinates (a little bigger than the button).
     private(set) var skipFrame = CGRect.zero
 
-    init(size: CGSize) {
-        fingerSpot = CGPoint(x: size.width * L.tutorialFingerSpot.x, y: size.height * L.tutorialFingerSpot.y)
+    /// `field` is the water the fish swims in: the whole screen on a phone, a band across an iPad's (`ReefScreen`).
+    init(size: CGSize, field: CGRect) {
+        fingerSpot = CGPoint(x: field.minX + field.width * L.tutorialFingerSpot.x,
+                             y: field.minY + field.height * L.tutorialFingerSpot.y)
         captionSpot = CGPoint(x: fingerSpot.x, y: fingerSpot.y + 74)
-        // Along the top, above both answers' lanes.
-        eatCaptionSpot = CGPoint(x: size.width / 2, y: size.height - L.tutorialEatCaptionInset)
-        closingSpot = CGPoint(x: size.width * 0.6, y: size.height / 2)
+        // Along the top of the water, above both answers' lanes.
+        eatCaptionSpot = CGPoint(x: field.midX, y: field.maxY - L.tutorialEatCaptionInset)
+        closingSpot = CGPoint(x: field.minX + field.width * 0.6, y: field.midY)
         super.init()
 
         // The symbol's fingertip is near its top-left corner; anchor it there.

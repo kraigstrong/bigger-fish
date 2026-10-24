@@ -75,6 +75,12 @@ enum ReefTuning {
     static let promptEdgeClearance: CGFloat = 6
     static let promptFlipFadeSeconds: CGFloat = 0.08
 
+    // MARK: iPad (ReefScreen.swift)
+
+    /// How much of the water's color the darker water above and below a round keeps beside the playfield, and at the
+    /// screen's edge (Bigger Fish's).
+    static let bandBrightness: (field: CGFloat, edge: CGFloat) = (0.55, 0.3)
+
     // MARK: First-launch tutorial (Tutorial.swift)
 
     /// "Hold" is done once one hold lifts the fish this far (a fraction of the water it can reach),
@@ -223,6 +229,9 @@ final class PracticeScene: SKScene {
     private enum GateDestination { case links, unlock }
     private var buttons: [(frame: CGRect, action: () -> Void)] = []
     private var specks: [(node: SKSpriteNode, parallax: CGFloat)] = []
+    /// The water's gradient, and the darker water above and below a round on a tall screen (`fitWater`).
+    private var waterGradient: SKSpriteNode?
+    private var bands: [SKSpriteNode] = []
 
     private var holdTouches = Set<UITouch>()
     private var lastUpdate: TimeInterval?
@@ -237,8 +246,10 @@ final class PracticeScene: SKScene {
     private let positiveHaptic = UINotificationFeedbackGenerator()
     private let gentleHaptic = UIImpactFeedbackGenerator(style: .soft)
 
-    private var waterBottom: CGFloat { L.waterBottomMargin }
-    private var waterTop: CGFloat { size.height - L.waterTopMargin }
+    /// Where a round plays: the whole screen on a phone, and a band across the middle of an iPad's (ReefScreen.swift).
+    private var playfield: CGRect { ReefScreen.playfield(in: size) }
+    private var waterBottom: CGFloat { playfield.minY + L.waterBottomMargin }
+    private var waterTop: CGFloat { playfield.maxY - L.waterTopMargin }
     private var playerMinY: CGFloat { waterBottom + L.playerRadius * 0.95 }
     private var playerMaxY: CGFloat { waterTop - L.playerRadius * 0.95 }
     private var playerSpeed: CGFloat { size.width / L.screenCrossSeconds }
@@ -422,6 +433,7 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = true
         settingsButton.isHidden = false
         settingsScreen = nil
+        fitWater(toPlayfield: false)
         render()
     }
 
@@ -718,6 +730,10 @@ final class PracticeScene: SKScene {
         /// Aims a little off the fish's center, as a thumb would.
         var aimOffset: CGFloat = 0
         var wanderPhase: CGFloat = 0
+        /// How far to one side of the answer the swoop into it starts (points), and which side: the fish's, once it
+        /// commits.
+        var swoop: CGFloat = 0
+        var swoopSide: CGFloat?
     }
 
     private func autopilotHolds() -> Bool {
@@ -729,7 +745,8 @@ final class PracticeScene: SKScene {
                 commitAt: .random(in: 0.3...0.5, using: &rng),
                 glanceAt: Bool.random(using: &rng) ? .random(in: 0.65...0.8, using: &rng) : nil,
                 aimOffset: .random(in: -10...10, using: &rng),
-                wanderPhase: .random(in: 0...(2 * .pi), using: &rng)
+                wanderPhase: .random(in: 0...(2 * .pi), using: &rng),
+                swoop: .random(in: 90...130, using: &rng)
             )
             autopilotRNG = rng
         }
@@ -738,11 +755,18 @@ final class PracticeScene: SKScene {
         let nearest = { (fish: [AnswerFish]) in fish.min { $0.fish.position.x < $1.fish.position.x } }
         let miss = autopilotMisses.contains(questionNumber)
         // Where the fish wants to be: idling around mid-water until the wave is close.
-        var goal = size.height * 0.5 + sin(realClock * 1.3 + plan.wanderPhase) * size.height * 0.14
+        var goal = playfield.midY + sin(realClock * 1.3 + plan.wanderPhase) * playfield.height * 0.14
         if phase == .answering, let target = nearest(ahead.filter { $0.isCorrect != miss }) {
             let distance = (target.fish.position.x - player.position.x) / size.width
             if distance < plan.commitAt {
-                goal = target.fish.position.y + plan.aimOffset
+                // A swoop, not a line: the aim waits off to the fish's side of the answer, then sweeps through it and
+                // a little past, so the fish dives or climbs into the bite, as a kid's does, rather than lining up and
+                // coasting in.
+                let side = autopilotPlan.swoopSide ?? (player.position.y > target.fish.position.y ? 1 : -1)
+                autopilotPlan.swoopSide = side
+                let progress = distance / plan.commitAt  // 1 on committing, 0 at the bite
+                let sweep = ((progress - 0.15) / 0.55).clamped(-0.25, 1)
+                goal = target.fish.position.y + plan.aimOffset + side * plan.swoop * sweep
             } else if let glance = plan.glanceAt, distance < glance,
                       let decoy = nearest(ahead.filter { $0 !== target }) {
                 // Leaning toward another answer before thinking again.
@@ -750,6 +774,16 @@ final class PracticeScene: SKScene {
             } else {
                 // Drifting toward the wave while it's still far off.
                 goal = goal * 0.7 + target.fish.position.y * 0.3
+            }
+            // Never another answer by accident. One coming up is passed on the side the answer to eat is on, while there's
+            // time to get there; once it's close, on whichever side the fish is already on, until it's gone by.
+            let clearance: CGFloat = 80
+            for other in answers where other !== target && !other.fading {
+                let ahead = (other.fish.position.x - player.position.x) / size.width
+                guard ahead > -0.08, ahead < 0.45 else { continue }
+                let pass = ahead > 0.25 ? target.fish.position.y : player.position.y
+                let side: CGFloat = pass >= other.fish.position.y ? 1 : -1
+                if (goal - other.fish.position.y) * side < clearance { goal = other.fish.position.y + side * clearance }
             }
         }
         // Lead the motion a little, so it eases in and bobs rather than slamming into place.
@@ -759,7 +793,7 @@ final class PracticeScene: SKScene {
     /// Saves what the scene draws, at full resolution, to Documents/StoreCapture. Unlike a simulator
     /// screenshot, it has no Dynamic Island drawn over it.
     private func saveCaptureFrame(_ name: String) {
-        guard let view, let image = view.texture(from: self)?.cgImage() else { return }
+        guard let image = StoreCapture.image(of: self) else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             let dir = StoreCapture.framesDirectory
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -769,22 +803,28 @@ final class PracticeScene: SKScene {
 
     /// Saves `count` frames `interval` seconds apart, starting after `delay`.
     private func captureFrames(_ scene: StoreCapture.Scene, count: Int, every interval: TimeInterval, after delay: TimeInterval) {
-        let frames = (1...count).map { index in
-            SKAction.sequence([
-                .wait(forDuration: index == 1 ? delay : interval),
-                .run { [weak self] in self?.saveCaptureFrame(count == 1 ? scene.rawValue : String(format: "%@-%02d", scene.rawValue, index)) },
-            ])
-        }
-        run(.sequence(frames), withKey: "storeCapture")
+        let names = (1...count).map { count == 1 ? scene.rawValue : String(format: "%@-%02d", scene.rawValue, $0) }
+        dueFrames = names.enumerated().map { (StoreCapture.playClock + delay + Double($0.offset) * interval, $0.element) }
     }
 
-    /// The simulator draws the Dynamic Island over the right edge of a landscape screen; keep the
-    /// level path's stops out from under it.
-    private func keepPathClearOfIsland() {
-        levelMap?.debugKeepClear(ofX: size.width - StoreCapture.islandInset, clearance: 56)
+    /// A burst's frames, saved as play reaches them, once a frame has finished, as the video's are: saved from an
+    /// action, partway through SpriteKit's pass, one could catch other nodes before they'd moved.
+    private var dueFrames: [(at: TimeInterval, name: String)] = []
+
+    /// The video scene's frames while it records (`StoreCapture.VideoRecorder`).
+    private var videoRecorder: StoreCapture.VideoRecorder?
+
+    override func didFinishUpdate() {
+        // Each frame as it's about to be drawn.
+        if let recorder = videoRecorder, !recorder.capture(self) { videoRecorder = nil }
+        if let due = dueFrames.first, StoreCapture.playClock >= due.at - 0.001 {
+            dueFrames.removeFirst()
+            saveCaptureFrame(due.name)
+        }
     }
 
     private func stageCapture(_ scene: StoreCapture.Scene) {
+        StoreCapture.stepper = StoreCapture.Stepper(scene: self) { [weak self] in self?.lastUpdate }
         for world in Curriculum.worlds {
             store.debugSetStars(StoreCapture.stars(for: world, in: scene), in: world)
         }
@@ -819,11 +859,12 @@ final class PracticeScene: SKScene {
             previewCrown(.gold)
         case .video:
             // The reef, then Multiplication's path, then a round of × 7 with one wrong answer.
+            videoRecorder = StoreCapture.VideoRecorder(seconds: StoreCapture.videoSeconds)
             worldIndex = multiplication
             showHome()
             run(.sequence([
                 .wait(forDuration: 2.5),
-                .run { [weak self] in self?.showWorld(); self?.keepPathClearOfIsland() },
+                .run { [weak self] in self?.showWorld() },
                 .wait(forDuration: 2.5),
                 .run { play(world: "multiplication", level: StoreCapture.videoLevel, misses: [2]) },
             ]))
@@ -871,7 +912,8 @@ final class PracticeScene: SKScene {
         )
         timeScale = 1
 
-        player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: size.height / 2), radius: L.playerRadius)
+        fitWater(toPlayfield: true)
+        player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: playfield.midY), radius: L.playerRadius)
         playerNode = FishNode(style: .player, isPlayer: true, tailPhase: 0)
         // The fish wears a world's crown only inside that world.
         playerNode.setHeadwear(fishCrown(store.crown(for: world)))
@@ -1272,7 +1314,7 @@ final class PracticeScene: SKScene {
         tutorial = TutorialFlow()
         tutorialPasses = 0
         tutorialRingsAnswer = false
-        let overlay = TutorialOverlay(size: size)
+        let overlay = TutorialOverlay(size: size, field: playfield)
         overlay.zPosition = 5  // over the question, under the panel
         uiLayer.addChild(overlay)
         tutorialOverlay = overlay
@@ -1477,6 +1519,9 @@ final class PracticeScene: SKScene {
         let realDt = min(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 1.0 / 30)
         lastUpdate = currentTime
         realClock += realDt
+        #if DEBUG
+        StoreCapture.playClock = TimeInterval(realClock)
+        #endif
 
         // Wrong answers: the struggle plays at full speed, then gameplay slows while the panel shows.
         let slow = phase == .feedback && !lastCorrect && swallow == nil
@@ -1696,7 +1741,8 @@ final class PracticeScene: SKScene {
 
     /// Fades the question out, moves it to the other side of the fish, and fades it back in.
     private func updatePromptPlacement() {
-        guard promptPlacement.update(playerY: player.position.y, screenHeight: size.height) else { return }
+        // Measured in the playfield, so the question turns where the water ends on an iPad too.
+        guard promptPlacement.update(playerY: player.position.y - playfield.minY, screenHeight: playfield.height) else { return }
         let fade = TimeInterval(L.promptFlipFadeSeconds)
         playerPrompt.run(.sequence([
             .fadeOut(withDuration: fade),
@@ -1874,10 +1920,25 @@ final class PracticeScene: SKScene {
         gradient.size = size
         gradient.zPosition = -1  // behind the specks; the scene ignores sibling order
         backgroundLayer.addChild(gradient)
+        waterGradient = gradient
+
+        // Above and below, over the specks, which drift through the whole screen.
+        bands = [
+            SKSpriteNode(texture: ReefScreen.bandTexture(ReefScreen.waterTop, fieldBelow: true)),
+            SKSpriteNode(texture: ReefScreen.bandTexture(ReefScreen.waterBottom, fieldBelow: false)),
+        ]
+        for band in bands {
+            band.anchorPoint = .zero
+            band.zPosition = 1
+            band.isHidden = true
+            backgroundLayer.addChild(band)
+        }
 
         var speckRNG = SeededGenerator(seed: 7)
         let dot = WaterTextures.dot()
-        for _ in 0..<40 {
+        // 40 in a round's water, however tall the screen.
+        let speckCount = Int((40 * size.height / playfield.height).rounded())
+        for _ in 0..<speckCount {
             let node = SKSpriteNode(texture: dot)
             let parallax = CGFloat.random(in: 0.15...0.7, using: &speckRNG)
             let d = 1.5 + parallax * 4
@@ -1890,6 +1951,21 @@ final class PracticeScene: SKScene {
             )
             backgroundLayer.addChild(node)
         }
+    }
+
+    /// The water fills the screen behind the maps. A round's water is the playfield: on a phone that's the whole
+    /// screen too, and on a taller screen (an iPad) it leaves bands of darker water above and below.
+    private func fitWater(toPlayfield: Bool) {
+        let water = toPlayfield ? playfield : CGRect(origin: .zero, size: size)
+        waterGradient?.position = water.origin
+        waterGradient?.size = water.size
+        guard bands.count == 2 else { return }
+        let (above, below) = (bands[0], bands[1])
+        above.position = CGPoint(x: 0, y: water.maxY)
+        above.size = CGSize(width: size.width, height: size.height - water.maxY)
+        below.position = .zero
+        below.size = CGSize(width: size.width, height: water.minY)
+        for band in bands { band.isHidden = band.size.height <= 0 }
     }
 
     private func label(_ text: String, fontSize: CGFloat, heavy: Bool, color: SKColor = .white) -> SKLabelNode {
