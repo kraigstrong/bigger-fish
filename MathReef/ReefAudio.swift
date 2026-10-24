@@ -36,26 +36,35 @@ protocol AudioVoice: AnyObject {
 
 extension AVAudioPlayer: AudioVoice {}
 
+/// Called from the main thread, as the scene does. The settings and the track the screen wants live there; the
+/// players live on `queue`, as Bigger Fish's do (ArcadeAudio.swift).
 final class ReefAudio {
     /// Music sits under the effects; both tracks are normalized to -18 LUFS before this.
     static let musicVolume: Float = 0.45
 
     private let defaults: UserDefaults
-    private var players: [ReefSound: [AudioVoice]] = [:]
-    private var musicPlayers: [ReefMusic: AudioVoice] = [:]
     /// The track the current screen wants, even while music is off.
     private(set) var currentMusic: ReefMusic?
-    /// Bumped on every music change so a stale delayed start or fade-out pause does nothing.
-    private var musicGeneration = 0
     private static let soundOnKey = "mathReef.soundOn"
     private static let musicOnKey = "mathReef.musicOn"
+
+    // Audio-session activation and AVAudioPlayer.play can block. Keep every player and the music
+    // state below on one worker so a gulp cannot hold up the SpriteKit frame loop.
+    private let queue = DispatchQueue(label: "mathReef.audio", qos: .userInitiated)
+    private var players: [ReefSound: [AudioVoice]] = [:]
+    private var musicPlayers: [ReefMusic: AudioVoice] = [:]
+    /// The queue's own `currentMusic` and `isMusicOn`. Changes reach it in the order the scene made them.
+    private var track: ReefMusic?
+    private var musicOn: Bool
+    /// Bumped on every music change so a stale delayed start does nothing.
+    private var musicGeneration = 0
 
     /// The sound effects. Parents can turn them off in Settings; remembered across launches.
     var isSoundOn: Bool {
         didSet {
             guard isSoundOn != oldValue else { return }
             defaults.set(isSoundOn, forKey: Self.soundOnKey)
-            if !isSoundOn { players.values.joined().forEach { $0.stop() } }
+            if !isSoundOn { queue.async { [self] in players.values.joined().forEach { $0.stop() } } }
         }
     }
 
@@ -65,27 +74,37 @@ final class ReefAudio {
         didSet {
             guard isMusicOn != oldValue else { return }
             defaults.set(isMusicOn, forKey: Self.musicOnKey)
-            musicGeneration += 1
-            if isMusicOn {
-                guard let player = currentMusic.flatMap({ musicPlayers[$0] }) else { return }
-                player.play()
-                player.setVolume(Self.musicVolume, fadeDuration: 0.5)
-            } else {
-                musicPlayers.values.forEach { $0.pause(); $0.volume = 0 }
-            }
+            let on = isMusicOn
+            queue.async { [self] in setMusicOn(on) }
         }
     }
 
+    #if DEBUG
+    /// Each audio cue and when it was asked for on the game's clock (`logForCapture`). A store capture prints them;
+    /// tests listen in.
+    var captureCues: ((TimeInterval, String) -> Void)? =
+        StoreCapture.scene == nil ? nil : { print("STORE-CAPTURE-AUDIO \($0) \($1)") }
+    #endif
+
     /// - Parameters:
     ///   - defaults: where the sound and music settings are remembered.
-    ///   - makeVoice: loads a sound file by name and extension; tests pass stand-ins.
-    init(defaults: UserDefaults = .standard, makeVoice: (String, String) -> AudioVoice? = ReefAudio.bundleVoice) {
+    ///   - makeVoice: loads a sound file by name and extension, on the audio queue; tests pass stand-ins.
+    init(defaults: UserDefaults = .standard,
+         makeVoice: @escaping (String, String) -> AudioVoice? = ReefAudio.bundleVoice) {
         self.defaults = defaults
         isSoundOn = defaults.object(forKey: Self.soundOnKey) as? Bool ?? true
         // Before 1.1 the sound switch silenced the music too, so an install that turned it off keeps
         // the music off. Saved now, so the music no longer follows that switch.
         if defaults.object(forKey: Self.musicOnKey) == nil { defaults.set(isSoundOn, forKey: Self.musicOnKey) }
         isMusicOn = defaults.bool(forKey: Self.musicOnKey)
+        musicOn = isMusicOn
+        queue.async { [self] in prepare(makeVoice) }
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(pauseForBackground), name: UIApplication.willResignActiveNotification, object: nil)
+        center.addObserver(self, selector: #selector(resumeFromBackground), name: UIApplication.didBecomeActiveNotification, object: nil)
+    }
+
+    private func prepare(_ makeVoice: (String, String) -> AudioVoice?) {
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, options: .mixWithOthers)
         try? session.setActive(true)
@@ -103,9 +122,6 @@ final class ReefAudio {
             player.prepareToPlay()
             musicPlayers[music] = player
         }
-        let center = NotificationCenter.default
-        center.addObserver(self, selector: #selector(pauseForBackground), name: UIApplication.willResignActiveNotification, object: nil)
-        center.addObserver(self, selector: #selector(resumeFromBackground), name: UIApplication.didBecomeActiveNotification, object: nil)
     }
 
     static func bundleVoice(named name: String, extension ext: String) -> AudioVoice? {
@@ -114,11 +130,14 @@ final class ReefAudio {
 
     /// Plays on a free voice, or restarts the first one if they're all busy.
     func play(_ sound: ReefSound) {
-        guard isSoundOn, let voices = players[sound], let first = voices.first else { return }
-        let player = voices.first { !$0.isPlaying } ?? first
-        player.currentTime = 0
-        player.play()
+        guard isSoundOn else { return }
         logForCapture("sound \(sound.rawValue)")
+        queue.async { [self] in
+            guard let voices = players[sound], let first = voices.first else { return }
+            let player = voices.first { !$0.isPlaying } ?? first
+            player.currentTime = 0
+            player.play()
+        }
     }
 
     /// Fades to `music` (or to silence with nil). Asking for the track that's already playing does
@@ -127,40 +146,69 @@ final class ReefAudio {
     func playMusic(_ music: ReefMusic?, after delay: TimeInterval = 0, fade: TimeInterval = 1.0) {
         guard music != currentMusic else { return }
         logForCapture("music \(music?.rawValue ?? "none") \(delay) \(fade)")
+        currentMusic = music
+        // The delay counts from now, not from when the queue gets to it.
+        let start = DispatchTime.now() + delay
+        queue.async { [self] in switchMusic(to: music, at: start, fade: fade) }
+    }
+
+    private func switchMusic(to music: ReefMusic?, at start: DispatchTime, fade: TimeInterval) {
         musicGeneration += 1
         let generation = musicGeneration
-        if let old = currentMusic.flatMap({ musicPlayers[$0] }) {
+        if let old = track.flatMap({ musicPlayers[$0] }) {
             old.setVolume(0, fadeDuration: fade)
-            DispatchQueue.main.asyncAfter(deadline: .now() + fade) { [weak self] in
+            queue.asyncAfter(deadline: .now() + fade) { [weak self] in
                 // Only pause if nothing has asked for this track again in the meantime.
-                guard let self, self.currentMusic.flatMap({ self.musicPlayers[$0] }) !== old else { return }
+                guard let self, self.track.flatMap({ self.musicPlayers[$0] }) !== old else { return }
                 old.pause()
             }
         }
-        currentMusic = music
+        track = music
         guard let music, let player = musicPlayers[music] else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, self.musicGeneration == generation, self.isMusicOn else { return }
+        queue.asyncAfter(deadline: start) { [weak self] in
+            guard let self, self.musicGeneration == generation, self.musicOn else { return }
             player.play()
             player.setVolume(Self.musicVolume, fadeDuration: fade)
         }
     }
 
+    private func setMusicOn(_ on: Bool) {
+        musicOn = on
+        musicGeneration += 1
+        if on {
+            guard let player = track.flatMap({ musicPlayers[$0] }) else { return }
+            player.play()
+            player.setVolume(Self.musicVolume, fadeDuration: 0.5)
+        } else {
+            musicPlayers.values.forEach { $0.pause(); $0.volume = 0 }
+        }
+    }
+
     /// The simulator can't record sound, so a store capture logs each cue with its time and
-    /// `scripts/store-capture.sh` rebuilds the soundtrack from the same files.
+    /// `scripts/store-capture.sh` rebuilds the soundtrack from the same files. The time is taken here, on the
+    /// main thread with the game's clock, so a cue the queue gets to late still lines up with the video.
     private func logForCapture(_ cue: String) {
         #if DEBUG
-        guard StoreCapture.scene != nil else { return }
-        print("STORE-CAPTURE-AUDIO \(StoreCapture.now()) \(cue)")
+        captureCues?(StoreCapture.now(), cue)
         #endif
     }
 
     @objc func pauseForBackground() {
-        currentMusic.flatMap { musicPlayers[$0] }?.pause()
+        // Both tracks, in case this lands mid-crossfade; only the current one resumes.
+        queue.async { [self] in musicPlayers.values.forEach { $0.pause() } }
     }
 
     @objc func resumeFromBackground() {
-        guard isMusicOn, let player = currentMusic.flatMap({ musicPlayers[$0] }), player.volume > 0 else { return }
-        player.play()
+        queue.async { [self] in
+            guard musicOn, let player = track.flatMap({ musicPlayers[$0] }), player.volume > 0 else { return }
+            player.play()
+        }
     }
+
+    #if DEBUG
+    /// For tests: waits until the queue has done the work asked of it so far. Delayed starts and fade-outs come later.
+    func waitForQueue() {
+        queue.sync {}
+    }
+    #endif
 }

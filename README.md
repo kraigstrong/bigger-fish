@@ -118,7 +118,8 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     players who already have progress. Settings can replay it.
   - `ReefAudio.swift` / `ReefHaptics.swift` — sound effects, music, and haptics, each with its own
     switch in Settings (Sound, Music, Vibration), saved on the device. A 1.0 install that turned sound
-    off keeps the music off too
+    off keeps the music off too. Sound and music play on their own queue, as Bigger Fish's do, so a slow
+    start can't stall a frame
   - `ReefAnalytics.swift` — anonymous first-party counts (milestones and round outcomes), queued on the device and sent in batches to brightbench.app (off during test runs)
   - `StoreCapture.swift` — debug-only staged scenes and an autopilot for App Store screenshots and the preview video
 - `Packages/FishKit/` — shared fish engine used by both apps:
