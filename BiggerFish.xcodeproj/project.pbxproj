@@ -491,6 +491,7 @@
 				DEVELOPMENT_TEAM = MKACSCQ588;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "MathReef-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Math Reef";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
@@ -522,6 +523,7 @@
 				DEVELOPMENT_TEAM = MKACSCQ588;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "MathReef-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Math Reef";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";

@@ -44,6 +44,13 @@ struct ReefScreenTests {
         }
     }
 
+    /// The scene's view asks for 120 frames a second; on a ProMotion iPhone, iOS only allows more than 60 with the
+    /// Info.plist key (MathReef-Info.plist), as Bigger Fish found when its credits stuttered.
+    @MainActor @Test func theAppMayRunAt120FramesASecond() {
+        #expect(ReefView.Container(frame: .zero).sceneView.preferredFramesPerSecond == 120)
+        #expect(Bundle.main.object(forInfoDictionaryKey: "CADisableMinimumFrameDurationOnPhone") as? Bool == true)
+    }
+
     /// A touch on the screen lands in the scene's own points: the middle of an iPad is the middle of the scene.
     @MainActor @Test func touchesLandInTheScenesPoints() {
         let container = ReefView.Container(frame: CGRect(x: 0, y: 0, width: 1180, height: 820))
