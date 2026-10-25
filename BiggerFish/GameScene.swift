@@ -882,6 +882,12 @@ final class GameScene: SKScene {
         panel.onSelect = { [weak self] action in self?.selectResult(action) }
         messageNode.addChild(panel)
         resultPanel = panel
+        #if DEBUG
+        // The run's pearls count up into the rest on the Shop button, once the card's in (they were kept as taken).
+        if let run = openWater, run.pearls > 0 {
+            panel.countShopPearls(from: max(0, pearlsToSpend - run.pearls), after: 0.5)
+        }
+        #endif
         messageNode.alpha = 0
         messageNode.run(.sequence([.wait(forDuration: passed ? 0.5 : 0.2), .fadeIn(withDuration: 0.2)]))
         configureResultAccessibility(panel)
@@ -3813,6 +3819,7 @@ final class GameScene: SKScene {
     var debugOpenWaterEarned: [PearlItem] { openWaterEarned }
     var debugResultNote: String? { resultPanel?.noteText }
     var debugResultShopPearls: Int? { resultPanel?.shopPearls }
+    var debugResultShownShopPearls: Int? { resultPanel?.shownShopPearls }
     func debugTapResult(_ action: ArcadeResultAction?) {
         guard let panel = resultPanel else { return }
         let frame = panel.controls.first { $0.action == action }?.frame

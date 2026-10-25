@@ -132,6 +132,12 @@ struct ArcadeResultTests {
             #expect(panel.spokenTitle(.shop) == "Shop, 1234 pearls" && panel.spokenTitle(.tryAgain) == "Retry")
             panel.showShopPearls(1)
             #expect(panel.shopPearls == 1 && panel.spokenTitle(.shop) == "Shop, 1 pearl")
+            // A run's pearls count up into the rest; spending meanwhile shows what's left at once.
+            panel.showShopPearls(12)
+            panel.countShopPearls(from: 9, after: 0.5)
+            #expect(panel.shownShopPearls == 9 && panel.shopPearls == 12)
+            panel.showShopPearls(4)
+            #expect(panel.shownShopPearls == 4 && panel.shopPearls == 4)
         }
     }
 }

@@ -28,6 +28,12 @@ struct ArcadeSave: Codable, Equatable {
     var openWaterBest: Int? = nil
     /// The furthest level any Open Water run has reached (counting from 0), for the looks it earns.
     var openWaterFurthest: Int? = nil
+    /// The shop's looks seen there, so those added since are marked new. Before any, the first shop's
+    /// (`GameTuning.pearlShopFirstLooks`).
+    var seenLooks: Set<String>? = nil
+    /// Looks saved to wear again in a tap, by slot ("1", "2", "3"): what each wears and when it was saved, so the
+    /// latest save of a slot on any device is kept.
+    var savedOutfits: [String: WornLook]? = nil
     /// Fields this version doesn't know, from a later version, kept as they were.
     var laterFields: [String: SaveValue] = [:]
 
@@ -36,7 +42,7 @@ struct ArcadeSave: Codable, Equatable {
     enum CodingKeys: String, CodingKey, CaseIterable {
         case clearedLevels, bestTimes, hasSeenJellyLesson, seenUnlocks, hasSeenTutorial
         case pearlsEarned, pearlsSpent, ownedLooks, wornLook
-        case openWaterBest, openWaterFurthest
+        case openWaterBest, openWaterFurthest, seenLooks, savedOutfits
     }
 
     /// What's worn (`PlayerLook`): an item ID for each kind worn, and when it was last changed (seconds since 1970),
@@ -70,6 +76,8 @@ struct ArcadeSave: Codable, Equatable {
         wornLook = try? values.decodeIfPresent(WornLook.self, forKey: .wornLook)
         openWaterBest = try? values.decodeIfPresent(Int.self, forKey: .openWaterBest)
         openWaterFurthest = try? values.decodeIfPresent(Int.self, forKey: .openWaterFurthest)
+        seenLooks = try? values.decodeIfPresent(Set<String>.self, forKey: .seenLooks)
+        savedOutfits = try? values.decodeIfPresent([String: WornLook].self, forKey: .savedOutfits)
         let all = try decoder.container(keyedBy: SaveKey.self)
         for key in all.allKeys where CodingKeys(stringValue: key.stringValue) == nil {
             laterFields[key.stringValue] = try? all.decode(SaveValue.self, forKey: key)
@@ -95,6 +103,8 @@ struct ArcadeSave: Codable, Equatable {
             case .wornLook: try container.encodeIfPresent(wornLook, forKey: field)
             case .openWaterBest: try container.encodeIfPresent(openWaterBest, forKey: field)
             case .openWaterFurthest: try container.encodeIfPresent(openWaterFurthest, forKey: field)
+            case .seenLooks: try container.encodeIfPresent(seenLooks, forKey: field)
+            case .savedOutfits: try container.encodeIfPresent(savedOutfits, forKey: field)
             }
         }
     }
@@ -102,7 +112,8 @@ struct ArcadeSave: Codable, Equatable {
     /// This save with iCloud's merged in. Merging only ever adds, so syncing can never un-clear a level: cleared levels
     /// and seen "conquered" screens are united, each level keeps the faster best time, and a lesson or tutorial seen on
     /// either side stays seen. Each install's pearls taken and spent keep the larger count, things bought are united,
-    /// the look changed last is worn, and the Open Water's better best run and further level are kept. It comes out the same whichever save is which, except for fields from a later
+    /// the look changed last is worn, the Open Water's better best run and further level are kept, looks seen in the shop
+    /// are united, and each outfit slot keeps its latest save. It comes out the same whichever save is which, except for fields from a later
     /// version: this version never changes those, so iCloud's (the latest any device wrote) is kept when both sides have
     /// one.
     func merged(withCloud cloud: ArcadeSave) -> ArcadeSave {
@@ -128,6 +139,12 @@ struct ArcadeSave: Codable, Equatable {
                 if let theirs = cloud.openWaterBest { merged.openWaterBest = Swift.max(openWaterBest ?? 0, theirs) }
             case .openWaterFurthest:
                 if let theirs = cloud.openWaterFurthest { merged.openWaterFurthest = Swift.max(openWaterFurthest ?? 0, theirs) }
+            case .seenLooks:
+                if let theirs = cloud.seenLooks { merged.seenLooks = (seenLooks ?? []).union(theirs) }
+            case .savedOutfits:
+                if let theirs = cloud.savedOutfits {
+                    merged.savedOutfits = (savedOutfits ?? [:]).merging(theirs) { WornLook.latest($0, $1) }
+                }
             }
         }
         merged.laterFields.merge(cloud.laterFields) { _, theirs in theirs }
@@ -424,6 +441,31 @@ final class ArcadeProgress: ObservableObject {
         let ids = look.ids.filter { PearlItem.item($0.value).map(owns) == true }
         guard ids != (save.wornLook?.items ?? [:]) else { return }
         save.wornLook = ArcadeSave.WornLook(items: ids, changed: now.timeIntervalSince1970)
+        persist()
+    }
+
+    /// Whether the shop has a look the player hasn't seen there yet.
+    func isNew(_ item: PearlItem) -> Bool { !(save.seenLooks ?? GameTuning.pearlShopFirstLooks).contains(item.id) }
+
+    /// The shop's `items` seen, so they're no longer marked new.
+    func sawLooks(_ items: [PearlItem]) {
+        let seen = save.seenLooks ?? GameTuning.pearlShopFirstLooks
+        let all = seen.union(items.map(\.id))
+        guard all != save.seenLooks else { return }
+        save.seenLooks = all
+        persist()
+    }
+
+    /// The outfit saved in `slot` (from 1), as much of it as is owned: nil while it's empty.
+    func outfit(_ slot: Int) -> PlayerLook? {
+        save.savedOutfits?[String(slot)].map { PlayerLook(ids: $0.items.filter { PearlItem.item($0.value).map(owns) == true }) }
+    }
+
+    /// Saves what's worn now in outfit `slot` (from 1), over whatever was there.
+    func saveOutfit(_ slot: Int, now: Date = Date()) {
+        var outfits = save.savedOutfits ?? [:]
+        outfits[String(slot)] = ArcadeSave.WornLook(items: wornLook.ids, changed: now.timeIntervalSince1970)
+        save.savedOutfits = outfits
         persist()
     }
 

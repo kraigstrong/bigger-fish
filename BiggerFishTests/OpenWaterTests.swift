@@ -177,6 +177,7 @@ struct OpenWaterTests {
         var kept = 0, shopped = 0
         scene.onPearl = { kept += 1 }
         scene.onShop = { shopped += 1 }
+        scene.pearlsToSpend = 10
         _ = scene.debugPlayOpenWater(untilLevel: 0)
         let count = scene.debugOpenWaterPearls.count
         let taken = try #require(scene.debugTakeFirstPearl())
@@ -184,6 +185,8 @@ struct OpenWaterTests {
         #expect(scene.debugOpenWaterPearls.count == count - 1)
         scene.debugLose()
         #expect(scene.debugResultDetail?.hasSuffix("· 1 pearl") == true)
+        // The run's pearl counts up into the rest on the Shop button.
+        #expect(scene.debugResultShownShopPearls == 9 && scene.debugResultShopPearls == 10)
         #expect(scene.debugResultTitles == ["Retry", "Shop", "Levels"])
         scene.debugTapResult(.shop)
         #expect(shopped == 1 && scene.debugResultTitles == ["Retry", "Shop", "Levels"])

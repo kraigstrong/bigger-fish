@@ -38,8 +38,9 @@ final class ArcadeResultPanel: SKNode {
     private(set) var primaryAction: ArcadeResultAction?
     private(set) var headingText: String
     private(set) var noteText: String?
-    /// The pearls on the Shop button: yours to spend.
+    /// The pearls on the Shop button: yours to spend, and the count it shows while it counts up to them.
     private(set) var shopPearls: Int?
+    private(set) var shownShopPearls: Int?
     private var shopButton: SKNode?
 
     /// `progress`, after a win: the world's pips and crown, in place of the detail line. `retryOnly`: one button, Retry,
@@ -51,6 +52,7 @@ final class ArcadeResultPanel: SKNode {
         headingText = headingOverride ?? (passed ? "Level passed!" : "Try again!")
         noteText = progress == nil ? note : nil
         self.shopPearls = shopPearls
+        shownShopPearls = shopPearls
         super.init()
         let choices = ArcadeResultAction.choices(passed: passed, hasNext: hasNext, retryOnly: retryOnly, shop: shopPearls != nil)
         primaryAction = choices.first
@@ -120,10 +122,34 @@ final class ArcadeResultPanel: SKNode {
         }
     }
 
-    /// The pearls you have to spend changed (bought something in the shop, over this card): the Shop button shows them.
+    /// The pearls you have to spend changed (bought something in the shop, over this card): the Shop button shows them,
+    /// at once.
     func showShopPearls(_ pearls: Int) {
-        guard shopPearls != nil, let shopButton else { return }
+        guard shopPearls != nil else { return }
+        removeAction(forKey: Self.countKey)
         shopPearls = pearls
+        showCaption(pearls)
+    }
+
+    /// The run's pearls joining the rest: the Shop button counts up to what you have from `start`, a pearl at a time,
+    /// after `delay` seconds.
+    func countShopPearls(from start: Int, after delay: TimeInterval) {
+        guard let end = shopPearls, start < end else { return }
+        showCaption(start)
+        let step = min(0.08, 0.8 / Double(end - start))
+        let tick = SKAction.run { [weak self] in
+            guard let self, let shown = self.shownShopPearls, let end = self.shopPearls else { return }
+            self.showCaption(min(shown + 1, end))
+        }
+        run(.sequence([.wait(forDuration: delay), .repeat(.sequence([tick, .wait(forDuration: step)]), count: end - start)]),
+            withKey: Self.countKey)
+    }
+
+    private static let countKey = "countShopPearls"
+
+    private func showCaption(_ pearls: Int) {
+        guard let shopButton else { return }
+        shownShopPearls = pearls
         shopButton.childNode(withName: Self.shopCaptionName)?.removeFromParent()
         shopButton.addChild(shopCaption(pearls))
     }

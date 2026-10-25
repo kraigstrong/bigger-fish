@@ -151,6 +151,47 @@ struct PearlShopTests {
         #expect(bought.owns(gold) && !bought.owns(silver))
     }
 
+    /// Looks added since the first shop are new until you've seen their shelf; what's been seen is kept and synced (both
+    /// devices' seen looks together).
+    @Test func newLooksStayNewUntilSeen() throws {
+        let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+        let progress = ArcadeProgress(defaults: defaults, cloud: nil)
+        let beanie = try item("hat.beanie"), tiara = try item("hat.tiara"), comet = try item("trail.comet")
+        #expect(!progress.isNew(beanie) && progress.isNew(tiara) && progress.isNew(comet))
+        progress.sawLooks(GameTuning.pearlShop.filter { $0.kind == .hat })
+        #expect(!progress.isNew(tiara) && progress.isNew(comet))
+        #expect(!ArcadeProgress(defaults: defaults, cloud: nil).isNew(tiara))
+        let decoder = JSONDecoder()
+        let phone = try decoder.decode(ArcadeSave.self, from: Data(#"{"seenLooks":["hat.tiara"]}"#.utf8))
+        let pad = try decoder.decode(ArcadeSave.self, from: Data(#"{"seenLooks":["trail.comet"]}"#.utf8))
+        #expect(phone.merged(withCloud: pad).seenLooks == ["hat.tiara", "trail.comet"])
+        #expect(pad.merged(withCloud: phone).seenLooks == ["hat.tiara", "trail.comet"])
+    }
+
+    /// An outfit saves what you're wearing to put it all back on in a tap, as much of it as you still own; each slot keeps
+    /// its latest save across devices.
+    @Test func outfitsPutBackWhatYouWore() throws {
+        let progress = device(cloud: nil)
+        progress.earnPearls(500)
+        let beanie = try item("hat.beanie"), ruby = try item("color.ruby"), bubbles = try item("trail.bubbles")
+        for each in [beanie, ruby, bubbles] { #expect(progress.buy(each)) }
+        let wearing = progress.look
+        #expect(wearing[.hat] == beanie && wearing[.color] == ruby && wearing[.trail] == bubbles)
+        #expect(progress.outfit(1) == nil)
+        progress.saveOutfit(1)
+        progress.wear(.plain)
+        #expect(progress.look == .plain && progress.outfit(1) == wearing)
+        progress.wear(try #require(progress.outfit(1)))
+        #expect(progress.look == wearing)
+
+        let decoder = JSONDecoder()
+        let older = try decoder.decode(ArcadeSave.self, from: Data(#"{"savedOutfits":{"1":{"items":{"hat":"hat.beanie"},"changed":100},"2":{"items":{},"changed":5}}}"#.utf8))
+        let newer = try decoder.decode(ArcadeSave.self, from: Data(#"{"savedOutfits":{"1":{"items":{"hat":"hat.flower"},"changed":200}}}"#.utf8))
+        for merged in [older.merged(withCloud: newer), newer.merged(withCloud: older)] {
+            #expect(merged.savedOutfits?["1"]?.items == ["hat": "hat.flower"] && merged.savedOutfits?["2"] != nil)
+        }
+    }
+
     /// A save from before the shop has no pearls and wears nothing, and still loads as it was.
     @Test func aSaveFromBeforeTheShopLoads() {
         let progress = device(ArcadeCloudSaveTests.firstVersion, cloud: nil)

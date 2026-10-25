@@ -965,6 +965,14 @@ enum GameTuning {
     /// How long a trail's motes last; the crop duster's clouds hang about.
     static let pearlTrailSeconds: [PearlTrail: CGFloat] = [.bubbles: 0.5, .sparkles: 0.5, .rainbow: 0.5, .cropDuster: 1,
                                                             .comet: 0.45]
+    /// The first shop's looks (2026-10-22): before a save remembers what's been seen, everything since is new.
+    static let pearlShopFirstLooks: Set<String> = [
+        "color.copper", "color.gold", "color.ruby", "color.pearl", "pattern.spots", "pattern.stripes", "pattern.bands",
+        "pattern.stars", "hat.beanie", "hat.flower", "hat.sailor", "hat.cone", "hat.crown", "trail.bubbles",
+        "trail.sparkles", "trail.rainbow",
+    ]
+    /// Outfit slots in the shop: looks saved to wear again in a tap.
+    static let pearlShopOutfits = 3
     /// Xcode builds only: the shop's button that adds this many pearls, to try things out.
     static let pearlShopTestGift = 100
 
