@@ -978,7 +978,7 @@ enum GameTuning {
     static let pearlHatHeadroom: CGFloat = 0.4
     /// A trail lets out a mote this often (seconds) as you swim.
     static let pearlTrailEvery: [PearlTrail: CGFloat] = [.bubbles: 0.08, .sparkles: 0.05, .rainbow: 0.035, .cropDuster: 0.07,
-                                                          .comet: 0.025, .notes: 0.14, .hearts: 0.11, .confetti: 0.03]
+                                                          .comet: 0.025, .notes: 0.11, .hearts: 0.11, .confetti: 0.03]
     /// How long a trail's motes last; the crop duster's clouds hang about.
     static let pearlTrailSeconds: [PearlTrail: CGFloat] = [.bubbles: 0.5, .sparkles: 0.5, .rainbow: 0.5, .cropDuster: 1,
                                                             .comet: 0.45, .notes: 0.9, .hearts: 0.8, .confetti: 0.7]

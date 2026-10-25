@@ -399,10 +399,10 @@ private struct PearlShopThumbnail: View {
                 node.size = CGSize(width: side, height: side)
                 node.position = CGPoint(x: -66 - CGFloat(i) * 16, y: sin(CGFloat(i) * 2.4) * 7 + ([.bubbles, .cropDuster, .notes, .hearts].contains(trail) ? CGFloat(i) * 4 : 0))
                 node.alpha = 1 - CGFloat(i) * 0.2
-                if trail == .rainbow {
-                    node.color = SKColor(hue: CGFloat(i) * 0.18, saturation: 0.85, brightness: 1, alpha: 1)
-                    node.colorBlendFactor = 1
-                }
+                // Colored as in the water (a rainbow's hues spread wide, to show four of them), where the tile had drawn
+                // confetti and comets white. A comet's motes cool along its tail.
+                PearlShopArt.dress(node, as: trail, number: trail == .rainbow ? i * 4 : i)
+                if trail == .comet { node.color = PearlShopArt.cometColor(CGFloat(i) / 4) }
                 node.zPosition = -10 - CGFloat(i)
                 picture.addChild(node)
             }
