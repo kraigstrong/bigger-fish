@@ -13,6 +13,10 @@ struct PearlShopView: View {
     @State private var trying: PearlItem?
     @State private var shown = false
     @State private var preview = PearlShopPreviewScene()
+    #if DEBUG
+    /// Xcode builds: the season's limited editions on sale, whatever the date (`PearlSeason.pretendItsChristmas`).
+    @State private var christmas = PearlSeason.pretendItsChristmas
+    #endif
 
     private var shownLook: PlayerLook { trying.map(progress.look.wearing) ?? progress.look }
 
@@ -64,13 +68,24 @@ struct PearlShopView: View {
             Button("+\(GameTuning.pearlShopTestGift) pearls (Xcode builds)") { progress.earnPearls(GameTuning.pearlShopTestGift) }
                 .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.6)
                 .buttonStyle(.plain)
+            Button(christmas ? "It's Christmas (Xcode builds)" : "Pretend it's Christmas (Xcode builds)") {
+                christmas.toggle()
+                PearlSeason.pretendItsChristmas = christmas
+            }
+            .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.6)
+            .buttonStyle(.plain)
             #endif
         }
     }
 
-    /// Buying what's tried on, or a word on what to do.
+    /// Buying what's tried on (a limited edition only in its season), or a word on what to do.
     @ViewBuilder private var action: some View {
-        if let item = trying {
+        if let item = trying, let season = item.season, !item.onSale() {
+            Text("\(season.name) only: \(season.dates)")
+                .font(.custom("AvenirNext-Heavy", size: 15)).foregroundStyle(.white.opacity(0.7))
+                .frame(maxWidth: .infinity).frame(height: 48)
+                .background(Capsule().fill(Color.white.opacity(0.1)))
+        } else if let item = trying {
             let short = item.price - progress.pearls
             Button {
                 if progress.buy(item) { trying = nil }
@@ -120,6 +135,8 @@ struct PearlShopView: View {
                 .padding(.bottom, 8)
             }
             .scrollBounceBehavior(.basedOnSize)
+            // Each kind from its top: one scrolled down, kept for a shorter kind, would hide its first row out of reach.
+            .id(kind)
         }
     }
 
@@ -128,6 +145,8 @@ struct PearlShopView: View {
         let owned = item.map(progress.owns) ?? true
         let worn = progress.look[kind]?.id == item?.id
         let tried = item != nil && trying == item
+        // A limited edition out of its season: shown, dimmed, to try on but not to buy.
+        let locked = !owned && item?.onSale() == false
         return Button {
             guard let item else {
                 trying = nil
@@ -150,27 +169,38 @@ struct PearlShopView: View {
                         Label("On", systemImage: "checkmark")
                     } else if owned {
                         Text("Yours")
+                    } else if locked, let season = item?.season {
+                        Text("\(season.name) only")
                     } else if let item {
                         HStack(spacing: 4) { PearlIcon(size: 11); Text("\(item.price)").monospacedDigit() }
                     }
                 }
                 .font(.custom("AvenirNext-Heavy", size: 12)).opacity(worn ? 1 : 0.75)
             }
+            .opacity(locked ? 0.5 : 1)
             .padding(.vertical, 8).frame(maxWidth: .infinity)
             .background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(worn || tried ? 0.16 : 0.07)))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(
                 worn ? DeepEndColors.gold : tried ? .white : .white.opacity(0.15), lineWidth: worn || tried ? 2.5 : 1))
+            .overlay(alignment: .topTrailing) {
+                // A limited edition's mark: Christmas's snowflake.
+                if let season = item?.season {
+                    Image(systemName: season.symbol).font(.system(size: 12, weight: .bold)).opacity(0.85).padding(8)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(accessibility(item, owned: owned, worn: worn))
+        .accessibilityLabel(accessibility(item, owned: owned, worn: worn, locked: locked))
     }
 
-    private func accessibility(_ item: PearlItem?, owned: Bool, worn: Bool) -> String {
+    private func accessibility(_ item: PearlItem?, owned: Bool, worn: Bool, locked: Bool) -> String {
         let name = item?.name ?? "Plain"
         if worn { return "\(name), wearing" }
         if owned { return "\(name), yours, tap to wear" }
-        return "\(name), \(item?.price ?? 0) pearls, tap to try on"
+        let limited = item?.season.map { ", \($0.name) only, \($0.dates)" } ?? ""
+        if locked { return "\(name)\(limited), tap to try on" }
+        return "\(name), \(item?.price ?? 0) pearls\(limited), tap to try on"
     }
 
     private var closeButton: some View {
@@ -237,7 +267,7 @@ private struct PearlShopThumbnail: View {
                 let node = SKSpriteNode(texture: mote.texture)
                 let side = mote.size * 30 * (1 - CGFloat(i) * 0.15)
                 node.size = CGSize(width: side, height: side)
-                node.position = CGPoint(x: -66 - CGFloat(i) * 16, y: sin(CGFloat(i) * 2.4) * 7 + (trail == .bubbles ? CGFloat(i) * 4 : 0))
+                node.position = CGPoint(x: -66 - CGFloat(i) * 16, y: sin(CGFloat(i) * 2.4) * 7 + (trail == .bubbles || trail == .cropDuster ? CGFloat(i) * 4 : 0))
                 node.alpha = 1 - CGFloat(i) * 0.2
                 if trail == .rainbow {
                     node.color = SKColor(hue: CGFloat(i) * 0.18, saturation: 0.85, brightness: 1, alpha: 1)

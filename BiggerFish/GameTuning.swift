@@ -934,10 +934,16 @@ enum GameTuning {
         PearlItem("pattern.stars", .pattern, "Stars", price: 120),
         PearlItem("hat.beanie", .hat, "Beanie", price: 40),
         PearlItem("hat.flower", .hat, "Flower", price: 50),
+        PearlItem("hat.baseball", .hat, "Baseball cap", price: 50),
         PearlItem("hat.sailor", .hat, "Sailor cap", price: 60),
         PearlItem("hat.cone", .hat, "Traffic cone", price: 80),
+        PearlItem("hat.tiara", .hat, "Tiara", price: 120),
         PearlItem("hat.crown", .hat, "Crown", price: 200),
+        // Limited editions, after the rest of their kind (Kraig, 2026-10-24).
+        PearlItem("hat.santa", .hat, "Santa hat", price: 100, season: .christmas),
+        PearlItem("hat.antlers", .hat, "Reindeer antlers", price: 100, season: .christmas),
         PearlItem("trail.bubbles", .trail, "Bubbles", price: 50),
+        PearlItem("trail.cropduster", .trail, "Crop duster", price: 75),
         PearlItem("trail.sparkles", .trail, "Sparkles", price: 100),
         PearlItem("trail.rainbow", .trail, "Rainbow", price: 180),
     ]
@@ -945,9 +951,10 @@ enum GameTuning {
     /// eats or is eaten (Kraig, 2026-10-22: "the hats may need to be a bit taller. They should just not be part of the
     /// hitbox").
     static let pearlHatHeadroom: CGFloat = 0.4
-    /// A trail lets out a mote this often (seconds) as you swim, and each lasts this long.
-    static let pearlTrailEvery: [PearlTrail: CGFloat] = [.bubbles: 0.08, .sparkles: 0.05, .rainbow: 0.035]
-    static let pearlTrailSeconds: CGFloat = 0.5
+    /// A trail lets out a mote this often (seconds) as you swim.
+    static let pearlTrailEvery: [PearlTrail: CGFloat] = [.bubbles: 0.08, .sparkles: 0.05, .rainbow: 0.035, .cropDuster: 0.07]
+    /// How long a trail's motes last; the crop duster's clouds hang about.
+    static let pearlTrailSeconds: [PearlTrail: CGFloat] = [.bubbles: 0.5, .sparkles: 0.5, .rainbow: 0.5, .cropDuster: 1]
     /// Xcode builds only: the shop's button that adds this many pearls, to try things out.
     static let pearlShopTestGift = 100
 

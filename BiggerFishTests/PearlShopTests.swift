@@ -29,7 +29,9 @@ struct PearlShopTests {
             case .color: #expect(PearlShopArt.colors[item.id] != nil, "\(item.id)")
             case .pattern: #expect(look.style.pattern != .plain || PearlShopArt.markings(item) != nil, "\(item.id)")
             case .hat: #expect(PearlShopArt.hat(item) != nil, "\(item.id)")
-            case .trail: #expect(look.trail.flatMap { GameTuning.pearlTrailEvery[$0] } != nil, "\(item.id)")
+            case .trail:
+                #expect(look.trail.flatMap { GameTuning.pearlTrailEvery[$0] } != nil, "\(item.id)")
+                #expect(look.trail.flatMap { GameTuning.pearlTrailSeconds[$0] } != nil, "\(item.id)")
             }
         }
         #expect(Set(items.map(\.kind)) == Set(PearlItem.Kind.allCases))
@@ -73,6 +75,40 @@ struct PearlShopTests {
         #expect(progress.look[.hat] == nil && progress.look[.pattern] == stars)
         progress.wear(progress.look.without(.pattern))
         #expect(progress.look == .plain && progress.owns(stars))
+    }
+
+    /// A limited edition is on sale only in its season, every year (Christmas's runs across the new year). Whoever bought
+    /// one keeps it, and wears it out of season too.
+    @Test func limitedEditionsSellOnlyInTheirSeason() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        func day(_ year: Int, _ month: Int, _ day: Int) -> Date {
+            calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
+        }
+        let christmas = PearlSeason.christmas
+        for (date, onSale) in [(day(2026, 11, 30), false), (day(2026, 12, 1), true), (day(2026, 12, 25), true),
+                               (day(2027, 1, 1), true), (day(2027, 1, 6), true), (day(2027, 1, 7), false), (day(2027, 7, 4), false)] {
+            #expect(christmas.contains(date, calendar: calendar) == onSale, "\(date)")
+        }
+        // A player whose preferred calendar is another still finds Christmas in December: its days are the Gregorian's.
+        for identifier in [Calendar.Identifier.hebrew, .islamicUmmAlQura, .buddhist] {
+            var preferred = Calendar(identifier: identifier)
+            preferred.timeZone = calendar.timeZone
+            let seasonal = PearlSeason.calendar(preferring: preferred)
+            #expect(seasonal.identifier == .gregorian && seasonal.timeZone == preferred.timeZone)
+            #expect(christmas.contains(day(2026, 12, 25), calendar: seasonal), "\(identifier)")
+            #expect(!christmas.contains(day(2027, 7, 4), calendar: seasonal), "\(identifier)")
+        }
+        let santa = try item("hat.santa"), antlers = try item("hat.antlers")
+        #expect(santa.season == .christmas && antlers.season == .christmas)
+        #expect(try item("hat.baseball").season == nil && item("trail.cropduster").season == nil)
+        let progress = device(cloud: nil)
+        progress.earnPearls(300)
+        #expect(!progress.buy(santa, today: day(2027, 6, 1)) && !progress.owns(santa) && progress.pearls == 300)
+        #expect(progress.buy(santa, today: day(2026, 12, 10)) && progress.look[.hat] == santa && progress.pearls == 200)
+        progress.wear(progress.look.without(.hat))
+        progress.wear(progress.look.wearing(santa))
+        #expect(progress.look[.hat] == santa)
     }
 
     /// A save from before the shop has no pearls and wears nothing, and still loads as it was.
