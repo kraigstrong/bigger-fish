@@ -774,21 +774,26 @@ enum PearlShopArt {
         return node
     }
 
-    /// A shark's grey fin standing up from your back, swept back.
+    /// A shark's grey fin over the middle of your back, swept back, hiding your own back fin (Kraig, 2026-10-25: "the
+    /// shark fin needs to be further back"). It stands upright: headwear sits tilted forward.
     private static func sharkFin() -> SKNode {
         let node = SKNode()
-        let fin = CGMutablePath()
+        let fin = SKNode()
+        fin.position = CGPoint(x: -21, y: -3.4)
+        fin.zRotation = 0.25
+        node.addChild(fin)
         // Its front edge bows up and back to the tip, which hangs behind the back edge's foot.
-        fin.move(to: CGPoint(x: 9, y: -1))
-        fin.addQuadCurve(to: CGPoint(x: -11, y: 15), control: CGPoint(x: 5, y: 13))
-        fin.addQuadCurve(to: CGPoint(x: -5, y: -1), control: CGPoint(x: -4, y: 4))
-        fin.closeSubpath()
-        node.addChild(shape(fin, fill: SKColor(red: 0.52, green: 0.6, blue: 0.68, alpha: 1),
-                            stroke: SKColor(red: 0.22, green: 0.27, blue: 0.33, alpha: 1), line: 1.4, z: 0))
+        let outline = CGMutablePath()
+        outline.move(to: CGPoint(x: 13, y: 0))
+        outline.addQuadCurve(to: CGPoint(x: -12, y: 16), control: CGPoint(x: 8, y: 14))
+        outline.addQuadCurve(to: CGPoint(x: -8, y: 0), control: CGPoint(x: -7, y: 5))
+        outline.closeSubpath()
+        fin.addChild(shape(outline, fill: SKColor(red: 0.52, green: 0.6, blue: 0.68, alpha: 1),
+                           stroke: SKColor(red: 0.22, green: 0.27, blue: 0.33, alpha: 1), line: 1.4, z: 0))
         let shine = CGMutablePath()
-        shine.move(to: CGPoint(x: 5, y: 1))
-        shine.addQuadCurve(to: CGPoint(x: -5, y: 10.5), control: CGPoint(x: 2.5, y: 9))
-        node.addChild(shape(shine, fill: .clear, stroke: SKColor(white: 1, alpha: 0.35), line: 1.5, z: 0.1))
+        shine.move(to: CGPoint(x: 8.5, y: 2))
+        shine.addQuadCurve(to: CGPoint(x: -4, y: 11), control: CGPoint(x: 5, y: 9.5))
+        fin.addChild(shape(shine, fill: .clear, stroke: SKColor(white: 1, alpha: 0.35), line: 1.5, z: 0.1))
         return node
     }
 
