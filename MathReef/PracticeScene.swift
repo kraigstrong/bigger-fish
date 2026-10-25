@@ -191,6 +191,11 @@ final class PracticeScene: SKScene {
     private let roundHint = RoundHint(defaults: PracticeScene.savedState)
     /// The round's control hint while it shows (see RoundHint.swift).
     private var roundHintOverlay: TutorialOverlay?
+    /// After the screen changes size mid-round (an iPhone Duo opening or closing), the round's next question stands still
+    /// until the kid holds again: their hands were busy with the phone. An answer's card plays out first.
+    private var waitsForHold = false
+    /// The round's hint while it waits, unless its first-rounds hint is up already, which says the same.
+    private var holdHintOverlay: TutorialOverlay?
     private var worldMap: WorldMapNode?
     private var levelMap: LevelMapNode?
     private var phase: Phase = .home {
@@ -236,6 +241,8 @@ final class PracticeScene: SKScene {
     private var isShowingSettings: Bool { settingsScreen != nil }
     /// The question on screen while the parental gate is open.
     private var parentalGate: ParentalGate?
+    /// The App Store's last answer to the unlock, while it shows, to draw again at a new size.
+    private var unlockMessage: (title: String, line: String)?
     /// Where passing the gate leads: the privacy and support links, or the unlock screen.
     private var gateLeadsTo: GateDestination = .links
     private enum GateDestination { case links, unlock }
@@ -259,6 +266,12 @@ final class PracticeScene: SKScene {
 
     /// Where a round plays: the whole screen on a phone, and a band across the middle of an iPad's (ReefScreen.swift).
     private var playfield: CGRect { ReefScreen.playfield(in: size) }
+    /// The parts of the screen hardware covers, in the scene's points (`ReefView`): a closed iPhone Duo's camera, in a
+    /// corner. The controls in the top corners keep clear of it, and move when it does, as the closed phone turns around.
+    var occlusions: [CGRect] = [] {
+        didSet { if isBuilt && occlusions != oldValue { relayout(from: size) } }
+    }
+    private var corners: ReefCorners { ReefCorners(size: size, occlusions: occlusions) }
     private var waterBottom: CGFloat { playfield.minY + L.waterBottomMargin }
     private var waterTop: CGFloat { playfield.maxY - L.waterTopMargin }
     private var playerMinY: CGFloat { waterBottom + L.playerRadius * 0.95 }
@@ -343,18 +356,109 @@ final class PracticeScene: SKScene {
         #endif
     }
 
-    /// The scene is created before the view knows its real size; rebuild the layout when it arrives.
+    /// The screen changed size: the view's real size arriving after launch, or an iPhone Duo opening or closing.
+    /// Everything is drawn again at the new size and carries on where it was, and a round's next question waits for the
+    /// kid's next hold.
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
-        guard isBuilt, size != oldSize, size.width > 1, size.height > 1 else { return }
+        guard isBuilt, size != oldSize, size.width > 1, size.height > 1, oldSize.width > 1, oldSize.height > 1 else { return }
+        // A finger on the phone as it opened or closed isn't a hold.
+        holdTouches.removeAll()
+        relayout(from: oldSize)
+        if phase == .answering || phase == .feedback { waitsForHold = true }
+    }
+
+    /// Draws the screen again at the scene's size and corners, as it was: a map and any of Settings' screens over it, or
+    /// a round, its card or results, or the tutorial, going on from where it was.
+    private func relayout(from oldSize: CGSize) {
         backgroundLayer.removeAllChildren()
         specks.removeAll()
         buildBackground()
         buildCloseButton()
         buildSettingsButton()
-        // Any round in progress is gone, so it shouldn't count as abandoned later.
-        analytics.roundDiscarded()
-        if phase == .tutorial { startTutorial() } else { showHome() }
+        switch phase {
+        case .home, .world: redrawMaps()
+        case .instructions, .answering, .feedback, .summary, .tutorial: refitRound(from: oldSize)
+        }
+    }
+
+    /// The reef or a level path, scrolled where it was, and any of Settings' screens open over it.
+    private func redrawMaps() {
+        let screen = settingsScreen, scroll = levelMap?.scrollOffset
+        if phase == .home { showHome() } else { showWorld() }
+        if let scroll { levelMap?.scrollOffset = scroll }
+        switch screen {
+        case nil: break
+        case .settings: showSettings(animated: false)
+        case .gate:
+            // In place, as for a digit.
+            settingsScreen = .gate
+            drawParentalGate()
+        case .links: showParentLinks()
+        case .unlockPrompt: showUnlockPrompt(again: true)
+        case .unlock: showUnlockScreen(again: true)
+        case .waiting: showWaiting()
+        case .message: if let unlockMessage { showUnlockMessage(unlockMessage.title, unlockMessage.line) }
+        }
+    }
+
+    /// A round, its card or results, or the tutorial, going on at the screen's new size: your fish and the answers keep
+    /// their places in the water, as far up it and as far ahead across the screen as before, and a card keeps its place on
+    /// the screen, with its buttons.
+    private func refitRound(from oldSize: CGSize) {
+        let old = ReefScreen.playfield(in: oldSize), new = playfield
+        let height = { (y: CGFloat) in new.minY + (y - old.minY) * new.height / old.height }
+        if let player {
+            player.position.y = height(player.position.y)
+            for answer in answers {
+                let ahead = (answer.fish.position.x - player.position.x) * size.width / oldSize.width
+                answer.baseY = height(answer.baseY)
+                answer.fish.position = CGPoint(x: player.position.x + ahead, y: height(answer.fish.position.y))
+            }
+        }
+        tutorial?.refit(height)
+        fitWater(toPlayfield: true)
+        updateProgress()
+        movePanel(from: oldSize)
+        redrawHints()
+        render()
+    }
+
+    /// The card over a round (a level's, an answer's, the results) as far across and up the screen as before, its buttons
+    /// with it, and a crown's stage in the middle of the screen.
+    private func movePanel(from oldSize: CGSize) {
+        let old = panel.position
+        panel.position = CGPoint(x: old.x * size.width / oldSize.width, y: old.y * size.height / oldSize.height)
+        let (dx, dy) = (panel.position.x - old.x, panel.position.y - old.y)
+        buttons = buttons.map { (frame: $0.frame.offsetBy(dx: dx, dy: dy), action: $0.action) }
+        panel.childNode(withName: Self.crownStageName)?.position =
+            CGPoint(x: size.width / 2 - panel.position.x, y: size.height / 2 - panel.position.y)
+    }
+
+    /// The tutorial's words and finger, and a round's hint, drawn again at the screen's size, showing what they showed.
+    private func redrawHints() {
+        if let old = tutorialOverlay, let step = tutorial?.step {
+            // Skip has gone by the ending.
+            let overlay = TutorialOverlay(size: size, field: playfield, skippable: step != .done, corners: corners)
+            overlay.zPosition = old.zPosition
+            old.removeFromParent()
+            uiLayer.addChild(overlay)
+            tutorialOverlay = overlay
+            if step != .done {
+                overlay.show(step)
+            } else if old.showsClosingLine {
+                overlay.showClosingLine()
+            }
+        }
+        if let old = roundHintOverlay {
+            old.removeFromParent()
+            roundHintOverlay = addRoundHint()
+            roundHintOverlay?.alpha = old.alpha
+        }
+        if let old = holdHintOverlay {
+            old.removeFromParent()
+            holdHintOverlay = addRoundHint()
+        }
     }
 
     @objc private func appWillResignActive() {
@@ -386,7 +490,8 @@ final class PracticeScene: SKScene {
                 stars: stars.earned, maxStars: stars.total, crown: store.crown(for: world), comingSoon: world.comingSoon
             )
         }
-        let map = WorldMapNode(size: size, worlds: stops, focus: worldIndex, fishCrown: store.crown(for: world))
+        let map = WorldMapNode(size: size, worlds: stops, focus: worldIndex, fishCrown: store.crown(for: world),
+                               corners: corners)
         map.onSelect = { [weak self] index in
             self?.worldIndex = index
             self?.showWorld()
@@ -415,7 +520,7 @@ final class PracticeScene: SKScene {
             ?? max(0, stops.count - 1)
         let map = LevelMapNode(
             size: size, title: world.title, color: ReefStyle.color(for: world.id), levels: stops,
-            stars: store.stars(in: world), crown: store.crown(for: world), focus: focus
+            stars: store.stars(in: world), crown: store.crown(for: world), focus: focus, corners: corners
         )
         map.onSelect = { [weak self] index in
             guard let self else { return }
@@ -645,9 +750,10 @@ final class PracticeScene: SKScene {
 
     // MARK: - The unlock
 
-    /// A kid tapped a level past the free sample: send them to a grown-up.
-    private func showUnlockPrompt() {
-        analytics.paywallShown()
+    /// A kid tapped a level past the free sample: send them to a grown-up. `again`: drawn again at a new size, so not
+    /// counted as shown again.
+    private func showUnlockPrompt(again: Bool = false) {
+        if !again { analytics.paywallShown() }
         showSettingsPanel(
             .unlockPrompt, title: "More of the reef",
             lines: [("Ask a grown-up to unlock all the levels.", 18, false)],
@@ -655,13 +761,14 @@ final class PracticeScene: SKScene {
                 ("Grown-ups", { [weak self] in self?.showParentalGate(leadingTo: .unlock) }),
                 ("Not now", { [weak self] in self?.hideSettings() }),
             ],
-            animated: true
+            animated: !again
         )
     }
 
-    /// Behind the parental gate: what the purchase includes, its price, and restore (UnlockScreen.swift).
-    private func showUnlockScreen() {
-        analytics.unlockScreenShown()
+    /// Behind the parental gate: what the purchase includes, its price, and restore (UnlockScreen.swift). `again`: drawn
+    /// again at a new size, so not counted as shown again.
+    private func showUnlockScreen(again: Bool = false) {
+        if !again { analytics.unlockScreenShown() }
         var price = purchases.displayPrice
         #if DEBUG
         price = price ?? Self.standInPrice
@@ -730,6 +837,7 @@ final class PracticeScene: SKScene {
     }
 
     private func showUnlockMessage(_ title: String, _ line: String) {
+        unlockMessage = (title, line)
         showSettingsPanel(
             .message, title: title, lines: [(line, 18, false)],
             buttons: [("OK", { [weak self] in
@@ -782,6 +890,8 @@ final class PracticeScene: SKScene {
     /// wrong answer first, and heads for the right one (or a wrong one, for the questions in
     /// `autopilotMisses`, numbered from 0 within the round) once the wave gets close.
     private var autopilot = false
+    /// A test's finger on the screen (`debugHolding`).
+    private var testHold = false
     private var autopilotMisses: Set<Int> = []
     private var questionNumber = 0
     private var autopilotPlan = AutopilotPlan()
@@ -803,6 +913,7 @@ final class PracticeScene: SKScene {
     }
 
     private func autopilotHolds() -> Bool {
+        if testHold { return true }
         guard autopilot, phase == .answering || phase == .feedback || phase == .tutorial else { return false }
         // The tutorial, for tests (a store capture never plays it): Hold, Let go, then eat the answer as in a round.
         if phase == .tutorial, tutorial?.step != .eat { return tutorial?.step == .hold }
@@ -1040,15 +1151,58 @@ final class PracticeScene: SKScene {
         roundHintOverlay?.removeFromParent()
         roundHintOverlay = nil
         guard roundHint.roundStarted() else { return }
+        roundHintOverlay = addRoundHint()
+        advanceRoundHint()
+    }
+
+    /// The round's hint over the water: the tutorial's "Hold", in the round's own words.
+    private func addRoundHint() -> TutorialOverlay {
         let overlay = TutorialOverlay(size: size, field: playfield, skippable: false)
         // Over the water, under the answers (20) and your fish (30), so it never covers them: the scene ignores sibling
         // order.
         overlay.zPosition = 5
         fishLayer.addChild(overlay)
         overlay.showRoundHint(RoundHint.caption, fontSize: L.roundHintCaptionFontSize)
-        roundHintOverlay = overlay
-        advanceRoundHint()
+        return overlay
     }
+
+    /// Keeps a round's hint arrows over the fish and its question: as far above the question, while it rides above the
+    /// fish, as the tutorial's arrows sit above the fish.
+    private func keepByFish(_ overlay: TutorialOverlay) {
+        let lift = promptBelow ? 0 : L.promptOffset + L.promptPillHeight / 2 - L.playerRadius
+        overlay.follow(fish: CGPoint(x: size.width * L.playerScreenX, y: player.position.y), lift: lift)
+    }
+
+    /// While the round waits for a hold (`waitsForHold`): the next question stands still, with the round's hint, and goes
+    /// on at the kid's first hold, the hint fading as the first-rounds hint does. The wait is dropped once the round is
+    /// over or left.
+    private func advanceHoldWait() {
+        guard waitsForHold else { return }
+        switch phase {
+        case .feedback:
+            // The answer's card plays out; the next question waits.
+            return
+        case .answering where !isHolding:
+            guard roundHintOverlay == nil else { return }
+            let overlay = holdHintOverlay ?? addRoundHint()
+            holdHintOverlay = overlay
+            keepByFish(overlay)
+            return
+        default:
+            waitsForHold = false
+            guard let overlay = holdHintOverlay else { return }
+            holdHintOverlay = nil
+            if phase == .answering {
+                overlay.show(.done)
+                overlay.run(.sequence([.wait(forDuration: 0.3), .removeFromParent()]))
+            } else {
+                overlay.removeFromParent()
+            }
+        }
+    }
+
+    /// The round's next question stands still until the kid holds (`waitsForHold`).
+    private var isWaitingForHold: Bool { waitsForHold && phase == .answering }
 
     /// Keeps the hint's arrows over the fish and its question, and takes the hint away at the kid's first hold, with the
     /// tutorial's fade, or at once when the round is over or left.
@@ -1062,9 +1216,7 @@ final class PracticeScene: SKScene {
         }
         // Out of the way while a panel explains an answer, and back for the next question.
         overlay.alpha += ((phase == .feedback ? 0 : 1) - overlay.alpha) * min(1, dt * 12)
-        // As far above the question, while it rides above the fish, as the tutorial's arrows sit above the fish.
-        let lift = promptBelow ? 0 : L.promptOffset + L.promptPillHeight / 2 - L.playerRadius
-        overlay.follow(fish: CGPoint(x: size.width * L.playerScreenX, y: player.position.y), lift: lift)
+        keepByFish(overlay)
         if roundHint.update(holding: isHolding) {
             roundHintOverlay = nil
             overlay.show(.done)
@@ -1232,6 +1384,7 @@ final class PracticeScene: SKScene {
         let tint = crown == .gold ? ReefStyle.gold : ReefStyle.silver
         // Centered on screen, not on the panel.
         let stage = SKNode()
+        stage.name = Self.crownStageName
         stage.position = CGPoint(x: size.width / 2 - panel.position.x, y: size.height / 2 - panel.position.y)
         stage.zPosition = 10
         panel.addChild(stage)
@@ -1359,6 +1512,8 @@ final class PracticeScene: SKScene {
 
     /// When the bell for the star at `index` rings (the first star is index 0).
     private static func starRingTime(_ index: Int) -> TimeInterval { 0.35 + Double(index) * 0.4 }
+    /// The crown's stage, a child of the results card centered on the screen (`movePanel`).
+    private static let crownStageName = "crownStage"
 
     /// This round's stars sit on the top edge of the results panel. The bell rings once per earned
     /// star; ones that beat the best pop in on their ring, and the rest pulse.
@@ -1418,7 +1573,7 @@ final class PracticeScene: SKScene {
         tutorial = TutorialFlow()
         tutorialPasses = 0
         tutorialRingsAnswer = false
-        let overlay = TutorialOverlay(size: size, field: playfield)
+        let overlay = TutorialOverlay(size: size, field: playfield, corners: corners)
         overlay.zPosition = 5  // over the question, under the panel
         uiLayer.addChild(overlay)
         tutorialOverlay = overlay
@@ -1632,7 +1787,8 @@ final class PracticeScene: SKScene {
         let targetScale = slow ? L.incorrectTimeScale : 1
         timeScale += (targetScale - timeScale) * min(1, realDt * 8)
 
-        if phase == .answering || phase == .feedback || phase == .tutorial {
+        advanceHoldWait()
+        if (phase == .answering || phase == .feedback || phase == .tutorial) && !isWaitingForHold {
             simulate(realDt * timeScale)
             updatePromptPlacement()
         }
@@ -1872,7 +2028,7 @@ final class PracticeScene: SKScene {
         label.horizontalAlignmentMode = .left
         label.alpha = 0.8
         progressLabel.addChild(label)
-        progressLabel.position = CGPoint(x: 64, y: size.height - 34)
+        progressLabel.position = CGPoint(x: 64 + corners.left, y: size.height - 34)
         progressLabel.isHidden = phase != .answering && phase != .feedback
     }
 
@@ -2010,7 +2166,7 @@ final class PracticeScene: SKScene {
             gear.zPosition = 1
             settingsButton.addChild(gear)
         }
-        settingsButton.position = CGPoint(x: size.width - 64, y: size.height - 36)
+        settingsButton.position = CGPoint(x: size.width - 64 - corners.right, y: size.height - 36)
     }
 
     private func buildCloseButton() {
@@ -2019,7 +2175,7 @@ final class PracticeScene: SKScene {
         let cross = label("✕", fontSize: 18, heavy: true)
         cross.zPosition = 1
         closeButton.addChild(cross)
-        closeButton.position = CGPoint(x: size.width - 64, y: size.height - 36)
+        closeButton.position = CGPoint(x: size.width - 64 - corners.right, y: size.height - 36)
     }
 
     private func buildBackground() {
@@ -2164,8 +2320,34 @@ extension PracticeScene {
         get { autopilot }
         set { autopilot = newValue }
     }
+    /// A finger held on the screen, as a test's.
+    var debugHolding: Bool {
+        get { testHold }
+        set { testHold = newValue }
+    }
     var debugPhase: Phase { phase }
     var debugTutorialStep: TutorialFlow.Step? { tutorial?.step }
     var debugRoundHintShowing: Bool { roundHintOverlay != nil }
+    var debugWorld: Int { worldIndex }
+    var debugQuestion: String? { currentFact?.prompt }
+    var debugResult: SessionResult { session.result }
+    /// The round's next question stands still until the kid holds, and the hint that says so is up.
+    var debugWaitingForHold: Bool { isWaitingForHold && (holdHintOverlay != nil || roundHintOverlay != nil) }
+    /// Your fish and the answers: how far across the screen, and how far up the water (`playfield`), as fractions.
+    var debugSpots: [CGPoint] {
+        guard let player else { return [] }
+        let field = playfield
+        return ([player.position] + answers.map(\.fish.position)).map { position in
+            CGPoint(x: (size.width * L.playerScreenX + position.x - player.position.x) / size.width,
+                    y: (position.y - field.minY) / field.height)
+        }
+    }
+    /// The card's buttons, where a tap lands on them, and the card.
+    var debugButtonFrames: [CGRect] { buttons.map(\.frame) }
+    var debugPanelFrame: CGRect { panel.calculateAccumulatedFrame() }
+    var debugSettingsShowing: Bool { isShowingSettings }
+    var debugGateEntry: String? { parentalGate?.entry }
+    var debugSettingsButton: CGPoint { settingsButton.position }
+    var debugProgressLabel: CGPoint { progressLabel.position }
 }
 #endif

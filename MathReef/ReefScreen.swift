@@ -48,6 +48,35 @@ enum ReefScreen {
     }
 }
 
+/// How much further in from the left and right edges than on a phone the controls in the top corners sit (the maps'
+/// titles and back button, the close and settings buttons, a round's progress, the tutorial's Skip), to clear hardware
+/// covering a top corner: a closed iPhone Duo's camera. Both are 0 everywhere else, as a Dynamic Island sits at the
+/// middle of the edge, below them.
+struct ReefCorners: Equatable {
+    var left: CGFloat = 0
+    var right: CGFloat = 0
+
+    /// On a phone, the top-left controls start this far in from the left edge (the back button's side, its center 46 in),
+    /// the top-right ones end this far in from the right (the settings button's side, its center 64 in), and none reaches
+    /// further down from the top than `depth`.
+    static let phoneLeft: CGFloat = 26, phoneRight: CGFloat = 44, depth: CGFloat = 64
+    /// Room left between a control and the hardware.
+    static let gap: CGFloat = 10
+
+    init() {}
+
+    /// The corners on a screen of `size` (the scene's points) where `occlusions` (the same) are covered.
+    init(size: CGSize, occlusions: [CGRect]) {
+        for covered in occlusions where covered.maxY > size.height - Self.depth {
+            if covered.midX < size.width / 2 {
+                left = max(left, covered.maxX + Self.gap - Self.phoneLeft)
+            } else {
+                right = max(right, size.width - Self.phoneRight - (covered.minX - Self.gap))
+            }
+        }
+    }
+}
+
 /// The scene's view. On a phone it's the screen as it is. On a bigger screen the scene is laid out at the screen's
 /// size over `ReefScreen.scale` and drawn that much bigger, at the screen's own resolution so it stays sharp: a SwiftUI
 /// scale effect would only stretch what it drew at a phone's size. Touches land in the scene's own points either way.
@@ -87,9 +116,35 @@ struct ReefView: UIViewRepresentable {
             setNeedsLayout()
         }
 
+        /// Turning a closed iPhone Duo around moves its camera to the other corner, and the safe area with it.
+        override func safeAreaInsetsDidChange() {
+            super.safeAreaInsetsDidChange()
+            setNeedsLayout()
+        }
+
+        /// The parts of the screen hardware covers, in the scene's points: a closed iPhone Duo's camera, in a corner. Only
+        /// an app built with the iOS 27.1 SDK fills the iPhone Duo's screens to their edges, and only that SDK can say where
+        /// its camera is; an older SDK's app has a window clear of it.
+        private var occlusions: [CGRect] {
+            // The iOS 27.1 SDK's UIKit, the first with reserved regions.
+            #if canImport(UIKit, _version: 9127.0.85)
+            if #available(iOS 27.1, *) {
+                let scale = ReefScreen.scale(for: bounds.size)
+                return reservedRegions(kind: .occlusion).map { region in
+                    // UIKit's y runs down the screen, the scene's up it.
+                    let frame = region.frame
+                    return CGRect(x: frame.minX / scale, y: (bounds.height - frame.maxY) / scale,
+                                  width: frame.width / scale, height: frame.height / scale)
+                }
+            }
+            #endif
+            return []
+        }
+
         override func layoutSubviews() {
             super.layoutSubviews()
             guard bounds.width > 0, bounds.height > 0 else { return }
+            (scene as? PracticeScene)?.occlusions = occlusions
             let scale = ReefScreen.scale(for: bounds.size)
             scaler.bounds = CGRect(x: 0, y: 0, width: bounds.width / scale, height: bounds.height / scale)
             scaler.center = CGPoint(x: bounds.midX, y: bounds.midY)

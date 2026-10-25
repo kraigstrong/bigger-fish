@@ -322,21 +322,6 @@ struct ReefAnalyticsTests {
         }
     }
 
-    @Test func aDiscardedRoundIsNeverReported() {
-        withDefaults { defaults in
-            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
-            analytics.roundStarted(level: exponents.levels[0], target: 10)
-            analytics.roundProgress(correct: 3)
-            analytics.appResignedActive()
-            analytics.roundDiscarded()
-            analytics.roundQuit()
-
-            let relaunched = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
-            relaunched.appLaunched()
-            #expect(rounds(relaunched).isEmpty)
-        }
-    }
-
     /// The scene ends its background task from this completion, so it must always run.
     @Test func resigningAlwaysCompletes() {
         withDefaults { defaults in
