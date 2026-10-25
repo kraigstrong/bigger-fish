@@ -29,6 +29,7 @@ struct PearlShopTests {
             case .color: #expect(PearlShopArt.colors[item.id] != nil, "\(item.id)")
             case .pattern: #expect(look.style.pattern != .plain || PearlShopArt.markings(item) != nil, "\(item.id)")
             case .hat: #expect(PearlShopArt.hat(item) != nil, "\(item.id)")
+            case .face: #expect(PearlShopArt.face(item) != nil, "\(item.id)")
             case .trail:
                 #expect(look.trail.flatMap { GameTuning.pearlTrailEvery[$0] } != nil, "\(item.id)")
                 #expect(look.trail.flatMap { GameTuning.pearlTrailSeconds[$0] } != nil, "\(item.id)")

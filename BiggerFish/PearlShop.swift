@@ -7,13 +7,14 @@ import UIKit
 /// patterns stay inside your body, and a hat stands at most `GameTuning.pearlHatHeadroom` above your back fin.
 struct PearlItem: Identifiable, Equatable {
     enum Kind: String, CaseIterable {
-        case color, pattern, hat, trail
+        case color, pattern, hat, face, trail
 
         var title: String {
             switch self {
             case .color: "Colors"
             case .pattern: "Patterns"
             case .hat: "Hats"
+            case .face: "Faces"
             case .trail: "Trails"
             }
         }
@@ -24,6 +25,7 @@ struct PearlItem: Identifiable, Equatable {
             case .color: "paintpalette.fill"
             case .pattern: "circle.hexagongrid.fill"
             case .hat: "hat.widebrim.fill"
+            case .face: "eyeglasses"
             case .trail: "sparkles"
             }
         }
@@ -218,10 +220,11 @@ struct PlayerLook: Equatable {
         return node
     }
 
-    /// Puts this look's markings and hat on a fish drawn in its `style`.
+    /// Puts this look's markings, hat, and face things on a fish drawn in its `style`.
     func dress(_ node: FishNode) {
         node.setMarkings(self[.pattern].flatMap(PearlShopArt.markings))
         node.setHeadwear(self[.hat].flatMap(PearlShopArt.hat))
+        node.setFacewear(self[.face].flatMap(PearlShopArt.face))
     }
 
     var trail: PearlTrail? { self[.trail].flatMap { PearlTrail(rawValue: $0.id) } }
@@ -878,6 +881,96 @@ enum PearlShopArt {
                 node.addChild(part)
             }
         }
+        return node
+    }
+
+    // MARK: Faces
+
+    /// Something for `FishNode.setFacewear`, drawn around the eye's center and kept inside the body.
+    static func face(_ item: PearlItem) -> SKNode? {
+        switch item.id {
+        case "face.sunglasses": sunglasses()
+        case "face.heartglasses": heartGlasses()
+        case "face.mustache": mustache()
+        case "face.nose": redNose()
+        default: nil
+        }
+    }
+
+    /// A glasses arm from the lens back over the head.
+    private static func glassesArm(z: CGFloat) -> SKShapeNode {
+        let arm = CGMutablePath()
+        arm.move(to: CGPoint(x: -10, y: 2))
+        arm.addQuadCurve(to: CGPoint(x: -19, y: 4.5), control: CGPoint(x: -15, y: 4.5))
+        let line = shape(arm, fill: .clear, stroke: SKColor(white: 0.08, alpha: 1), line: 2, z: z)
+        line.lineCap = .round
+        return line
+    }
+
+    /// Dark sunglasses over the eye, a glint across the lens.
+    private static func sunglasses() -> SKNode {
+        let node = SKNode()
+        node.addChild(glassesArm(z: 0))
+        let lens = CGPath(roundedRect: CGRect(x: -10, y: -7.5, width: 21, height: 14), cornerWidth: 6, cornerHeight: 6, transform: nil)
+        node.addChild(shape(lens, fill: SKColor(white: 0.08, alpha: 1), stroke: SKColor(white: 0, alpha: 1), line: 1.5, z: 0.1))
+        let glint = CGMutablePath()
+        glint.move(to: CGPoint(x: -5, y: 3))
+        glint.addLine(to: CGPoint(x: 0, y: 3))
+        let shine = shape(glint, fill: .clear, stroke: SKColor(white: 1, alpha: 0.6), line: 2, z: 0.2)
+        shine.lineCap = .round
+        node.addChild(shine)
+        return node
+    }
+
+    /// A pink heart of a lens over the eye, the eye showing through.
+    private static func heartGlasses() -> SKNode {
+        let node = SKNode()
+        node.addChild(glassesArm(z: 0))
+        let heart = shape(heartPath(10), fill: SKColor(red: 1, green: 0.3, blue: 0.55, alpha: 0.55),
+                          stroke: SKColor(red: 0.85, green: 0.1, blue: 0.4, alpha: 1), line: 2, z: 0.1)
+        heart.position = CGPoint(x: 0.5, y: 1)
+        node.addChild(heart)
+        return node
+    }
+
+    /// A curly brown mustache over the mouth.
+    private static func mustache() -> SKNode {
+        let node = SKNode()
+        let brown = SKColor(red: 0.32, green: 0.19, blue: 0.1, alpha: 1)
+        let middle = CGPoint(x: 9.5, y: -9)
+        for (index, side) in [CGFloat(-1), 1].enumerated() {
+            let half = CGMutablePath()
+            half.move(to: CGPoint(x: middle.x, y: middle.y + 1.5))
+            half.addQuadCurve(to: CGPoint(x: middle.x + side * 10, y: middle.y - 1.5), control: CGPoint(x: middle.x + side * 5, y: middle.y + 5))
+            half.addQuadCurve(to: CGPoint(x: middle.x + side * 7.5, y: middle.y + 2.5),
+                              control: CGPoint(x: middle.x + side * 11, y: middle.y + 2.5))
+            half.addQuadCurve(to: CGPoint(x: middle.x, y: middle.y - 2.5), control: CGPoint(x: middle.x + side * 5, y: middle.y - 3.5))
+            half.closeSubpath()
+            node.addChild(shape(half, fill: brown, stroke: SKColor(red: 0.18, green: 0.1, blue: 0.05, alpha: 1), line: 1, z: CGFloat(index) * 0.01))
+        }
+        return node
+    }
+
+    /// A reindeer's red nose on the front of the face, lit, its glow gently swelling and fading.
+    private static func redNose() -> SKNode {
+        let node = SKNode()
+        let spot = CGPoint(x: 13, y: -8.5)
+        let glow = SKSpriteNode(texture: ArcadeArt.glow, size: CGSize(width: 13, height: 13))
+        glow.position = spot
+        glow.color = SKColor(red: 1, green: 0.2, blue: 0.15, alpha: 1)
+        glow.colorBlendFactor = 1
+        glow.blendMode = .add
+        glow.alpha = 0.9
+        glow.zPosition = 0
+        glow.run(.repeatForever(.sequence([.fadeAlpha(to: 0.4, duration: 0.9), .fadeAlpha(to: 0.9, duration: 0.9)])))
+        node.addChild(glow)
+        node.addChild(ball(4.2, at: spot, fill: SKColor(red: 0.95, green: 0.1, blue: 0.12, alpha: 1), z: 0.1))
+        let shine = SKShapeNode(circleOfRadius: 1.3)
+        shine.position = CGPoint(x: spot.x - 1.3, y: spot.y + 1.5)
+        shine.fillColor = SKColor(white: 1, alpha: 0.85)
+        shine.strokeColor = .clear
+        shine.zPosition = 0.2
+        node.addChild(shine)
         return node
     }
 
