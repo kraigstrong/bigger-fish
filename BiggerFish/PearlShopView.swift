@@ -214,10 +214,16 @@ private struct PearlShopThumbnail: View {
     }
 }
 
-/// Shop tiles' pictures, drawn once each by a SpriteKit view that's never on screen.
+/// Shop tiles' pictures, drawn once each by a SpriteKit view that's never on screen. The view is paused except while it
+/// draws one: left running after its first picture, it slowed every level for the rest of the session (Kraig's phone,
+/// 2026-10-24: 60 frames a second instead of 120, and a 31-second freeze in Jelly Bloom).
 @MainActor private enum PearlShopThumbnails {
     private static var images: [[String: String]: UIImage] = [:]
-    private static let renderer = SKView(frame: CGRect(x: 0, y: 0, width: 4, height: 4))
+    private static let renderer: SKView = {
+        let view = SKView(frame: CGRect(x: 0, y: 0, width: 4, height: 4))
+        view.isPaused = true
+        return view
+    }()
 
     static func image(_ look: PlayerLook) -> UIImage? {
         if let image = images[look.ids] { return image }
@@ -243,7 +249,10 @@ private struct PearlShopThumbnail: View {
         }
         // Wide enough for the longest trail and tall enough for the tallest hat; the fish faces right, right of center.
         let crop = CGRect(x: -140, y: -45, width: 220, height: 104)
-        guard let texture = renderer.texture(from: picture, crop: crop) else { return nil }
+        renderer.isPaused = false
+        let drawn = renderer.texture(from: picture, crop: crop)
+        renderer.isPaused = true
+        guard let texture = drawn else { return nil }
         let image = UIImage(cgImage: texture.cgImage())
         images[look.ids] = image
         return image
