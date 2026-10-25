@@ -5,14 +5,22 @@
 #   scripts/store-capture.sh video
 #
 # Builds a debug build and launches it with `-storeCapture <scene>` (see MathReef/StoreCapture.swift),
-# which stages believable progress in its own saved state and lets an autopilot swim.
+# which stages believable progress in its own saved state and lets an autopilot swim. Everything is
+# drawn by the app itself, so nothing has the simulator's Dynamic Island over it.
 # Output goes to build/store-capture/:
-#   screenshots/<scene>[-NN].png  2868x1320 landscape PNGs (the 6.9" size), drawn by the app. Play
-#                                 scenes and the crown are a burst of frames to pick from.
-#   video/raw.mov                 the simulator recording, as captured
+#   screenshots/<scene>[-NN].png  landscape PNGs at the screen's full size: 2868x1320 on the iPhone
+#                                 17 Pro Max (6.9"), 2752x2064 on a 13-inch iPad. Play scenes and the
+#                                 crown are a burst of frames to pick from.
+#   video/frames/                 the frames the app drew, 30 a second, and when it drew each
 #   video/soundtrack.wav          the game's own sounds and music, rebuilt from the app's cue log
-#   video/full.mp4                1920x886, 30 fps, H.264 + stereo AAC: Apple's app preview format,
-#                                 before trimming to 15-30 seconds (scripts/store-preview.sh)
+#   video/full.mp4                30 fps, H.264 + stereo AAC at Apple's app preview size: 1920x886 on
+#                                 an iPhone, 1600x1200 on an iPad; trim it to 15-30 seconds with
+#                                 scripts/store-preview.py
+#
+# STORE_CAPTURE_DEVICE picks the simulator (default iPhone 17 Pro Max; 'iPad Pro 13-inch (M5)' for the
+# iPad), STORE_CAPTURE_OUT the output folder, and STORE_CAPTURE_SECONDS the video's length (default 86).
+# A capture plays frame by frame, a 60th of a second of play each however long the simulator takes to save
+# one, so the video comes out smooth and a burst of screenshots catches the same moments on any device.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -22,10 +30,6 @@ DERIVED="$ROOT/build/store-capture/DerivedData"
 DEVICE="${STORE_CAPTURE_DEVICE:-iPhone 17 Pro Max}"
 BUNDLE=com.kraigstrong.mathreef
 STATIC_SCENES=(home world crown)
-# The simulator draws the Dynamic Island into its recordings (a device's don't), so the video fills
-# it in from the water around it; the level path keeps its stops clear of it. Measured on the
-# 17 Pro Max in landscape: x 2716-2825, y 472-847.
-TO_LANDSCAPE="transpose=1,delogo=x=2708:y=464:w=126:h=392"
 PLAY_SCENES=(play wrong addition exponents)
 
 build() {
@@ -57,7 +61,10 @@ screenshots() {
         rm -rf "$frames"
         launch "$scene"
         local waited=0
-        until [ -f "$frames/$last.png" ] || [ $waited -gt 400 ]; do pause 0.1; waited=$((waited + 1)); done
+        until [ -f "$frames/$last.png" ] || [ $waited -gt 6000 ]; do
+            pause 0.1
+            waited=$((waited + 1))
+        done
         pause 0.5
         rm -f "$OUT/screenshots/$scene"*.png
         for frame in "$frames/$scene"*.png; do
@@ -69,34 +76,41 @@ screenshots() {
 }
 
 video() {
-    local dir="$OUT/video"
+    local dir="$OUT/video" seconds="${STORE_CAPTURE_SECONDS:-86}"
     mkdir -p "$dir"
-    rm -f "$dir/raw.mov" "$dir/cues.log"
+    rm -rf "$dir/frames" "$dir/cues.log"
+    local frames
+    frames="$(xcrun simctl get_app_container "$DEVICE" "$BUNDLE" data)/Documents/StoreCapture/video"
     xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
-    xcrun simctl io "$DEVICE" recordVideo --codec=h264 --mask=ignored --force "$dir/raw.mov" 2>"$dir/record.log" &
-    local recorder=$!
-    # recordVideo prints when the first frame is written; that's time zero for the soundtrack.
-    until grep -q "Recording started" "$dir/record.log" 2>/dev/null; do pause 0.05; done
-    perl -MTime::HiRes=time -e 'printf "%.3f\n", time' >"$dir/start.txt"
-    xcrun simctl launch --console-pty "$DEVICE" "$BUNDLE" -storeCapture video >"$dir/cues.log" 2>&1 &
-    local app=$!
-    # The reef, the path, the instructions, a full round, then the results and crown.
-    pause "${STORE_CAPTURE_SECONDS:-86}"
-    kill -INT "$recorder"
-    wait "$recorder" || true
+    rm -rf "$frames"
+    # The console carries the audio cues: the simulator plays no sound into a capture.
+    xcrun simctl launch --console-pty "$DEVICE" "$BUNDLE" -storeCapture video -storeCaptureSeconds "$seconds" \
+        >"$dir/cues.log" 2>&1 &
+    local app=$! waited=0 limit=$(( seconds * 30 + 300 ))
+    until [ -f "$frames/done.txt" ]; do
+        [ $waited -gt $(( limit * 10 )) ] && { echo "video: not done after ${limit}s" >&2; exit 1; }
+        pause 0.1
+        waited=$((waited + 1))
+    done
     kill "$app" 2>/dev/null || true
     xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
+    mv "$frames" "$dir/frames"
 
-    local length
-    length=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$dir/raw.mov")
-    python3 scripts/store-soundtrack.py "$dir/cues.log" "$(cat "$dir/start.txt")" "$length" \
-        MathReef/Sounds "$dir/soundtrack.wav"
-    # Landscape (the recording is portrait), 1920x886, a constant 30 fps, and the soundtrack.
-    ffmpeg -v error -y -i "$dir/raw.mov" -i "$dir/soundtrack.wav" \
-        -vf "$TO_LANDSCAPE,scale=1920:886:flags=lanczos,fps=30,format=yuv420p" \
+    # Frame by frame, the frames are exactly a 30th of a second of play apart; the soundtrack starts with the first.
+    local start length size
+    start=$(head -1 "$dir/frames/times.txt")
+    length=$(awk 'NR == 1 { first = $1 } { last = $1 } END { printf "%.3f", last - first + 1 / 30 }' "$dir/frames/times.txt")
+    python3 scripts/store-soundtrack.py "$dir/cues.log" "$start" "$length" MathReef/Sounds "$dir/soundtrack.wav"
+    # Apple's app preview size: wider than 2:1 is an iPhone, anything else an iPad.
+    size=$(ffprobe -v error -select_streams v -show_entries stream=width,height -of csv=p=0 "$dir/frames/00000.jpg" |
+        awk -F, '{ print ($1 > 2 * $2) ? "1920:886" : "1600:1200" }')
+    # Square pixels and video range: the 6.9" screen is a little wider than 1920x886, and App Store Connect
+    # refuses a preview whose pixels are stretched to make up the difference (SPEC_MISMATCH).
+    ffmpeg -v error -y -framerate 30 -i "$dir/frames/%05d.jpg" -i "$dir/soundtrack.wav" \
+        -vf "scale=$size:flags=lanczos:out_range=tv,setsar=1,format=yuv420p" \
         -c:v libx264 -profile:v high -level 4.0 -b:v 11M -maxrate 12M -bufsize 24M \
         -c:a aac -b:a 256k -ar 48000 -ac 2 -shortest -movflags +faststart "$dir/full.mp4"
-    echo "wrote $dir/full.mp4"
+    echo "wrote $dir/full.mp4 ($(cat "$dir/frames/done.txt"), ${size/:/x})"
 }
 
 # Check the tools up front, not after the build or a minute and a half of recording.

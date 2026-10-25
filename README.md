@@ -44,8 +44,9 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'p
 **Draw order.** Every SpriteView draws with `ignoresSiblingOrder`, so nodes at the same global depth come out in any
 order on a phone, though the simulator keeps the order they were added. Anything drawn over something else needs its own
 zPosition. `DrawOrderTests` walks every scene at the moments that matter (cards, play, pause, the result, the tutorial,
-the credits, the maps) with `DrawOrderAudit`, which reports overlapping nodes that share a depth. To check that a change
-of depths keeps the look, render the key moments before and after and compare:
+the credits, the maps) with `DrawOrderAudit`, which reports overlapping nodes that share a depth (Math Reef has a copy;
+see Math Reef's draw order below). To check that a change of depths keeps the look, render the key moments before and
+after and compare:
 
 ```bash
 TEST_RUNNER_DRAW_ORDER_RENDERS=before xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish \
@@ -96,6 +97,9 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   Checkpoint levels are skip tests: always playable, and passing one passes everything before it.
   Worlds sit on a reef map and levels along a scrolling path. A world earns a silver crown when every
   level is passed and a gold crown for three stars everywhere. Progress is saved on the device.
+  It runs on iPhone and iPad, in landscape. An iPad draws the app as the biggest iPhone does, only taller,
+  scaled up to fill the screen: the maps and cards use the extra height, and a round plays in a band of
+  water as tall as that iPhone's, with darker water above and below, so lanes and reach match every phone.
   - `MathFacts.swift` — facts, solutions, and plausible wrong answers
   - `Curriculum.swift` — worlds, levels, and fact decks
   - `Progress.swift` — stars, passing, and saved progress
@@ -108,12 +112,27 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     successful round at least 90 days later (two requests total). Timing stays on-device. TestFlight
     and Xcode builds don't consume requests; Xcode has a gated review-sheet preview.
   - `ReefUnlock.swift` — the free sample (first 3 levels per world, 1 in Exponents) and the one-time StoreKit unlock; `MathReef.storekit` at the repo root backs it when running from Xcode
+  - `UnlockScreen.swift` — the grown-ups' unlock screen, behind the parental gate: each world in its color and
+    symbol with its grades, its first and hardest question, and a pip per level (the free ones white), then the free
+    levels against all of them, Family Sharing, and the App Store's price. Debug builds open on it with
+    `-unlockScreen`, and `-unlockPrice '$4.99'` stands in for the price outside Xcode, which has no StoreKit config
   - `PracticeScene.swift` — screen flow and gameplay; tuning is `ReefTuning` at the top
+  - `ReefScreen.swift` — the iPad: how much bigger the scene draws (`ReefScreen.scale`), the band of water
+    a round plays in (`ReefScreen.playfield`), and the scene's view (`ReefView`), which draws it bigger at
+    the screen's own resolution. Every iPhone draws exactly as before
   - `Tutorial.swift` — the first-launch tutorial (Hold, Let go, Eat the answer with 1 + 1), played with the
     real movement before the reef map on a fresh install. It never fails or times out; a stuck kid
     sees the hint again. The first catch gets "Yes!", then "Ready to play!", then a fade to the map
     (Skip just fades). Saved as done the moment the 2 is eaten or Skip is tapped, and skipped for
-    players who already have progress. Xcode builds can replay it from Settings.
+    players who already have progress. Settings can replay it.
+  - `RoundHint.swift` — the control hint at the start of a round: the tutorial's "Hold" step (finger,
+    "Hold to swim up", arrows over the fish and its question), drawn under the answer fish. A kid's first
+    3 rounds after install start with it (`ReefTuning.roundHintRounds`), and it goes at their first hold;
+    a round only counts once they've held, so a kid who hasn't found the control keeps seeing it.
+  - `ReefAudio.swift` / `ReefHaptics.swift` — sound effects, music, and haptics, each with its own
+    switch in Settings (Sound, Music, Vibration), saved on the device. A 1.0 install that turned sound
+    off keeps the music off too. Sound and music play on their own queue, as Bigger Fish's do, so a slow
+    start can't stall a frame
   - `ReefAnalytics.swift` — anonymous first-party counts (milestones and round outcomes), queued on the device and sent in batches to brightbench.app (off during test runs)
   - `StoreCapture.swift` — debug-only staged scenes and an autopilot for App Store screenshots and the preview video
 - `Packages/FishKit/` — shared fish engine used by both apps:
@@ -126,38 +145,63 @@ FishKit tests:
 cd Packages/FishKit && xcodebuild test -scheme FishKit -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
+**Math Reef's draw order.** Its view (`ReefView`) draws with `ignoresSiblingOrder` too, and asks for 120 frames a
+second, which a ProMotion iPhone allows only with the key in `MathReef-Info.plist` (the rest of its Info.plist is
+generated from build settings). `MathReefTests/DrawOrderTests` plays the app's one scene frame by frame, as a store
+capture does, through the moments that matter on an iPhone, the iPhone SE, and an iPad: the reef and every level path,
+Settings and the parental gate, the unlock, rounds answered right and wrong, a first round's control hint, the results
+and a crown, and the tutorial.
+It checks each with a copy of Bigger Fish's `DrawOrderAudit` (a fix to one belongs in the other). Its renders hash every
+moment the audit looks at, so a change of depths can be checked frame by frame:
+
+```bash
+TEST_RUNNER_DRAW_ORDER_RENDERS=before xcodebuild test -project BiggerFish.xcodeproj -scheme MathReef \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' '-only-testing:MathReefTests/DrawOrderTests/manualRenderDrawOrderMoments()'
+# change the depths, render again as `after`, then:
+diff build/math-reef-draw-order/before/hashes.txt build/math-reef-draw-order/after/hashes.txt
+```
+
 ## App Store screenshots and preview
 
 `scripts/store-capture.sh` builds Math Reef in Debug, then launches it on the iPhone 17 Pro Max
 simulator with `-storeCapture <scene>`. That stages believable progress in its own saved state,
-leaving real progress, purchases, and analytics alone, and lets an autopilot play. Output goes to
+leaving real progress, purchases, and analytics alone, and lets an autopilot play. Everything is
+drawn by the app itself, so nothing has the simulator's Dynamic Island over it. Output goes to
 `build/store-capture/` (ignored by git). It needs ffmpeg (`brew install ffmpeg`), and the video
 also needs NumPy (`python3 -m pip install numpy`).
 
 ```bash
 scripts/store-capture.sh screenshots
 STORE_CAPTURE_DEVICE='iPhone 13 Pro Max' STORE_CAPTURE_OUT="$PWD/build/store-capture-6.5" scripts/store-capture.sh screenshots
+STORE_CAPTURE_DEVICE='iPad Pro 13-inch (M5)' STORE_CAPTURE_OUT="$PWD/build/store-capture-ipad13" scripts/store-capture.sh screenshots
 scripts/store-capture.sh video
-python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-capture/video/preview.mp4 1.8-3.8 4.0-6.0 6.1-7.3 7.3-12.8 19.8-25.3 67.7-78.0
+python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-capture/video/preview.mp4 0.2-2.3 2.6-4.7 5.1-11.0 17.8-23.4 65.6-77.4
 ```
 
-- **Screenshots** are 2868×1320 PNGs (the 6.9" size) with no alpha, saved by the app itself
-  (simulator screenshots have the Dynamic Island drawn over them). Play scenes and the crown save
-  a burst of frames to pick from. Rounds use a fixed shuffle, so a retake shows the same questions.
-  For the 6.5" upload slot, the iPhone 13 Pro Max command above captures native 2778×1284 PNGs
-  in a separate output directory, preserving the original set.
-- **Video:** `video` records a full scripted run and rebuilds its soundtrack from the game's own
-  sounds (the simulator records no audio). `store-preview.py` cuts the chosen clips (in seconds)
-  into Apple's app preview format: 1920×886, 30 fps, H.264, stereo AAC, 15–30 seconds. The clip
-  times shift a little between runs, so check them against the full recording.
+- **Screenshots** are PNGs at the screen's full size with no alpha: 2868×1320 on the iPhone 17 Pro
+  Max (6.9"), 2752×2064 on the 13-inch iPad. Play scenes and the crown save a burst of frames to
+  pick from. Rounds use a fixed shuffle, so a retake shows the same questions. For the 6.5" upload
+  slot, the iPhone 13 Pro Max command above captures native 2778×1284 PNGs in a separate output
+  directory, preserving the original set.
+- **Frame by frame:** a capture plays as Bigger Fish's footage does: every frame is exactly a 60th
+  of a second of play, the scene's animations included, however long the simulator takes to save
+  one (`StoreCapture.Stepper` drives SpriteKit's clock and draws the frames). So the video is
+  smooth, and a burst catches the same moments at the same frame numbers on any device.
+- **Video:** `video` plays a scripted run (the reef, Multiplication's path, a round of × 7 with a
+  wrong answer, the results and silver crown) and saves 30 frames a second of play (about 8
+  minutes for the 86 seconds). The soundtrack is rebuilt from the game's own sounds (the simulator
+  records no audio), timed on the same clock. It comes out at Apple's app preview size: 1920×886 on an iPhone, 1600×1200 on an iPad.
+  `store-preview.py` cuts the chosen clips (in seconds) into the preview: 30 fps, H.264, stereo AAC,
+  15–30 seconds. Check the clip times against `full.mp4` after any change to the game or autopilot.
 - **Framed versions:** `scripts/store-frames.py` puts each chosen shot (from
   `build/store-capture/picks/`) on a world-color background under a caption in the game's font,
   matching the selected captures' dimensions. The shots, their order, and the captions are the
-  `SHOTS` list at its top. Pass the picks and output directories to frame an alternate device set.
-- **Dynamic Island:** the simulator draws it into its video, so the video fills it in from the
-  surrounding water and slides the level path so no stop sits under it.
-- **Autopilot:** it drifts around mid-water, sometimes eyes a wrong answer first, and heads for
-  the right one as the wave gets close, so it plays like a kid rather than a bot.
+  `SHOTS` list at its top. Pass the picks and output directories to frame an alternate device set,
+  with each pick saved under the iPhone's file name.
+- **Autopilot:** it drifts around mid-water, sometimes eyes a wrong answer first, and swoops into
+  the right one as the wave gets close (waiting off to one side, then diving or climbing through
+  it), so it plays like a kid rather than a bot. It steers clear of the other answers, so the only
+  wrong answers are the ones a scene plans.
 
 ### Bigger Fish screenshots
 

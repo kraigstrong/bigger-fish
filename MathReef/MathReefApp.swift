@@ -18,7 +18,8 @@ struct ContentView: View {
     }()
 
     var body: some View {
-        SpriteView(scene: scene, preferredFramesPerSecond: 120, options: [.ignoresSiblingOrder])
+        // Drawn bigger on an iPad (ReefScreen.swift).
+        ReefView(scene: scene)
             .ignoresSafeArea()
             .statusBarHidden()
             .persistentSystemOverlays(.hidden)

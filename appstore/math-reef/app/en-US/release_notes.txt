@@ -1,0 +1,3 @@
+• Math Reef now runs on iPad, filling the whole screen.
+• Settings has separate switches for sound effects, music, and vibration, and a button to replay the tutorial.
+• Smoother swimming on iPhones with ProMotion displays.

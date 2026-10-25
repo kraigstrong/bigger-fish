@@ -75,6 +75,12 @@ enum ReefTuning {
     static let promptEdgeClearance: CGFloat = 6
     static let promptFlipFadeSeconds: CGFloat = 0.08
 
+    // MARK: iPad (ReefScreen.swift)
+
+    /// How much of the water's color the darker water above and below a round keeps beside the playfield, and at the
+    /// screen's edge (Bigger Fish's).
+    static let bandBrightness: (field: CGFloat, edge: CGFloat) = (0.55, 0.3)
+
     // MARK: First-launch tutorial (Tutorial.swift)
 
     /// "Hold" is done once one hold lifts the fish this far (a fraction of the water it can reach),
@@ -104,6 +110,15 @@ enum ReefTuning {
     static let tutorialClosingLineFontSize: CGFloat = 52
     static let tutorialFadeOutSeconds: TimeInterval = 0.35
     static let tutorialFadeInSeconds: TimeInterval = 0.4
+
+    // MARK: Round-start hint (RoundHint.swift)
+
+    /// A kid's first rounds after install start with the tutorial's "Hold", until they hold: this many rounds in which
+    /// they held while it showed. 0 never shows it; `Int.max` shows it at the start of every round.
+    static let roundHintRounds = 3
+    /// A little smaller than the question, which stays the thing to read, and than the tutorial's words, so "Hold to
+    /// swim up" stays clear of the question on the narrowest phone (RoundHintTests).
+    static let roundHintCaptionFontSize: CGFloat = 32
 }
 
 /// Which side of the player fish the question rides on. It starts above and stays on its side until
@@ -173,6 +188,9 @@ final class PracticeScene: SKScene {
     private var tutorialPasses = 0
     /// Once a kid has missed the 2 or eaten the 3, a ring marks the 2.
     private var tutorialRingsAnswer = false
+    private let roundHint = RoundHint(defaults: PracticeScene.savedState)
+    /// The round's control hint while it shows (see RoundHint.swift).
+    private var roundHintOverlay: TutorialOverlay?
     private var worldMap: WorldMapNode?
     private var levelMap: LevelMapNode?
     private var phase: Phase = .home {
@@ -223,6 +241,9 @@ final class PracticeScene: SKScene {
     private enum GateDestination { case links, unlock }
     private var buttons: [(frame: CGRect, action: () -> Void)] = []
     private var specks: [(node: SKSpriteNode, parallax: CGFloat)] = []
+    /// The water's gradient, and the darker water above and below a round on a tall screen (`fitWater`).
+    private var waterGradient: SKSpriteNode?
+    private var bands: [SKSpriteNode] = []
 
     private var holdTouches = Set<UITouch>()
     private var lastUpdate: TimeInterval?
@@ -234,19 +255,21 @@ final class PracticeScene: SKScene {
     private let analytics = PracticeScene.isCapturing ? ReefAnalytics(enabled: false) : ReefAnalytics()
     private let purchases = ReefPurchases(defaults: PracticeScene.savedState)
     private var hasPlayedJingle = false
-    private let positiveHaptic = UINotificationFeedbackGenerator()
-    private let gentleHaptic = UIImpactFeedbackGenerator(style: .soft)
+    private let haptics = ReefHaptics(defaults: PracticeScene.savedState)
 
-    private var waterBottom: CGFloat { L.waterBottomMargin }
-    private var waterTop: CGFloat { size.height - L.waterTopMargin }
+    /// Where a round plays: the whole screen on a phone, and a band across the middle of an iPad's (ReefScreen.swift).
+    private var playfield: CGRect { ReefScreen.playfield(in: size) }
+    private var waterBottom: CGFloat { playfield.minY + L.waterBottomMargin }
+    private var waterTop: CGFloat { playfield.maxY - L.waterTopMargin }
     private var playerMinY: CGFloat { waterBottom + L.playerRadius * 0.95 }
     private var playerMaxY: CGFloat { waterTop - L.playerRadius * 0.95 }
     private var playerSpeed: CGFloat { size.width / L.screenCrossSeconds }
 
-    /// Debug builds launched for App Store captures use their own saved state (see StoreCapture).
+    /// Debug builds launched for App Store captures use their own saved state (see StoreCapture), as do tests' scenes
+    /// (`testDefaults`).
     private static var isCapturing: Bool {
         #if DEBUG
-        StoreCapture.scene != nil
+        StoreCapture.scene != nil || testDefaults != nil
         #else
         false
         #endif
@@ -254,6 +277,7 @@ final class PracticeScene: SKScene {
 
     private static var savedState: UserDefaults {
         #if DEBUG
+        if let testDefaults { return testDefaults }
         if isCapturing { return StoreCapture.defaults }
         #endif
         return .standard
@@ -283,6 +307,8 @@ final class PracticeScene: SKScene {
         // Above the maps, which share the UI layer (the scene ignores sibling order).
         settingsButton.zPosition = 10
         panel.zPosition = 20
+        // Over the question's pill, which rises to meet it near the top, and under its words.
+        progressLabel.zPosition = 0.5
         NotificationCenter.default.addObserver(
             self, selector: #selector(appWillResignActive),
             name: UIApplication.willResignActiveNotification, object: nil
@@ -291,8 +317,7 @@ final class PracticeScene: SKScene {
             self, selector: #selector(appDidBecomeActive),
             name: UIApplication.didBecomeActiveNotification, object: nil
         )
-        positiveHaptic.prepare()
-        gentleHaptic.prepare()
+        haptics.prepare()
 
         buildBackground()
         buildCloseButton()
@@ -308,6 +333,11 @@ final class PracticeScene: SKScene {
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-previewCrown"), args.indices.contains(i + 1) {
             previewCrown(args[i + 1] == "gold" ? .gold : .silver)
+        }
+        // `-unlockScreen` opens on the grown-ups' unlock screen, past the gate (with `-unlockPrice` for its price).
+        if args.contains("-unlockScreen") {
+            showHome()
+            showUnlockScreen()
         }
         if let scene = StoreCapture.scene { stageCapture(scene) }
         #endif
@@ -422,24 +452,31 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = true
         settingsButton.isHidden = false
         settingsScreen = nil
+        fitWater(toPlayfield: false)
         render()
     }
 
     // MARK: - Settings
 
+    /// Sound, music, and vibration switches on the top row; replaying the tutorial, the grown-ups' screen, and Done
+    /// below, the same on every screen size.
     private func showSettings(animated: Bool = true) {
         parentalGate = nil
         var lines: [PanelLine] = []
         var buttons: [(title: String, action: () -> Void)] = [
-            (audio.isSoundOn ? "Sound: On" : "Sound: Off", { [weak self] in self?.toggleSound() }),
+            ("Sound: \(audio.isSoundOn ? "On" : "Off")", { [weak self] in self?.toggleSetting(\.audio.isSoundOn) }),
+            ("Music: \(audio.isMusicOn ? "On" : "Off")", { [weak self] in self?.toggleSetting(\.audio.isMusicOn) }),
+            ("Vibration: \(haptics.isVibrationOn ? "On" : "Off")", { [weak self] in self?.toggleSetting(\.haptics.isVibrationOn) }),
+            ("Replay tutorial", { [weak self] in self?.startTutorial() }),
             ("For grown-ups", { [weak self] in self?.showParentalGate(leadingTo: .links) }),
             ("Done", { [weak self] in self?.hideSettings() }),
         ]
+        var rowStarts: Set<Int> = [3]
         #if DEBUG
         // For seeing rare moments on a device. Debug builds only, so never in the App Store.
-        lines.append(("Xcode builds only: the tutorial, crown previews, and Multiplication's saved progress", 15, false))
+        lines.append(("Xcode builds only: crown previews and Multiplication's saved progress", 15, false))
+        rowStarts.insert(buttons.count)
         buttons += [
-            ("Replay tutorial", { [weak self] in self?.startTutorial() }),
             ("Preview silver", { [weak self] in self?.previewCrown(.silver) }),
             ("Preview gold", { [weak self] in self?.previewCrown(.gold) }),
             ("× silver", { [weak self] in self?.debugSetUpMultiplication(.silver) }),
@@ -448,7 +485,7 @@ final class PracticeScene: SKScene {
             ("Reset ×", { [weak self] in self?.debugSetUpMultiplication(.reset) }),
         ]
         #endif
-        showSettingsPanel(.settings, title: "Settings", lines: lines, buttons: buttons, animated: animated)
+        showSettingsPanel(.settings, title: "Settings", lines: lines, buttons: buttons, rowStarts: rowStarts, animated: animated)
     }
 
     /// Settings and its grown-up screens: centered over the dimmed map. `animated: false` redraws in
@@ -470,8 +507,8 @@ final class PracticeScene: SKScene {
         }
     }
 
-    private func toggleSound() {
-        audio.isSoundOn.toggle()
+    private func toggleSetting(_ setting: ReferenceWritableKeyPath<PracticeScene, Bool>) {
+        self[keyPath: setting].toggle()
         showSettings(animated: false)
     }
 
@@ -586,20 +623,24 @@ final class PracticeScene: SKScene {
         )
     }
 
-    /// Behind the parental gate: what the purchase includes, its price, and restore.
+    /// Behind the parental gate: what the purchase includes, its price, and restore (UnlockScreen.swift).
     private func showUnlockScreen() {
-        let price = purchases.displayPrice
-        showSettingsPanel(
-            .unlock, title: "Unlock the whole reef",
-            lines: [("Every level in all five worlds, for good.", 18, false),
-                    ("One purchase, shared with your family.", 18, false)],
-            buttons: [
-                (price.map { "Unlock for \($0)" } ?? "Unlock", { [weak self] in self?.buyUnlock() }),
-                ("Restore purchases", { [weak self] in self?.restorePurchases() }),
-                ("Not now", { [weak self] in self?.hideSettings() }),
-            ],
-            animated: false
+        var price = purchases.displayPrice
+        #if DEBUG
+        price = price ?? Self.standInPrice
+        #endif
+        hidePanel()
+        settingsScreen = .unlock
+        holdTouches.removeAll()
+        let screen = UnlockScreen(
+            size: size, price: price, featured: phase == .world ? world.id : nil,
+            onBuy: { [weak self] in self?.buyUnlock() }, onRestore: { [weak self] in self?.restorePurchases() },
+            onClose: { [weak self] in self?.hideSettings() }
         )
+        panel.position = .zero
+        panel.alpha = 1
+        panel.addChild(screen)
+        buttons = screen.buttons
         // The price loads in the background at launch; redraw once it arrives.
         if price == nil {
             Task { [weak self] in
@@ -718,10 +759,16 @@ final class PracticeScene: SKScene {
         /// Aims a little off the fish's center, as a thumb would.
         var aimOffset: CGFloat = 0
         var wanderPhase: CGFloat = 0
+        /// How far to one side of the answer the swoop into it starts (points), and which side: the fish's, once it
+        /// commits.
+        var swoop: CGFloat = 0
+        var swoopSide: CGFloat?
     }
 
     private func autopilotHolds() -> Bool {
-        guard autopilot, phase == .answering || phase == .feedback else { return false }
+        guard autopilot, phase == .answering || phase == .feedback || phase == .tutorial else { return false }
+        // The tutorial, for tests (a store capture never plays it): Hold, Let go, then eat the answer as in a round.
+        if phase == .tutorial, tutorial?.step != .eat { return tutorial?.step == .hold }
         if autopilotPlan.question != questionNumber {
             var rng = autopilotRNG
             autopilotPlan = AutopilotPlan(
@@ -729,7 +776,8 @@ final class PracticeScene: SKScene {
                 commitAt: .random(in: 0.3...0.5, using: &rng),
                 glanceAt: Bool.random(using: &rng) ? .random(in: 0.65...0.8, using: &rng) : nil,
                 aimOffset: .random(in: -10...10, using: &rng),
-                wanderPhase: .random(in: 0...(2 * .pi), using: &rng)
+                wanderPhase: .random(in: 0...(2 * .pi), using: &rng),
+                swoop: .random(in: 90...130, using: &rng)
             )
             autopilotRNG = rng
         }
@@ -738,11 +786,18 @@ final class PracticeScene: SKScene {
         let nearest = { (fish: [AnswerFish]) in fish.min { $0.fish.position.x < $1.fish.position.x } }
         let miss = autopilotMisses.contains(questionNumber)
         // Where the fish wants to be: idling around mid-water until the wave is close.
-        var goal = size.height * 0.5 + sin(realClock * 1.3 + plan.wanderPhase) * size.height * 0.14
-        if phase == .answering, let target = nearest(ahead.filter { $0.isCorrect != miss }) {
+        var goal = playfield.midY + sin(realClock * 1.3 + plan.wanderPhase) * playfield.height * 0.14
+        if phase == .answering || phase == .tutorial, let target = nearest(ahead.filter { $0.isCorrect != miss }) {
             let distance = (target.fish.position.x - player.position.x) / size.width
             if distance < plan.commitAt {
-                goal = target.fish.position.y + plan.aimOffset
+                // A swoop, not a line: the aim waits off to the fish's side of the answer, then sweeps through it and
+                // a little past, so the fish dives or climbs into the bite, as a kid's does, rather than lining up and
+                // coasting in.
+                let side = autopilotPlan.swoopSide ?? (player.position.y > target.fish.position.y ? 1 : -1)
+                autopilotPlan.swoopSide = side
+                let progress = distance / plan.commitAt  // 1 on committing, 0 at the bite
+                let sweep = ((progress - 0.15) / 0.55).clamped(-0.25, 1)
+                goal = target.fish.position.y + plan.aimOffset + side * plan.swoop * sweep
             } else if let glance = plan.glanceAt, distance < glance,
                       let decoy = nearest(ahead.filter { $0 !== target }) {
                 // Leaning toward another answer before thinking again.
@@ -750,6 +805,16 @@ final class PracticeScene: SKScene {
             } else {
                 // Drifting toward the wave while it's still far off.
                 goal = goal * 0.7 + target.fish.position.y * 0.3
+            }
+            // Never another answer by accident. One coming up is passed on the side the answer to eat is on, while there's
+            // time to get there; once it's close, on whichever side the fish is already on, until it's gone by.
+            let clearance: CGFloat = 80
+            for other in answers where other !== target && !other.fading {
+                let ahead = (other.fish.position.x - player.position.x) / size.width
+                guard ahead > -0.08, ahead < 0.45 else { continue }
+                let pass = ahead > 0.25 ? target.fish.position.y : player.position.y
+                let side: CGFloat = pass >= other.fish.position.y ? 1 : -1
+                if (goal - other.fish.position.y) * side < clearance { goal = other.fish.position.y + side * clearance }
             }
         }
         // Lead the motion a little, so it eases in and bobs rather than slamming into place.
@@ -759,7 +824,7 @@ final class PracticeScene: SKScene {
     /// Saves what the scene draws, at full resolution, to Documents/StoreCapture. Unlike a simulator
     /// screenshot, it has no Dynamic Island drawn over it.
     private func saveCaptureFrame(_ name: String) {
-        guard let view, let image = view.texture(from: self)?.cgImage() else { return }
+        guard let image = StoreCapture.image(of: self) else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             let dir = StoreCapture.framesDirectory
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -769,33 +834,34 @@ final class PracticeScene: SKScene {
 
     /// Saves `count` frames `interval` seconds apart, starting after `delay`.
     private func captureFrames(_ scene: StoreCapture.Scene, count: Int, every interval: TimeInterval, after delay: TimeInterval) {
-        let frames = (1...count).map { index in
-            SKAction.sequence([
-                .wait(forDuration: index == 1 ? delay : interval),
-                .run { [weak self] in self?.saveCaptureFrame(count == 1 ? scene.rawValue : String(format: "%@-%02d", scene.rawValue, index)) },
-            ])
-        }
-        run(.sequence(frames), withKey: "storeCapture")
+        let names = (1...count).map { count == 1 ? scene.rawValue : String(format: "%@-%02d", scene.rawValue, $0) }
+        dueFrames = names.enumerated().map { (StoreCapture.playClock + delay + Double($0.offset) * interval, $0.element) }
     }
 
-    /// The simulator draws the Dynamic Island over the right edge of a landscape screen; keep the
-    /// level path's stops out from under it.
-    private func keepPathClearOfIsland() {
-        levelMap?.debugKeepClear(ofX: size.width - StoreCapture.islandInset, clearance: 56)
+    /// A burst's frames, saved as play reaches them, once a frame has finished, as the video's are: saved from an
+    /// action, partway through SpriteKit's pass, one could catch other nodes before they'd moved.
+    private var dueFrames: [(at: TimeInterval, name: String)] = []
+
+    /// The video scene's frames while it records (`StoreCapture.VideoRecorder`).
+    private var videoRecorder: StoreCapture.VideoRecorder?
+
+    override func didFinishUpdate() {
+        // Each frame as it's about to be drawn.
+        if let recorder = videoRecorder, !recorder.capture(self) { videoRecorder = nil }
+        if let due = dueFrames.first, StoreCapture.playClock >= due.at - 0.001 {
+            dueFrames.removeFirst()
+            saveCaptureFrame(due.name)
+        }
     }
 
     private func stageCapture(_ scene: StoreCapture.Scene) {
+        StoreCapture.stepper = StoreCapture.Stepper(scene: self) { [weak self] in self?.lastUpdate }
         for world in Curriculum.worlds {
             store.debugSetStars(StoreCapture.stars(for: world, in: scene), in: world)
         }
         let multiplication = Curriculum.worlds.firstIndex { $0.id == "multiplication" } ?? 0
         func play(world: String, level: Int, misses: Set<Int> = []) {
-            worldIndex = Curriculum.worlds.firstIndex { $0.id == world } ?? 0
-            levelIndex = level
-            autopilot = true
-            autopilotMisses = misses
-            questionNumber = 0
-            showInstructions()
+            debugOpenLevel(world: Curriculum.worlds.firstIndex { $0.id == world } ?? 0, level: level, misses: misses)
             run(.wait(forDuration: 1)) { [weak self] in self?.startSession() }
         }
         switch scene {
@@ -819,11 +885,12 @@ final class PracticeScene: SKScene {
             previewCrown(.gold)
         case .video:
             // The reef, then Multiplication's path, then a round of × 7 with one wrong answer.
+            videoRecorder = StoreCapture.VideoRecorder(seconds: StoreCapture.videoSeconds)
             worldIndex = multiplication
             showHome()
             run(.sequence([
                 .wait(forDuration: 2.5),
-                .run { [weak self] in self?.showWorld(); self?.keepPathClearOfIsland() },
+                .run { [weak self] in self?.showWorld() },
                 .wait(forDuration: 2.5),
                 .run { play(world: "multiplication", level: StoreCapture.videoLevel, misses: [2]) },
             ]))
@@ -871,7 +938,8 @@ final class PracticeScene: SKScene {
         )
         timeScale = 1
 
-        player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: size.height / 2), radius: L.playerRadius)
+        fitWater(toPlayfield: true)
+        player = Fish(id: 0, isPlayer: true, position: CGPoint(x: 0, y: playfield.midY), radius: L.playerRadius)
         playerNode = FishNode(style: .player, isPlayer: true, tailPhase: 0)
         // The fish wears a world's crown only inside that world.
         playerNode.setHeadwear(fishCrown(store.crown(for: world)))
@@ -921,12 +989,50 @@ final class PracticeScene: SKScene {
         closeButton.isHidden = false
         analytics.roundStarted(level: level, target: session.targetCorrect)
         spawnWave()
+        showRoundHint()
     }
 
     /// Play Again skips the instructions.
     private func replay() {
         resetSession()
         startSession()
+    }
+
+    /// A kid's first few rounds start with the tutorial's "Hold" (RoundHint.swift), until they hold.
+    private func showRoundHint() {
+        roundHintOverlay?.removeFromParent()
+        roundHintOverlay = nil
+        guard roundHint.roundStarted() else { return }
+        let overlay = TutorialOverlay(size: size, field: playfield, skippable: false)
+        // Over the water, under the answers (20) and your fish (30), so it never covers them: the scene ignores sibling
+        // order.
+        overlay.zPosition = 5
+        fishLayer.addChild(overlay)
+        overlay.showRoundHint(RoundHint.caption, fontSize: L.roundHintCaptionFontSize)
+        roundHintOverlay = overlay
+        advanceRoundHint()
+    }
+
+    /// Keeps the hint's arrows over the fish and its question, and takes the hint away at the kid's first hold, with the
+    /// tutorial's fade, or at once when the round is over or left.
+    private func advanceRoundHint(_ dt: CGFloat = 0) {
+        guard let overlay = roundHintOverlay else { return }
+        guard phase == .answering || phase == .feedback else {
+            roundHint.roundEnded()
+            overlay.removeFromParent()
+            roundHintOverlay = nil
+            return
+        }
+        // Out of the way while a panel explains an answer, and back for the next question.
+        overlay.alpha += ((phase == .feedback ? 0 : 1) - overlay.alpha) * min(1, dt * 12)
+        // As far above the question, while it rides above the fish, as the tutorial's arrows sit above the fish.
+        let lift = promptBelow ? 0 : L.promptOffset + L.promptPillHeight / 2 - L.playerRadius
+        overlay.follow(fish: CGPoint(x: size.width * L.playerScreenX, y: player.position.y), lift: lift)
+        if roundHint.update(holding: isHolding) {
+            roundHintOverlay = nil
+            overlay.show(.done)
+            overlay.run(.sequence([.wait(forDuration: 0.3), .removeFromParent()]))
+        }
     }
 
     private func spawnWave() {
@@ -999,13 +1105,13 @@ final class PracticeScene: SKScene {
 
         if lastCorrect {
             beginSwallow(answer, failing: false)
-            positiveHaptic.notificationOccurred(.success)
+            haptics.success()
             feedbackRemaining = L.correctFeedbackSeconds
             showPanel(title: "Yes!", lines: [(fact.solution, 28, true)], buttons: [], style: .correct)
         } else {
             // The wrong-answer panel appears when the fish is spat out (see `spit`).
             beginSwallow(answer, failing: true)
-            gentleHaptic.impactOccurred(intensity: 0.4)
+            haptics.bump(intensity: 0.4)
             feedbackRemaining = L.struggleSeconds + L.incorrectFeedbackSeconds
         }
     }
@@ -1115,7 +1221,7 @@ final class PracticeScene: SKScene {
         crownNode.run(.sequence([
             drop,
             .run { [weak self] in
-                self?.positiveHaptic.notificationOccurred(.success)
+                self?.haptics.success()
                 self?.sparkleBurst(at: center, in: stage)
             },
             .scaleX(to: 1.15, y: 0.85, duration: 0.08),
@@ -1170,7 +1276,7 @@ final class PracticeScene: SKScene {
                 fish.setHeadwear(worn)
                 worn.setScale(1.5)
                 worn.run(.scale(to: 1, duration: 0.2))
-                self.positiveHaptic.notificationOccurred(.success)
+                self.haptics.success()
             },
             .removeFromParent(),
         ]))
@@ -1195,12 +1301,15 @@ final class PracticeScene: SKScene {
 
     /// Little stars flying out from where the crown lands.
     private func sparkleBurst(at point: CGPoint, in parent: SKNode) {
+        // The same burst every time in a store capture or a test, so their frames can be retaken and compared.
+        var rng = SeededGenerator(seed: Self.isCapturing ? 3 : UInt64.random(in: 0...UInt64.max))
         for i in 0..<14 {
-            let angle = CGFloat(i) / 14 * 2 * .pi + CGFloat.random(in: -0.15...0.15)
-            let distance = CGFloat.random(in: 110...170)
-            let sparkle = starShape(radius: CGFloat.random(in: 5...9), filled: true)
+            let angle = CGFloat(i) / 14 * 2 * .pi + CGFloat.random(in: -0.15...0.15, using: &rng)
+            let distance = CGFloat.random(in: 110...170, using: &rng)
+            let sparkle = starShape(radius: CGFloat.random(in: 5...9, using: &rng), filled: true)
             sparkle.position = point
-            sparkle.zPosition = 2
+            // Each over the one before, as they start together: the scene ignores sibling order.
+            sparkle.zPosition = 2 + CGFloat(i) / 100
             parent.addChild(sparkle)
             let fly = SKAction.move(by: CGVector(dx: cos(angle) * distance, dy: sin(angle) * distance), duration: 0.7)
             fly.timingMode = .easeOut
@@ -1272,7 +1381,7 @@ final class PracticeScene: SKScene {
         tutorial = TutorialFlow()
         tutorialPasses = 0
         tutorialRingsAnswer = false
-        let overlay = TutorialOverlay(size: size)
+        let overlay = TutorialOverlay(size: size, field: playfield)
         overlay.zPosition = 5  // over the question, under the panel
         uiLayer.addChild(overlay)
         tutorialOverlay = overlay
@@ -1338,7 +1447,7 @@ final class PracticeScene: SKScene {
         guard var flow = tutorial else { return }
         tutorialOverlay?.follow(fish: CGPoint(x: size.width * L.playerScreenX, y: player.position.y))
         let event = flow.update(
-            fishY: player.position.y, holding: !holdTouches.isEmpty, dt: dt, minY: playerMinY, maxY: playerMaxY
+            fishY: player.position.y, holding: isHolding, dt: dt, minY: playerMinY, maxY: playerMaxY
         )
         tutorial = flow
         if let event { handleTutorial(event) }
@@ -1351,7 +1460,7 @@ final class PracticeScene: SKScene {
             overlay.show(step)
             switch step {
             case .hold: break
-            case .letGo: gentleHaptic.impactOccurred(intensity: 0.5)
+            case .letGo: haptics.bump(intensity: 0.5)
             case .eat:
                 setPrompt(TutorialFlow.fact.prompt)
                 spawnTutorialAnswers()
@@ -1406,10 +1515,10 @@ final class PracticeScene: SKScene {
                 for other in answers where other !== hit { fadeOut(other) }
                 hit.node.childNode(withName: TutorialOverlay.answerRingName)?.removeFromParent()
                 beginSwallow(hit, failing: false)
-                positiveHaptic.notificationOccurred(.success)
+                haptics.success()
             } else {
                 bounce(hit)
-                gentleHaptic.impactOccurred(intensity: 0.5)
+                haptics.bump(intensity: 0.5)
             }
             if let event = tutorial?.ate(correct: hit.isCorrect) { handleTutorial(event) }
         } else if swimming.allSatisfy({ $0.fish.position.x < player.position.x - size.width * L.missedBehindScreens }) {
@@ -1477,6 +1586,9 @@ final class PracticeScene: SKScene {
         let realDt = min(lastUpdate.map { CGFloat(currentTime - $0) } ?? 0, 1.0 / 30)
         lastUpdate = currentTime
         realClock += realDt
+        #if DEBUG
+        StoreCapture.playClock = TimeInterval(realClock)
+        #endif
 
         // Wrong answers: the struggle plays at full speed, then gameplay slows while the panel shows.
         let slow = phase == .feedback && !lastCorrect && swallow == nil
@@ -1488,6 +1600,7 @@ final class PracticeScene: SKScene {
             updatePromptPlacement()
         }
         if phase == .tutorial { advanceTutorial(realDt) }
+        advanceRoundHint(realDt)
         if phase == .feedback {
             feedbackRemaining -= realDt
             if feedbackRemaining <= 0 { finishFeedback() }
@@ -1497,9 +1610,12 @@ final class PracticeScene: SKScene {
         render()
     }
 
+    /// A finger on the screen, or in Xcode builds the autopilot's hold.
+    private var isHolding: Bool { !holdTouches.isEmpty || autopilotHolds() }
+
     private func simulate(_ dt: CGFloat) {
         let (y, vy) = PlayerMotion.step(
-            y: player.position.y, vy: player.velocity.dy, holding: !holdTouches.isEmpty || autopilotHolds(), dt: dt,
+            y: player.position.y, vy: player.velocity.dy, holding: isHolding, dt: dt,
             minY: playerMinY, maxY: playerMaxY, tuning: L.motion
         )
         player.velocity = CGVector(dx: playerSpeed, dy: vy)
@@ -1605,7 +1721,7 @@ final class PracticeScene: SKScene {
         answer.fish.shrink = 1
         answer.fish.struggle = 0
         bounce(answer)
-        gentleHaptic.impactOccurred(intensity: 0.7)
+        haptics.bump(intensity: 0.7)
         audio.play(.wrong)
         showWrongFeedback()
     }
@@ -1696,7 +1812,8 @@ final class PracticeScene: SKScene {
 
     /// Fades the question out, moves it to the other side of the fish, and fades it back in.
     private func updatePromptPlacement() {
-        guard promptPlacement.update(playerY: player.position.y, screenHeight: size.height) else { return }
+        // Measured in the playfield, so the question turns where the water ends on an iPad too.
+        guard promptPlacement.update(playerY: player.position.y - playfield.minY, screenHeight: playfield.height) else { return }
         let fade = TimeInterval(L.promptFlipFadeSeconds)
         playerPrompt.run(.sequence([
             .fadeOut(withDuration: fade),
@@ -1874,10 +1991,25 @@ final class PracticeScene: SKScene {
         gradient.size = size
         gradient.zPosition = -1  // behind the specks; the scene ignores sibling order
         backgroundLayer.addChild(gradient)
+        waterGradient = gradient
+
+        // Above and below, over the specks, which drift through the whole screen.
+        bands = [
+            SKSpriteNode(texture: ReefScreen.bandTexture(ReefScreen.waterTop, fieldBelow: true)),
+            SKSpriteNode(texture: ReefScreen.bandTexture(ReefScreen.waterBottom, fieldBelow: false)),
+        ]
+        for band in bands {
+            band.anchorPoint = .zero
+            band.zPosition = 1
+            band.isHidden = true
+            backgroundLayer.addChild(band)
+        }
 
         var speckRNG = SeededGenerator(seed: 7)
         let dot = WaterTextures.dot()
-        for _ in 0..<40 {
+        // 40 in a round's water, however tall the screen.
+        let speckCount = Int((40 * size.height / playfield.height).rounded())
+        for _ in 0..<speckCount {
             let node = SKSpriteNode(texture: dot)
             let parallax = CGFloat.random(in: 0.15...0.7, using: &speckRNG)
             let d = 1.5 + parallax * 4
@@ -1892,7 +2024,111 @@ final class PracticeScene: SKScene {
         }
     }
 
+    /// The water fills the screen behind the maps. A round's water is the playfield: on a phone that's the whole
+    /// screen too, and on a taller screen (an iPad) it leaves bands of darker water above and below.
+    private func fitWater(toPlayfield: Bool) {
+        let water = toPlayfield ? playfield : CGRect(origin: .zero, size: size)
+        waterGradient?.position = water.origin
+        waterGradient?.size = water.size
+        guard bands.count == 2 else { return }
+        let (above, below) = (bands[0], bands[1])
+        above.position = CGPoint(x: 0, y: water.maxY)
+        above.size = CGSize(width: size.width, height: size.height - water.maxY)
+        below.position = .zero
+        below.size = CGSize(width: size.width, height: water.minY)
+        for band in bands { band.isHidden = band.size.height <= 0 }
+    }
+
     private func label(_ text: String, fontSize: CGFloat, heavy: Bool, color: SKColor = .white) -> SKLabelNode {
         reefLabel(text, fontSize: fontSize, heavy: heavy, color: color)
     }
 }
+
+#if DEBUG
+// MARK: - Test hooks
+
+/// For tests that walk the scene through its screens (`DrawOrderTests`), as a kid's taps would reach them. Xcode builds
+/// only.
+extension PracticeScene {
+    /// Saved state for the scenes a test makes, set before making one. Such a scene plays like a store capture: the
+    /// same shuffles every time, no analytics or App Store, and no tutorial at launch.
+    static var testDefaults: UserDefaults?
+
+    /// A price for the unlock screen while the App Store has none, as in a simulator run outside Xcode, which has no
+    /// StoreKit test configuration: `-unlockPrice '$4.99'` at launch, or a test's.
+    static var standInPrice: String? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-unlockPrice"), args.indices.contains(i + 1) else { return nil }
+        return args[i + 1]
+    }()
+
+    enum DebugScreen { case home, world(Int), settings, parentalGate, unlockPrompt, unlock, waiting, unlocked }
+
+    /// Opens a screen: `.world` is that world's level path, and the screens reached from Settings open over whatever is
+    /// showing.
+    func debugShow(_ screen: DebugScreen) {
+        switch screen {
+        case .home: showHome()
+        case .world(let index):
+            worldIndex = index
+            showWorld()
+        case .settings: showSettings()
+        case .parentalGate:
+            // The same question every time, so it draws the same.
+            var rng = SeededGenerator(seed: 1)
+            gateLeadsTo = .links
+            parentalGate = ParentalGate(using: &rng)
+            drawParentalGate()
+        case .unlockPrompt: showUnlockPrompt()
+        case .unlock: showUnlockScreen()
+        case .waiting: showWaiting()
+        case .unlocked: showUnlocked()
+        }
+    }
+
+    /// Types the next `count` digits of the parental gate's answer on its keypad: all of them pass it.
+    func debugTypeGateAnswer(digits count: Int) {
+        guard let gate = parentalGate else { return }
+        for digit in String(gate.answer).dropFirst(gate.entry.count).prefix(count) {
+            typeGateDigit(Int(String(digit))!)
+        }
+    }
+
+    /// Scrolls the level path as a drag `dx` long would.
+    func debugDragLevelPath(by dx: CGFloat) {
+        guard let levelMap else { return }
+        let start = CGPoint(x: size.width / 2, y: size.height / 2), end = CGPoint(x: start.x + dx, y: start.y)
+        levelMap.touchBegan(at: start)
+        levelMap.touchMoved(to: end)
+        levelMap.touchEnded(at: end)
+    }
+
+    /// A level's card, for a round (`debugStartRound`) the autopilot plays, answering the questions in `misses` wrong
+    /// (numbered from 0 within the round).
+    func debugOpenLevel(world: Int, level: Int, misses: Set<Int> = []) {
+        worldIndex = world
+        levelIndex = level
+        autopilot = true
+        autopilotMisses = misses
+        questionNumber = 0
+        showInstructions()
+    }
+
+    func debugStartRound() { startSession() }
+
+    /// A perfect round's results, earning `crown`, as Settings' previews show them (saved progress untouched).
+    func debugPreviewCrown(_ crown: Crown) { previewCrown(crown) }
+
+    /// The tutorial from its first step. The autopilot plays it while `debugAutopilot` is on.
+    func debugStartTutorial() { startTutorial() }
+    func debugSkipTutorial() { endTutorial(skipped: true) }
+
+    var debugAutopilot: Bool {
+        get { autopilot }
+        set { autopilot = newValue }
+    }
+    var debugPhase: Phase { phase }
+    var debugTutorialStep: TutorialFlow.Step? { tutorial?.step }
+    var debugRoundHintShowing: Bool { roundHintOverlay != nil }
+}
+#endif

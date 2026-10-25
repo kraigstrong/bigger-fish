@@ -3,6 +3,8 @@
 
     python3 appstore/push.py check                             # the credentials work, and each app's Apple ID
     python3 appstore/push.py validate                          # every app's text against Apple's limits; no network
+    python3 appstore/push.py pull --app bigger-fish             # App Store Connect's text into the files
+    python3 appstore/push.py version --app bigger-fish 1.1.0 --dry-run   # create the next version to push to
     python3 appstore/push.py push --app bigger-fish --dry-run   # what would change, field by field
     python3 appstore/push.py push --app bigger-fish             # push it (only the fields that differ)
     python3 appstore/push.py push --app bigger-fish --only promotional_text,description
@@ -39,12 +41,15 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 API = "https://api.appstoreconnect.apple.com"
 
-# Each app: where its Apple ID comes from, and its in-app purchases (folder under iap/ -> product ID).
+# Each app: where its Apple ID comes from, its in-app purchases (folder under iap/ -> product ID), and the iPhone
+# sizes its app preview goes to (PREVIEW_GROUPS unless it says otherwise).
 APPS = {
     "bigger-fish": {"app_id_env": "ASCC_APP_ID_BIGGER_FISH",
                     "iap": {"allworlds": "com.kraigstrong.biggerfish.allworlds"}},
+    # Math Reef's iPhone screenshots and preview are in the 6.5" slot, which Apple scales for the other iPhones.
     "math-reef": {"app_id_env": "ASCC_APP_ID_MATH_REEF",
-                  "iap": {"fullreef": "com.kraigstrong.mathreef.fullreef"}},
+                  "iap": {"fullreef": "com.kraigstrong.mathreef.fullreef"},
+                  "preview_groups": ("IPHONE_FACE_ID_LARGE_PROFILE",)},
 }
 
 # How `purchase` sets up each in-app purchase, by product ID. The product ID is permanent once created, and Family
@@ -68,7 +73,10 @@ FIELDS = {
     "marketing_url": ("version", "marketingUrl", 255),
 }
 REQUIRED = ["name", "subtitle", "description", "keywords", "support_url", "privacy_policy_url"]
-IAP_LIMITS = {"name": 30, "description": 45}
+# App Review's notes belong to the version, not a locale: appstore/<app>/review_notes.txt.
+REVIEW_NOTES, REVIEW_NOTES_LIMIT = "review_notes", 4000
+# Guides still say a description is 45 characters, but Apple approved Math Reef's 55-character one in October 2026.
+IAP_LIMITS = {"name": 30, "description": 55}
 # An app's first version has no What's New, so release_notes.txt is left out until there's a second.
 EDITABLE_STATES = {"PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED",
                    "WAITING_FOR_REVIEW", "INVALID_BINARY"}
@@ -116,15 +124,16 @@ def problems(app: str, locale: str) -> list[str]:
     """Everything wrong with one locale's text, by Apple's limits and a few house rules."""
     found = []
     text = listing(app, locale)
+    # An empty file is a field kept empty in App Store Connect, which only an optional field can be.
     for name in REQUIRED:
-        if name not in text:
-            found.append(f"{name}.txt is missing")
+        if not text.get(name):
+            found.append(f"{name}.txt is {'empty' if name in text else 'missing'}")
     for name, value in text.items():
         limit = FIELDS[name][2]
         if measure(name, value) > limit:
             unit = "bytes" if name == "keywords" else "characters"
             found.append(f"{name}: {measure(name, value)} {unit}, over the limit of {limit}")
-        if name.endswith("_url") and not value.startswith("https://"):
+        if name.endswith("_url") and value and not value.startswith("https://"):
             found.append(f"{name}: not an https:// link")
     keywords = text.get("keywords", "")
     if ", " in keywords:
@@ -144,6 +153,11 @@ def problems(app: str, locale: str) -> list[str]:
 def validate(apps: list[str]) -> int:
     bad = 0
     for app in apps:
+        notes = read(HERE / app / f"{REVIEW_NOTES}.txt")
+        if notes is not None:
+            over = len(notes) > REVIEW_NOTES_LIMIT
+            print(f"{app} review notes: {'NOT OK' if over else 'ok'} ({len(notes)}/{REVIEW_NOTES_LIMIT})")
+            bad += over
         for locale in locales(app):
             found = problems(app, locale)
             sizes = ", ".join(f"{name} {measure(name, value)}/{FIELDS[name][2]}" for name, value in listing(app, locale).items())
@@ -254,7 +268,8 @@ def transfer(operations: list[dict], data: bytes) -> None:
 
 def upsert(client: Client, kind: str, existing: dict | None, attrs: dict, parent: tuple[str, str, str],
            locale: str, dry_run: bool, label: str) -> bool:
-    """Changes only the attributes that differ from what App Store Connect has; creates the localization if needed."""
+    """Changes only the attributes that differ from what App Store Connect has; creates the localization (or, with no
+    locale, the version's review details) if needed."""
     current = existing.get("attributes", {}) if existing else {}
     changed = {k: v for k, v in attrs.items() if (current.get(k) or "") != v}
     for k in attrs:
@@ -262,12 +277,15 @@ def upsert(client: Client, kind: str, existing: dict | None, attrs: dict, parent
               + (f" ({len(current.get(k) or '')} -> {len(attrs[k])} characters)" if k in changed else ""))
     if not changed or dry_run:
         return bool(changed)
+    # An empty file empties the field: null clears an attribute, where an empty URL may be refused as invalid.
+    changed = {k: v or None for k, v in changed.items()}
     if existing:
         client.call("PATCH", f"/v1/{kind}/{existing['id']}",
                     {"data": {"type": kind, "id": existing["id"], "attributes": changed}})
     else:
         relationship, parent_type, parent_id = parent
-        client.call("POST", f"/v1/{kind}", {"data": {"type": kind, "attributes": {**changed, "locale": locale},
+        attributes = {**changed, "locale": locale} if locale else changed
+        client.call("POST", f"/v1/{kind}", {"data": {"type": kind, "attributes": attributes,
                                                      "relationships": {relationship: {"data": {"type": parent_type,
                                                                                                "id": parent_id}}}}})
     return True
@@ -328,7 +346,108 @@ def push(app: str, only: set[str] | None, dry_run: bool) -> int:
                         for l in client.get(f"/v2/inAppPurchases/{purchase}/inAppPurchaseLocalizations?limit=50")}
                 changes += upsert(client, "inAppPurchaseLocalizations", locs.get(locale), fields,
                                   ("inAppPurchaseV2", "inAppPurchases", purchase), locale, dry_run, f"iap {folder}")
+    notes = read(HERE / app / f"{REVIEW_NOTES}.txt")
+    if notes is not None and (only is None or REVIEW_NOTES in only):
+        print("[App Review]")
+        detail = client.get_one(f"/v1/appStoreVersions/{version['id']}/appStoreReviewDetail")
+        changes += upsert(client, "appStoreReviewDetails", detail, {"notes": notes},
+                          ("appStoreVersion", "appStoreVersions", version["id"]), "", dry_run, "review")
     print(f"{changes} localization{'' if changes == 1 else 's'} {'would change' if dry_run else 'changed'}.")
+    return 0
+
+
+def new_version(app: str, version_string: str, dry_run: bool) -> int:
+    """Creates the app's next version, which App Store Connect starts with the live version's text and media. Nothing
+    is submitted. Does nothing if a version is already editable."""
+    load_credentials()
+    app_id = os.environ.get(APPS[app]["app_id_env"])
+    if not app_id:
+        raise SystemExit(f"missing {APPS[app]['app_id_env']} (the app's numeric Apple ID) in the 1Password Environment")
+    client = Client()
+    every = client.get(f"/v1/apps/{app_id}/appStoreVersions?limit=50")
+    editable = next((v for v in every if v["attributes"].get("appStoreState") in EDITABLE_STATES), None)
+    if editable:
+        print(f"{app}: version {editable['attributes'].get('versionString')} "
+              f"({editable['attributes'].get('appStoreState')}) is already editable; nothing created")
+        return 0 if editable["attributes"].get("versionString") == version_string else 1
+    if any(v["attributes"].get("versionString") == version_string for v in every):
+        raise SystemExit(f"{app} already has a version {version_string}")
+    if dry_run:
+        print(f"{app}: would create version {version_string} — dry run, nothing is written")
+        return 0
+    created = client.call("POST", "/v1/appStoreVersions", {"data": {
+        "type": "appStoreVersions", "attributes": {"platform": "IOS", "versionString": version_string},
+        "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}})["data"]
+    print(f"{app}: version {version_string} created ({created['attributes'].get('appStoreState')})")
+    return 0
+
+
+def save(path: Path, value: str | None, label: str) -> bool:
+    """Writes one field's file from App Store Connect's text. A field emptied there empties its file, so the next push
+    keeps it empty; an empty field with no file is left without one."""
+    value = value or ""
+    current = read(path)
+    if current == value or (current is None and not value):
+        print(f"  {label}: " + ("same" if current is not None else "empty in App Store Connect, no file"))
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value + "\n" if value else "", encoding="utf-8")
+    print(f"  {label}: " + ("written" if current is None else "emptied, as in App Store Connect" if not value
+                            else f"updated ({len(current)} -> {len(value)} characters)"))
+    return True
+
+
+def pull(app: str) -> int:
+    """Copies App Store Connect's text into the files, so a push doesn't undo an edit made on the website. It reads the
+    editable version, or the live one when there isn't one (but not the live one's What's New and App Review notes,
+    which were for that version), and the in-app purchases. It writes nothing to App Store Connect."""
+    load_credentials()
+    app_id = os.environ.get(APPS[app]["app_id_env"])
+    if not app_id:
+        raise SystemExit(f"missing {APPS[app]['app_id_env']} (the app's numeric Apple ID) in the 1Password Environment")
+    client = Client()
+    every = client.get(f"/v1/apps/{app_id}/appStoreVersions?limit=50")
+    version = next((v for v in every if v["attributes"].get("appStoreState") in EDITABLE_STATES), None)
+    live = version is None
+    if live:
+        version = next((v for v in every if v["attributes"].get("appStoreState") == "READY_FOR_SALE"), None)
+    if version is None:
+        raise SystemExit("no editable or live version to pull from")
+    infos = client.get(f"/v1/apps/{app_id}/appInfos")
+    info = next((i for i in infos if i["attributes"].get("appStoreState") in EDITABLE_STATES
+                 or i["attributes"].get("state") in EDITABLE_STATES), None) or next(
+        (i for i in infos if i["attributes"].get("appStoreState") == "READY_FOR_SALE"), None)
+    print(f"{app}: version {version['attributes'].get('versionString')} ({version['attributes'].get('appStoreState')})")
+    text: dict[str, dict[str, str | None]] = {}
+    places = [("version", f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations?limit=200")]
+    if info:
+        places.append(("info", f"/v1/appInfos/{info['id']}/appInfoLocalizations?limit=200"))
+    for place, path in places:
+        for loc in client.get(path):
+            fields = text.setdefault(loc["attributes"]["locale"], {})
+            for name, (where, attribute, _) in FIELDS.items():
+                if where == place and not (live and name == "release_notes"):
+                    fields[name] = loc["attributes"].get(attribute)
+    changes = 0
+    for locale, fields in sorted(text.items()):
+        print(f"[{locale}]")
+        for name, value in fields.items():
+            changes += save(HERE / app / "app" / locale / f"{name}.txt", value, name)
+    for folder, product_id in APPS[app]["iap"].items():
+        found = client.get(f"/v1/apps/{app_id}/inAppPurchasesV2?filter[productId]={product_id}&limit=1")
+        if not found:
+            print(f"iap {folder}: {product_id} isn't in App Store Connect yet, skipped")
+            continue
+        for loc in client.get(f"/v2/inAppPurchases/{found[0]['id']}/inAppPurchaseLocalizations?limit=50"):
+            locale = loc["attributes"]["locale"]
+            print(f"[iap {folder} {locale}]")
+            for name in IAP_LIMITS:
+                changes += save(HERE / app / "iap" / folder / locale / f"{name}.txt", loc["attributes"].get(name), name)
+    if not live:
+        print("[App Review]")
+        detail = client.get_one(f"/v1/appStoreVersions/{version['id']}/appStoreReviewDetail")
+        changes += save(HERE / app / f"{REVIEW_NOTES}.txt", (detail or {}).get("attributes", {}).get("notes"), "notes")
+    print(f"{changes} file{'' if changes == 1 else 's'} written.")
     return 0
 
 
@@ -445,7 +564,7 @@ def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path]
             raise SystemExit(f"{preview}: an app preview is a .mp4, .m4v or .mov")
         if poster and not re.fullmatch(r"\d\d:\d\d:\d\d:\d\d", poster):
             raise SystemExit(f"--poster {poster}: a timecode into the video, HH:MM:SS:FF (FF is the frame)")
-        for group in PREVIEW_GROUPS:
+        for group in APPS[app].get("preview_groups", PREVIEW_GROUPS):
             plan[(PREVIEW, group)] = [preview]
     for (kind, group), files in plan.items():
         if kind == SCREENSHOT and len(files) > 10:
@@ -689,9 +808,15 @@ def main() -> int:
     sub.add_parser("check", help="whether the credentials work, and each app's Apple ID; prints nothing secret")
     checks = sub.add_parser("validate", help="check every app's text against Apple's limits; no network")
     checks.add_argument("--app", choices=APPS)
+    fetch = sub.add_parser("pull", help="copy an app's text from App Store Connect into the files; writes nothing")
+    fetch.add_argument("--app", choices=APPS, required=True)
+    make = sub.add_parser("version", help="create the app's next version (it starts with the live one's text)")
+    make.add_argument("--app", choices=APPS, required=True)
+    make.add_argument("version_string", help="e.g. 1.1.0, the target's MARKETING_VERSION")
+    make.add_argument("--dry-run", action="store_true", help="show what would be created; write nothing")
     send = sub.add_parser("push", help="push an app's text to its editable version")
     send.add_argument("--app", choices=APPS, required=True)
-    send.add_argument("--only", help="comma-separated fields to push (file names, or iap)")
+    send.add_argument("--only", help="comma-separated fields to push (file names, iap, or review_notes)")
     send.add_argument("--dry-run", action="store_true", help="show what would change; write nothing")
     images = sub.add_parser("media", help="replace the editable version's screenshots and creative assets")
     images.add_argument("--app", choices=APPS, required=True)
@@ -701,7 +826,7 @@ def main() -> int:
     images.add_argument("--creative", type=Path, help="a 5244x2950 PNG for the product page header and search results")
     images.add_argument("--header", type=Path, help="a 5244x2950 PNG for the product page header only")
     images.add_argument("--search", type=Path, help="a 5244x2950 PNG for the search results asset only")
-    images.add_argument("--preview", type=Path, help="the app preview video (1920x886), for the 6.9\" and 6.3\" iPhones")
+    images.add_argument("--preview", type=Path, help="the app preview video (1920x886), for the app's iPhone sizes")
     images.add_argument("--poster", help="the preview's poster frame, the still shown before it plays (HH:MM:SS:FF)")
     images.add_argument("--dry-run", action="store_true", help="show what would change; write nothing")
     buy = sub.add_parser("purchase", help="create the app's in-app purchases and fill in what they're missing")
@@ -732,9 +857,17 @@ def main() -> int:
             return 2
     if args.command == "validate":
         return validate([args.app] if args.app else [a for a in APPS if (HERE / a).exists()])
+    if args.command in ("pull", "version"):
+        try:
+            if args.command == "pull":
+                return pull(args.app)
+            return new_version(args.app, args.version_string, args.dry_run)
+        except RuntimeError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
     only = set(args.only.split(",")) if args.only else None
-    if only and only - set(FIELDS) - {"iap"}:
-        raise SystemExit(f"unknown fields: {', '.join(sorted(only - set(FIELDS) - {'iap'}))}")
+    if only and (unknown := only - set(FIELDS) - {"iap", REVIEW_NOTES}):
+        raise SystemExit(f"unknown fields: {', '.join(sorted(unknown))}")
     try:
         return push(args.app, only, args.dry_run)
     except RuntimeError as error:
