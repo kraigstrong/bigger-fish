@@ -66,4 +66,42 @@ struct ReefScreenTests {
             #expect(abs(point.x - expected.x) < 0.01 && abs(point.y - expected.y) < 0.01)
         }
     }
+
+    // MARK: Corners
+
+    /// A closed iPhone Duo in landscape, in points, and its camera, in the top-left corner (as iOS 27.1 reports it).
+    private let duoClosed = CGSize(width: 678, height: 466)
+    private var duoCamera: CGRect { CGRect(x: 29, y: duoClosed.height - 66, width: 37, height: 37) }
+
+    /// Nothing covers a corner of a phone or an iPad: their corners' controls stay where they've always been.
+    @Test func cornersAreUnchangedWithNothingCovered() {
+        for screen in phones + iPads + [duoClosed] {
+            #expect(ReefCorners(size: screen, occlusions: []) == ReefCorners())
+        }
+    }
+
+    /// A Dynamic Island sits at the middle of the edge in landscape, below the corners' controls.
+    @Test func anIslandAtTheMiddleOfTheEdgeMovesNothing() {
+        let phone = CGSize(width: 874, height: 402)
+        for x in [0, phone.width - 37] {
+            let island = CGRect(x: x, y: phone.height / 2 - 63, width: 37, height: 126)
+            #expect(ReefCorners(size: phone, occlusions: [island]) == ReefCorners())
+        }
+    }
+
+    /// The closed iPhone Duo's camera, in a top corner: that side's controls move clear of it, with room to spare, and the
+    /// other side's stay put. Turned around, the camera is in a bottom corner, clear of them all.
+    @Test func aCameraInATopCornerMovesThatSidesControlsClear() {
+        let corners = ReefCorners(size: duoClosed, occlusions: [duoCamera])
+        #expect(ReefCorners.phoneLeft + corners.left >= duoCamera.maxX + ReefCorners.gap)
+        #expect(corners.right == 0)
+
+        let topRight = duoCamera.offsetBy(dx: duoClosed.width - duoCamera.maxX - duoCamera.minX, dy: 0)
+        let mirrored = ReefCorners(size: duoClosed, occlusions: [topRight])
+        #expect(duoClosed.width - ReefCorners.phoneRight - mirrored.right <= topRight.minX - ReefCorners.gap)
+        #expect(mirrored.left == 0)
+
+        let turned = CGRect(x: duoClosed.width - duoCamera.maxX, y: duoCamera.minX, width: 37, height: 37)
+        #expect(ReefCorners(size: duoClosed, occlusions: [turned]) == ReefCorners())
+    }
 }
