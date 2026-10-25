@@ -68,6 +68,10 @@ enum GameTuning {
     /// sideways (`ArcadeWorldMap.stops`).
     static let worldMapTightestSpacing: CGFloat = 116
     static let worldMapSpacing: CGFloat = 130
+    /// The world map's two rows of worlds, as shares of its height up from the bottom: a little lower and closer
+    /// together than Math Reef's (0.60 and 0.38), so on the shortest phones your fish over a top-row world stays
+    /// clear of the title and buttons, and the bottom row's names clear "Choose a world".
+    static let worldMapRows: (upper: CGFloat, lower: CGFloat) = (0.56, 0.36)
 
     // MARK: Haptics (`GameScene.buzz`)
 

@@ -50,7 +50,7 @@ struct ArcadeWorldMap: View {
                     ZStack(alignment: .topLeading) {
                         // Your fish swims just above the world you're on, clear of its Deep End ring.
                         MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
-                                    fishHome: CGPoint(x: centers[focus].x, y: centers[focus].y + 72), look: progress.look)
+                                    fishHome: CGPoint(x: centers[focus].x, y: centers[focus].y + Self.fishLift), look: progress.look)
                             .frame(width: width, height: size.height)
                         ForEach(worlds.indices, id: \.self) { index in
                             let world = worlds[index]
@@ -102,16 +102,26 @@ struct ArcadeWorldMap: View {
         .background(OceanBackdrop(bloom: false))
     }
 
+    /// How far above the world you're on your fish swims.
+    static let fishLift: CGFloat = 72
+
     /// Where the world map's stops go on a screen `size` big, and how wide the map is: spread across the screen as
     /// they always were when that leaves them at least `GameTuning.worldMapTightestSpacing` apart, and otherwise
     /// `GameTuning.worldMapSpacing` apart, with the same margins at the ends, on a map wider than the screen that
-    /// scrolls.
+    /// scrolls. Either way, in two rows at `GameTuning.worldMapRows`.
     static func stops(count: Int, in size: CGSize) -> (centers: [CGPoint], width: CGFloat) {
+        // Math Reef's zig-zag, but on Bigger Fish's own rows (`GameTuning.worldMapRows`).
+        func rows(_ centers: [CGPoint]) -> [CGPoint] {
+            centers.enumerated().map { index, center in
+                let row = index.isMultiple(of: 2) ? GameTuning.worldMapRows.upper : GameTuning.worldMapRows.lower
+                return CGPoint(x: center.x, y: size.height * row)
+            }
+        }
         let spread = OceanMapLayout.worldCenters(count: count, size: size)
-        guard spread.count > 1, spread[1].x - spread[0].x < GameTuning.worldMapTightestSpacing else { return (spread, size.width) }
+        guard spread.count > 1, spread[1].x - spread[0].x < GameTuning.worldMapTightestSpacing else { return (rows(spread), size.width) }
         let margins = spread[0].x + size.width - spread[spread.count - 1].x
         let width = margins + GameTuning.worldMapSpacing * CGFloat(count - 1)
-        return (OceanMapLayout.worldCenters(count: count, size: CGSize(width: width, height: size.height)), width)
+        return (rows(OceanMapLayout.worldCenters(count: count, size: CGSize(width: width, height: size.height))), width)
     }
 
     /// How far across a map `width` wide to open it (`defaultScrollAnchor`'s x) so the point `x` is in the middle of a

@@ -8,11 +8,19 @@ import Testing
 struct WorldMapTests {
     /// The room the world map has: every iPhone's in landscape (`ScreenFitTests.phones`), the closed iPhone Duo's past
     /// its camera strip, and an iPad's, which lays the map out at the biggest phone's size (`ScreenScaled`).
-    static let screens = ScreenFitTests.phones + [CGSize(width: 594, height: 432)]
+    static let phones = ScreenFitTests.phones + [CGSize(width: 594, height: 432)]
+    static let screens = phones
         + ScreenFitTests.iPads.map { CGSize(width: $0.width / ScreenFit.menuScale(for: $0), height: $0.height / ScreenFit.menuScale(for: $0)) }
 
+    /// A stop's height on the map: the top row for the first world and every other one after it, the bottom row for
+    /// the rest.
+    private static func row(_ index: Int, in size: CGSize) -> CGFloat {
+        size.height * (index.isMultiple(of: 2) ? GameTuning.worldMapRows.upper : GameTuning.worldMapRows.lower)
+    }
+
     /// However many worlds there are, on every screen: spread across it at least `worldMapTightestSpacing` apart, or
-    /// `worldMapSpacing` apart on a map that scrolls, along the same zig-zag and with the same margins at its ends.
+    /// `worldMapSpacing` apart on a map that scrolls, zig-zagging between the two rows, with the same margins at the
+    /// map's ends.
     @Test func worldsStayApartOnEveryScreen() {
         for size in Self.screens {
             for count in 1...12 {
@@ -24,7 +32,7 @@ struct WorldMapTests {
                 if stops.width > size.width {
                     #expect(gaps.allSatisfy { abs($0 - GameTuning.worldMapSpacing) < 1e-9 }, "\(size), \(count) worlds")
                 }
-                #expect(zip(stops.centers, spread).allSatisfy { $0.y == $1.y }, "\(size), \(count) worlds")
+                #expect(stops.centers.indices.allSatisfy { stops.centers[$0].y == Self.row($0, in: size) }, "\(size), \(count) worlds")
                 guard count > 1 else { continue }
                 #expect(abs(stops.centers[0].x - spread[0].x) < 1e-9, "\(size), \(count) worlds")
                 #expect(abs((stops.width - stops.centers[count - 1].x) - (size.width - spread[count - 1].x)) < 1e-9,
@@ -33,8 +41,9 @@ struct WorldMapTests {
         }
     }
 
-    /// Where the worlds fit, the map is as it always was: the campaign's five on every iPhone but the smallest, and on
-    /// an iPad with the prototypes too. On an iPhone SE's screen and the closed iPhone Duo's, it scrolls.
+    /// Where the worlds fit, they're spread across the screen as they always were: the campaign's five on every
+    /// iPhone but the smallest, and on an iPad with the prototypes too. On an iPhone SE's screen and the closed iPhone
+    /// Duo's, the map scrolls.
     @Test func theMapScrollsOnlyWhereTheWorldsDontFit() {
         let campaign = ArcadeWorld.campaign.count, all = ArcadeWorld.mapWorlds(includingPrototypes: true).count
         // An iPhone 16, 17 Pro, Air and Pro Max past their Dynamic Islands, and an iPad.
@@ -43,12 +52,30 @@ struct WorldMapTests {
             + [(ScreenFit.largestPhone, campaign), (ScreenFit.largestPhone, all)]
         for (size, count) in fits {
             let stops = ArcadeWorldMap.stops(count: count, in: size)
-            #expect(stops.width == size.width && stops.centers == OceanMapLayout.worldCenters(count: count, size: size),
+            #expect(stops.width == size.width
+                    && stops.centers.map(\.x) == OceanMapLayout.worldCenters(count: count, size: size).map(\.x),
                     "\(size), \(count) worlds")
         }
         // An iPhone SE (and an iPhone Duo running a build from before Xcode 27), and the closed iPhone Duo.
         for size in [CGSize(width: 667, height: 375), CGSize(width: 594, height: 432)] {
             #expect(ArcadeWorldMap.stops(count: campaign, in: size).width > size.width, "\(size)")
+        }
+    }
+
+    /// On every phone, the shortest (an iPhone 17e's 369) included: your fish over a top-row world stays below the
+    /// title and buttons, and the bottom row's names stay above "Choose a world". (Math Reef's rows put the fish
+    /// against the Open Water and Unlock buttons and the title.)
+    @Test func theFishAndTheNamesClearTheMenus() {
+        // The buttons are 44 tall, 14 from the top. The fish (radius 18) reaches about 20 above where it swims and
+        // bobs 4 more. A world's name and what's left to conquer end 92 below its center, and "Choose a world" is
+        // 13-point type 12 from the bottom. Each keeps a few points' gap.
+        let buttonsBottom: CGFloat = 14 + 44, fishTop: CGFloat = 20 + 4, namesBottom: CGFloat = 92, footer: CGFloat = 12 + 18
+        let gap: CGFloat = 4
+        for size in Self.phones {
+            let stops = ArcadeWorldMap.stops(count: ArcadeWorld.mapWorlds(includingPrototypes: true).count, in: size)
+            let top = size.height - stops.centers[0].y, bottom = size.height - stops.centers[1].y
+            #expect(top - ArcadeWorldMap.fishLift - fishTop >= buttonsBottom + gap, "\(size)")
+            #expect(bottom + namesBottom <= size.height - footer - gap, "\(size)")
         }
     }
 
