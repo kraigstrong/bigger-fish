@@ -227,4 +227,43 @@ struct OpenWaterTests {
         #expect(scene.debugOpenWaterIndex == 0 && scene.debugOpenWaterSeed == 6)
         #expect(scene.arcadeWorld == GameTuning.openWaterWorlds[0])
     }
+
+    /// The game plans each level off the main thread as the one before starts, never as it reaches it: that froze the
+    /// game for seconds on a phone. Eat a level's last gate before the next is planned and the level plays on, with
+    /// nothing able to catch you, until it is.
+    @Test func aLevelDoneEarlyPlaysOnUntilTheNextIsPlanned() async throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 1)
+        scene.debugPlansOpenWaterAhead = true
+        // Played straight through, the next level's plan can't arrive: it comes back on the main thread.
+        let played = scene.debugPlayOpenWater(untilLevel: 1, limit: 12)
+        #expect(played.index == 0 && !played.lost, "\(played.reason)")
+        #expect(scene.debugOpenWaterLevelDone && !scene.debugOpenWaterHasPlan(1))
+        #expect(scene.debugPutBiggerFishOnYou())
+        scene.debugAdvance(seconds: 0.5)
+        #expect(scene.debugPhase == .playing && scene.debugOpenWaterIndex == 0)
+        for _ in 0..<1500 where scene.debugOpenWaterIndex == 0 {
+            try await Task.sleep(for: .milliseconds(20))
+            scene.debugAdvance(seconds: GameTuning.simulationStep)
+        }
+        #expect(scene.debugOpenWaterIndex == 1 && scene.arcadeWorld == GameTuning.openWaterWorlds[1])
+        #expect(!scene.debugOpenWaterLevelDone)
+    }
+
+    /// Retry waits for the new run's first level, planned off the main thread as the last run ended, rather than plan
+    /// it on the main thread. Its second level, a Jelly Bloom one and the slowest to plan, was planned alongside.
+    @Test func retryWaitsForTheNextRunsFirstLevel() async throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 5)
+        scene.debugPlansOpenWaterAhead = true
+        _ = scene.debugPlayOpenWater(untilLevel: 1, limit: 3, safeFromFish: true)
+        scene.debugLose()
+        scene.debugTapResult(.tryAgain)
+        #expect(scene.debugOpenWaterSeed == 5 && scene.debugResultTitles == ["Retry", "Shop", "Levels"])
+        for _ in 0..<1500 where scene.debugOpenWaterSeed == 5 { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(scene.debugOpenWaterSeed == 6 && scene.debugOpenWaterIndex == 0)
+        #expect(scene.arcadeWorld == GameTuning.openWaterWorlds[0])
+        for _ in 0..<1500 where !scene.debugOpenWaterHasPlan(1) { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(scene.debugOpenWaterHasPlan(1))
+    }
 }

@@ -93,8 +93,19 @@ final class GameScene: SKScene {
     /// The Open Water's endless run (`OpenWater`), when that's what's playing: stage after stage, each a planned level
     /// of its own, until you're eaten. Nothing in it is saved or reported.
     private var openWater: OpenWaterRun?
-    /// The next run's first level, planned while a run's result shows so Retry starts at once.
-    private var nextOpenWaterRun: (seed: UInt64, plan: MeetingPlan)?
+    /// The next run, its first levels planned while this run's result shows so Retry starts at once.
+    private var nextOpenWaterRun: OpenWaterRun?
+    /// Levels being planned off the main thread (`planOpenWaterLevelAhead`), each by its run's seed and its index.
+    private var openWaterPlanning: Set<OpenWaterPlanKey> = []
+    private struct OpenWaterPlanKey: Hashable {
+        let seed: UInt64
+        let index: Int
+    }
+    /// Retry was tapped (on the result card, or Restart on the pause menu) before the next run's first level was
+    /// planned: it goes ahead once it is, if the game's still on that card or menu.
+    private var openWaterRetryWaits: Phase?
+    /// The game's way of planning, for a test of a headless study (`plansOpenWaterAhead`).
+    var debugPlansOpenWaterAhead = false
     /// The level's last gate, which ends it once you eat it; other fish can't eat it, nor it them.
     private var openWaterFinale: Int?
     /// "Stage 2" as a new time round starts, and the fish and pearl counts at the top of the screen.
@@ -606,7 +617,7 @@ final class GameScene: SKScene {
         openWater?.finished = false
         openWaterFinale = openWater == nil ? nil : level.meetingPlan.flatMap(OpenWater.finale)
         spawnOpenWaterPearls()
-        if let run = openWater { prefetchOpenWaterLevel(run.index + 1) }
+        if let run = openWater { planOpenWaterLevelAhead(seed: run.seed, index: run.index + 1) }
         #endif
 
         world = WrappedWorld(width: size.width * level.worldScreens)
@@ -890,10 +901,20 @@ final class GameScene: SKScene {
     /// The same level again (Retry, Play again, or Restart, by touch or VoiceOver): no card first, just the prompt. In
     /// the Open Water, a new run from its first stage.
     private func replayLevel() {
-        replaying = true
         #if DEBUG
-        if openWater != nil { startNextOpenWaterRun() }
+        if let run = openWater {
+            // The new run's first level was planned off the main thread as this one ended. If it isn't ready yet (a
+            // moment at most), Retry waits for it rather than freeze the game while it's planned here.
+            let next = run.seed &+ 1
+            if plansOpenWaterAhead && !hasOpenWaterPlan(seed: next, index: 0) {
+                openWaterRetryWaits = phase
+                planOpenWaterLevelAhead(seed: next, index: 0)
+                return
+            }
+            startNextOpenWaterRun()
+        }
         #endif
+        replaying = true
         resetGame(startPlaying: false)
     }
 
@@ -984,7 +1005,7 @@ final class GameScene: SKScene {
         // A delayed result (a sting) sounds the loss when the result appears, after the zap.
         if resultDelay == 0 { playSound(.lose) }
         #if DEBUG
-        prefetchNextOpenWaterRun()
+        planNextOpenWaterRunAhead()
         #endif
         setPhase(.lost)
         endedAt = realClock
@@ -2191,7 +2212,8 @@ final class GameScene: SKScene {
     private func updateHooks() {
         guard !hookRigs.isEmpty, reel == nil, player.isAlive else { return }
         #if DEBUG
-        if simulationEcologyProbe { return }
+        // Nor can one catch you once you've done an Open Water level.
+        if simulationEcologyProbe || openWaterLevelDone { return }
         #endif
         for (index, rig) in hookRigs.enumerated() where isComingUp(rig, time: simClock) {
             let at = hookPosition(rig, time: simClock)
@@ -2416,6 +2438,10 @@ final class GameScene: SKScene {
                         playSound(.bounce)
                     }
                 case .tentacles:
+                    #if DEBUG
+                    // An Open Water level you've done can't catch you.
+                    if f.isPlayer && openWaterLevelDone { continue }
+                    #endif
                     if f.isPlayer { jelly.node.sting(); removeByTentacles(f); return }
                     // NPCs steer around stingers; contact never removes ecosystem food.
                     if let avoidance = bloomAvoidance(for: f, velocity: f.velocity) {
@@ -2573,8 +2599,8 @@ final class GameScene: SKScene {
 
                 let encounter = GameRules.encounter(a.radius, b.radius, firstIsPlayer: a.isPlayer, secondIsPlayer: b.isPlayer)
                 #if DEBUG
-                // A bot safe from fish passes through a bigger one.
-                if simulationSafeFromFish && (encounter == .firstEatsSecond && b.isPlayer || encounter == .secondEatsFirst && a.isPlayer
+                // A bot safe from fish passes through a bigger one, as you do once you've done an Open Water level.
+                if (simulationSafeFromFish || openWaterLevelDone) && (encounter == .firstEatsSecond && b.isPlayer || encounter == .secondEatsFirst && a.isPlayer
                                               || encounter == .tooClose && (a.isPlayer || b.isPlayer)) { continue }
                 #endif
                 switch encounter {
@@ -4031,13 +4057,23 @@ extension GameScene {
     var debugOpenWaterLeg: OpenWater.Leg? { openWater?.leg }
     var debugOpenWaterIndex: Int? { openWater?.index }
     var debugOpenWaterSeed: UInt64? { openWater?.seed }
+    var debugOpenWaterLevelDone: Bool { openWaterLevelDone }
+    func debugOpenWaterHasPlan(_ index: Int) -> Bool { openWater?.hasPlan(index) == true }
+    /// Makes a fish half again your size and puts it right on you, for a test of what can catch you.
+    func debugPutBiggerFishOnYou() -> Bool {
+        guard let other = fish.first(where: { !$0.isPlayer && $0.state == .swimming && !encounterProtected($0.id) })
+        else { return false }
+        other.radius = player.radius * 1.5
+        other.targetRadius = other.radius
+        other.position = player.position
+        return true
+    }
 
-    /// A new run, the next seed on, from its first level (planned while the last run's result showed, if it's ready).
+    /// A new run, the next seed on, from its first level (planned while the last run's result showed).
     fileprivate func startNextOpenWaterRun() {
         guard let run = openWater else { return }
         let seed = run.seed &+ 1
-        var next = OpenWaterRun(seed: seed)
-        if let ready = nextOpenWaterRun, ready.seed == seed { next.store(ready.plan, index: 0) }
+        var next = nextOpenWaterRun?.seed == seed ? nextOpenWaterRun! : OpenWaterRun(seed: seed)
         nextOpenWaterRun = nil
         plannerLevel = next.plan(0).level
         openWater = next
@@ -4059,10 +4095,22 @@ extension GameScene {
     fileprivate func advanceOpenWater() {
         guard phase == .playing, let run = openWater else { return }
         takeTouchedOpenWaterPearls()
-        // A level with no gate (none should be) ends once you come round to its start.
-        let done = openWaterFinale == nil ? forwardDistance >= world.width : run.finished
         let swallowing = swallows.contains { $0.predatorID == player.id || $0.preyID == player.id }
-        if done && player.state == .swimming && !swallowing { finishOpenWaterLevel() }
+        guard openWaterLevelDone && player.state == .swimming && !swallowing else { return }
+        // The next level is planned off the main thread as this one starts. If it isn't ready yet, this one plays on
+        // until it is, rather than freeze the game while it's planned here: seconds, for a Jelly Bloom level on a phone.
+        if plansOpenWaterAhead && !run.hasPlan(run.index + 1) {
+            planOpenWaterLevelAhead(seed: run.seed, index: run.index + 1)
+            return
+        }
+        finishOpenWaterLevel()
+    }
+
+    /// You've done this level: swallowed its last gate, or come round to its start in one with no gate (none should
+    /// be). It ends as soon as the next is planned (`advanceOpenWater`), and till then nothing can catch you.
+    private var openWaterLevelDone: Bool {
+        guard let run = openWater else { return false }
+        return openWaterFinale == nil ? forwardDistance >= world.width : run.finished
     }
 
     /// You ate the level's last gate: the level-clear chime and buzz, and straight on into the next world, with no
@@ -4172,7 +4220,7 @@ extension GameScene {
         recordRunEvent("open_water_level", fields: ["index": run.index, "stage": run.leg.stage, "world": run.leg.world.rawValue,
             "level": run.leg.level, "seed": String(run.seed), "spec": plan.spec.name, "variation": plan.variation,
             "fish": plan.fish.count])
-        prefetchOpenWaterLevel(run.index + 1)
+        planOpenWaterLevelAhead(seed: run.seed, index: run.index + 1)
     }
 
     private func showOpenWaterBanner(_ text: String) {
@@ -4352,27 +4400,48 @@ extension GameScene {
         return SKTexture(image: UIGraphicsImageRenderer(size: symbol.size).image { _ in symbol.draw(at: .zero) })
     }()
 
-    /// Plans a level of this run off the main thread, ahead of reaching it: planning one takes a moment.
-    fileprivate func prefetchOpenWaterLevel(_ index: Int) {
-        guard let run = openWater, !run.hasPlan(index), !simulationHeadless else { return }
-        let seed = run.seed
+    /// Whether levels are planned ahead, off the main thread, as the game plans them: never as it reaches them, which
+    /// would freeze it (seconds, for a Jelly Bloom level on a phone). The headless studies plan each level as they reach
+    /// it instead, so they play the same however fast they run.
+    private var plansOpenWaterAhead: Bool { !simulationHeadless || debugPlansOpenWaterAhead }
+
+    /// Plans a level off the main thread, ahead of reaching it, unless it's planned or being planned already: one of
+    /// this run's, or of the next run's while this one's result shows.
+    fileprivate func planOpenWaterLevelAhead(seed: UInt64, index: Int) {
+        guard plansOpenWaterAhead, !hasOpenWaterPlan(seed: seed, index: index) else { return }
+        let key = OpenWaterPlanKey(seed: seed, index: index)
+        guard openWaterPlanning.insert(key).inserted else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             let plan = OpenWater.plan(index, seed: seed)
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.openWater?.seed == seed else { return }
-                self.openWater?.store(plan, index: index)
-            }
+            DispatchQueue.main.async { [weak self] in self?.receiveOpenWaterPlan(plan, for: key) }
         }
     }
 
-    /// Plans the next run's first level while this run's result shows.
-    fileprivate func prefetchNextOpenWaterRun() {
-        guard let run = openWater, !simulationHeadless else { return }
-        let seed = run.seed &+ 1
-        DispatchQueue.global(qos: .userInitiated).async {
-            let plan = OpenWater.plan(0, seed: seed)
-            DispatchQueue.main.async { [weak self] in self?.nextOpenWaterRun = (seed, plan) }
+    /// The next run's first two levels, planned while this run's result shows: Retry waits on the first, and the
+    /// second (a Jelly Bloom level, the slowest to plan) comes up soon after.
+    fileprivate func planNextOpenWaterRunAhead() {
+        guard let run = openWater else { return }
+        for index in 0...1 { planOpenWaterLevelAhead(seed: run.seed &+ 1, index: index) }
+    }
+
+    private func hasOpenWaterPlan(seed: UInt64, index: Int) -> Bool {
+        [openWater, nextOpenWaterRun].contains { $0?.seed == seed && $0?.hasPlan(index) == true }
+    }
+
+    /// A level planned off the main thread: kept for this run or the next (any other run's is too late), and a Retry
+    /// waiting on the next run's first level goes ahead.
+    private func receiveOpenWaterPlan(_ plan: MeetingPlan, for key: OpenWaterPlanKey) {
+        openWaterPlanning.remove(key)
+        guard let run = openWater else { return }
+        if key.seed == run.seed {
+            openWater?.store(plan, index: key.index)
+        } else if key.seed == run.seed &+ 1 {
+            if nextOpenWaterRun?.seed != key.seed { nextOpenWaterRun = OpenWaterRun(seed: key.seed) }
+            nextOpenWaterRun?.store(plan, index: key.index)
         }
+        guard let waiting = openWaterRetryWaits, hasOpenWaterPlan(seed: run.seed &+ 1, index: 0) else { return }
+        openWaterRetryWaits = nil
+        if phase == waiting { replayLevel() }
     }
 
     /// One level's start, as the tests check it.
