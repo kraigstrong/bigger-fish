@@ -132,11 +132,13 @@ final class GameScene: SKScene {
             configureResultAccessibility(resultPanel)
         }
     }
-    /// The player's best run, in fish eaten (the app's), and each run's end with its fish, for the app to keep a new best.
+    /// The player's best run, in fish eaten (the app's), and each run's end with its fish and the furthest level it reached
+    /// (from 0), for the app to keep a new best: it answers with the looks the run earned (`PearlItem.earnedBy`).
     var openWaterBest = 0
-    var onOpenWaterRun: ((Int) -> Void)?
-    /// The run just ended beat the best: its card says so.
+    var onOpenWaterRun: ((_ fish: Int, _ furthest: Int) -> [PearlItem])?
+    /// The run just ended beat the best, and the looks it earned: its card says so.
     private var openWaterNewBest = false
+    private var openWaterEarned: [PearlItem] = []
     #endif
     private var isOpenWater: Bool {
         #if DEBUG
@@ -145,10 +147,14 @@ final class GameScene: SKScene {
         return false
         #endif
     }
-    /// The Open Water's result card: "New best!" over a run that beat the best, and the best under how far it got.
+    /// The Open Water's result card: what the run earned or "New best!" over it, and the best under how far it got.
     private var openWaterResultHeading: String? {
         #if DEBUG
-        return openWater != nil && openWaterNewBest ? "New best!" : nil
+        guard openWater != nil else { return nil }
+        if let earned = openWaterEarned.first {
+            return openWaterEarned.count == 1 ? "You earned the \(earned.name)!" : "You earned \(openWaterEarned.count) new looks!"
+        }
+        return openWaterNewBest ? "New best!" : nil
         #else
         return nil
         #endif
@@ -1043,11 +1049,11 @@ final class GameScene: SKScene {
         // A delayed result (a sting) sounds the loss when the result appears, after the zap.
         if resultDelay == 0 { playSound(.lose) }
         #if DEBUG
-        if openWater != nil {
+        if let run = openWater {
             // The run's score is the fish it ate.
             openWaterNewBest = mealsEaten > openWaterBest
             openWaterBest = max(openWaterBest, mealsEaten)
-            onOpenWaterRun?(mealsEaten)
+            openWaterEarned = onOpenWaterRun?(mealsEaten, run.index) ?? []
         }
         planNextOpenWaterRunAhead()
         #endif
@@ -3804,6 +3810,7 @@ final class GameScene: SKScene {
     var debugCardTexts: [String] { messageNode.children.compactMap { ($0 as? SKLabelNode)?.text } }
     var debugResultTitles: [String] { resultPanel?.controls.map { $0.action.title } ?? [] }
     var debugResultHeading: String? { resultPanel?.headingText }
+    var debugOpenWaterEarned: [PearlItem] { openWaterEarned }
     var debugResultNote: String? { resultPanel?.noteText }
     var debugResultShopPearls: Int? { resultPanel?.shopPearls }
     func debugTapResult(_ action: ArcadeResultAction?) {

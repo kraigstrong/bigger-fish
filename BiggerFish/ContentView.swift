@@ -340,7 +340,7 @@ struct ContentView: View {
             game.onShop = { withAnimation { showsShop = true } }
             game.pearlsToSpend = progress.pearls
             game.openWaterBest = progress.openWaterBest
-            game.onOpenWaterRun = { progress.recordOpenWaterRun(fish: $0) }
+            game.onOpenWaterRun = { progress.recordOpenWaterRun(fish: $0, furthest: $1) }
             game.onExit = { scene = nil }
             show(game)
         }

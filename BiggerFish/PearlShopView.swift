@@ -78,11 +78,14 @@ struct PearlShopView: View {
         }
     }
 
-    /// Buying what's tried on (a limited edition only in its season), or a word on what to do.
+    /// Buying what's tried on (a limited edition only in its season), what earns it (one that's never sold), or a word on
+    /// what to do.
     @ViewBuilder private var action: some View {
-        if let item = trying, let season = item.season, !item.onSale() {
-            Text("\(season.name) only: \(season.dates)")
+        if let item = trying, !item.onSale(),
+           let why = item.earnedBy?.description ?? item.season.map({ "\($0.name) only: \($0.dates)" }) {
+            Text(why)
                 .font(.custom("AvenirNext-Heavy", size: 15)).foregroundStyle(.white.opacity(0.7))
+                .multilineTextAlignment(.center).padding(.horizontal, 12)
                 .frame(maxWidth: .infinity).frame(height: 48)
                 .background(Capsule().fill(Color.white.opacity(0.1)))
         } else if let item = trying {
@@ -145,7 +148,7 @@ struct PearlShopView: View {
         let owned = item.map(progress.owns) ?? true
         let worn = progress.look[kind]?.id == item?.id
         let tried = item != nil && trying == item
-        // A limited edition out of its season: shown, dimmed, to try on but not to buy.
+        // A limited edition out of its season, or a look not yet earned: shown, dimmed, to try on but not to buy.
         let locked = !owned && item?.onSale() == false
         return Button {
             guard let item else {
@@ -169,6 +172,8 @@ struct PearlShopView: View {
                         Label("On", systemImage: "checkmark")
                     } else if owned {
                         Text("Yours")
+                    } else if locked, let goal = item?.earnedBy {
+                        Text(goal.short)
                     } else if locked, let season = item?.season {
                         Text("\(season.name) only")
                     } else if let item {
@@ -183,9 +188,9 @@ struct PearlShopView: View {
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(
                 worn ? DeepEndColors.gold : tried ? .white : .white.opacity(0.15), lineWidth: worn || tried ? 2.5 : 1))
             .overlay(alignment: .topTrailing) {
-                // A limited edition's mark: Christmas's snowflake.
-                if let season = item?.season {
-                    Image(systemName: season.symbol).font(.system(size: 12, weight: .bold)).opacity(0.85).padding(8)
+                // A look that's earned has a trophy; a limited edition, its season's mark (Christmas's snowflake).
+                if let symbol = item?.earnedBy != nil ? "trophy.fill" : item?.season?.symbol {
+                    Image(systemName: symbol).font(.system(size: 12, weight: .bold)).opacity(0.85).padding(8)
                 }
             }
             .contentShape(Rectangle())
@@ -198,6 +203,7 @@ struct PearlShopView: View {
         let name = item?.name ?? "Plain"
         if worn { return "\(name), wearing" }
         if owned { return "\(name), yours, tap to wear" }
+        if locked, let goal = item?.earnedBy { return "\(name), earned: \(goal.description), tap to try on" }
         let limited = item?.season.map { ", \($0.name) only, \($0.dates)" } ?? ""
         if locked { return "\(name)\(limited), tap to try on" }
         return "\(name), \(item?.price ?? 0) pearls\(limited), tap to try on"

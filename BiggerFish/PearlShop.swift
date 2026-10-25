@@ -26,6 +26,8 @@ struct PearlItem: Identifiable, Equatable {
     let price: Int
     /// A limited edition's time of year, the only time it's on sale. Whoever bought one keeps it and wears it all year.
     let season: PearlSeason?
+    /// What earns it, for one that's never sold: whoever's done it has it.
+    let earnedBy: PearlGoal?
 
     init(_ id: String, _ kind: Kind, _ name: String, price: Int, season: PearlSeason? = nil) {
         self.id = id
@@ -33,12 +35,59 @@ struct PearlItem: Identifiable, Equatable {
         self.name = name
         self.price = price
         self.season = season
+        earnedBy = nil
+    }
+
+    init(_ id: String, _ kind: Kind, _ name: String, earnedBy goal: PearlGoal) {
+        self.id = id
+        self.kind = kind
+        self.name = name
+        price = 0
+        season = nil
+        earnedBy = goal
     }
 
     static func item(_ id: String) -> PearlItem? { GameTuning.pearlShop.first { $0.id == id } }
 
-    /// Whether it can be bought on `date`: always, unless it's a limited edition out of its season.
-    func onSale(_ date: Date = PearlSeason.today) -> Bool { season?.contains(date) ?? true }
+    /// Whether it can be bought on `date`: always, unless it's a limited edition out of its season, or it's earned.
+    func onSale(_ date: Date = PearlSeason.today) -> Bool { earnedBy == nil && season?.contains(date) ?? true }
+}
+
+/// What earns an item that's never sold (`PearlItem.earnedBy`): something done in an Open Water run, or a world's crown
+/// on the map (Kraig, 2026-10-25: "One silver for conquering a world. Gold for conquering a deep end. Diamond for
+/// conquering them all."). Each is judged from what's saved, so it counts from before the item existed.
+enum PearlGoal: Equatable {
+    /// Eat this many fish in one Open Water run.
+    case fishInOneRun(Int)
+    /// Reach this level of an Open Water run (counting from 0): 2 is Kelp Forest, 5 round all five worlds.
+    case openWaterLevel(Int)
+    /// A world's ten main levels, any world's Deep End, or every world's Deep End.
+    case conquerAWorld, conquerADeepEnd, conquerEveryDeepEnd
+
+    /// The shop tile's few words.
+    var short: String {
+        switch self {
+        case .fishInOneRun(let fish): "\(fish) fish"
+        case .openWaterLevel(let level): level < GameTuning.openWaterWorlds.count ? GameTuning.openWaterWorlds[level].title
+                                                                                    : "All worlds"
+        case .conquerAWorld: "Conquer a world"
+        case .conquerADeepEnd: "A Deep End"
+        case .conquerEveryDeepEnd: "Every Deep End"
+        }
+    }
+
+    /// What to do, in full.
+    var description: String {
+        switch self {
+        case .fishInOneRun(let fish): "Eat \(fish) fish in one Open Water run"
+        case .openWaterLevel(let level):
+            level < GameTuning.openWaterWorlds.count ? "Reach \(GameTuning.openWaterWorlds[level].title) in an Open Water run"
+                                                     : "Get round all five worlds in an Open Water run"
+        case .conquerAWorld: "Conquer a world: all ten of its levels"
+        case .conquerADeepEnd: "Conquer a world's Deep End"
+        case .conquerEveryDeepEnd: "Conquer every world's Deep End"
+        }
+    }
 }
 
 /// A time of year a limited edition is on sale, every year: from one day through another, the last day included, and
@@ -171,6 +220,7 @@ struct PlayerLook: Equatable {
 /// What a trail leaves behind you as you swim.
 enum PearlTrail: String {
     case bubbles = "trail.bubbles", sparkles = "trail.sparkles", rainbow = "trail.rainbow", cropDuster = "trail.cropduster"
+    case comet = "trail.comet"
 }
 
 /// The drawing of everything the shop sells, at FishKit's reference radius (30) facing right.
@@ -209,6 +259,7 @@ enum PearlShopArt {
         switch item.id {
         case "pattern.bands": clownBands()
         case "pattern.stars": stars()
+        case "pattern.champion": championGlow()
         default: nil
         }
     }
@@ -272,6 +323,27 @@ enum PearlShopArt {
         return node
     }
 
+    /// A gold star over your middle, in a warm glow that swells and fades.
+    private static func championGlow() -> SKNode {
+        let node = SKNode()
+        let glow = SKSpriteNode(texture: ArcadeArt.glow, size: CGSize(width: 1.5 * R, height: 1.25 * R))
+        glow.color = SKColor(red: 1, green: 0.78, blue: 0.25, alpha: 1)
+        glow.colorBlendFactor = 1
+        glow.blendMode = .add
+        glow.alpha = 0.7
+        glow.position = CGPoint(x: -0.1 * R, y: 0)
+        glow.run(.repeatForever(.sequence([.fadeAlpha(to: 0.35, duration: 0.8), .fadeAlpha(to: 0.75, duration: 0.8)])))
+        node.addChild(glow)
+        let star = SKShapeNode(path: starPath(points: 5, outer: 0.3 * R, inner: 0.13 * R))
+        star.position = glow.position
+        star.fillColor = SKColor(red: 1, green: 0.85, blue: 0.3, alpha: 1)
+        star.strokeColor = SKColor(red: 0.7, green: 0.45, blue: 0.05, alpha: 1)
+        star.lineWidth = 1.2
+        star.zPosition = 0.1
+        node.addChild(star)
+        return node
+    }
+
     static func starPath(points: Int, outer: CGFloat, inner: CGFloat) -> CGPath {
         let path = CGMutablePath()
         for i in 0..<(points * 2) {
@@ -297,7 +369,11 @@ enum PearlShopArt {
         case "hat.flower": hat = flower()
         case "hat.sailor": hat = sailorCap()
         case "hat.cone": hat = trafficCone()
-        case "hat.crown": hat = crown()
+        case "hat.crown": hat = crown(.gold)
+        case "hat.crown.silver": hat = crown(.silver)
+        case "hat.crown.diamond": hat = crown(.diamond)
+        case "hat.starfish": hat = starfish()
+        case "hat.sharkfin": hat = sharkFin()
         case "hat.baseball": hat = baseballCap()
         case "hat.tiara": hat = tiara()
         case "hat.santa": hat = santaHat()
@@ -405,9 +481,38 @@ enum PearlShopArt {
         return node
     }
 
-    private static func crown() -> SKNode {
+    /// A crown's metal, rim, and jewel: gold (the original), silver, or diamond, like the map's crowns and beyond.
+    private enum Crown {
+        case gold, silver, diamond
+
+        var metal: SKColor {
+            switch self {
+            case .gold: SKColor(red: 1, green: 0.8, blue: 0.2, alpha: 1)
+            case .silver: SKColor(red: 0.86, green: 0.88, blue: 0.93, alpha: 1)
+            case .diamond: SKColor(red: 0.78, green: 0.93, blue: 1, alpha: 1)
+            }
+        }
+
+        var rim: SKColor {
+            switch self {
+            case .gold: SKColor(red: 0.6, green: 0.4, blue: 0.05, alpha: 1)
+            case .silver: SKColor(red: 0.45, green: 0.48, blue: 0.56, alpha: 1)
+            case .diamond: SKColor(red: 0.3, green: 0.58, blue: 0.82, alpha: 1)
+            }
+        }
+
+        var jewel: SKColor {
+            switch self {
+            case .gold: SKColor(red: 0.9, green: 0.15, blue: 0.3, alpha: 1)
+            case .silver: SKColor(red: 0.2, green: 0.45, blue: 0.95, alpha: 1)
+            case .diamond: .white
+            }
+        }
+    }
+
+    private static func crown(_ kind: Crown) -> SKNode {
         let node = SKNode()
-        let gold = SKColor(red: 1, green: 0.8, blue: 0.2, alpha: 1)
+        let gold = kind.metal
         let path = CGMutablePath()
         path.move(to: CGPoint(x: -9, y: -2))
         path.addLine(to: CGPoint(x: -9, y: 10))
@@ -417,16 +522,65 @@ enum PearlShopArt {
         path.addLine(to: CGPoint(x: 9, y: 10))
         path.addLine(to: CGPoint(x: 9, y: -2))
         path.closeSubpath()
-        node.addChild(shape(path, fill: gold, stroke: SKColor(red: 0.6, green: 0.4, blue: 0.05, alpha: 1), line: 1.2, z: 0))
+        node.addChild(shape(path, fill: gold, stroke: kind.rim, line: 1.2, z: 0))
         for (index, tip) in [CGPoint(x: -9, y: 10), CGPoint(x: 0, y: 13), CGPoint(x: 9, y: 10)].enumerated() {
-            node.addChild(ball(1.5, at: tip, fill: gold, z: 0.1 + CGFloat(index) * 0.01))
+            node.addChild(ball(1.5, at: tip, fill: kind == .diamond ? .white : gold, z: 0.1 + CGFloat(index) * 0.01))
+        }
+        if kind == .diamond {
+            // A cut stone, its facets catching the light.
+            let stone = CGMutablePath()
+            stone.move(to: CGPoint(x: 0, y: 5.2))
+            stone.addLine(to: CGPoint(x: 2.6, y: 2.4))
+            stone.addLine(to: CGPoint(x: 0, y: -0.8))
+            stone.addLine(to: CGPoint(x: -2.6, y: 2.4))
+            stone.closeSubpath()
+            node.addChild(shape(stone, fill: .white, stroke: kind.rim, line: 1, z: 0.2))
+            return node
         }
         let jewel = SKShapeNode(circleOfRadius: 2)
         jewel.position = CGPoint(x: 0, y: 2)
-        jewel.fillColor = SKColor(red: 0.9, green: 0.15, blue: 0.3, alpha: 1)
+        jewel.fillColor = kind.jewel
         jewel.strokeColor = .clear
         jewel.zPosition = 0.2
         node.addChild(jewel)
+        return node
+    }
+
+    /// A starfish sitting on your head at a tilt, its arms dotted.
+    private static func starfish() -> SKNode {
+        let node = SKNode()
+        let star = shape(starPath(points: 5, outer: 10, inner: 4.6), fill: SKColor(red: 1, green: 0.55, blue: 0.42, alpha: 1),
+                         stroke: SKColor(red: 0.7, green: 0.25, blue: 0.2, alpha: 1), line: 1.3, z: 0)
+        star.position = CGPoint(x: 0, y: 7)
+        star.zRotation = 0.25
+        node.addChild(star)
+        for i in 0..<5 {
+            let angle = CGFloat(i) * 2 * .pi / 5 + .pi / 2 + 0.25
+            let dot = SKShapeNode(circleOfRadius: 1)
+            dot.position = CGPoint(x: cos(angle) * 5.4, y: 7 + sin(angle) * 5.4)
+            dot.fillColor = SKColor(red: 1, green: 0.85, blue: 0.75, alpha: 1)
+            dot.strokeColor = .clear
+            dot.zPosition = 0.1 + CGFloat(i) * 0.01
+            node.addChild(dot)
+        }
+        return node
+    }
+
+    /// A shark's grey fin standing up from your back, swept back.
+    private static func sharkFin() -> SKNode {
+        let node = SKNode()
+        let fin = CGMutablePath()
+        // Its front edge bows up and back to the tip, which hangs behind the back edge's foot.
+        fin.move(to: CGPoint(x: 9, y: -1))
+        fin.addQuadCurve(to: CGPoint(x: -11, y: 15), control: CGPoint(x: 5, y: 13))
+        fin.addQuadCurve(to: CGPoint(x: -5, y: -1), control: CGPoint(x: -4, y: 4))
+        fin.closeSubpath()
+        node.addChild(shape(fin, fill: SKColor(red: 0.52, green: 0.6, blue: 0.68, alpha: 1),
+                            stroke: SKColor(red: 0.22, green: 0.27, blue: 0.33, alpha: 1), line: 1.4, z: 0))
+        let shine = CGMutablePath()
+        shine.move(to: CGPoint(x: 5, y: 1))
+        shine.addQuadCurve(to: CGPoint(x: -5, y: 10.5), control: CGPoint(x: 2.5, y: 9))
+        node.addChild(shape(shine, fill: .clear, stroke: SKColor(white: 1, alpha: 0.35), line: 1.5, z: 0.1))
         return node
     }
 
@@ -528,6 +682,7 @@ enum PearlShopArt {
         case .sparkles: (sparkleTexture, true, 0.62)
         case .rainbow: (ArcadeArt.glow, true, 0.7)
         case .cropDuster: (puffTexture, false, 0.6)
+        case .comet: (ArcadeArt.glow, true, 0.8)
         }
     }
 
@@ -603,6 +758,10 @@ final class PearlTrailMotes {
             node.color = SKColor(hue: (CGFloat(count) * 0.045).truncatingRemainder(dividingBy: 1), saturation: 0.85,
                                  brightness: 1, alpha: 1)
             node.colorBlendFactor = 1
+        } else if trail == .comet {
+            // White-hot at your tail, cooling to orange along the tail.
+            node.color = SKColor(red: 1, green: 0.88, blue: 0.6, alpha: 1)
+            node.colorBlendFactor = 1
         }
         // A hair apart each, so two can't swap places as they're drawn.
         node.zPosition = z + CGFloat(count % 50) * 0.0001
@@ -637,6 +796,9 @@ final class PearlTrailMotes {
                 mote.node.zRotation = CGFloat(mote.index) * 0.7 + age * 2
             case .rainbow:
                 size = 1 - 0.6 * t
+            case .comet:
+                size = 1 - 0.75 * t
+                mote.node.color = SKColor(red: 1, green: 0.88 - 0.4 * t, blue: 0.6 - 0.5 * t, alpha: 1)
             case .cropDuster:
                 // Each puff swells and drifts up as it hangs in the water behind you.
                 point.x += sin(age * 5 + CGFloat(mote.index)) * 2
