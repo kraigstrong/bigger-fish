@@ -959,6 +959,10 @@ enum GameTuning {
         // Limited editions, after the rest of their kind (Kraig, 2026-10-24).
         PearlItem("hat.santa", .hat, "Santa hat", price: 100, season: .christmas),
         PearlItem("hat.antlers", .hat, "Reindeer antlers", price: 100, season: .christmas),
+        PearlItem("face.mustache", .face, "Mustache", price: 50),
+        PearlItem("face.sunglasses", .face, "Sunglasses", price: 60),
+        PearlItem("face.heartglasses", .face, "Heart glasses", price: 80),
+        PearlItem("face.nose", .face, "Red nose", price: 100, season: .christmas),
         PearlItem("trail.bubbles", .trail, "Bubbles", price: 50),
         PearlItem("trail.cropduster", .trail, "Crop duster", price: 75),
         PearlItem("trail.notes", .trail, "Music notes", price: 90),
