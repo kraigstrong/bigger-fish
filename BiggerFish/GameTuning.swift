@@ -885,14 +885,10 @@ enum GameTuning {
     /// When no deal fits every open-water big fish its template asks for, plan the level with one fewer rather than
     /// play it with planner issues. Around Jelly Bloom's bells there's sometimes no room for them all.
     static let openWaterFewerToFit = true
-    /// Between levels (Kraig, 2026-10-19: "Bring a huge fish in the foreground, new level"): the win's slow motion
-    /// plays for `openWaterHoldSeconds` of game time after you eat a level's last gate, nothing eating or being eaten.
-    /// Then a huge fish (radius in screen points, big enough that its body covers the whole screen) swims across in
-    /// front of everything in `openWaterGiantSeconds`, right to left. As it fills the screen the next level is swapped
-    /// in behind it, you back at your starting size with the camera all the way in.
-    static let openWaterHoldSeconds: CGFloat = 0.36
-    static let openWaterGiantRadius: CGFloat = 420
-    static let openWaterGiantSeconds: CGFloat = 1.3
+    /// Between levels (Kraig, 2026-10-22: "I don't like it feeling like multiple scenes", "without the last slow motion
+    /// bite"): eating a level's last gate chimes and the next level starts at once, the camera easing back from your
+    /// fish over this many seconds as the world you left fades (`beginOpenWaterLevel`).
+    static let openWaterWashSeconds: CGFloat = 1.0
     /// Pearls (`OpenWater.pearls`): one kind, looking a little different in each world, beside danger and never needed.
     /// Up to this many a level, spread along it, none in its first seconds. Each sits this many screen points of water
     /// from a big fish's body as you pass it (on the reference route), within reach of your way, with nothing else
@@ -921,6 +917,39 @@ enum GameTuning {
     /// "Stage 2" in the middle of the water as a new time round the worlds starts: how long it stays (seconds, fades
     /// included). The worlds aren't named: you can see which one you're in.
     static let openWaterBannerSeconds: Double = 1.6
+
+    // MARK: Pearl shop (prototype, Xcode builds only)
+
+    /// What the Open Water's pearls buy (`PearlItem`), in the shop's order: looks for your fish, shown everywhere it
+    /// swims. Prices are steady (Kraig, 2026-10-22): the first thing in about two good runs, the dearest in about
+    /// fifteen. An ID is saved with what a player owns and wears, so never rename one; names and prices can change.
+    static let pearlShop: [PearlItem] = [
+        PearlItem("color.copper", .color, "Copper", price: 50),
+        PearlItem("color.gold", .color, "Gold", price: 75),
+        PearlItem("color.ruby", .color, "Ruby", price: 75),
+        PearlItem("color.pearl", .color, "Pearl", price: 150),
+        PearlItem("pattern.spots", .pattern, "Spots", price: 25),
+        PearlItem("pattern.stripes", .pattern, "Stripes", price: 25),
+        PearlItem("pattern.bands", .pattern, "Clown bands", price: 75),
+        PearlItem("pattern.stars", .pattern, "Stars", price: 120),
+        PearlItem("hat.beanie", .hat, "Beanie", price: 40),
+        PearlItem("hat.flower", .hat, "Flower", price: 50),
+        PearlItem("hat.sailor", .hat, "Sailor cap", price: 60),
+        PearlItem("hat.cone", .hat, "Traffic cone", price: 80),
+        PearlItem("hat.crown", .hat, "Crown", price: 200),
+        PearlItem("trail.bubbles", .trail, "Bubbles", price: 50),
+        PearlItem("trail.sparkles", .trail, "Sparkles", price: 100),
+        PearlItem("trail.rainbow", .trail, "Rainbow", price: 180),
+    ]
+    /// How far a hat may stand above the top of your back fin, in your radius. Hats are only drawn, never part of what
+    /// eats or is eaten (Kraig, 2026-10-22: "the hats may need to be a bit taller. They should just not be part of the
+    /// hitbox").
+    static let pearlHatHeadroom: CGFloat = 0.4
+    /// A trail lets out a mote this often (seconds) as you swim, and each lasts this long.
+    static let pearlTrailEvery: [PearlTrail: CGFloat] = [.bubbles: 0.08, .sparkles: 0.05, .rainbow: 0.035]
+    static let pearlTrailSeconds: CGFloat = 0.5
+    /// Xcode builds only: the shop's button that adds this many pearls, to try things out.
+    static let pearlShopTestGift = 100
 
     // MARK: Sunset Cove (world 4)
 

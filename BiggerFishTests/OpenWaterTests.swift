@@ -141,24 +141,21 @@ struct OpenWaterTests {
         print("[OpenWater] pearls on \(withPearls) of \(levels) levels")
     }
 
-    /// Once a level's last gate is eaten nothing can end the run before the next level starts: no tentacle and no hook,
-    /// as no fish can. (Mid-level, the same tentacle does.)
-    @Test func nothingCatchesYouBetweenLevels() {
-        let worlds = GameTuning.openWaterWorlds
-        func scene(at world: ArcadeWorld) -> GameScene {
-            let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-            let index = worlds.firstIndex(of: world)!
-            scene.debugStartOpenWater(seed: 1, from: index)
-            _ = scene.debugPlayOpenWater(untilLevel: index)
-            return scene
-        }
-        #expect(scene(at: .jellyBloom).debugTouchTentacles(playerVictim: true))
-        let jelly = scene(at: .jellyBloom)
-        jelly.debugFinishOpenWaterLevel()
-        #expect(!jelly.debugTouchTentacles(playerVictim: true))
-        let sunset = scene(at: .sunsetCove)
-        sunset.debugFinishOpenWaterLevel()
-        #expect(!sunset.debugTouchHook(0, at: .bait))
+    /// Eating a level's last gate starts the next at once, in one shot rather than a cut: your fish keeps its size and
+    /// height on screen, the camera starting that much closer and easing back.
+    @Test func theNextLevelStartsAtOnceWithTheCameraClose() throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 1)
+        let played = scene.debugPlayOpenWater(untilLevel: 1, limit: 5, safeFromFish: true)
+        #expect(played.index == 0 && !played.lost)
+        let before = scene.debugYouOnScreen
+        #expect(before.radius > GameTuning.baseRadius)
+        scene.debugFinishOpenWaterLevel()
+        #expect(scene.debugOpenWaterIndex == 1 && scene.arcadeWorld == GameTuning.openWaterWorlds[1])
+        let closer = try #require(scene.debugOpenWaterWashCloser)
+        let after = scene.debugYouOnScreen
+        #expect(after.radius == GameTuning.baseRadius)
+        #expect(abs(after.radius * closer - before.radius) < 0.01 && abs(after.height - before.height) < 0.01)
     }
 
     /// The run's card is just its name: a level here ends on its last gate, so Shallow Reef's "Be the last fish
@@ -172,17 +169,24 @@ struct OpenWaterTests {
         #expect(scene.debugCardTexts == ["Open Water", "Tap to start"])
     }
 
-    /// Touching a pearl takes it: it counts, and it doesn't grow you.
+    /// Touching a pearl takes it: it counts, it's kept for the shop at once, and it doesn't grow you. The run's card
+    /// offers the shop.
     @Test func takingAPearlCountsItWithoutGrowingYou() throws {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
         scene.debugStartOpenWater(seed: 1)
+        var kept = 0, shopped = 0
+        scene.onPearl = { kept += 1 }
+        scene.onShop = { shopped += 1 }
         _ = scene.debugPlayOpenWater(untilLevel: 0)
         let count = scene.debugOpenWaterPearls.count
         let taken = try #require(scene.debugTakeFirstPearl())
-        #expect(taken.pearls == 1 && taken.after == taken.before)
+        #expect(taken.pearls == 1 && taken.after == taken.before && kept == 1)
         #expect(scene.debugOpenWaterPearls.count == count - 1)
         scene.debugLose()
         #expect(scene.debugResultDetail?.hasSuffix("· 1 pearl") == true)
+        #expect(scene.debugResultTitles == ["Retry", "Shop", "Levels"])
+        scene.debugTapResult(.shop)
+        #expect(shopped == 1 && scene.debugResultTitles == ["Retry", "Shop", "Levels"])
     }
 
     /// Each level ends once you eat its last gate, and the next world's begins the way a level does: you at your
@@ -222,5 +226,44 @@ struct OpenWaterTests {
         scene.debugTapResult(.tryAgain)
         #expect(scene.debugOpenWaterIndex == 0 && scene.debugOpenWaterSeed == 6)
         #expect(scene.arcadeWorld == GameTuning.openWaterWorlds[0])
+    }
+
+    /// The game plans each level off the main thread as the one before starts, never as it reaches it: that froze the
+    /// game for seconds on a phone. Eat a level's last gate before the next is planned and the level plays on, with
+    /// nothing able to catch you, until it is.
+    @Test func aLevelDoneEarlyPlaysOnUntilTheNextIsPlanned() async throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 1)
+        scene.debugPlansOpenWaterAhead = true
+        // Played straight through, the next level's plan can't arrive: it comes back on the main thread.
+        let played = scene.debugPlayOpenWater(untilLevel: 1, limit: 12)
+        #expect(played.index == 0 && !played.lost, "\(played.reason)")
+        #expect(scene.debugOpenWaterLevelDone && !scene.debugOpenWaterHasPlan(1))
+        #expect(scene.debugPutBiggerFishOnYou())
+        scene.debugAdvance(seconds: 0.5)
+        #expect(scene.debugPhase == .playing && scene.debugOpenWaterIndex == 0)
+        for _ in 0..<1500 where scene.debugOpenWaterIndex == 0 {
+            try await Task.sleep(for: .milliseconds(20))
+            scene.debugAdvance(seconds: GameTuning.simulationStep)
+        }
+        #expect(scene.debugOpenWaterIndex == 1 && scene.arcadeWorld == GameTuning.openWaterWorlds[1])
+        #expect(!scene.debugOpenWaterLevelDone)
+    }
+
+    /// Retry waits for the new run's first level, planned off the main thread as the last run ended, rather than plan
+    /// it on the main thread. Its second level, a Jelly Bloom one and the slowest to plan, was planned alongside.
+    @Test func retryWaitsForTheNextRunsFirstLevel() async throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 5)
+        scene.debugPlansOpenWaterAhead = true
+        _ = scene.debugPlayOpenWater(untilLevel: 1, limit: 3, safeFromFish: true)
+        scene.debugLose()
+        scene.debugTapResult(.tryAgain)
+        #expect(scene.debugOpenWaterSeed == 5 && scene.debugResultTitles == ["Retry", "Shop", "Levels"])
+        for _ in 0..<1500 where scene.debugOpenWaterSeed == 5 { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(scene.debugOpenWaterSeed == 6 && scene.debugOpenWaterIndex == 0)
+        #expect(scene.arcadeWorld == GameTuning.openWaterWorlds[0])
+        for _ in 0..<1500 where !scene.debugOpenWaterHasPlan(1) { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(scene.debugOpenWaterHasPlan(1))
     }
 }

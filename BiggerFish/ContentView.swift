@@ -46,6 +46,8 @@ struct ContentView: View {
     @State private var showsTuning = false
     /// An Open Water run's first level is being planned (`playOpenWater`).
     @State private var startingOpenWater = false
+    /// The pearl shop, from the world map or an Open Water run's result card (which waits under it).
+    @State private var showsShop = false
     #endif
 
     var body: some View {
@@ -68,7 +70,7 @@ struct ContentView: View {
                                    withAnimation { offer = UnlockOffer(featured: world, source: world == nil ? .unlockAll : .lockedWorld) }
                                },
                                onSettings: { withAnimation { showsSettings = true } },
-                               onOpenWater: openWaterAction)
+                               onOpenWater: openWaterAction, onPearlShop: pearlShopAction)
             }
         }
         .overlay {
@@ -101,6 +103,14 @@ struct ContentView: View {
                     .transition(.opacity)
             }
         }
+        #if DEBUG
+        .overlay {
+            if showsShop && credits == nil {
+                PearlShopView(progress: progress, onClose: { withAnimation { showsShop = false } })
+                    .transition(.opacity)
+            }
+        }
+        #endif
         .overlay(alignment: .topLeading) {
             // Small, for players who've played before and reinstalled.
             if let scene, scene.isTutorial {
@@ -136,6 +146,8 @@ struct ContentView: View {
         .onChange(of: hitchScreen, initial: true) { _, screen in HitchLog.shared?.show(screen) }
         #endif
         .onChange(of: quietOnMap) { _, quiet in if quiet { askForReviewIfDue() } }
+        // Bought or put on in the shop over a result card: worn from the next try.
+        .onChange(of: progress.look) { _, look in scene?.playerLook = look }
         .onChange(of: offer == nil) { _, closed in
             guard !closed else { return }
             review.sawOffer()
@@ -191,6 +203,7 @@ struct ContentView: View {
             showsSettings = true
             playCredits()
         case .tutorial: playTutorial()
+        case .shop: showsShop = true
         case .pause:
             guard let scene else { return }
             Task { @MainActor in
@@ -318,6 +331,9 @@ struct ContentView: View {
             guard scene == nil else { return }
             let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
             game.debugStartOpenWater(seed: seed, firstLevel: plan, from: start)
+            // Each pearl's kept as it's taken, however the run ends.
+            game.onPearl = { progress.earnPearls(1) }
+            game.onShop = { withAnimation { showsShop = true } }
             game.onExit = { scene = nil }
             show(game)
         }
@@ -329,6 +345,16 @@ struct ContentView: View {
         #if DEBUG
         guard StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil else { return nil }
         return { playOpenWater() }
+        #else
+        return nil
+        #endif
+    }
+
+    /// The world map's way into the pearl shop: Xcode builds only, and never in a capture or screen check.
+    private var pearlShopAction: (() -> Void)? {
+        #if DEBUG
+        guard StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil else { return nil }
+        return { withAnimation { showsShop = true } }
         #else
         return nil
         #endif
@@ -356,8 +382,9 @@ struct ContentView: View {
         show(game)
     }
 
-    /// Puts a level (or the tutorial) on screen.
+    /// Puts a level (or the tutorial) on screen, your fish in what it wears.
     private func show(_ game: GameScene) {
+        game.playerLook = progress.look
         scenePaused = false
         game.onPause = { scenePaused = $0 }
         sceneWorld = game.arcadeWorld
@@ -365,10 +392,10 @@ struct ContentView: View {
         scene = game
     }
 
-    /// The credits game: given nothing of the player's (no progress, purchases, or analytics), so it can't record
-    /// anything. Skip or its last card goes back to Settings.
+    /// The credits game: given nothing of the player's but your fish's look (no progress, purchases, or analytics), so
+    /// it can't record anything. Skip or its last card goes back to Settings.
     private func playCredits() {
-        let game = CreditsScene()
+        let game = CreditsScene(look: progress.look)
         game.onExit = { withAnimation(.easeInOut(duration: 0.5)) { credits = nil } }
         withAnimation(.easeInOut(duration: 0.5)) { credits = game }
     }
