@@ -290,7 +290,7 @@ final class GameScene: SKScene {
     private var encounterNeighbors: [EncounterNeighbor] = []
     private var bounceRemaining: CGFloat = 0
     private var bounceCooldown: CGFloat = 0
-    private var mapButton = MenuButtonRow(title: "Level map", symbol: "map.fill", style: .secondary)
+    private var mapButton = MenuButtonRow(title: "Level map", symbol: "map.fill", style: .secondary, theme: .arcade)
     private var resultPanel: ArcadeResultPanel?
     #if DEBUG
     /// A test's or a bot's touch: holding or not, in place of real touches.
@@ -356,11 +356,11 @@ final class GameScene: SKScene {
     private let pauseButton = SKNode()
     private let pauseMenu = SKNode()
     private let levelIndicator = SKNode()
-    private var resumeButton = MenuButtonRow(title: "Resume", symbol: "play.fill", style: .primary)
-    private var restartButton = MenuButtonRow(title: "Restart level", symbol: "arrow.counterclockwise", style: .secondary)
-    private var effectsButton = MenuSwitchRow(title: "Sound effects", symbol: "speaker.wave.2.fill", isOn: true)
-    private var musicButton = MenuSwitchRow(title: "Music", symbol: "music.note", isOn: true)
-    private var vibrationButton = MenuSwitchRow(title: "Vibration", symbol: "iphone.radiowaves.left.and.right", isOn: true)
+    private var resumeButton = MenuButtonRow(title: "Resume", symbol: "play.fill", style: .primary, theme: .arcade)
+    private var restartButton = MenuButtonRow(title: "Restart level", symbol: "arrow.counterclockwise", style: .secondary, theme: .arcade)
+    private var effectsButton = MenuSwitchRow(title: "Sound effects", symbol: "speaker.wave.2.fill", isOn: true, theme: .arcade)
+    private var musicButton = MenuSwitchRow(title: "Music", symbol: "music.note", isOn: true, theme: .arcade)
+    private var vibrationButton = MenuSwitchRow(title: "Vibration", symbol: "iphone.radiowaves.left.and.right", isOn: true, theme: .arcade)
 
     private var holdTouches = Set<UITouch>()
     private var lastUpdate: TimeInterval?
@@ -3139,7 +3139,7 @@ final class GameScene: SKScene {
     /// Built with the scene and on each pause; pausing sets the switches to the current settings.
     private func buildPauseMenu() {
         pauseMenu.removeAllChildren()
-        let backdrop = MenuBackdrop.node(size: size)
+        let backdrop = MenuBackdrop.node(size: size, theme: .arcade)
         backdrop.name = "pauseBackdrop"
         pauseMenu.addChild(backdrop)
 

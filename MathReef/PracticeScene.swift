@@ -458,38 +458,63 @@ final class PracticeScene: SKScene {
 
     // MARK: - Settings
 
-    /// Sound, music, and vibration switches on the top row; replaying the tutorial, the grown-ups' screen, and Done
-    /// below, the same on every screen size.
+    /// Bigger Fish's Settings, in the reef's colors (SettingsMenu.swift): sound, music, and vibration, and replaying the
+    /// tutorial, on the left; the grown-ups' screen, behind the parental gate, on the right.
     private func showSettings(animated: Bool = true) {
         parentalGate = nil
-        var lines: [PanelLine] = []
-        var buttons: [(title: String, action: () -> Void)] = [
-            ("Sound: \(audio.isSoundOn ? "On" : "Off")", { [weak self] in self?.toggleSetting(\.audio.isSoundOn) }),
-            ("Music: \(audio.isMusicOn ? "On" : "Off")", { [weak self] in self?.toggleSetting(\.audio.isMusicOn) }),
-            ("Vibration: \(haptics.isVibrationOn ? "On" : "Off")", { [weak self] in self?.toggleSetting(\.haptics.isVibrationOn) }),
-            ("Replay tutorial", { [weak self] in self?.startTutorial() }),
-            ("For grown-ups", { [weak self] in self?.showParentalGate(leadingTo: .links) }),
-            ("Done", { [weak self] in self?.hideSettings() }),
+        let play: [SettingsMenu.Item] = [
+            .heading("Sound"),
+            .toggle("Sound effects", symbol: "speaker.wave.2.fill", isOn: audio.isSoundOn, toggle: toggler(\.audio.isSoundOn)),
+            .toggle("Music", symbol: "music.note", isOn: audio.isMusicOn, toggle: toggler(\.audio.isMusicOn)),
+            .toggle("Vibration", symbol: "iphone.radiowaves.left.and.right", isOn: haptics.isVibrationOn,
+                    toggle: toggler(\.haptics.isVibrationOn)),
+            .heading("Play"),
+            .row("Replay the tutorial", symbol: "arrow.counterclockwise") { [weak self] in self?.startTutorial() },
         ]
-        var rowStarts: Set<Int> = [3]
+        var grownUps: [SettingsMenu.Item] = [
+            .heading("Grown-ups"),
+            .row("For grown-ups", symbol: "lock.fill", trailing: "chevron.right") { [weak self] in
+                self?.showParentalGate(leadingTo: .links)
+            },
+            .note("Privacy, support, and purchases, after a question for grown-ups."),
+            .note(SettingsMenu.versionLine(Bundle.main.infoDictionary ?? [:])),
+        ]
         #if DEBUG
         // For seeing rare moments on a device. Debug builds only, so never in the App Store.
-        lines.append(("Xcode builds only: crown previews and Multiplication's saved progress", 15, false))
-        rowStarts.insert(buttons.count)
-        buttons += [
-            ("Preview silver", { [weak self] in self?.previewCrown(.silver) }),
-            ("Preview gold", { [weak self] in self?.previewCrown(.gold) }),
-            ("× silver", { [weak self] in self?.debugSetUpMultiplication(.silver) }),
-            ("× gold", { [weak self] in self?.debugSetUpMultiplication(.gold) }),
-            ("× 1 from silver", { [weak self] in self?.debugSetUpMultiplication(.oneLevelFromSilver) }),
-            ("Reset ×", { [weak self] in self?.debugSetUpMultiplication(.reset) }),
+        grownUps += [
+            .heading("Xcode builds"),
+            .shortcuts([
+                ("Preview silver", { [weak self] in self?.previewCrown(.silver) }),
+                ("Preview gold", { [weak self] in self?.previewCrown(.gold) }),
+                ("× silver", { [weak self] in self?.debugSetUpMultiplication(.silver) }),
+                ("× gold", { [weak self] in self?.debugSetUpMultiplication(.gold) }),
+                ("× 1 from silver", { [weak self] in self?.debugSetUpMultiplication(.oneLevelFromSilver) }),
+                ("Reset ×", { [weak self] in self?.debugSetUpMultiplication(.reset) }),
+            ]),
         ]
         #endif
-        showSettingsPanel(.settings, title: "Settings", lines: lines, buttons: buttons, rowStarts: rowStarts, animated: animated)
+        showMenu(.settings, title: "Settings", body: .columns([play, grownUps]), onClose: { [weak self] in self?.hideSettings() },
+                 animated: animated)
     }
 
-    /// Settings and its grown-up screens: centered over the dimmed map. `animated: false` redraws in
-    /// place without the panel's fade-in, for a change on the same screen (a sound toggle, a digit).
+    /// One of Settings' screens over the whole scene. `animated: false` swaps it in without the fade-in, for the next
+    /// screen or a change on the same one (a digit).
+    private func showMenu(_ screen: SettingsScreen, title: String, subtitle: String? = nil, body: SettingsMenu.Body,
+                          onClose: @escaping () -> Void, animated: Bool) {
+        hidePanel()
+        settingsScreen = screen
+        holdTouches.removeAll()
+        let menu = SettingsMenu(size: size, title: title, subtitle: subtitle, closeAt: settingsButton.position,
+                                onClose: onClose, body: body)
+        panel.position = .zero
+        panel.addChild(menu)
+        buttons = menu.buttons
+        panel.alpha = animated ? 0 : 1
+        if animated { panel.run(.fadeIn(withDuration: 0.2)) }
+    }
+
+    /// The panels left over the dimmed map: the unlock prompt, and the App Store's wait and answers. `animated: false`
+    /// redraws in place without the panel's fade-in.
     private func showSettingsPanel(
         _ screen: SettingsScreen, title: String, lines: [PanelLine], buttons: [(title: String, action: () -> Void)],
         buttonMinWidth: CGFloat = 140, rowStarts: Set<Int> = [], animated: Bool
@@ -507,9 +532,13 @@ final class PracticeScene: SKScene {
         }
     }
 
-    private func toggleSetting(_ setting: ReferenceWritableKeyPath<PracticeScene, Bool>) {
-        self[keyPath: setting].toggle()
-        showSettings(animated: false)
+    /// A switch's action: flips the setting and says what it is now.
+    private func toggler(_ setting: ReferenceWritableKeyPath<PracticeScene, Bool>) -> () -> Bool {
+        { [weak self] in
+            guard let self else { return false }
+            self[keyPath: setting].toggle()
+            return self[keyPath: setting]
+        }
     }
 
     private func hideSettings() {
@@ -528,26 +557,23 @@ final class PracticeScene: SKScene {
         drawParentalGate()
     }
 
-    /// Redrawn in place for every digit, like the other screens reached from Settings.
+    /// Redrawn in place for every digit, like the other screens reached from Settings. It fades in over the unlock
+    /// prompt, and swaps in for Settings.
     private func drawParentalGate() {
         guard let gate = parentalGate else { return }
         let blanks = Array(repeating: "_", count: String(gate.answer).count - gate.entry.count)
         let entry = (gate.entry.map(String.init) + blanks).joined(separator: " ")
-        var buttons: [(title: String, action: () -> Void)] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map { digit in
-            ("\(digit)", { [weak self] in self?.typeGateDigit(digit) })
-        }
-        buttons += [
-            ("Delete", { [weak self] in
+        let keypad = SettingsMenu.Body.keypad(
+            question: gate.question, entry: entry,
+            digit: { [weak self] in self?.typeGateDigit($0) },
+            delete: { [weak self] in
                 self?.parentalGate?.deleteDigit()
                 self?.drawParentalGate()
-            }),
-            ("Cancel", { [weak self] in self?.leaveGate() }),
-        ]
-        showSettingsPanel(
-            .gate, title: "For grown-ups", lines: [(gate.question, 20, false), (entry, 30, true)],
-            // A keypad: 1–5, 6–9 and 0, then Delete and Cancel, the same on every screen size.
-            buttons: buttons, buttonMinWidth: 56, rowStarts: [5, 10], animated: false
+            },
+            cancel: { [weak self] in self?.leaveGate() }
         )
+        showMenu(.gate, title: "For grown-ups", body: keypad, onClose: { [weak self] in self?.leaveGate() },
+                 animated: settingsScreen != .gate && settingsScreen != .settings)
     }
 
     private func typeGateDigit(_ digit: Int) {
@@ -573,25 +599,35 @@ final class PracticeScene: SKScene {
 
     private func showParentLinks() {
         parentalGate = nil
-        var buttons: [(title: String, action: () -> Void)] = [
-            ("Privacy policy", { UIApplication.shared.open(ParentLinks.privacy) }),
-            ("Support", { UIApplication.shared.open(ParentLinks.support) }),
-            ("Restore purchases", { [weak self] in self?.restorePurchases() }),
+        let help: [SettingsMenu.Item] = [
+            .heading("Help"),
+            .row("Privacy policy", symbol: "hand.raised.fill", trailing: "arrow.up.right") {
+                UIApplication.shared.open(ParentLinks.privacy)
+            },
+            .row("Support", symbol: "questionmark.circle.fill", trailing: "arrow.up.right") {
+                UIApplication.shared.open(ParentLinks.support)
+            },
+        ]
+        var purchase: [SettingsMenu.Item] = [
+            .heading("Purchases"),
+            .row("Restore purchases", symbol: "arrow.down.circle") { [weak self] in self?.restorePurchases() },
         ]
         if !purchases.isUnlocked {
-            buttons.append(("Unlock the whole reef", { [weak self] in self?.showUnlockScreen() }))
+            purchase.append(.row("Unlock the whole reef", symbol: "lock.open.fill", trailing: "chevron.right") { [weak self] in
+                self?.showUnlockScreen()
+            })
         }
         #if DEBUG
-        buttons.append(("Preview review prompt", { [weak self] in
-            guard let scene = self?.view?.window?.windowScene else { return }
-            AppStore.requestReview(in: scene)
-        }))
+        purchase += [
+            .heading("Xcode builds"),
+            .shortcuts([("Preview review prompt", { [weak self] in
+                guard let scene = self?.view?.window?.windowScene else { return }
+                AppStore.requestReview(in: scene)
+            })]),
+        ]
         #endif
-        buttons.append(("Done", { [weak self] in self?.hideSettings() }))
-        showSettingsPanel(
-            .links, title: "For grown-ups", lines: [("Privacy and support open in Safari.", 18, false)],
-            buttons: buttons, animated: false
-        )
+        showMenu(.links, title: "For grown-ups", subtitle: "Privacy and support open in Safari.",
+                 body: .columns([help, purchase]), onClose: { [weak self] in self?.hideSettings() }, animated: false)
     }
 
     private func requestPendingReview() {
