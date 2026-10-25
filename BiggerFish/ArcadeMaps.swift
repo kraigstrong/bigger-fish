@@ -74,7 +74,7 @@ struct ArcadeWorldMap: View {
                 Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
                     .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
                 HStack(spacing: 14) {
-                    if let onOpenWater { OpenWaterButton(action: onOpenWater) }
+                    if let onOpenWater { OpenWaterButton(best: progress.openWaterBest, action: onOpenWater) }
                     if let onPearlShop { PearlShopButton(pearls: progress.pearls, action: onPearlShop) }
                     if !unlocked { UnlockButton { onUnlock(nil) } }
                     SettingsButton(action: onSettings)
@@ -109,20 +109,27 @@ private struct UnlockButton: View {
     }
 }
 
-/// On the world map in Xcode builds: the way into the Open Water, the endless run's prototype.
+/// On the world map in Xcode builds: the way into the Open Water, the endless run's prototype, with your best run (in
+/// fish eaten) once you have one.
 private struct OpenWaterButton: View {
+    let best: Int
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Label("Open Water", systemImage: "infinity")
-                .font(.custom("AvenirNext-Heavy", size: 15))
-                .padding(.horizontal, 16).frame(height: 40)
-                .background(Capsule().fill(.white.opacity(0.18)))
-                .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 1.5))
+            HStack(spacing: 10) {
+                Label("Open Water", systemImage: "infinity")
+                if best > 0 {
+                    Text("Best \(best)").font(.custom("AvenirNext-DemiBold", size: 14)).monospacedDigit().opacity(0.75)
+                }
+            }
+            .font(.custom("AvenirNext-Heavy", size: 15))
+            .padding(.horizontal, 16).frame(height: 40)
+            .background(Capsule().fill(.white.opacity(0.18)))
+            .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 1.5))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open Water, endless run")
+        .accessibilityLabel(best > 0 ? "Open Water, endless run, best \(best) fish" : "Open Water, endless run")
     }
 }
 

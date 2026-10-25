@@ -22,6 +22,8 @@ Xcode builds have the endless run's prototype, **Open Water** (`OpenWater.swift`
 with `-openWater <seed>`): round the worlds a stage at a time (`GameTuning.openWaterWorlds`), each a new level dealt like that world's level 5 on stage 1, 6 on stage 2, and on,
 planned as the run reaches it. Eating a level's last gate ends it and shrinks you back to your starting size for the
 next world; being eaten ends the run. Pearls sit beside the big fish, a few a level (`OpenWater.pearls`): touch one to take it. Fish eaten and pearls count at the top.
+A run's score is the fish it ate: the best is kept (`ArcadeProgress.openWaterBest`, synced with progress) and shown on
+the run's card and the map's Open Water button.
 Pearls are kept (`ArcadeProgress.pearls`, synced with progress) and spent in the **pearl shop** (`PearlShop.swift`,
 `PearlShopView.swift`, the list and prices in `GameTuning.pearlShop`), from the map's pearl button or a run's card:
 body colors, patterns, hats, and trails for your fish, worn everywhere it swims, never making it look bigger. See

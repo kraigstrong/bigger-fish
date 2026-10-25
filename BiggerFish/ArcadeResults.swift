@@ -36,24 +36,35 @@ final class ArcadeResultPanel: SKNode {
     var onSelect: ((ArcadeResultAction) -> Void)?
     private(set) var controls: [(action: ArcadeResultAction, frame: CGRect)] = []
     private(set) var primaryAction: ArcadeResultAction?
+    private(set) var headingText: String
+    private(set) var noteText: String?
+    /// The pearls on the Shop button: yours to spend.
+    private(set) var shopPearls: Int?
+    private var shopButton: SKNode?
 
     /// `progress`, after a win: the world's pips and crown, in place of the detail line. `retryOnly`: one button, Retry,
-    /// on a shorter card (the tutorial's). `shop`: the pearl shop's button too (an Open Water run's end).
+    /// on a shorter card (the tutorial's). `heading`: in place of "Level passed!" or "Try again!". `note`: a second,
+    /// smaller line under the detail (an Open Water run's best). `shopPearls`: the pearl shop's button too, showing the
+    /// pearls you have to spend (an Open Water run's end).
     init(size: CGSize, passed: Bool, hasNext: Bool, detail: String, progress: WorldProgressStrip? = nil, retryOnly: Bool = false,
-         shop: Bool = false) {
+         heading headingOverride: String? = nil, note: String? = nil, shopPearls: Int? = nil) {
+        headingText = headingOverride ?? (passed ? "Level passed!" : "Try again!")
+        noteText = progress == nil ? note : nil
+        self.shopPearls = shopPearls
         super.init()
-        let choices = ArcadeResultAction.choices(passed: passed, hasNext: hasNext, retryOnly: retryOnly, shop: shop)
+        let choices = ArcadeResultAction.choices(passed: passed, hasNext: hasNext, retryOnly: retryOnly, shop: shopPearls != nil)
         primaryAction = choices.first
         let maxWidth = size.width - 100
-        let heading = text(passed ? "Level passed!" : "Try again!", size: 32, heavy: true)
+        let heading = text(headingText, size: 32, heavy: true)
         let line = text(detail, size: 20, heavy: false)
         if line.frame.width > maxWidth - 60 { line.fontSize *= (maxWidth - 60) / line.frame.width }
         let detailWidth = progress?.width ?? line.frame.width
         let width = min(maxWidth, max(430, heading.frame.width + 60, detailWidth + 60))
         // The pips and their caption take a little more room than the detail line; the buttons stay put. With no row of
         // smaller buttons, the card is shorter and everything moves down to fill it.
+        // A note under the detail takes the same room.
         let single = choices.count == 1
-        let height: CGFloat = single ? 200 : progress == nil ? 256 : 284
+        let height: CGFloat = single ? 200 : progress == nil && noteText == nil ? 256 : 284
         let lift: CGFloat = single ? -26 : 0
         let backing = SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: 24)
         backing.fillColor = passed ? SKColor(red: 0.10, green: 0.52, blue: 0.30, alpha: 0.92)
@@ -67,6 +78,14 @@ final class ArcadeResultPanel: SKNode {
             heading.position = CGPoint(x: 0, y: 100)
             progress.position = CGPoint(x: 0, y: 60)
             addChild(progress)
+        } else if let noteText {
+            heading.position = CGPoint(x: 0, y: 100 + lift)
+            line.position = CGPoint(x: 0, y: 62 + lift)
+            addChild(line)
+            let note = text(noteText, size: 17, heavy: false)
+            note.fontColor = SKColor(white: 1, alpha: 0.8)
+            note.position = CGPoint(x: 0, y: 32 + lift)
+            addChild(note)
         } else {
             heading.position = CGPoint(x: 0, y: 83 + lift)
             line.position = CGPoint(x: 0, y: 40 + lift)
@@ -88,12 +107,53 @@ final class ArcadeResultPanel: SKNode {
             button.strokeColor = primary ? .clear : SKColor(white: 1, alpha: 0.35)
             button.lineWidth = 1.5
             button.position = center
-            let caption = text(action.title, size: primary ? 23 : 16, heavy: primary)
-            caption.fontColor = primary ? SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1) : .white
-            button.addChild(caption)
+            if action == .shop, let shopPearls {
+                button.addChild(shopCaption(shopPearls))
+                shopButton = button
+            } else {
+                let caption = text(action.title, size: primary ? 23 : 16, heavy: primary)
+                caption.fontColor = primary ? SKColor(red: 0.05, green: 0.18, blue: 0.35, alpha: 1) : .white
+                button.addChild(caption)
+            }
             addChild(button)
             controls.append((action, frame))
         }
+    }
+
+    /// The pearls you have to spend changed (bought something in the shop, over this card): the Shop button shows them.
+    func showShopPearls(_ pearls: Int) {
+        guard shopPearls != nil, let shopButton else { return }
+        shopPearls = pearls
+        shopButton.childNode(withName: Self.shopCaptionName)?.removeFromParent()
+        shopButton.addChild(shopCaption(pearls))
+    }
+
+    /// What VoiceOver says for a button: its title, and on the Shop button, your pearls.
+    func spokenTitle(_ action: ArcadeResultAction) -> String {
+        guard action == .shop, let shopPearls else { return action.title }
+        return "\(action.title), \(shopPearls == 1 ? "1 pearl" : "\(shopPearls) pearls")"
+    }
+
+    private static let shopCaptionName = "shopCaption"
+
+    /// The Shop button's caption: "Shop", then a pearl and how many you have.
+    private func shopCaption(_ pearls: Int) -> SKNode {
+        let caption = SKNode()
+        caption.name = Self.shopCaptionName
+        // Over the button, its pearl's glint over the pearl.
+        caption.zPosition = 1
+        let word = text(ArcadeResultAction.shop.title, size: 16, heavy: false)
+        let count = text("\(pearls)", size: 16, heavy: true)
+        let pearl = PearlShopArt.pearlIcon(radius: 6)
+        let gap: CGFloat = 8, icon: CGFloat = 12, iconGap: CGFloat = 4
+        let left = -(word.frame.width + gap + icon + iconGap + count.frame.width) / 2
+        word.horizontalAlignmentMode = .left
+        word.position = CGPoint(x: left, y: 0)
+        pearl.position = CGPoint(x: left + word.frame.width + gap + icon / 2, y: 0)
+        count.horizontalAlignmentMode = .left
+        count.position = CGPoint(x: left + word.frame.width + gap + icon + iconGap, y: 0)
+        for part in [word, pearl, count] { caption.addChild(part) }
+        return caption
     }
 
     @available(*, unavailable)

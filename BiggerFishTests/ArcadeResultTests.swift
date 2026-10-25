@@ -116,4 +116,22 @@ struct ArcadeResultTests {
             }
         }
     }
+    /// An Open Water run's card: its best-run note sits clear of the buttons, the Shop button's pearls fit on it, and
+    /// VoiceOver says them.
+    @Test func anOpenWaterCardsNoteAndPearlsFit() throws {
+        for size in [CGSize(width: 667, height: 375), CGSize(width: 874, height: 402)] {
+            let panel = ArcadeResultPanel(size: size, passed: false, hasNext: true,
+                                          detail: "Stage 3 · Kelp Forest · 41 fish · 3 pearls", heading: "New best!",
+                                          note: "Best: 41 fish", shopPearls: 1234)
+            #expect(panel.headingText == "New best!" && panel.noteText == "Best: 41 fish")
+            let note = try #require(panel.children.compactMap { $0 as? SKLabelNode }.first { $0.text == "Best: 41 fish" })
+            for control in panel.controls { #expect(!note.frame.intersects(control.frame)) }
+            let shop = try #require(panel.controls.first { $0.action == .shop })
+            let caption = try #require(panel.children.lazy.compactMap { $0.childNode(withName: "shopCaption") }.first)
+            #expect(caption.calculateAccumulatedFrame().width < shop.frame.width - 16)
+            #expect(panel.spokenTitle(.shop) == "Shop, 1234 pearls" && panel.spokenTitle(.tryAgain) == "Retry")
+            panel.showShopPearls(1)
+            #expect(panel.shopPearls == 1 && panel.spokenTitle(.shop) == "Shop, 1 pearl")
+        }
+    }
 }

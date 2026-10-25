@@ -228,6 +228,53 @@ struct OpenWaterTests {
         #expect(scene.arcadeWorld == GameTuning.openWaterWorlds[0])
     }
 
+    /// A run's score is the fish it ate. Its card says "New best!" over a run that beats the best and shows the best
+    /// under how far it got, and its Shop button shows the pearls you have to spend, kept up to date as they're spent.
+    @Test func aRunsCardShowsTheBestAndYourPearls() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 1)
+        scene.openWaterBest = 2
+        scene.pearlsToSpend = 38
+        var runs: [Int] = []
+        scene.onOpenWaterRun = { runs.append($0) }
+        _ = scene.debugPlayOpenWater(untilLevel: 1, limit: 5, safeFromFish: true)
+        let fish = scene.debugMealsEaten
+        #expect(fish > 2)
+        scene.debugLose()
+        #expect(runs == [fish])
+        #expect(scene.debugResultHeading == "New best!" && scene.debugResultNote == "Best: \(fish) fish")
+        #expect(scene.debugResultShopPearls == 38)
+        scene.pearlsToSpend = 12
+        #expect(scene.debugResultShopPearls == 12)
+        // A run that doesn't beat it: the usual heading, and still the best.
+        scene.debugTapResult(.tryAgain)
+        _ = scene.debugPlayOpenWater(untilLevel: 1, limit: 1, safeFromFish: true)
+        let fewer = scene.debugMealsEaten
+        #expect(fewer < fish)
+        scene.debugLose()
+        #expect(runs == [fish, fewer])
+        #expect(scene.debugResultHeading == "Try again!" && scene.debugResultNote == "Best: \(fish) fish")
+    }
+
+    /// The best run is kept on the device and backed up to iCloud, where two devices' bests merge to the better one
+    /// either way round. A save from before it has none, and takes nothing away.
+    @Test func theBestRunIsKeptAndTheBetterOneSyncs() throws {
+        let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+        let progress = ArcadeProgress(defaults: defaults, cloud: nil)
+        #expect(progress.openWaterBest == 0)
+        progress.recordOpenWaterRun(fish: 14)
+        progress.recordOpenWaterRun(fish: 9)
+        #expect(progress.openWaterBest == 14)
+        #expect(ArcadeProgress(defaults: defaults, cloud: nil).openWaterBest == 14)
+        let decoder = JSONDecoder()
+        let old = try decoder.decode(ArcadeSave.self, from: Data(ArcadeCloudSaveTests.firstVersion.utf8))
+        let phone = try decoder.decode(ArcadeSave.self, from: Data(#"{"openWaterBest":14}"#.utf8))
+        let pad = try decoder.decode(ArcadeSave.self, from: Data(#"{"openWaterBest":31}"#.utf8))
+        #expect(old.openWaterBest == nil)
+        #expect(phone.merged(withCloud: pad).openWaterBest == 31 && pad.merged(withCloud: phone).openWaterBest == 31)
+        #expect(phone.merged(withCloud: old).openWaterBest == 14 && old.merged(withCloud: phone).openWaterBest == 14)
+    }
+
     /// The game plans each level off the main thread as the one before starts, never as it reaches it: that froze the
     /// game for seconds on a phone. Eat a level's last gate before the next is planned and the level plays on, with
     /// nothing able to catch you, until it is.
