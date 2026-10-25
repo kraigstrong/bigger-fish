@@ -24,6 +24,8 @@ struct ArcadeSave: Codable, Equatable {
     /// The pearl shop's items bought (`PearlItem` IDs), and what's worn.
     var ownedLooks: Set<String>? = nil
     var wornLook: WornLook? = nil
+    /// The Open Water's best run: the most fish eaten in one.
+    var openWaterBest: Int? = nil
     /// Fields this version doesn't know, from a later version, kept as they were.
     var laterFields: [String: SaveValue] = [:]
 
@@ -32,6 +34,7 @@ struct ArcadeSave: Codable, Equatable {
     enum CodingKeys: String, CodingKey, CaseIterable {
         case clearedLevels, bestTimes, hasSeenJellyLesson, seenUnlocks, hasSeenTutorial
         case pearlsEarned, pearlsSpent, ownedLooks, wornLook
+        case openWaterBest
     }
 
     /// What's worn (`PlayerLook`): an item ID for each kind worn, and when it was last changed (seconds since 1970),
@@ -63,6 +66,7 @@ struct ArcadeSave: Codable, Equatable {
         pearlsSpent = try? values.decodeIfPresent([String: Int].self, forKey: .pearlsSpent)
         ownedLooks = try? values.decodeIfPresent(Set<String>.self, forKey: .ownedLooks)
         wornLook = try? values.decodeIfPresent(WornLook.self, forKey: .wornLook)
+        openWaterBest = try? values.decodeIfPresent(Int.self, forKey: .openWaterBest)
         let all = try decoder.container(keyedBy: SaveKey.self)
         for key in all.allKeys where CodingKeys(stringValue: key.stringValue) == nil {
             laterFields[key.stringValue] = try? all.decode(SaveValue.self, forKey: key)
@@ -86,6 +90,7 @@ struct ArcadeSave: Codable, Equatable {
             case .pearlsSpent: try container.encodeIfPresent(pearlsSpent, forKey: field)
             case .ownedLooks: try container.encodeIfPresent(ownedLooks, forKey: field)
             case .wornLook: try container.encodeIfPresent(wornLook, forKey: field)
+            case .openWaterBest: try container.encodeIfPresent(openWaterBest, forKey: field)
             }
         }
     }
@@ -93,7 +98,7 @@ struct ArcadeSave: Codable, Equatable {
     /// This save with iCloud's merged in. Merging only ever adds, so syncing can never un-clear a level: cleared levels
     /// and seen "conquered" screens are united, each level keeps the faster best time, and a lesson or tutorial seen on
     /// either side stays seen. Each install's pearls taken and spent keep the larger count, things bought are united,
-    /// and the look changed last is worn. It comes out the same whichever save is which, except for fields from a later
+    /// the look changed last is worn, and the Open Water's better best run is kept. It comes out the same whichever save is which, except for fields from a later
     /// version: this version never changes those, so iCloud's (the latest any device wrote) is kept when both sides have
     /// one.
     func merged(withCloud cloud: ArcadeSave) -> ArcadeSave {
@@ -115,6 +120,8 @@ struct ArcadeSave: Codable, Equatable {
                 if let theirs = cloud.ownedLooks { merged.ownedLooks = (ownedLooks ?? []).union(theirs) }
             case .wornLook:
                 if let theirs = cloud.wornLook { merged.wornLook = wornLook.map { WornLook.latest($0, theirs) } ?? theirs }
+            case .openWaterBest:
+                if let theirs = cloud.openWaterBest { merged.openWaterBest = Swift.max(openWaterBest ?? 0, theirs) }
             }
         }
         merged.laterFields.merge(cloud.laterFields) { _, theirs in theirs }
@@ -351,6 +358,16 @@ final class ArcadeProgress: ObservableObject {
     func earnPearls(_ count: Int) {
         guard count > 0 else { return }
         save.pearlsEarned = (save.pearlsEarned ?? [:]).merging([install: count], uniquingKeysWith: +)
+        persist()
+    }
+
+    /// The Open Water's best run, in fish eaten: 0 before any.
+    var openWaterBest: Int { save.openWaterBest ?? 0 }
+
+    /// An Open Water run's end: kept if it's the best yet.
+    func recordOpenWaterRun(fish: Int) {
+        guard fish > openWaterBest else { return }
+        save.openWaterBest = fish
         persist()
     }
 

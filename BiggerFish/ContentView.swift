@@ -148,6 +148,10 @@ struct ContentView: View {
         .onChange(of: quietOnMap) { _, quiet in if quiet { askForReviewIfDue() } }
         // Bought or put on in the shop over a result card: worn from the next try.
         .onChange(of: progress.look) { _, look in scene?.playerLook = look }
+        #if DEBUG
+        // Taken in a run, or spent in the shop over its result card: the card's Shop button shows what's left.
+        .onChange(of: progress.pearls) { _, pearls in scene?.pearlsToSpend = pearls }
+        #endif
         .onChange(of: offer == nil) { _, closed in
             guard !closed else { return }
             review.sawOffer()
@@ -334,6 +338,9 @@ struct ContentView: View {
             // Each pearl's kept as it's taken, however the run ends.
             game.onPearl = { progress.earnPearls(1) }
             game.onShop = { withAnimation { showsShop = true } }
+            game.pearlsToSpend = progress.pearls
+            game.openWaterBest = progress.openWaterBest
+            game.onOpenWaterRun = { progress.recordOpenWaterRun(fish: $0) }
             game.onExit = { scene = nil }
             show(game)
         }

@@ -123,12 +123,48 @@ final class GameScene: SKScene {
     /// result card's Shop was tapped.
     var onPearl: (() -> Void)?
     var onShop: (() -> Void)?
+    /// The player's pearls to spend (the app's), shown on a run's result card's Shop button, and kept up to date there
+    /// as they're spent in the shop over it.
+    var pearlsToSpend = 0 {
+        didSet {
+            guard pearlsToSpend != oldValue, let resultPanel else { return }
+            resultPanel.showShopPearls(pearlsToSpend)
+            configureResultAccessibility(resultPanel)
+        }
+    }
+    /// The player's best run, in fish eaten (the app's), and each run's end with its fish, for the app to keep a new best.
+    var openWaterBest = 0
+    var onOpenWaterRun: ((Int) -> Void)?
+    /// The run just ended beat the best: its card says so.
+    private var openWaterNewBest = false
     #endif
     private var isOpenWater: Bool {
         #if DEBUG
         return openWater != nil
         #else
         return false
+        #endif
+    }
+    /// The Open Water's result card: "New best!" over a run that beat the best, and the best under how far it got.
+    private var openWaterResultHeading: String? {
+        #if DEBUG
+        return openWater != nil && openWaterNewBest ? "New best!" : nil
+        #else
+        return nil
+        #endif
+    }
+    private var openWaterResultNote: String? {
+        #if DEBUG
+        return openWater != nil && openWaterBest > 0 ? "Best: \(openWaterBest) fish" : nil
+        #else
+        return nil
+        #endif
+    }
+    private var openWaterShopPearls: Int? {
+        #if DEBUG
+        return openWater != nil ? pearlsToSpend : nil
+        #else
+        return nil
         #endif
     }
     /// The Open Water's result line: how far the run got.
@@ -834,7 +870,9 @@ final class GameScene: SKScene {
         noteHitch(.result, passed ? "won" : "lost")
         #endif
         let panel = ArcadeResultPanel(size: size, passed: passed, hasNext: !isFinalLevel && !isWorldFinale, detail: detail,
-                                      progress: strip, retryOnly: isTutorial, shop: isOpenWater)
+                                      progress: strip, retryOnly: isTutorial,
+                                      heading: passed ? nil : openWaterResultHeading, note: passed ? nil : openWaterResultNote,
+                                      shopPearls: openWaterShopPearls)
         panel.onSelect = { [weak self] action in self?.selectResult(action) }
         messageNode.addChild(panel)
         resultPanel = panel
@@ -850,7 +888,7 @@ final class GameScene: SKScene {
         // SKView exposes its scene as the accessibility container.
         accessibilityElements = panel.controls.map { control in
             let element = ArcadeResultAccessibilityElement(accessibilityContainer: self)
-            element.accessibilityLabel = control.action.title
+            element.accessibilityLabel = panel.spokenTitle(control.action)
             element.accessibilityTraits = .button
             let lower = convertPoint(toView: panel.convert(control.frame.origin, to: self))
             let upper = convertPoint(toView: panel.convert(CGPoint(x: control.frame.maxX, y: control.frame.maxY), to: self))
@@ -1005,6 +1043,12 @@ final class GameScene: SKScene {
         // A delayed result (a sting) sounds the loss when the result appears, after the zap.
         if resultDelay == 0 { playSound(.lose) }
         #if DEBUG
+        if openWater != nil {
+            // The run's score is the fish it ate.
+            openWaterNewBest = mealsEaten > openWaterBest
+            openWaterBest = max(openWaterBest, mealsEaten)
+            onOpenWaterRun?(mealsEaten)
+        }
         planNextOpenWaterRunAhead()
         #endif
         setPhase(.lost)
@@ -3759,6 +3803,9 @@ final class GameScene: SKScene {
     /// The words on the card before a level, top to bottom.
     var debugCardTexts: [String] { messageNode.children.compactMap { ($0 as? SKLabelNode)?.text } }
     var debugResultTitles: [String] { resultPanel?.controls.map { $0.action.title } ?? [] }
+    var debugResultHeading: String? { resultPanel?.headingText }
+    var debugResultNote: String? { resultPanel?.noteText }
+    var debugResultShopPearls: Int? { resultPanel?.shopPearls }
     func debugTapResult(_ action: ArcadeResultAction?) {
         guard let panel = resultPanel else { return }
         let frame = panel.controls.first { $0.action == action }?.frame
@@ -4364,17 +4411,8 @@ extension GameScene {
         guard openWater != nil else { return }
         let fishIcon = SKSpriteNode(texture: Self.openWaterFishIcon)
         fishIcon.position = CGPoint(x: -46, y: 0)
-        let pearl = SKShapeNode(circleOfRadius: 7)
-        pearl.fillColor = SKColor(red: 0.97, green: 0.95, blue: 0.93, alpha: 1)
-        pearl.strokeColor = SKColor(red: 0.85, green: 0.78, blue: 0.86, alpha: 1)
-        pearl.lineWidth = 1.5
+        let pearl = PearlShopArt.pearlIcon(radius: 7)
         pearl.position = CGPoint(x: 22, y: 0)
-        let shine = SKShapeNode(circleOfRadius: 2)
-        shine.fillColor = .white
-        shine.strokeColor = .clear
-        shine.position = CGPoint(x: -2.5, y: 2.5)
-        shine.zPosition = 1
-        pearl.addChild(shine)
         for (name, x) in [("fishCount", -32.0), ("pearlCount", 34.0)] {
             let count = label("0", fontSize: 15, heavy: true)
             count.name = name

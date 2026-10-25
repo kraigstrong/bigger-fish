@@ -110,6 +110,22 @@ enum PearlTrail: String {
 enum PearlShopArt {
     private static let R = FishNode.referenceRadius
 
+    /// A pearl beside a count (the Open Water's at the top of the screen, and its card's Shop button): white, with a
+    /// pale rim and a glint.
+    static func pearlIcon(radius: CGFloat) -> SKNode {
+        let pearl = SKShapeNode(circleOfRadius: radius)
+        pearl.fillColor = SKColor(red: 0.97, green: 0.95, blue: 0.93, alpha: 1)
+        pearl.strokeColor = SKColor(red: 0.85, green: 0.78, blue: 0.86, alpha: 1)
+        pearl.lineWidth = 1.5
+        let shine = SKShapeNode(circleOfRadius: radius * 2 / 7)
+        shine.fillColor = .white
+        shine.strokeColor = .clear
+        shine.position = CGPoint(x: -radius * 2.5 / 7, y: radius * 2.5 / 7)
+        shine.zPosition = 1
+        pearl.addChild(shine)
+        return pearl
+    }
+
     /// Each body color: the body, and the fins and tail. None is another fish's (FishKit's palette), so you can still
     /// find yourself.
     static let colors: [String: (body: SKColor, accent: SKColor)] = [
