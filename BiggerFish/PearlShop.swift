@@ -1066,11 +1066,12 @@ enum PearlShopArt {
     /// that nothing you wear makes you look bigger.
     static let lightName = "light"
 
-    /// A reindeer's red nose at the front of the face, lit: its glow spills out into the water around it, swelling and
-    /// fading. The one look allowed past your outline (Kraig's OK, 2026-10-25), since a glow doesn't make you look bigger.
+    /// A reindeer's red nose on the tip of the face (Kraig: "in the tip of his face"), lit: its glow spills out into the
+    /// water around it, swelling and fading. The one look allowed past your outline (Kraig's OK, 2026-10-25): the
+    /// glow, and the nose standing a little past the tip, as a reindeer's does.
     private static func redNose() -> SKNode {
         let node = SKNode()
-        let spot = CGPoint(x: 15.5, y: -8.4)
+        let spot = CGPoint(x: 18.2, y: -6.2)
         // Under the eye (facewear's 3.5 less 0.6 is under the eye's 3), so the glow doesn't tint it.
         for (side, color, z) in [(CGFloat(60), SKColor(red: 1, green: 0.12, blue: 0.08, alpha: 1), CGFloat(-0.6)),
                                  (24, SKColor(red: 1, green: 0.45, blue: 0.35, alpha: 1), -0.59)] {

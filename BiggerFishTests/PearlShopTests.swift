@@ -48,16 +48,17 @@ struct PearlShopTests {
         let plain = PlayerLook().fish().calculateAccumulatedFrame()
         for item in GameTuning.pearlShop where item.kind != .trail {
             let fish = PlayerLook().wearing(item).fish()
-            // The red nose's glow may spill past you: a glow doesn't make you look bigger. It's the one exception
-            // (Kraig, 2026-10-25), so nothing else may have one.
+            // The red nose is the one exception (Kraig, 2026-10-25): its glow spills past you, and it sits on the tip of
+            // your face, standing a little past it. Nothing else may glow.
             var lights: [SKNode] = []
             fish.enumerateChildNodes(withName: "//\(PearlShopArt.lightName)") { light, _ in lights.append(light) }
             #expect(lights.isEmpty || item.id == "face.nose", "\(item.name) glows")
             lights.forEach { $0.removeFromParent() }
             let worn = fish.calculateAccumulatedFrame()
             let headroom = item.kind == .hat ? GameTuning.pearlHatHeadroom * FishNode.referenceRadius : 0
+            let nose = item.id == "face.nose" ? 0.1 * FishNode.referenceRadius : 0
             #expect(worn.maxY <= plain.maxY + headroom + 0.01, "\(item.name) is \(worn.maxY - plain.maxY - headroom) too tall")
-            #expect(worn.minY >= plain.minY - 0.01 && worn.minX >= plain.minX - 0.01 && worn.maxX <= plain.maxX + 0.01,
+            #expect(worn.minY >= plain.minY - 0.01 && worn.minX >= plain.minX - 0.01 && worn.maxX <= plain.maxX + nose + 0.01,
                     "\(item.name)")
         }
     }
