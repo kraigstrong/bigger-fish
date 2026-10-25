@@ -70,7 +70,9 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     fitted to the screen's width with its world's water in a band above and below (a touch in a band still
     steers), and the menus are laid out as on the biggest iPhone and scaled up to fill the screen (`ScreenScaled`).
     Every iPhone draws exactly as before. On an iPad the app takes the whole screen in landscape
-    (`UIRequiresFullScreen`), so it doesn't join Split View or resize in Stage Manager
+    (`UIRequiresFullScreen`), so it doesn't join Split View or resize in Stage Manager. An iPhone Duo still resizes
+    the app as it opens and closes: the same fitting draws a level on either screen, and a level in play pauses
+    (`GameScene.screenDidResize`)
   - `SettingsView.swift` — Settings from the world map's gear: sound, music, vibration, replaying the tutorial,
     restoring the unlock, the privacy policy and support (biggerfish.app), the credits, and the version
   - `CreditsScene.swift` / `ArcadeCredits.swift` / `Credits.json` — the credits, played: from Settings, a calm swim
@@ -124,7 +126,10 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   - `PracticeScene.swift` — screen flow and gameplay; tuning is `ReefTuning` at the top
   - `ReefScreen.swift` — the iPad: how much bigger the scene draws (`ReefScreen.scale`), the band of water
     a round plays in (`ReefScreen.playfield`), and the scene's view (`ReefView`), which draws it bigger at
-    the screen's own resolution. Every iPhone draws exactly as before
+    the screen's own resolution. Every iPhone draws exactly as before. On an iPhone Duo, opening or closing the
+    phone changes the scene's size mid-play: whatever is showing is drawn again where it was (`PracticeScene.relayout`),
+    and a round's next question waits for the kid's next hold. The controls in a top corner move clear of the closed
+    phone's camera (`ReefCorners`, from iOS 27.1's reserved regions, so only in a build from the iOS 27.1 SDK)
   - `Tutorial.swift` — the first-launch tutorial (Hold, Let go, Eat the answer with 1 + 1), played with the
     real movement before the reef map on a fresh install. It never fails or times out; a stuck kid
     sees the hint again. The first catch gets "Yes!", then "Ready to play!", then a fade to the map

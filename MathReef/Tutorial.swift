@@ -117,6 +117,13 @@ struct TutorialFlow {
         return nil
     }
 
+    /// The water moved, as the screen changed size: the heights the steps remember move with it (`height` takes one in the
+    /// old water to the same place in the new).
+    mutating func refit(_ height: (CGFloat) -> CGFloat) {
+        holdLow = holdLow.map(height)
+        releaseHigh = releaseHigh.map(height)
+    }
+
     /// "Eat the answer": the fish caught an answer.
     mutating func ate(correct: Bool) -> Event? {
         guard step == .eat else { return nil }
@@ -189,9 +196,12 @@ final class TutorialOverlay: SKNode {
     private let skip = SKNode()
     /// Where a tap skips the tutorial, in scene coordinates (a little bigger than the button).
     private(set) var skipFrame = CGRect.zero
+    /// "Ready to play!" is up (`showClosingLine`).
+    private(set) var showsClosingLine = false
 
     /// `field` is the water the fish swims in: the whole screen on a phone, a band across an iPad's (`ReefScreen`).
-    init(size: CGSize, field: CGRect, skippable: Bool = true) {
+    /// `corners` moves Skip clear of a camera in the corner.
+    init(size: CGSize, field: CGRect, skippable: Bool = true, corners: ReefCorners = ReefCorners()) {
         fingerSpot = CGPoint(x: field.minX + field.width * L.tutorialFingerSpot.x,
                              y: field.minY + field.height * L.tutorialFingerSpot.y)
         captionSpot = CGPoint(x: fingerSpot.x, y: fingerSpot.y + 74)
@@ -241,13 +251,13 @@ final class TutorialOverlay: SKNode {
         arrows.alpha = 0
         addChild(arrows)
 
-        if skippable { buildSkip(size: size) }
+        if skippable { buildSkip(size: size, corners: corners) }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     /// For grown-ups reinstalling: small and out of the way, where the settings button usually sits.
-    private func buildSkip(size: CGSize) {
+    private func buildSkip(size: CGSize, corners: ReefCorners) {
         let text = reefLabel("Skip", fontSize: 15, heavy: false)
         let pillSize = CGSize(width: text.frame.width + 28, height: 32)
         let pill = SKShapeNode(rectOf: pillSize, cornerRadius: pillSize.height / 2)
@@ -257,7 +267,7 @@ final class TutorialOverlay: SKNode {
         text.zPosition = 1
         skip.addChild(pill)
         skip.addChild(text)
-        skip.position = CGPoint(x: size.width - 64, y: size.height - 36)
+        skip.position = CGPoint(x: size.width - 64 - corners.right, y: size.height - 36)
         skip.alpha = 0.75
         skip.zPosition = 4
         addChild(skip)
@@ -295,6 +305,7 @@ final class TutorialOverlay: SKNode {
     /// "Ready to play!", big, between two gold stars, where the "Yes!" card was. It pops in like the
     /// step words, then gently breathes until the fade.
     func showClosingLine() {
+        showsClosingLine = true
         setCaption(TutorialEnding.closingLine, at: closingSpot, fontSize: L.tutorialClosingLineFontSize)
         // The caption starts its pop-in small; measure it at full size.
         let halfWidth = caption.calculateAccumulatedFrame().width / caption.xScale / 2

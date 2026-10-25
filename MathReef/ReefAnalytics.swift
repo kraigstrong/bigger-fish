@@ -210,13 +210,6 @@ final class ReefAnalytics {
         flush(completion: completion)
     }
 
-    /// The round ended without being played out or quit (the scene rebuilt itself mid-round), so it
-    /// counts as nothing rather than as abandoned later.
-    func roundDiscarded() {
-        round = nil
-        defaults.removeObject(forKey: pendingKey)
-    }
-
     /// Back from the background with the round still going, so it isn't abandoned.
     func appBecameActive() {
         if round != nil { defaults.removeObject(forKey: pendingKey) }
