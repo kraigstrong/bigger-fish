@@ -960,22 +960,32 @@ enum PearlShopArt {
         return node
     }
 
-    /// A reindeer's red nose on the front of the face, lit, its glow gently swelling and fading.
+    /// A light's name: a soft glow that may spill past your outline (the red nose's), so it's left out when checking
+    /// that nothing you wear makes you look bigger.
+    static let lightName = "light"
+
+    /// A reindeer's red nose at the front of the face, lit: its glow spills out into the water around it, swelling and
+    /// fading. The one look allowed past your outline (Kraig's OK, 2026-10-25), since a glow doesn't make you look bigger.
     private static func redNose() -> SKNode {
         let node = SKNode()
-        let spot = CGPoint(x: 13, y: -8.5)
-        let glow = SKSpriteNode(texture: ArcadeArt.glow, size: CGSize(width: 13, height: 13))
-        glow.position = spot
-        glow.color = SKColor(red: 1, green: 0.2, blue: 0.15, alpha: 1)
-        glow.colorBlendFactor = 1
-        glow.blendMode = .add
-        glow.alpha = 0.9
-        glow.zPosition = 0
-        glow.run(.repeatForever(.sequence([.fadeAlpha(to: 0.4, duration: 0.9), .fadeAlpha(to: 0.9, duration: 0.9)])))
-        node.addChild(glow)
-        node.addChild(ball(4.2, at: spot, fill: SKColor(red: 0.95, green: 0.1, blue: 0.12, alpha: 1), z: 0.1))
-        let shine = SKShapeNode(circleOfRadius: 1.3)
-        shine.position = CGPoint(x: spot.x - 1.3, y: spot.y + 1.5)
+        let spot = CGPoint(x: 15.5, y: -8.4)
+        // Under the eye (facewear's 3.5 less 0.6 is under the eye's 3), so the glow doesn't tint it.
+        for (side, color, z) in [(CGFloat(60), SKColor(red: 1, green: 0.12, blue: 0.08, alpha: 1), CGFloat(-0.6)),
+                                 (24, SKColor(red: 1, green: 0.45, blue: 0.35, alpha: 1), -0.59)] {
+            let glow = SKSpriteNode(texture: ArcadeArt.glow, size: CGSize(width: side, height: side))
+            glow.name = lightName
+            glow.position = spot
+            glow.color = color
+            glow.colorBlendFactor = 1
+            glow.blendMode = .add
+            glow.alpha = 1
+            glow.zPosition = z
+            glow.run(.repeatForever(.sequence([.fadeAlpha(to: 0.55, duration: 0.9), .fadeAlpha(to: 1, duration: 0.9)])))
+            node.addChild(glow)
+        }
+        node.addChild(ball(5, at: spot, fill: SKColor(red: 0.95, green: 0.1, blue: 0.12, alpha: 1), z: 0.1))
+        let shine = SKShapeNode(circleOfRadius: 1.6)
+        shine.position = CGPoint(x: spot.x - 1.5, y: spot.y + 1.8)
         shine.fillColor = SKColor(white: 1, alpha: 0.85)
         shine.strokeColor = .clear
         shine.zPosition = 0.2
