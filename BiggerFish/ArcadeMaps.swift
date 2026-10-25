@@ -35,42 +35,54 @@ struct ArcadeWorldMap: View {
             // On a screen taller than a phone's (an iPad), the stops keep a phone's spread, in the middle.
             let spread = min(size.height, ScreenFit.largestPhone.height)
             let worlds = ArcadeWorld.mapWorlds
-            // A stop per world: the campaign's five, and in Xcode builds the prototypes after them.
-            let centers = OceanMapLayout.worldCenters(count: worlds.count, size: CGSize(width: size.width, height: spread))
-                .map { CGPoint(x: $0.x, y: $0.y + (size.height - spread) / 2) }
+            // A stop per world: the campaign's five, and in Xcode builds the prototypes after them. When they don't
+            // fit the screen, the map runs on past its edge and scrolls.
+            let stops = Self.stops(count: worlds.count, in: CGSize(width: size.width, height: spread))
+            let width = stops.width
+            let centers = stops.centers.map { CGPoint(x: $0.x, y: $0.y + (size.height - spread) / 2) }
             // The first open world with main levels left, else the last open one.
             let isOpen = { (world: ArcadeWorld) in ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) }
             let focus = ArcadeWorld.campaign.firstIndex { world in
                 isOpen(world) && progress.clearedCounts(in: world).main < min(world.levelCount, ArcadeWorld.mainLevelCount)
             } ?? (ArcadeWorld.campaign.lastIndex(where: isOpen) ?? 0)
             ZStack(alignment: .topLeading) {
-                // Your fish swims just above the world you're on, clear of its Deep End ring.
-                MapArtLayer(size: size, points: centers,
-                            fishHome: CGPoint(x: centers[focus].x, y: centers[focus].y + 72), look: progress.look)
-                ForEach(worlds.indices, id: \.self) { index in
-                    let world = worlds[index]
-                    let open = isOpen(world)
-                    let cleared = progress.clearedCounts(in: world)
-                    let main = min(world.levelCount, ArcadeWorld.mainLevelCount)
-                    let complete = open && cleared.main >= main
-                    let detail = !open ? "Unlock to play"
-                        : complete ? "Conquered!" : cleared.main == 0 ? "\(main) levels to conquer" : "\(main - cleared.main) more to conquer"
-                    // A ring around the world fills in an arc per level beaten; once it's conquered, the ring turns
-                    // gold for its Deep End.
-                    let deepEnd = complete && world.deepEndCount > 0 ? (cleared: cleared.deepEnd, count: world.deepEndCount) : nil
-                    let crown = WorldCrown.earned(conquered: complete,
-                                                  deepEndCleared: deepEnd.map { $0.cleared >= $0.count } ?? false)
-                    let deepEndLabel = deepEnd.map { ", Deep End \($0.cleared) of \($0.count) cleared" } ?? ""
-                    Button { open ? onSelect(world) : onUnlock(world) } label: {
-                        WorldMapStop(title: world.title, detail: detail, world: world,
-                                     color: world.color, placeholder: false, locked: !open, deepEnd: deepEnd,
-                                     progress: open && !complete ? (cleared: cleared.main, count: main) : nil,
-                                     crown: crown)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(open ? "\(world.title), \(detail)\(deepEndLabel)" : "\(world.title), locked. \(detail)")
-                    .position(x: centers[index].x, y: size.height - centers[index].y)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    ZStack(alignment: .topLeading) {
+                        // Your fish swims just above the world you're on, clear of its Deep End ring.
+                        MapArtLayer(size: CGSize(width: width, height: size.height), points: centers,
+                                    fishHome: CGPoint(x: centers[focus].x, y: centers[focus].y + Self.fishLift), look: progress.look)
+                            .frame(width: width, height: size.height)
+                        ForEach(worlds.indices, id: \.self) { index in
+                            let world = worlds[index]
+                            let open = isOpen(world)
+                            let cleared = progress.clearedCounts(in: world)
+                            let main = min(world.levelCount, ArcadeWorld.mainLevelCount)
+                            let complete = open && cleared.main >= main
+                            let detail = !open ? "Unlock to play"
+                                : complete ? "Conquered!" : cleared.main == 0 ? "\(main) levels to conquer" : "\(main - cleared.main) more to conquer"
+                            // A ring around the world fills in an arc per level beaten; once it's conquered, the ring
+                            // turns gold for its Deep End.
+                            let deepEnd = complete && world.deepEndCount > 0 ? (cleared: cleared.deepEnd, count: world.deepEndCount) : nil
+                            let crown = WorldCrown.earned(conquered: complete,
+                                                          deepEndCleared: deepEnd.map { $0.cleared >= $0.count } ?? false)
+                            let deepEndLabel = deepEnd.map { ", Deep End \($0.cleared) of \($0.count) cleared" } ?? ""
+                            Button { open ? onSelect(world) : onUnlock(world) } label: {
+                                WorldMapStop(title: world.title, detail: detail, world: world,
+                                             color: world.color, placeholder: false, locked: !open, deepEnd: deepEnd,
+                                             progress: open && !complete ? (cleared: cleared.main, count: main) : nil,
+                                             crown: crown)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(open ? "\(world.title), \(detail)\(deepEndLabel)" : "\(world.title), locked. \(detail)")
+                            .position(x: centers[index].x, y: size.height - centers[index].y)
+                        }
+                    }.frame(width: width, height: size.height)
                 }
+                .scrollClipDisabled()
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                // Opened on the world you're on, where your fish waits.
+                .defaultScrollAnchor(UnitPoint(x: Self.scrollAnchor(centering: centers[focus].x, width: width, screenWidth: size.width),
+                                               y: 0.5))
                 Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
                     .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
                 HStack(spacing: 14) {
@@ -81,13 +93,42 @@ struct ArcadeWorldMap: View {
                 }
                 .frame(width: size.width - 24, alignment: .trailing)
                 .padding(.top, 14)
-                VStack { Spacer(); Text("Choose a world")
+                VStack { Spacer(); Text(width > size.width ? "Choose a world. Swipe to explore." : "Choose a world")
                     .font(.custom("AvenirNext-DemiBold", size: 13)).padding(.bottom, 12) }
                     .frame(width: size.width).allowsHitTesting(false)
             }
         }
         .foregroundStyle(.white)
         .background(OceanBackdrop(bloom: false))
+    }
+
+    /// How far above the world you're on your fish swims.
+    static let fishLift: CGFloat = 72
+
+    /// Where the world map's stops go on a screen `size` big, and how wide the map is: spread across the screen as
+    /// they always were when that leaves them at least `GameTuning.worldMapTightestSpacing` apart, and otherwise
+    /// `GameTuning.worldMapSpacing` apart, with the same margins at the ends, on a map wider than the screen that
+    /// scrolls. Either way, in two rows at `GameTuning.worldMapRows`.
+    static func stops(count: Int, in size: CGSize) -> (centers: [CGPoint], width: CGFloat) {
+        // Math Reef's zig-zag, but on Bigger Fish's own rows (`GameTuning.worldMapRows`).
+        func rows(_ centers: [CGPoint]) -> [CGPoint] {
+            centers.enumerated().map { index, center in
+                let row = index.isMultiple(of: 2) ? GameTuning.worldMapRows.upper : GameTuning.worldMapRows.lower
+                return CGPoint(x: center.x, y: size.height * row)
+            }
+        }
+        let spread = OceanMapLayout.worldCenters(count: count, size: size)
+        guard spread.count > 1, spread[1].x - spread[0].x < GameTuning.worldMapTightestSpacing else { return (rows(spread), size.width) }
+        let margins = spread[0].x + size.width - spread[spread.count - 1].x
+        let width = margins + GameTuning.worldMapSpacing * CGFloat(count - 1)
+        return (rows(OceanMapLayout.worldCenters(count: count, size: CGSize(width: width, height: size.height))), width)
+    }
+
+    /// How far across a map `width` wide to open it (`defaultScrollAnchor`'s x) so the point `x` is in the middle of a
+    /// screen `screenWidth` wide, or as near as the map's ends allow.
+    static func scrollAnchor(centering x: CGFloat, width: CGFloat, screenWidth: CGFloat) -> CGFloat {
+        guard width > screenWidth else { return 0 }
+        return min(max((x - screenWidth / 2) / (width - screenWidth), 0), 1)
     }
 }
 
