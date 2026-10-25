@@ -17,6 +17,16 @@ struct PearlItem: Identifiable, Equatable {
             case .trail: "Trails"
             }
         }
+
+        /// Its mark on the shop's rail (an SF Symbol).
+        var symbol: String {
+            switch self {
+            case .color: "paintpalette.fill"
+            case .pattern: "circle.hexagongrid.fill"
+            case .hat: "hat.widebrim.fill"
+            case .trail: "sparkles"
+            }
+        }
     }
 
     /// Saved with what a player owns and wears: never rename one.

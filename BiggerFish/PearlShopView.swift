@@ -3,12 +3,18 @@ import SpriteKit
 import SwiftUI
 
 /// The pearl shop (Xcode builds only, for now): the Open Water's pearls spent on looks for your fish, from the world
-/// map's pearl button or a run's result card. Tap something you own to wear it, or something you don't to try it on
-/// your fish first and buy it there. Buying puts it on.
+/// map's pearl button or a run's result card. A rail down the left of each kind of look, then your outfits (Kraig,
+/// 2026-10-25: "Left category rail sounds great"); your fish in the middle; the shelf on the right. Tap something you
+/// own to wear it, or something you don't to try it on your fish first and buy it there. Buying puts it on.
 struct PearlShopView: View {
     @ObservedObject var progress: ArcadeProgress
     let onClose: () -> Void
-    @State private var kind: PearlItem.Kind = .color
+    /// What's on the shelf: a kind's looks, or your saved outfits.
+    private enum Shelf: Hashable {
+        case kind(PearlItem.Kind)
+        case outfits
+    }
+    @State private var shelf = Shelf.kind(.color)
     /// Something not yet owned, tried on in the preview.
     @State private var trying: PearlItem?
     @State private var shown = false
@@ -26,11 +32,12 @@ struct PearlShopView: View {
                 .ignoresSafeArea()
             ScreenScaled { size, _ in
                 ZStack(alignment: .topTrailing) {
-                    HStack(alignment: .top, spacing: 20) {
-                        fitting.frame(width: min(300, size.width * 0.36))
-                        catalog
+                    HStack(alignment: .top, spacing: 16) {
+                        rail.frame(width: 100)
+                        fitting.frame(width: min(270, size.width * 0.3))
+                        shelfView
                     }
-                    .padding(.horizontal, 24).padding(.top, 14).padding(.bottom, 10)
+                    .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 10)
                     closeButton
                 }
             }
@@ -42,6 +49,60 @@ struct PearlShopView: View {
             withAnimation(.easeOut(duration: 0.2)) { shown = true }
         }
         .onChange(of: shownLook) { _, look in preview.look = look }
+        .onDisappear { sawShelf() }
+    }
+
+    // MARK: The rail
+
+    /// Each kind of look, then your outfits. A kind with looks you haven't seen here has a dot. It scrolls on a screen too
+    /// short for it all.
+    private var rail: some View {
+        ScrollView {
+            railButtons
+        }
+        .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    private var railButtons: some View {
+        VStack(spacing: 6) {
+            ForEach(PearlItem.Kind.allCases, id: \.self) { kind in
+                railButton(.kind(kind), title: kind.title, symbol: kind.symbol,
+                           hasNew: GameTuning.pearlShop.contains { $0.kind == kind && progress.isNew($0) })
+            }
+            Rectangle().fill(.white.opacity(0.18)).frame(height: 1).padding(.vertical, 4).padding(.horizontal, 10)
+            railButton(.outfits, title: "Outfits", symbol: "hanger", hasNew: false)
+        }
+        .padding(.top, 4)
+    }
+
+    private func railButton(_ target: Shelf, title: String, symbol: String, hasNew: Bool) -> some View {
+        let selected = shelf == target
+        return Button {
+            guard !selected else { return }
+            sawShelf()
+            shelf = target
+        } label: {
+            VStack(spacing: 3) {
+                Image(systemName: symbol).font(.system(size: 18, weight: .bold))
+                Text(title).font(.custom("AvenirNext-Heavy", size: 13))
+            }
+            .frame(maxWidth: .infinity).frame(height: 52)
+            .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(selected ? 0.24 : 0.07)))
+            .overlay(alignment: .topTrailing) {
+                if hasNew { Circle().fill(DeepEndColors.gold).frame(width: 9, height: 9).padding(7) }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(hasNew ? "\(title), new looks" : title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// The kind on the shelf, seen: its looks are no longer new (marked as you leave it, so you see what was).
+    private func sawShelf() {
+        guard case .kind(let kind) = shelf else { return }
+        progress.sawLooks(GameTuning.pearlShop.filter { $0.kind == kind })
     }
 
     /// The shop's name, your pearls, your fish in what it's wearing (and what it's trying on), and the way to buy it.
@@ -115,37 +176,91 @@ struct PearlShopView: View {
         }
     }
 
-    /// The kinds of thing, and each one's looks: its plain one first (always yours), then what pearls buy.
-    private var catalog: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                ForEach(PearlItem.Kind.allCases, id: \.self) { each in
-                    Button { kind = each } label: {
-                        Text(each.title).font(.custom("AvenirNext-Heavy", size: 14))
-                            .padding(.horizontal, 14).frame(height: 34)
-                            .background(Capsule().fill(each == kind ? Color.white.opacity(0.28) : Color.white.opacity(0.08)))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(each == kind ? .isSelected : [])
-                }
-            }
-            .padding(.trailing, 56)
+    // MARK: The shelf
+
+    /// The shelf's name (beside the close button), and on it a kind's looks (its plain one first, always yours, then
+    /// what pearls buy and what's earned) or your outfits.
+    private var shelfView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(shelfTitle).font(.custom("AvenirNext-Heavy", size: 22))
+                .frame(height: 44)
+                .accessibilityAddTraits(.isHeader)
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 10)], spacing: 10) {
-                    tile(nil)
-                    ForEach(GameTuning.pearlShop.filter { $0.kind == kind }) { item in tile(item) }
+                switch shelf {
+                case .kind(let kind):
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 10)], spacing: 10) {
+                        tile(nil, kind: kind)
+                        ForEach(GameTuning.pearlShop.filter { $0.kind == kind }) { item in tile(item, kind: kind) }
+                    }
+                    .padding(.bottom, 8)
+                case .outfits:
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
+                        ForEach(1...GameTuning.pearlShopOutfits, id: \.self) { slot in outfitTile(slot) }
+                    }
+                    .padding(.bottom, 8)
                 }
-                .padding(.bottom, 8)
             }
             .scrollBounceBehavior(.basedOnSize)
-            // Each kind from its top: one scrolled down, kept for a shorter kind, would hide its first row out of reach.
-            .id(kind)
+            // Each shelf from its top: one scrolled down, kept for a shorter shelf, would hide its first row out of reach.
+            .id(shelf)
         }
     }
 
-    /// A look (nil for this kind's plain one): your fish in it, its name, and its price, or that it's yours or on.
-    private func tile(_ item: PearlItem?) -> some View {
+    private var shelfTitle: String {
+        switch shelf {
+        case .kind(let kind): kind.title
+        case .outfits: "Outfits"
+        }
+    }
+
+    /// A saved outfit: your fish in it (tap to wear it all at once), and a button to save what you're wearing there.
+    private func outfitTile(_ slot: Int) -> some View {
+        let look = progress.outfit(slot)
+        let worn = look != nil && look == progress.look
+        return VStack(spacing: 8) {
+            Button {
+                guard let look else { return }
+                trying = nil
+                progress.wear(look)
+            } label: {
+                VStack(spacing: 4) {
+                    if let look {
+                        PearlShopThumbnail(look: look).frame(height: 56)
+                    } else {
+                        Image(systemName: "plus.circle").font(.system(size: 26, weight: .semibold)).opacity(0.5)
+                            .frame(height: 56)
+                    }
+                    Text("Outfit \(slot)").font(.custom("AvenirNext-DemiBold", size: 13))
+                    Group {
+                        if worn { Label("On", systemImage: "checkmark") } else { Text(look == nil ? "Empty" : "Tap to wear") }
+                    }
+                    .font(.custom("AvenirNext-Heavy", size: 12)).opacity(worn ? 1 : 0.75)
+                }
+                .padding(.vertical, 10).frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(worn ? 0.16 : 0.07)))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(worn ? DeepEndColors.gold : .white.opacity(0.15),
+                                                                   lineWidth: worn ? 2.5 : 1))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(look == nil ? "Outfit \(slot), empty" : worn ? "Outfit \(slot), wearing" : "Outfit \(slot), tap to wear")
+            Button {
+                trying = nil
+                progress.saveOutfit(slot)
+            } label: {
+                Text("Save what I'm wearing").font(.custom("AvenirNext-DemiBold", size: 12))
+                    .padding(.horizontal, 10).frame(height: 30)
+                    .background(Capsule().fill(.white.opacity(0.12)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Save what you're wearing as outfit \(slot)")
+        }
+    }
+
+    /// A look (nil for this kind's plain one): your fish in it, its name, and its price, or that it's yours or on, or new.
+    private func tile(_ item: PearlItem?, kind: PearlItem.Kind) -> some View {
         let owned = item.map(progress.owns) ?? true
+        let new = item.map(progress.isNew) ?? false
         let worn = progress.look[kind]?.id == item?.id
         let tried = item != nil && trying == item
         // A limited edition out of its season, or a look not yet earned: shown, dimmed, to try on but not to buy.
@@ -193,10 +308,19 @@ struct PearlShopView: View {
                     Image(systemName: symbol).font(.system(size: 12, weight: .bold)).opacity(0.85).padding(8)
                 }
             }
+            .overlay(alignment: .topLeading) {
+                // New since you were last here.
+                if new {
+                    Text("New").font(.custom("AvenirNext-Heavy", size: 10))
+                        .foregroundStyle(Color(red: 0.25, green: 0.17, blue: 0.02))
+                        .padding(.horizontal, 6).frame(height: 16)
+                        .background(Capsule().fill(DeepEndColors.gold)).padding(6)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(accessibility(item, owned: owned, worn: worn, locked: locked))
+        .accessibilityLabel((new ? "New: " : "") + accessibility(item, owned: owned, worn: worn, locked: locked))
     }
 
     private func accessibility(_ item: PearlItem?, owned: Bool, worn: Bool, locked: Bool) -> String {
