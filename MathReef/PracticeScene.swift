@@ -625,6 +625,7 @@ final class PracticeScene: SKScene {
 
     /// Behind the parental gate: what the purchase includes, its price, and restore (UnlockScreen.swift).
     private func showUnlockScreen() {
+        analytics.unlockScreenShown()
         var price = purchases.displayPrice
         #if DEBUG
         price = price ?? Self.standInPrice
