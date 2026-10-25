@@ -1,3 +1,4 @@
+import FishKit
 import SpriteKit
 import SwiftUI
 import UIKit
@@ -184,17 +185,5 @@ struct WorldProgressBar: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(progress.clearedCount) of \(progress.run.count) cleared. \(progress.caption)")
-    }
-}
-
-extension SKSpriteNode {
-    /// An SF Symbol as a sprite, drawn in `color`.
-    static func symbol(_ name: String, pointSize: CGFloat, weight: UIImage.SymbolWeight = .regular,
-                       color: UIColor = .white) -> SKSpriteNode? {
-        let config = UIImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
-        guard let image = UIImage(systemName: name, withConfiguration: config)?
-            .withTintColor(color, renderingMode: .alwaysOriginal) else { return nil }
-        let drawn = UIGraphicsImageRenderer(size: image.size).image { _ in image.draw(at: .zero) }
-        return SKSpriteNode(texture: SKTexture(image: drawn))
     }
 }

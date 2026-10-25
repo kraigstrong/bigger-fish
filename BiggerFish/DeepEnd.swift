@@ -1,4 +1,6 @@
+import FishKit
 import SwiftUI
+import UIKit
 
 // The Deep End: each world's optional extra-hard levels after its tenth, for players who want more.
 
@@ -9,6 +11,14 @@ enum DeepEndColors {
     static let surface = Color(red: 0.13, green: 0.52, blue: 0.66)
     static let abyss = Color(red: 0.02, green: 0.05, blue: 0.14)
     static let night = Color(red: 0.03, green: 0.07, blue: 0.2)
+}
+
+extension MenuTheme {
+    /// Settings' colors, for the menus drawn in SpriteKit (the pause menu): its night-to-abyss blue and the gold.
+    static let arcade = MenuTheme(
+        accent: UIColor(DeepEndColors.gold), onAccent: UIColor(red: 0.04, green: 0.12, blue: 0.24, alpha: 1),
+        backdropTop: UIColor(DeepEndColors.night), backdropBottom: UIColor(DeepEndColors.abyss)
+    )
 }
 
 /// The Deep End's emblem: a gold-ringed porthole into deep water, with a fish diving down and bubbles rising.

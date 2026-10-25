@@ -314,8 +314,8 @@ final class UnlockScreen: SKNode {
 
     private static func backdropTexture() -> SKTexture {
         let size = CGSize(width: 4, height: 64)
-        let colors = [SKColor(red: 0.05, green: 0.19, blue: 0.38, alpha: 1).cgColor,
-                      SKColor(red: 0.02, green: 0.08, blue: 0.20, alpha: 1).cgColor] as CFArray
+        // Settings' deep water (SettingsMenu.swift), opaque.
+        let colors = [MenuTheme.reef.backdropTop.cgColor, MenuTheme.reef.backdropBottom.cgColor] as CFArray
         let image = UIGraphicsImageRenderer(size: size).image { context in
             // The image's top is the screen's top.
             let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
