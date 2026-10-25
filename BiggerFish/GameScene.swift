@@ -4463,9 +4463,9 @@ extension GameScene {
         guard plansOpenWaterAhead, !hasOpenWaterPlan(seed: seed, index: index) else { return }
         let key = OpenWaterPlanKey(seed: seed, index: index)
         guard openWaterPlanning.insert(key).inserted else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let plan = OpenWater.plan(index, seed: seed)
-            DispatchQueue.main.async { [weak self] in self?.receiveOpenWaterPlan(plan, for: key) }
+            DispatchQueue.main.async { self?.receiveOpenWaterPlan(plan, for: key) }
         }
     }
 

@@ -92,12 +92,15 @@ struct ReefAnalyticsTests {
             let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             analytics.paywallShown()
             analytics.paywallShown()
+            analytics.unlockScreenShown()
+            analytics.unlockScreenShown()
             analytics.unlocked()
             ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true).unlocked()
-            #expect(milestones(analytics) == ["paywall_shown", "unlocked"])
+            #expect(milestones(analytics) == ["paywall_shown", "unlock_screen_shown", "unlocked"])
 
             let off = ReefAnalytics(defaults: UserDefaults(suiteName: "off.\(UUID().uuidString)")!, sender: StubSender(), enabled: false)
             off.paywallShown()
+            off.unlockScreenShown()
             off.unlocked()
             #expect(off.queue.isEmpty)
         }

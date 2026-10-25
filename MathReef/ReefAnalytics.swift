@@ -159,10 +159,18 @@ final class ReefAnalytics {
         }
     }
 
-    /// A locked level was tapped and the unlock prompt shown. Once per install.
+    /// A locked level was tapped and the unlock prompt shown: the kid-facing "ask a grown-up",
+    /// before the parental gate. Once per install.
     func paywallShown() {
         guard enabled else { return }
         reportOnce("paywall_shown")
+    }
+
+    /// A grown-up got past the parental gate to the unlock screen (price, buy, and restore), from
+    /// the unlock prompt or from Settings. Once per install.
+    func unlockScreenShown() {
+        guard enabled else { return }
+        reportOnce("unlock_screen_shown")
     }
 
     /// The full game became unlocked on this install: bought, restored, or through Family Sharing.
