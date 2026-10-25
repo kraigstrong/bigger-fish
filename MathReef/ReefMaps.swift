@@ -38,8 +38,9 @@ final class WorldMapNode: SKNode {
     private let fish = FishNode(style: .player, isPlayer: true, tailPhase: 0)
     private var fishHome = CGPoint.zero
 
-    /// `fishCrown` is the focused world's crown, since the fish waits beside that world.
-    init(size: CGSize, worlds: [WorldStop], focus: Int, fishCrown crown: Crown) {
+    /// `fishCrown` is the focused world's crown, since the fish waits beside that world. `corners` moves the title clear of
+    /// a camera in the corner.
+    init(size: CGSize, worlds: [WorldStop], focus: Int, fishCrown crown: Crown, corners: ReefCorners = ReefCorners()) {
         super.init()
         fish.setHeadwear(fishCrown(crown))
         let bed = seabed(size: size)
@@ -48,7 +49,7 @@ final class WorldMapNode: SKNode {
 
         let title = reefLabel("Math Reef", fontSize: 30, heavy: true)
         title.horizontalAlignmentMode = .left
-        title.position = CGPoint(x: 40, y: size.height - 38)
+        title.position = CGPoint(x: 40 + corners.left, y: size.height - 38)
         addChild(title)
 
         // Clear of the Dynamic Island on either side (its landscape safe-area inset, the largest of any
@@ -154,8 +155,9 @@ final class LevelMapNode: SKNode {
     private var dragging = false
 
     init(size: CGSize, title: String, color: SKColor, levels: [LevelStop], stars: (earned: Int, total: Int),
-         crown: Crown, focus: Int) {
-        backCenter = CGPoint(x: 46, y: size.height - 36)
+         crown: Crown, focus: Int, corners: ReefCorners = ReefCorners()) {
+        // The title and its tallies follow the back button clear of a camera in the corner.
+        backCenter = CGPoint(x: 46 + corners.left, y: size.height - 36)
         super.init()
         fish.setHeadwear(fishCrown(crown))
 
@@ -202,8 +204,11 @@ final class LevelMapNode: SKNode {
         CGPoint(x: centers[index].x + content.position.x, y: centers[index].y)
     }
 
-    /// How far the path is scrolled: 0 at the start, negative as later levels come into view.
-    var scrollOffset: CGFloat { content.position.x }
+    /// How far the path is scrolled: 0 at the start, negative as later levels come into view. Set, it stops at both ends.
+    var scrollOffset: CGFloat {
+        get { content.position.x }
+        set { content.position.x = newValue.clamped(minOffset, 0) }
+    }
 
     func touchBegan(at point: CGPoint) {
         touchStart = point

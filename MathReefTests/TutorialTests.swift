@@ -144,6 +144,19 @@ struct TutorialTests {
         #expect(run.flow.step == .letGo)
     }
 
+    /// The water moves partway through a hold, as when an iPhone Duo opens: the hold goes on from where the fish is in the
+    /// new water, so the move doesn't count as a rise.
+    @Test func aHoldGoesOnWhenTheWaterMoves() {
+        var run = Run(y: minY)
+        play(&run, seconds: 0.1, holding: { _ in true })
+        #expect(run.flow.step == .hold)
+        let up: CGFloat = 200
+        run.flow.refit { $0 + up }
+        let event = run.flow.update(fishY: run.y + up, holding: true, dt: dt, minY: minY + up, maxY: maxY + up)
+        #expect(event == nil)
+        #expect(run.flow.step == .hold)
+    }
+
     // MARK: Let go
 
     @Test func lettingGoSinksTheFishAndMovesOnToEat() {
