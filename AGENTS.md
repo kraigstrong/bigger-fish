@@ -106,4 +106,5 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
 - **Releases:** each app archives from `main` at a tagged commit (`math-reef-v1.0.1`,
   `bigger-fish-v0.4-beta.1`). Unreleased work for one app can sit on `main` while the other ships: they're
   separate targets. From 1.0, Bigger Fish sells its unlock in every build (`ArcadeUnlock.isSelling`), TestFlight
-  in the sandbox.
+  in the sandbox. Archive with the Xcode in `.xcode-version` or newer: only a build with the iOS 27.1 SDK fills an
+  iPhone Duo's screens, and an older one runs there in a small 667×375 window.
