@@ -186,9 +186,17 @@ struct PlayfieldView: UIViewRepresentable {
         @available(*, unavailable)
         required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+        /// The size the playfield was last laid out at.
+        private var laidOutSize: CGSize?
+
         /// The fitted playfield, its edges on the screen's pixels (as SwiftUI lays out), so the game draws sharp.
         override func layoutSubviews() {
             super.layoutSubviews()
+            // The screen changed size under a level, as an iPhone Duo's does when it opens or closes: the level pauses.
+            if bounds.width > 0, bounds.height > 0 {
+                if let laidOutSize, laidOutSize != bounds.size { (sceneView.scene as? GameScene)?.screenDidResize() }
+                laidOutSize = bounds.size
+            }
             let field = ScreenFit.playfieldFrame(in: bounds.size)
             let pixels = max(1, traitCollection.displayScale)
             func snap(_ value: CGFloat) -> CGFloat { (value * pixels).rounded() / pixels }
