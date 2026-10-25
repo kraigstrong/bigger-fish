@@ -236,7 +236,10 @@ struct OpenWaterTests {
         scene.openWaterBest = 2
         scene.pearlsToSpend = 38
         var runs: [Int] = []
-        scene.onOpenWaterRun = { runs.append($0) }
+        scene.onOpenWaterRun = { fish, _ in
+            runs.append(fish)
+            return []
+        }
         _ = scene.debugPlayOpenWater(untilLevel: 1, limit: 5, safeFromFish: true)
         let fish = scene.debugMealsEaten
         #expect(fish > 2)
@@ -273,6 +276,28 @@ struct OpenWaterTests {
         #expect(old.openWaterBest == nil)
         #expect(phone.merged(withCloud: pad).openWaterBest == 31 && pad.merged(withCloud: phone).openWaterBest == 31)
         #expect(phone.merged(withCloud: old).openWaterBest == 14 && old.merged(withCloud: phone).openWaterBest == 14)
+        let far = try decoder.decode(ArcadeSave.self, from: Data(#"{"openWaterFurthest":6}"#.utf8))
+        #expect(far.merged(withCloud: phone).openWaterFurthest == 6 && phone.merged(withCloud: far).openWaterFurthest == 6)
+    }
+
+    /// A run that earns a look says so over its card (it's the app that keeps what's earned), and tells the app how far
+    /// it got.
+    @Test func aRunsCardSaysWhatItEarned() throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 5)
+        let shark = try #require(PearlItem.item("hat.sharkfin")), starfish = try #require(PearlItem.item("hat.starfish"))
+        var earned = [shark], reached: [Int] = []
+        scene.onOpenWaterRun = { _, furthest in
+            reached.append(furthest)
+            return earned
+        }
+        #expect(scene.debugPlayOpenWater(untilLevel: 1, safeFromFish: true).index == 1)
+        scene.debugLose()
+        #expect(reached == [1] && scene.debugResultHeading == "You earned the Shark fin!")
+        earned = [shark, starfish]
+        scene.debugTapResult(.tryAgain)
+        scene.debugLose()
+        #expect(reached == [1, 0] && scene.debugResultHeading == "You earned 2 new looks!")
     }
 
     /// The game plans each level off the main thread as the one before starts, never as it reaches it: that froze the

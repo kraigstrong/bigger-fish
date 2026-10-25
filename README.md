@@ -27,7 +27,9 @@ the run's card and the map's Open Water button.
 Pearls are kept (`ArcadeProgress.pearls`, synced with progress) and spent in the **pearl shop** (`PearlShop.swift`,
 `PearlShopView.swift`, the list and prices in `GameTuning.pearlShop`), from the map's pearl button or a run's card:
 body colors, patterns, hats, and trails for your fish, worn everywhere it swims, never making it look bigger. Limited
-editions are on sale only in their season (`PearlSeason`; Christmas's Dec 1 – Jan 6), and kept all year once bought. See
+editions are on sale only in their season (`PearlSeason`; Christmas's Dec 1 – Jan 6), and kept all year once bought.
+Some looks are never sold, only earned (`PearlGoal`): by an Open Water run, or as crowns like the map's (silver for a
+world conquered, gold for a Deep End, diamond for every Deep End). See
 [`docs/bigger-fish-playable-scope.md`](docs/bigger-fish-playable-scope.md) for the accepted scope and deferred vision.
 
 ## Running

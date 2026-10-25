@@ -23,7 +23,7 @@ struct PearlShopTests {
         #expect(Set(items.map(\.id)).count == items.count)
         for item in items {
             #expect(item.id.hasPrefix(item.kind.rawValue + "."), "\(item.id)")
-            #expect(item.price > 0 && !item.name.isEmpty)
+            #expect(!item.name.isEmpty)
             let look = PlayerLook().wearing(item)
             switch item.kind {
             case .color: #expect(PearlShopArt.colors[item.id] != nil, "\(item.id)")
@@ -35,6 +35,10 @@ struct PearlShopTests {
             }
         }
         #expect(Set(items.map(\.kind)) == Set(PearlItem.Kind.allCases))
+        // Sold for pearls, or earned and never sold.
+        for item in items {
+            #expect(item.earnedBy == nil ? item.price > 0 : item.price == 0 && item.season == nil && !item.onSale(), "\(item.id)")
+        }
     }
 
     /// Nothing you wear makes your fish look bigger: colors and patterns stay inside your body, and a hat stays inside
@@ -52,7 +56,7 @@ struct PearlShopTests {
 
     /// A look saved by a later version, with things this one doesn't sell (or under the wrong kind), wears the rest.
     @Test func aLookWithUnknownThingsWearsWhatItKnows() {
-        let look = PlayerLook(ids: ["hat": "hat.crown", "trail": "trail.comet", "color": "hat.beanie", "cape": "cape.red"])
+        let look = PlayerLook(ids: ["hat": "hat.crown", "trail": "trail.lasers", "color": "hat.beanie", "cape": "cape.red"])
         #expect(look[.hat]?.id == "hat.crown" && look[.trail] == nil && look[.color] == nil)
         #expect(look.ids == ["hat": "hat.crown"])
     }
@@ -109,6 +113,42 @@ struct PearlShopTests {
         progress.wear(progress.look.without(.hat))
         progress.wear(progress.look.wearing(santa))
         #expect(progress.look[.hat] == santa)
+    }
+
+    /// A look that's earned is never sold: an Open Water run earns it (and says so), or a crown on the map does, judged from
+    /// what's saved, so what was done before it existed counts. The gold crown, sold before it was earned, stays its
+    /// buyers'.
+    @Test func earnedLooksComeFromWhatYouveDone() throws {
+        let progress = device(cloud: nil)
+        progress.earnPearls(1000)
+        let starfish = try item("hat.starfish"), shark = try item("hat.sharkfin"), comet = try item("trail.comet")
+        let champion = try item("pattern.champion")
+        let silver = try item("hat.crown.silver"), gold = try item("hat.crown"), diamond = try item("hat.crown.diamond")
+        #expect(progress.earnedLooks.isEmpty && !progress.buy(shark) && !progress.owns(shark) && progress.pearls == 1000)
+        #expect(progress.recordOpenWaterRun(fish: 49, furthest: 1).isEmpty)
+        #expect(Set(progress.recordOpenWaterRun(fish: 50, furthest: 2).map(\.id)) == [starfish.id, shark.id])
+        #expect(progress.owns(starfish) && progress.owns(shark) && !progress.owns(comet))
+        progress.wear(progress.look.wearing(shark))
+        #expect(progress.look[.hat] == shark)
+        // A worse run earns nothing more; a better one, what's left.
+        #expect(progress.recordOpenWaterRun(fish: 30, furthest: 1).isEmpty)
+        #expect(Set(progress.recordOpenWaterRun(fish: 100, furthest: 5).map(\.id)) == [champion.id, comet.id])
+        #expect(progress.pearls == 1000)
+
+        // The crowns, from the map's: a world conquered, a Deep End, then every Deep End.
+        #expect(!progress.owns(silver) && !progress.owns(gold) && !progress.owns(diamond))
+        for index in 0..<ArcadeWorld.mainLevelCount { progress.clear(.shallowReef, index, seconds: 20) }
+        #expect(progress.owns(silver) && !progress.owns(gold))
+        for index in ArcadeWorld.mainLevelCount..<ArcadeWorld.shallowReef.levelCount { progress.clear(.shallowReef, index, seconds: 20) }
+        #expect(progress.owns(gold) && !progress.owns(diamond))
+        for world in ArcadeWorld.campaign {
+            for index in 0..<world.levelCount { progress.clear(world, index, seconds: 20) }
+        }
+        #expect(progress.owns(diamond))
+
+        // Bought before it was earned: still yours.
+        let bought = device(#"{"ownedLooks":["hat.crown"],"pearlsEarned":{"a":200},"pearlsSpent":{"a":200}}"#, cloud: nil)
+        #expect(bought.owns(gold) && !bought.owns(silver))
     }
 
     /// A save from before the shop has no pearls and wears nothing, and still loads as it was.

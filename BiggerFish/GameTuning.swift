@@ -932,13 +932,20 @@ enum GameTuning {
         PearlItem("pattern.stripes", .pattern, "Stripes", price: 25),
         PearlItem("pattern.bands", .pattern, "Clown bands", price: 75),
         PearlItem("pattern.stars", .pattern, "Stars", price: 120),
+        PearlItem("pattern.champion", .pattern, "Champion glow", earnedBy: .fishInOneRun(100)),
         PearlItem("hat.beanie", .hat, "Beanie", price: 40),
         PearlItem("hat.flower", .hat, "Flower", price: 50),
         PearlItem("hat.baseball", .hat, "Baseball cap", price: 50),
         PearlItem("hat.sailor", .hat, "Sailor cap", price: 60),
         PearlItem("hat.cone", .hat, "Traffic cone", price: 80),
         PearlItem("hat.tiara", .hat, "Tiara", price: 120),
-        PearlItem("hat.crown", .hat, "Crown", price: 200),
+        // Earned, never sold (Kraig, 2026-10-25). The crowns are the map's: the gold one sold for 200 pearls before, and
+        // whoever bought it keeps it.
+        PearlItem("hat.starfish", .hat, "Starfish", earnedBy: .openWaterLevel(2)),
+        PearlItem("hat.sharkfin", .hat, "Shark fin", earnedBy: .fishInOneRun(50)),
+        PearlItem("hat.crown.silver", .hat, "Silver crown", earnedBy: .conquerAWorld),
+        PearlItem("hat.crown", .hat, "Gold crown", earnedBy: .conquerADeepEnd),
+        PearlItem("hat.crown.diamond", .hat, "Diamond crown", earnedBy: .conquerEveryDeepEnd),
         // Limited editions, after the rest of their kind (Kraig, 2026-10-24).
         PearlItem("hat.santa", .hat, "Santa hat", price: 100, season: .christmas),
         PearlItem("hat.antlers", .hat, "Reindeer antlers", price: 100, season: .christmas),
@@ -946,15 +953,18 @@ enum GameTuning {
         PearlItem("trail.cropduster", .trail, "Crop duster", price: 75),
         PearlItem("trail.sparkles", .trail, "Sparkles", price: 100),
         PearlItem("trail.rainbow", .trail, "Rainbow", price: 180),
+        PearlItem("trail.comet", .trail, "Comet", earnedBy: .openWaterLevel(5)),
     ]
     /// How far a hat may stand above the top of your back fin, in your radius. Hats are only drawn, never part of what
     /// eats or is eaten (Kraig, 2026-10-22: "the hats may need to be a bit taller. They should just not be part of the
     /// hitbox").
     static let pearlHatHeadroom: CGFloat = 0.4
     /// A trail lets out a mote this often (seconds) as you swim.
-    static let pearlTrailEvery: [PearlTrail: CGFloat] = [.bubbles: 0.08, .sparkles: 0.05, .rainbow: 0.035, .cropDuster: 0.07]
+    static let pearlTrailEvery: [PearlTrail: CGFloat] = [.bubbles: 0.08, .sparkles: 0.05, .rainbow: 0.035, .cropDuster: 0.07,
+                                                          .comet: 0.025]
     /// How long a trail's motes last; the crop duster's clouds hang about.
-    static let pearlTrailSeconds: [PearlTrail: CGFloat] = [.bubbles: 0.5, .sparkles: 0.5, .rainbow: 0.5, .cropDuster: 1]
+    static let pearlTrailSeconds: [PearlTrail: CGFloat] = [.bubbles: 0.5, .sparkles: 0.5, .rainbow: 0.5, .cropDuster: 1,
+                                                            .comet: 0.45]
     /// Xcode builds only: the shop's button that adds this many pearls, to try things out.
     static let pearlShopTestGift = 100
 
