@@ -373,9 +373,10 @@ final class ArcadeProgress: ObservableObject {
 
     func owns(_ item: PearlItem) -> Bool { save.ownedLooks?.contains(item.id) == true }
 
-    /// Buys `item` and puts it on, if there are pearls enough and it isn't owned already. Whether it was bought.
-    @discardableResult func buy(_ item: PearlItem, now: Date = Date()) -> Bool {
-        guard !owns(item), pearls >= item.price else { return false }
+    /// Buys `item` and puts it on, if there are pearls enough, it isn't owned already, and it's on sale `today` (a
+    /// limited edition only in its season). Whether it was bought.
+    @discardableResult func buy(_ item: PearlItem, now: Date = Date(), today: Date = PearlSeason.today) -> Bool {
+        guard !owns(item), item.onSale(today), pearls >= item.price else { return false }
         save.pearlsSpent = (save.pearlsSpent ?? [:]).merging([install: item.price], uniquingKeysWith: +)
         save.ownedLooks = (save.ownedLooks ?? []).union([item.id])
         save.wornLook = ArcadeSave.WornLook(items: wornLook.wearing(item).ids, changed: now.timeIntervalSince1970)

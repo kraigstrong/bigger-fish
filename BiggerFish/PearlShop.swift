@@ -24,15 +24,69 @@ struct PearlItem: Identifiable, Equatable {
     let kind: Kind
     let name: String
     let price: Int
+    /// A limited edition's time of year, the only time it's on sale. Whoever bought one keeps it and wears it all year.
+    let season: PearlSeason?
 
-    init(_ id: String, _ kind: Kind, _ name: String, price: Int) {
+    init(_ id: String, _ kind: Kind, _ name: String, price: Int, season: PearlSeason? = nil) {
         self.id = id
         self.kind = kind
         self.name = name
         self.price = price
+        self.season = season
     }
 
     static func item(_ id: String) -> PearlItem? { GameTuning.pearlShop.first { $0.id == id } }
+
+    /// Whether it can be bought on `date`: always, unless it's a limited edition out of its season.
+    func onSale(_ date: Date = PearlSeason.today) -> Bool { season?.contains(date) ?? true }
+}
+
+/// A time of year a limited edition is on sale, every year: from one day through another, the last day included, and
+/// across the new year when the last comes first (Christmas's: Kraig, 2026-10-24, "Dec 1 – Jan 6").
+struct PearlSeason: Equatable {
+    struct Day: Equatable, Comparable {
+        let month: Int
+        let day: Int
+
+        static func < (a: Day, b: Day) -> Bool { (a.month, a.day) < (b.month, b.day) }
+    }
+
+    let name: String
+    let from: Day
+    let through: Day
+    /// The tile's mark of a limited edition (an SF Symbol).
+    let symbol: String
+
+    static let christmas = PearlSeason(name: "Christmas", from: Day(month: 12, day: 1), through: Day(month: 1, day: 6),
+                                       symbol: "snowflake")
+
+    func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
+        let parts = calendar.dateComponents([.month, .day], from: date)
+        guard let month = parts.month, let day = parts.day else { return false }
+        let today = Day(month: month, day: day)
+        return from <= through ? from <= today && today <= through : today >= from || today <= through
+    }
+
+    /// "Dec 1 – Jan 6".
+    var dates: String {
+        let months = DateFormatter().shortMonthSymbols ?? []
+        func name(_ day: Day) -> String { "\(months.indices.contains(day.month - 1) ? months[day.month - 1] : "\(day.month)") \(day.day)" }
+        return "\(name(from)) – \(name(through))"
+    }
+
+    /// Today, for what's on sale. Xcode builds can pretend it's Christmas, from the shop, to try the season's things.
+    static var today: Date {
+        #if DEBUG
+        if pretendItsChristmas, let christmas = Calendar.current.date(from: DateComponents(month: 12, day: 15)) {
+            return christmas
+        }
+        #endif
+        return Date()
+    }
+
+    #if DEBUG
+    static var pretendItsChristmas = false
+    #endif
 }
 
 /// What your fish wears: one item of each kind at most, or none (the plain orange fish).
@@ -103,7 +157,7 @@ struct PlayerLook: Equatable {
 
 /// What a trail leaves behind you as you swim.
 enum PearlTrail: String {
-    case bubbles = "trail.bubbles", sparkles = "trail.sparkles", rainbow = "trail.rainbow"
+    case bubbles = "trail.bubbles", sparkles = "trail.sparkles", rainbow = "trail.rainbow", cropDuster = "trail.cropduster"
 }
 
 /// The drawing of everything the shop sells, at FishKit's reference radius (30) facing right.
@@ -231,6 +285,10 @@ enum PearlShopArt {
         case "hat.sailor": hat = sailorCap()
         case "hat.cone": hat = trafficCone()
         case "hat.crown": hat = crown()
+        case "hat.baseball": hat = baseballCap()
+        case "hat.tiara": hat = tiara()
+        case "hat.santa": hat = santaHat()
+        case "hat.antlers": hat = antlers()
         default: return nil
         }
         // Down onto the body (its top is about this far below the headwear's spot).
@@ -359,6 +417,95 @@ enum PearlShopArt {
         return node
     }
 
+    /// A blue cap with its button on top and its bill out over your eye.
+    private static func baseballCap() -> SKNode {
+        let node = SKNode()
+        let blue = SKColor(red: 0.13, green: 0.38, blue: 0.86, alpha: 1)
+        let dome = CGMutablePath()
+        dome.move(to: CGPoint(x: -10, y: -1.5))
+        dome.addQuadCurve(to: CGPoint(x: 9, y: -1.5), control: CGPoint(x: -1, y: 18))
+        dome.closeSubpath()
+        node.addChild(shape(dome, fill: blue, z: 0))
+        let seam = CGMutablePath()
+        seam.move(to: CGPoint(x: -0.5, y: 8))
+        seam.addQuadCurve(to: CGPoint(x: 2.5, y: -1.5), control: CGPoint(x: 2, y: 4))
+        node.addChild(shape(seam, fill: .clear, stroke: SKColor(white: 1, alpha: 0.35), line: 1, z: 0.1))
+        node.addChild(ball(1.7, at: CGPoint(x: -0.5, y: 8.4), fill: blue, z: 0.2))
+        let bill = CGMutablePath()
+        bill.move(to: CGPoint(x: 5, y: -1.5))
+        bill.addQuadCurve(to: CGPoint(x: 17, y: -3.2), control: CGPoint(x: 13, y: 1.8))
+        bill.addQuadCurve(to: CGPoint(x: 5, y: -1.5), control: CGPoint(x: 12, y: -3.8))
+        bill.closeSubpath()
+        node.addChild(shape(bill, fill: SKColor(red: 0.08, green: 0.26, blue: 0.66, alpha: 1), z: 0.3))
+        return node
+    }
+
+    /// A silver band rising to three points, a pink jewel in the middle and a blue one either side.
+    private static func tiara() -> SKNode {
+        let node = SKNode()
+        let silver = SKColor(red: 0.9, green: 0.92, blue: 0.97, alpha: 1)
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -10, y: -1.5))
+        path.addLine(to: CGPoint(x: -10, y: 1.5))
+        path.addQuadCurve(to: CGPoint(x: -5.5, y: 6.5), control: CGPoint(x: -8.5, y: 5))
+        path.addQuadCurve(to: CGPoint(x: 0, y: 11.5), control: CGPoint(x: -2.5, y: 6.5))
+        path.addQuadCurve(to: CGPoint(x: 5.5, y: 6.5), control: CGPoint(x: 2.5, y: 6.5))
+        path.addQuadCurve(to: CGPoint(x: 10, y: 1.5), control: CGPoint(x: 8.5, y: 5))
+        path.addLine(to: CGPoint(x: 10, y: -1.5))
+        path.closeSubpath()
+        node.addChild(shape(path, fill: silver, stroke: SKColor(red: 0.5, green: 0.53, blue: 0.65, alpha: 1), line: 1.2, z: 0))
+        node.addChild(ball(2.2, at: CGPoint(x: 0, y: 5), fill: SKColor(red: 1, green: 0.35, blue: 0.65, alpha: 1), z: 0.1))
+        for (index, x) in [CGFloat(-5.5), 5.5].enumerated() {
+            node.addChild(ball(1.3, at: CGPoint(x: x, y: 2.6), fill: SKColor(red: 0.35, green: 0.75, blue: 1, alpha: 1),
+                               z: 0.11 + CGFloat(index) * 0.01))
+        }
+        return node
+    }
+
+    /// A red hat flopping back, with its white fur brim and pompom.
+    private static func santaHat() -> SKNode {
+        let node = SKNode()
+        let hat = CGMutablePath()
+        hat.move(to: CGPoint(x: -9.5, y: 0))
+        hat.addLine(to: CGPoint(x: 9.5, y: 0))
+        hat.addQuadCurve(to: CGPoint(x: -2, y: 15), control: CGPoint(x: 8, y: 13))
+        hat.addQuadCurve(to: CGPoint(x: -15, y: 6.5), control: CGPoint(x: -10, y: 15.5))
+        hat.addQuadCurve(to: CGPoint(x: -9.5, y: 0), control: CGPoint(x: -11, y: 4))
+        hat.closeSubpath()
+        node.addChild(shape(hat, fill: SKColor(red: 0.86, green: 0.1, blue: 0.13, alpha: 1), z: 0))
+        let brim = CGPath(roundedRect: CGRect(x: -11, y: -2.5, width: 22, height: 5), cornerWidth: 2.5, cornerHeight: 2.5,
+                          transform: nil)
+        node.addChild(shape(brim, fill: .white, z: 0.1))
+        node.addChild(ball(3.2, at: CGPoint(x: -15.5, y: 6), fill: .white, z: 0.2))
+        return node
+    }
+
+    /// A reindeer's antlers, a branch of two tines each, the back one a little behind the front.
+    private static func antlers() -> SKNode {
+        let node = SKNode()
+        for (index, base) in [CGFloat(-6), 5].enumerated() {
+            let antler = CGMutablePath()
+            antler.move(to: CGPoint(x: base, y: -1))
+            antler.addQuadCurve(to: CGPoint(x: base - 4, y: 16), control: CGPoint(x: base + 2, y: 9))
+            antler.move(to: CGPoint(x: base + 0.7, y: 6.5))
+            antler.addLine(to: CGPoint(x: base + 5, y: 10.5))
+            antler.move(to: CGPoint(x: base - 1.6, y: 11.5))
+            antler.addLine(to: CGPoint(x: base + 2.5, y: 15))
+            // A dark outline under the antler's own brown: the back one drawn under the front.
+            let depth = CGFloat(index) * 0.1
+            let outline = shape(antler, fill: .clear, stroke: SKColor(red: 0.3, green: 0.17, blue: 0.07, alpha: 1), line: 4.4,
+                                z: depth)
+            let brown = shape(antler, fill: .clear, stroke: SKColor(red: 0.66, green: 0.44, blue: 0.24, alpha: 1), line: 2.6,
+                              z: depth + 0.05)
+            for part in [outline, brown] {
+                part.lineCap = .round
+                part.lineJoin = .round
+                node.addChild(part)
+            }
+        }
+        return node
+    }
+
     // MARK: Trails
 
     /// A trail's mote: its texture, how it's blended, and its size against your radius.
@@ -367,6 +514,7 @@ enum PearlShopArt {
         case .bubbles: (bubbleTexture, false, 0.42)
         case .sparkles: (sparkleTexture, true, 0.62)
         case .rainbow: (ArcadeArt.glow, true, 0.7)
+        case .cropDuster: (puffTexture, false, 0.6)
         }
     }
 
@@ -381,6 +529,21 @@ enum PearlShopArt {
             cg.strokeEllipse(in: CGRect(x: 2.5, y: 2.5, width: side - 5, height: side - 5))
             cg.setFillColor(UIColor.white.cgColor)
             cg.fillEllipse(in: CGRect(x: side * 0.24, y: side * 0.2, width: side * 0.24, height: side * 0.24))
+        }
+        return SKTexture(image: image)
+    }()
+
+    /// A little cloud of gas: three soft green puffs.
+    private static let puffTexture: SKTexture = {
+        let side: CGFloat = 48
+        let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
+            let cg = context.cgContext
+            cg.setFillColor(UIColor(red: 0.62, green: 0.74, blue: 0.22, alpha: 0.75).cgColor)
+            for (x, y, r) in [(0.5, 0.42, 0.3), (0.3, 0.6, 0.22), (0.7, 0.62, 0.2)] as [(CGFloat, CGFloat, CGFloat)] {
+                cg.fillEllipse(in: CGRect(x: (x - r) * side, y: (y - r) * side, width: 2 * r * side, height: 2 * r * side))
+            }
+            cg.setFillColor(UIColor(red: 0.85, green: 0.92, blue: 0.5, alpha: 0.55).cgColor)
+            cg.fillEllipse(in: CGRect(x: 0.36 * side, y: 0.26 * side, width: 0.18 * side, height: 0.16 * side))
         }
         return SKTexture(image: image)
     }()
@@ -442,10 +605,9 @@ final class PearlTrailMotes {
     /// camera's zoom), as old as it is.
     func render(_ trail: PearlTrail?, time: CGFloat, scale: CGFloat, place: (CGPoint) -> CGPoint) {
         guard !motes.isEmpty else { return }
-        let life = GameTuning.pearlTrailSeconds
         motes.removeAll { mote in
             let age = time - mote.born
-            guard age < life, let trail else {
+            guard let trail, let life = GameTuning.pearlTrailSeconds[trail], age < life else {
                 mote.node.removeFromParent()
                 return true
             }
@@ -462,6 +624,12 @@ final class PearlTrailMotes {
                 mote.node.zRotation = CGFloat(mote.index) * 0.7 + age * 2
             case .rainbow:
                 size = 1 - 0.6 * t
+            case .cropDuster:
+                // Each puff swells and drifts up as it hangs in the water behind you.
+                point.x += sin(age * 5 + CGFloat(mote.index)) * 2
+                point.y += age * 14
+                size = 0.55 + 0.75 * t
+                mote.node.zRotation = CGFloat(mote.index) * 1.3
             }
             mote.node.position = point
             mote.node.setScale(scale * size)

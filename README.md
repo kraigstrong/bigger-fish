@@ -26,7 +26,8 @@ A run's score is the fish it ate: the best is kept (`ArcadeProgress.openWaterBes
 the run's card and the map's Open Water button.
 Pearls are kept (`ArcadeProgress.pearls`, synced with progress) and spent in the **pearl shop** (`PearlShop.swift`,
 `PearlShopView.swift`, the list and prices in `GameTuning.pearlShop`), from the map's pearl button or a run's card:
-body colors, patterns, hats, and trails for your fish, worn everywhere it swims, never making it look bigger. See
+body colors, patterns, hats, and trails for your fish, worn everywhere it swims, never making it look bigger. Limited
+editions are on sale only in their season (`PearlSeason`; Christmas's Dec 1 – Jan 6), and kept all year once bought. See
 [`docs/bigger-fish-playable-scope.md`](docs/bigger-fish-playable-scope.md) for the accepted scope and deferred vision.
 
 ## Running
