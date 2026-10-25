@@ -406,7 +406,7 @@ private struct MapArtLayer: View {
 
 /// The map art's SpriteKit view: SpriteView's, but drawn at the menus' scale (`ScreenScaled`) on an iPad, where a
 /// SwiftUI scale effect would only stretch what it drew at a phone's size.
-private struct MapArtView: UIViewRepresentable {
+struct MapArtView: UIViewRepresentable {
     let scene: SKScene
 
     func makeUIView(context: Context) -> ScaledView {
@@ -426,14 +426,26 @@ private struct MapArtView: UIViewRepresentable {
     final class ScaledView: SKView {
         var menuScale: CGFloat = 1 { didSet { if menuScale != oldValue { matchScreen() } } }
 
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            // The screen's own resolution, followed from one screen to another: an iPhone Duo's two.
+            registerForTraitChanges([UITraitDisplayScale.self]) { (view: ScaledView, _: UITraitCollection) in
+                view.matchScreen()
+            }
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
         override func didMoveToWindow() {
             super.didMoveToWindow()
             matchScreen()
         }
 
         private func matchScreen() {
-            guard let screen = window?.windowScene?.screen else { return }
-            contentScaleFactor = screen.scale * menuScale
+            let pixels = traitCollection.displayScale
+            guard pixels > 0 else { return }
+            contentScaleFactor = pixels * menuScale
         }
     }
 }

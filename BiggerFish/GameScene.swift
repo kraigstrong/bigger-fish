@@ -598,6 +598,12 @@ final class GameScene: SKScene {
         resetGame(startPlaying: false)
     }
 
+    /// The screen changed size under the level (`PlayfieldView`): an iPhone Duo opened or closed, the player's hands on
+    /// the phone rather than the game. A run in play stops under the pause menu, as it does when the app is interrupted.
+    func screenDidResize() {
+        if phase == .playing { pauseRun() }
+    }
+
     @objc private func appWillResignActive() {
         if phase == .playing { pauseRun() }
         holdTouches.removeAll()

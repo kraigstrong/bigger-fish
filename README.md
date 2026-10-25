@@ -69,7 +69,9 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     fitted to the screen's width with its world's water in a band above and below (a touch in a band still
     steers), and the menus are laid out as on the biggest iPhone and scaled up to fill the screen (`ScreenScaled`).
     Every iPhone draws exactly as before. On an iPad the app takes the whole screen in landscape
-    (`UIRequiresFullScreen`), so it doesn't join Split View or resize in Stage Manager
+    (`UIRequiresFullScreen`), so it doesn't join Split View or resize in Stage Manager. An iPhone Duo still resizes
+    the app as it opens and closes: the same fitting draws a level on either screen, and a level in play pauses
+    (`GameScene.screenDidResize`)
   - `SettingsView.swift` — Settings from the world map's gear: sound, music, vibration, replaying the tutorial,
     restoring the unlock, the privacy policy and support (biggerfish.app), the credits, and the version
   - `CreditsScene.swift` / `ArcadeCredits.swift` / `Credits.json` — the credits, played: from Settings, a calm swim
