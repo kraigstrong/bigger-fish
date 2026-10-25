@@ -938,20 +938,24 @@ enum PearlShopArt {
         return node
     }
 
-    /// A curly brown mustache over the mouth.
+    /// A dark brown handlebar mustache on the upper lip, tilted with the smile, both ends curling up. It reads at a
+    /// glance as a mustache where a side-on one looked like a smudge (Kraig's first look: "really off").
     private static func mustache() -> SKNode {
         let node = SKNode()
-        let brown = SKColor(red: 0.32, green: 0.19, blue: 0.1, alpha: 1)
-        let middle = CGPoint(x: 9.5, y: -9)
+        let lip = SKNode()
+        lip.position = CGPoint(x: 12, y: -11)
+        lip.zRotation = 0.25
+        node.addChild(lip)
         for (index, side) in [CGFloat(-1), 1].enumerated() {
             let half = CGMutablePath()
-            half.move(to: CGPoint(x: middle.x, y: middle.y + 1.5))
-            half.addQuadCurve(to: CGPoint(x: middle.x + side * 10, y: middle.y - 1.5), control: CGPoint(x: middle.x + side * 5, y: middle.y + 5))
-            half.addQuadCurve(to: CGPoint(x: middle.x + side * 7.5, y: middle.y + 2.5),
-                              control: CGPoint(x: middle.x + side * 11, y: middle.y + 2.5))
-            half.addQuadCurve(to: CGPoint(x: middle.x, y: middle.y - 2.5), control: CGPoint(x: middle.x + side * 5, y: middle.y - 3.5))
+            half.move(to: CGPoint(x: 0, y: 1.5))
+            half.addQuadCurve(to: CGPoint(x: side * 7, y: 0.5), control: CGPoint(x: side * 3.5, y: 3.2))
+            half.addQuadCurve(to: CGPoint(x: side * 8.6, y: 3.4), control: CGPoint(x: side * 9.4, y: 0.4))
+            half.addQuadCurve(to: CGPoint(x: side * 6.4, y: -1.8), control: CGPoint(x: side * 9.6, y: -1.6))
+            half.addQuadCurve(to: CGPoint(x: 0, y: -2.2), control: CGPoint(x: side * 3.5, y: -3.6))
             half.closeSubpath()
-            node.addChild(shape(half, fill: brown, stroke: SKColor(red: 0.18, green: 0.1, blue: 0.05, alpha: 1), line: 1, z: CGFloat(index) * 0.01))
+            lip.addChild(shape(half, fill: SKColor(red: 0.27, green: 0.16, blue: 0.08, alpha: 1),
+                               stroke: SKColor(red: 0.13, green: 0.07, blue: 0.03, alpha: 1), line: 1, z: CGFloat(index) * 0.01))
         }
         return node
     }
