@@ -286,24 +286,29 @@ enum PearlShopArt {
         return max(0, b * sqrt(max(0, 1 - pow(x / a, 2))) - 2.2)
     }
 
+    /// A band across the body from `left` to `right` along your back, `slant` further back along your belly.
+    private static func band(_ left: CGFloat, _ right: CGFloat, slant: CGFloat = 0) -> CGPath {
+        let path = CGMutablePath()
+        let steps = 8
+        for i in 0...steps {
+            let x = left + (right - left) * CGFloat(i) / CGFloat(steps)
+            let point = CGPoint(x: x, y: halfHeight(at: x))
+            if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        for i in (0...steps).reversed() {
+            let x = left + (right - left) * CGFloat(i) / CGFloat(steps) - slant
+            path.addLine(to: CGPoint(x: x, y: -halfHeight(at: x)))
+        }
+        path.closeSubpath()
+        return path
+    }
+
     /// A clownfish's two white bands, edged in black.
     private static func clownBands() -> SKNode {
         let node = SKNode()
         for (center, width) in [(0.38 * R, 0.3 * R), (-0.5 * R, 0.34 * R)] {
             let left = center - width / 2, right = center + width / 2
-            let path = CGMutablePath()
-            let steps = 8
-            for i in 0...steps {
-                let x = left + (right - left) * CGFloat(i) / CGFloat(steps)
-                let point = CGPoint(x: x, y: halfHeight(at: x))
-                if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
-            }
-            for i in (0...steps).reversed() {
-                let x = left + (right - left) * CGFloat(i) / CGFloat(steps)
-                path.addLine(to: CGPoint(x: x, y: -halfHeight(at: x)))
-            }
-            path.closeSubpath()
-            let band = SKShapeNode(path: path)
+            let band = SKShapeNode(path: band(left, right))
             band.fillColor = .white
             band.strokeColor = .clear
             node.addChild(band)
@@ -339,28 +344,22 @@ enum PearlShopArt {
         return node
     }
 
-    /// A zebra's dark stripes, slanting back across the body.
+    /// A zebra's coat: white all over your body (your color stays on your fins), black stripes slanting back across it.
+    /// On its own your color showed between the stripes, and an orange fish looked like a tiger.
     private static func zebra() -> SKNode {
         let node = SKNode()
+        // All of the body, just inside its outline.
+        let size = FishNode.bodySize
+        let coat = SKShapeNode(ellipseOf: CGSize(width: size.width - 2, height: size.height - 2))
+        coat.fillColor = SKColor(white: 0.97, alpha: 1)
+        coat.strokeColor = .clear
+        node.addChild(coat)
         for (index, (center, width)) in [(0.62 * R, 0.1 * R), (0.3 * R, 0.13 * R), (-0.04 * R, 0.14 * R), (-0.38 * R, 0.13 * R),
                                           (-0.7 * R, 0.11 * R), (-0.98 * R, 0.08 * R)].enumerated() {
-            let left = center - width / 2, right = center + width / 2, slant = 0.14 * R
-            let path = CGMutablePath()
-            let steps = 6
-            for i in 0...steps {
-                let x = left + (right - left) * CGFloat(i) / CGFloat(steps)
-                let point = CGPoint(x: x, y: halfHeight(at: x))
-                if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
-            }
-            for i in (0...steps).reversed() {
-                let x = left + (right - left) * CGFloat(i) / CGFloat(steps) - slant
-                path.addLine(to: CGPoint(x: x, y: -halfHeight(at: x)))
-            }
-            path.closeSubpath()
-            let stripe = SKShapeNode(path: path)
-            stripe.fillColor = SKColor(white: 0.1, alpha: 0.85)
+            let stripe = SKShapeNode(path: band(center - width / 2, center + width / 2, slant: 0.14 * R))
+            stripe.fillColor = SKColor(white: 0.1, alpha: 1)
             stripe.strokeColor = .clear
-            stripe.zPosition = CGFloat(index) * 0.01
+            stripe.zPosition = 0.01 + CGFloat(index) * 0.01
             node.addChild(stripe)
         }
         return node
@@ -397,24 +396,59 @@ enum PearlShopArt {
         return path
     }
 
-    /// A gold star over your middle, in a warm glow that swells and fades.
+    /// The champion's look, for eating 100 fish in one run: a gold star on your shoulder, a warm glow that swells and
+    /// fades, a gleam of light sweeping across you every couple of seconds, and twinkles. Made to be the flashiest
+    /// pattern, where a faint glow with its star under your side fin had been the faintest.
     private static func championGlow() -> SKNode {
         let node = SKNode()
-        let glow = SKSpriteNode(texture: ArcadeArt.glow, size: CGSize(width: 1.5 * R, height: 1.25 * R))
-        glow.color = SKColor(red: 1, green: 0.78, blue: 0.25, alpha: 1)
+        let glow = SKSpriteNode(texture: ArcadeArt.glow, size: CGSize(width: 1.9 * R, height: 1.5 * R))
+        glow.color = SKColor(red: 1, green: 0.8, blue: 0.3, alpha: 1)
         glow.colorBlendFactor = 1
         glow.blendMode = .add
-        glow.alpha = 0.7
-        glow.position = CGPoint(x: -0.1 * R, y: 0)
-        glow.run(.repeatForever(.sequence([.fadeAlpha(to: 0.35, duration: 0.8), .fadeAlpha(to: 0.75, duration: 0.8)])))
+        glow.alpha = 0.6
+        // Low on the body, so the star above it stands out on your own color.
+        glow.position = CGPoint(x: 0.05 * R, y: -0.2 * R)
+        glow.run(.repeatForever(.sequence([.fadeAlpha(to: 0.3, duration: 0.8), .fadeAlpha(to: 0.65, duration: 0.8)])))
         node.addChild(glow)
-        let star = SKShapeNode(path: starPath(points: 5, outer: 0.3 * R, inner: 0.13 * R))
-        star.position = glow.position
-        star.fillColor = SKColor(red: 1, green: 0.85, blue: 0.3, alpha: 1)
-        star.strokeColor = SKColor(red: 0.7, green: 0.45, blue: 0.05, alpha: 1)
-        star.lineWidth = 1.2
+        // The gleam: thin slanted bands lighting up one after another, back to front.
+        let gleams = 8, step = 0.06, period = 2.4
+        for i in 0..<gleams {
+            let center = (-0.95 + 1.75 * CGFloat(i) / CGFloat(gleams - 1)) * R
+            let gleam = SKShapeNode(path: band(center - 0.05 * R, center + 0.05 * R, slant: 0.2 * R))
+            gleam.fillColor = SKColor(red: 1, green: 0.97, blue: 0.85, alpha: 1)
+            gleam.strokeColor = .clear
+            gleam.blendMode = .add
+            gleam.alpha = 0
+            gleam.zPosition = 0.05
+            gleam.run(.repeatForever(.sequence([.wait(forDuration: Double(i) * step), .fadeAlpha(to: 0.6, duration: 0.08),
+                                                .fadeAlpha(to: 0, duration: 0.2),
+                                                .wait(forDuration: period - Double(i) * step - 0.28)])))
+            node.addChild(gleam)
+        }
+        let star = SKShapeNode(path: starPath(points: 5, outer: 0.33 * R, inner: 0.15 * R))
+        star.position = CGPoint(x: -0.27 * R, y: 0.38 * R)
+        star.fillColor = SKColor(red: 1, green: 0.93, blue: 0.45, alpha: 1)
+        star.strokeColor = SKColor(red: 0.5, green: 0.28, blue: 0, alpha: 1)
+        star.lineWidth = 1.8
         star.zPosition = 0.1
         node.addChild(star)
+        let shine = SKShapeNode(circleOfRadius: 0.05 * R)
+        shine.position = CGPoint(x: star.position.x - 0.06 * R, y: star.position.y + 0.07 * R)
+        shine.fillColor = SKColor(white: 1, alpha: 0.85)
+        shine.strokeColor = .clear
+        shine.zPosition = 0.11
+        node.addChild(shine)
+        for (index, (spot, delay)) in [(CGPoint(x: 0.3 * R, y: -0.35 * R), 0.0), (CGPoint(x: -0.65 * R, y: 0.05 * R), 0.5),
+                                        (CGPoint(x: 0.2 * R, y: 0.45 * R), 1.0)].enumerated() {
+            let twinkle = SKSpriteNode(texture: sparkleTexture, size: CGSize(width: 0.32 * R, height: 0.32 * R))
+            twinkle.position = spot
+            twinkle.blendMode = .add
+            twinkle.setScale([1, 0.6, 0.3][index])
+            twinkle.zPosition = 0.12 + CGFloat(index) * 0.01
+            twinkle.run(.repeatForever(.sequence([.wait(forDuration: delay), .scale(to: 1, duration: 0.25), .scale(to: 0, duration: 0.35),
+                                                  .wait(forDuration: 1.5 - delay)])))
+            node.addChild(twinkle)
+        }
         return node
     }
 
@@ -591,6 +625,7 @@ enum PearlShopArt {
     }
 
     private static func crown(_ kind: Crown) -> SKNode {
+        if kind == .diamond { return diamondCrown() }
         let node = SKNode()
         let gold = kind.metal
         let path = CGMutablePath()
@@ -604,18 +639,7 @@ enum PearlShopArt {
         path.closeSubpath()
         node.addChild(shape(path, fill: gold, stroke: kind.rim, line: 1.2, z: 0))
         for (index, tip) in [CGPoint(x: -9, y: 10), CGPoint(x: 0, y: 13), CGPoint(x: 9, y: 10)].enumerated() {
-            node.addChild(ball(1.5, at: tip, fill: kind == .diamond ? .white : gold, z: 0.1 + CGFloat(index) * 0.01))
-        }
-        if kind == .diamond {
-            // A cut stone, its facets catching the light.
-            let stone = CGMutablePath()
-            stone.move(to: CGPoint(x: 0, y: 5.2))
-            stone.addLine(to: CGPoint(x: 2.6, y: 2.4))
-            stone.addLine(to: CGPoint(x: 0, y: -0.8))
-            stone.addLine(to: CGPoint(x: -2.6, y: 2.4))
-            stone.closeSubpath()
-            node.addChild(shape(stone, fill: .white, stroke: kind.rim, line: 1, z: 0.2))
-            return node
+            node.addChild(ball(1.5, at: tip, fill: gold, z: 0.1 + CGFloat(index) * 0.01))
         }
         let jewel = SKShapeNode(circleOfRadius: 2)
         jewel.position = CGPoint(x: 0, y: 2)
@@ -624,6 +648,66 @@ enum PearlShopArt {
         jewel.zPosition = 0.2
         node.addChild(jewel)
         return node
+    }
+
+    /// The diamond crown, for conquering every Deep End: taller than the silver and gold ones (Kraig's OK), five
+    /// points each tipped with a diamond, a big cut stone in front, and a glint that comes and goes on it.
+    private static func diamondCrown() -> SKNode {
+        let node = SKNode()
+        let ice = Crown.diamond.metal, rim = Crown.diamond.rim
+        let tips = [CGPoint(x: -11, y: 11), CGPoint(x: -5.5, y: 14.5), CGPoint(x: 0, y: 18), CGPoint(x: 5.5, y: 14.5),
+                    CGPoint(x: 11, y: 11)]
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -11, y: -2))
+        for (index, tip) in tips.enumerated() {
+            path.addLine(to: tip)
+            if index < tips.count - 1 { path.addLine(to: CGPoint(x: (tip.x + tips[index + 1].x) / 2, y: 6)) }
+        }
+        path.addLine(to: CGPoint(x: 11, y: -2))
+        path.closeSubpath()
+        node.addChild(shape(path, fill: ice, stroke: rim, line: 1.2, z: 0))
+        let band = CGPath(roundedRect: CGRect(x: -11, y: -2, width: 22, height: 4.6), cornerWidth: 1.5, cornerHeight: 1.5, transform: nil)
+        node.addChild(shape(band, fill: SKColor(red: 0.6, green: 0.84, blue: 1, alpha: 1), stroke: rim, line: 1.2, z: 0.05))
+        for (index, tip) in tips.enumerated() {
+            node.addChild(shape(diamondPath(at: tip, size: 2.2), fill: .white, stroke: rim, line: 1, z: 0.1 + CGFloat(index) * 0.01))
+        }
+        for (index, (x, color)) in [(CGFloat(-7), SKColor(red: 1, green: 0.5, blue: 0.75, alpha: 1)), (7, SKColor(red: 1, green: 0.5, blue: 0.75, alpha: 1))].enumerated() {
+            node.addChild(ball(1.3, at: CGPoint(x: x, y: 0.3), fill: color, z: 0.06 + CGFloat(index) * 0.01))
+        }
+        // The big stone: a cut diamond, its facets drawn in.
+        let stone = CGMutablePath()
+        stone.move(to: CGPoint(x: -3.8, y: 8))
+        stone.addLine(to: CGPoint(x: -2.3, y: 10))
+        stone.addLine(to: CGPoint(x: 2.3, y: 10))
+        stone.addLine(to: CGPoint(x: 3.8, y: 8))
+        stone.addLine(to: CGPoint(x: 0, y: 2.8))
+        stone.closeSubpath()
+        node.addChild(shape(stone, fill: .white, stroke: rim, line: 1, z: 0.2))
+        let facets = CGMutablePath()
+        facets.move(to: CGPoint(x: -3.8, y: 8))
+        facets.addLine(to: CGPoint(x: 3.8, y: 8))
+        facets.move(to: CGPoint(x: -1.2, y: 8))
+        facets.addLine(to: CGPoint(x: 0, y: 2.8))
+        facets.addLine(to: CGPoint(x: 1.2, y: 8))
+        node.addChild(shape(facets, fill: .clear, stroke: SKColor(red: 0.55, green: 0.78, blue: 0.95, alpha: 1), line: 0.8, z: 0.21))
+        let glint = SKSpriteNode(texture: sparkleTexture, size: CGSize(width: 10, height: 10))
+        glint.position = CGPoint(x: 1.6, y: 8.6)
+        glint.blendMode = .add
+        glint.zPosition = 0.3
+        glint.run(.repeatForever(.sequence([.scale(to: 1, duration: 0.2), .scale(to: 0.15, duration: 0.4), .wait(forDuration: 1.2)])))
+        node.addChild(glint)
+        return node
+    }
+
+    /// A small diamond (a square on its point) centered at `center`, `size` from its middle to each point.
+    private static func diamondPath(at center: CGPoint, size: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: center.x, y: center.y + size))
+        path.addLine(to: CGPoint(x: center.x + size * 0.8, y: center.y))
+        path.addLine(to: CGPoint(x: center.x, y: center.y - size))
+        path.addLine(to: CGPoint(x: center.x - size * 0.8, y: center.y))
+        path.closeSubpath()
+        return path
     }
 
     /// A striped cone of a party hat, a pompom on its point.
@@ -689,27 +773,36 @@ enum PearlShopArt {
         return node
     }
 
-    /// A black pirate's hat, gold along its edge and a white skull on the front.
+    /// A black pirate's hat, its brim turned up into points at front and back, gold along its edge, and a skull and
+    /// crossbones on the front.
     private static func pirateHat() -> SKNode {
         let node = SKNode()
         let hat = CGMutablePath()
-        hat.move(to: CGPoint(x: -13, y: 1))
-        hat.addQuadCurve(to: CGPoint(x: 0, y: 14), control: CGPoint(x: -8, y: 15))
-        hat.addQuadCurve(to: CGPoint(x: 13, y: 1), control: CGPoint(x: 8, y: 15))
-        hat.addQuadCurve(to: CGPoint(x: -13, y: 1), control: CGPoint(x: 0, y: 5))
+        hat.move(to: CGPoint(x: -14, y: 8))
+        hat.addQuadCurve(to: CGPoint(x: 0, y: 17), control: CGPoint(x: -11, y: 17))
+        hat.addQuadCurve(to: CGPoint(x: 14, y: 8), control: CGPoint(x: 11, y: 17))
+        hat.addQuadCurve(to: CGPoint(x: -14, y: 8), control: CGPoint(x: 0, y: -11))
         hat.closeSubpath()
-        node.addChild(shape(hat, fill: SKColor(white: 0.12, alpha: 1), stroke: SKColor(red: 0.95, green: 0.75, blue: 0.25, alpha: 1),
-                            line: 1.4, z: 0))
-        for (index, (from, to)) in [(CGPoint(x: -3.2, y: 3.6), CGPoint(x: 3.2, y: 7.6)),
-                                    (CGPoint(x: -3.2, y: 7.6), CGPoint(x: 3.2, y: 3.6))].enumerated() {
+        let gold = SKColor(red: 0.95, green: 0.75, blue: 0.25, alpha: 1)
+        node.addChild(shape(hat, fill: SKColor(white: 0.12, alpha: 1), stroke: gold, line: 1.4, z: 0))
+        for (index, (from, to)) in [(CGPoint(x: -4.4, y: 5.4), CGPoint(x: 4.4, y: 12)),
+                                    (CGPoint(x: -4.4, y: 12), CGPoint(x: 4.4, y: 5.4))].enumerated() {
             let bone = CGMutablePath()
             bone.move(to: from)
             bone.addLine(to: to)
-            let line = shape(bone, fill: .clear, stroke: .white, line: 1.4, z: 0.1 + CGFloat(index) * 0.01)
+            let line = shape(bone, fill: .clear, stroke: .white, line: 1.6, z: 0.1 + CGFloat(index) * 0.01)
             line.lineCap = .round
             node.addChild(line)
         }
-        node.addChild(ball(2.4, at: CGPoint(x: 0, y: 8.4), fill: .white, z: 0.2))
+        node.addChild(ball(3.1, at: CGPoint(x: 0, y: 8.8), fill: .white, z: 0.2))
+        for (index, x) in [CGFloat(-1.15), 1.15].enumerated() {
+            let socket = SKShapeNode(circleOfRadius: 0.85)
+            socket.position = CGPoint(x: x, y: 9.2)
+            socket.fillColor = SKColor(white: 0.12, alpha: 1)
+            socket.strokeColor = .clear
+            socket.zPosition = 0.3 + CGFloat(index) * 0.01
+            node.addChild(socket)
+        }
         return node
     }
 
@@ -797,26 +890,28 @@ enum PearlShopArt {
         return node
     }
 
-    /// A blue cap with its button on top and its bill out over your eye.
+    /// A blue cap with its button on top and its bill sticking out forward over your eye (tipped up as much as the hat
+    /// leans forward, so it stays level), where it had pointed down into your head.
     private static func baseballCap() -> SKNode {
         let node = SKNode()
         let blue = SKColor(red: 0.13, green: 0.38, blue: 0.86, alpha: 1)
-        let dome = CGMutablePath()
-        dome.move(to: CGPoint(x: -10, y: -1.5))
-        dome.addQuadCurve(to: CGPoint(x: 9, y: -1.5), control: CGPoint(x: -1, y: 18))
-        dome.closeSubpath()
-        node.addChild(shape(dome, fill: blue, z: 0))
-        let seam = CGMutablePath()
-        seam.move(to: CGPoint(x: -0.5, y: 8))
-        seam.addQuadCurve(to: CGPoint(x: 2.5, y: -1.5), control: CGPoint(x: 2, y: 4))
-        node.addChild(shape(seam, fill: .clear, stroke: SKColor(white: 1, alpha: 0.35), line: 1, z: 0.1))
-        node.addChild(ball(1.7, at: CGPoint(x: -0.5, y: 8.4), fill: blue, z: 0.2))
         let bill = CGMutablePath()
-        bill.move(to: CGPoint(x: 5, y: -1.5))
-        bill.addQuadCurve(to: CGPoint(x: 17, y: -3.2), control: CGPoint(x: 13, y: 1.8))
-        bill.addQuadCurve(to: CGPoint(x: 5, y: -1.5), control: CGPoint(x: 12, y: -3.8))
+        bill.move(to: CGPoint(x: 4, y: -0.5))
+        bill.addQuadCurve(to: CGPoint(x: 19.5, y: 2.2), control: CGPoint(x: 12, y: 3.4))
+        bill.addQuadCurve(to: CGPoint(x: 18.6, y: 0), control: CGPoint(x: 19.9, y: 0.9))
+        bill.addQuadCurve(to: CGPoint(x: 4, y: -3), control: CGPoint(x: 11, y: -0.6))
         bill.closeSubpath()
-        node.addChild(shape(bill, fill: SKColor(red: 0.08, green: 0.26, blue: 0.66, alpha: 1), z: 0.3))
+        node.addChild(shape(bill, fill: SKColor(red: 0.08, green: 0.26, blue: 0.66, alpha: 1), z: 0))
+        let dome = CGMutablePath()
+        dome.move(to: CGPoint(x: -10, y: -2))
+        dome.addQuadCurve(to: CGPoint(x: 9.5, y: -2), control: CGPoint(x: -1.5, y: 20))
+        dome.closeSubpath()
+        node.addChild(shape(dome, fill: blue, z: 0.1))
+        let seam = CGMutablePath()
+        seam.move(to: CGPoint(x: -0.9, y: 9))
+        seam.addQuadCurve(to: CGPoint(x: 3.5, y: -2), control: CGPoint(x: 2.8, y: 4.5))
+        node.addChild(shape(seam, fill: .clear, stroke: SKColor(white: 1, alpha: 0.35), line: 1, z: 0.2))
+        node.addChild(ball(1.8, at: CGPoint(x: -0.9, y: 9.3), fill: blue, z: 0.3))
         return node
     }
 
@@ -842,46 +937,53 @@ enum PearlShopArt {
         return node
     }
 
-    /// A red hat flopping back, with its white fur brim and pompom.
+    /// A red Santa hat: up from its white fur brim to a point that flops over backward and hangs, the pompom on its end.
     private static func santaHat() -> SKNode {
         let node = SKNode()
+        let red = SKColor(red: 0.86, green: 0.1, blue: 0.13, alpha: 1)
         let hat = CGMutablePath()
         hat.move(to: CGPoint(x: -9.5, y: 0))
         hat.addLine(to: CGPoint(x: 9.5, y: 0))
-        hat.addQuadCurve(to: CGPoint(x: -2, y: 15), control: CGPoint(x: 8, y: 13))
-        hat.addQuadCurve(to: CGPoint(x: -15, y: 6.5), control: CGPoint(x: -10, y: 15.5))
-        hat.addQuadCurve(to: CGPoint(x: -9.5, y: 0), control: CGPoint(x: -11, y: 4))
+        hat.addQuadCurve(to: CGPoint(x: 2, y: 16), control: CGPoint(x: 8.5, y: 11))
+        hat.addQuadCurve(to: CGPoint(x: -14, y: 8.5), control: CGPoint(x: -6, y: 20))
+        hat.addQuadCurve(to: CGPoint(x: -3.5, y: 9.5), control: CGPoint(x: -7.5, y: 12.5))
+        hat.addQuadCurve(to: CGPoint(x: -9.5, y: 0), control: CGPoint(x: -6, y: 5))
         hat.closeSubpath()
-        node.addChild(shape(hat, fill: SKColor(red: 0.86, green: 0.1, blue: 0.13, alpha: 1), z: 0))
-        let brim = CGPath(roundedRect: CGRect(x: -11, y: -2.5, width: 22, height: 5), cornerWidth: 2.5, cornerHeight: 2.5,
-                          transform: nil)
+        node.addChild(shape(hat, fill: red, z: 0))
+        let brim = CGPath(roundedRect: CGRect(x: -11, y: -3, width: 22, height: 6), cornerWidth: 3, cornerHeight: 3, transform: nil)
         node.addChild(shape(brim, fill: .white, z: 0.1))
-        node.addChild(ball(3.2, at: CGPoint(x: -15.5, y: 6), fill: .white, z: 0.2))
+        node.addChild(ball(3.4, at: CGPoint(x: -14.5, y: 8), fill: .white, z: 0.2))
         return node
     }
 
-    /// A reindeer's antlers, a branch of two tines each, the back one a little behind the front.
+    /// A reindeer's antlers: each a beam curving up with tines branching off both sides and a fork at the top, the back
+    /// one smaller and leaning back behind the front. (Straight beams with square tines had looked like two letter Fs.)
     private static func antlers() -> SKNode {
         let node = SKNode()
-        for (index, base) in [CGFloat(-6), 5].enumerated() {
+        for (index, (base, lean, size)) in [(CGFloat(-5.5), CGFloat(0.45), CGFloat(0.85)), (4.5, 0.05, 1)].enumerated() {
             let antler = CGMutablePath()
-            antler.move(to: CGPoint(x: base, y: -1))
-            antler.addQuadCurve(to: CGPoint(x: base - 4, y: 16), control: CGPoint(x: base + 2, y: 9))
-            antler.move(to: CGPoint(x: base + 0.7, y: 6.5))
-            antler.addLine(to: CGPoint(x: base + 5, y: 10.5))
-            antler.move(to: CGPoint(x: base - 1.6, y: 11.5))
-            antler.addLine(to: CGPoint(x: base + 2.5, y: 15))
+            antler.move(to: .zero)
+            antler.addQuadCurve(to: CGPoint(x: -2, y: 16), control: CGPoint(x: 2.2, y: 8))
+            antler.move(to: CGPoint(x: 0.75, y: 5.3))
+            antler.addQuadCurve(to: CGPoint(x: 5.5, y: 9.5), control: CGPoint(x: 4.5, y: 5.8))
+            antler.move(to: CGPoint(x: 0.6, y: 8))
+            antler.addQuadCurve(to: CGPoint(x: -3.5, y: 11), control: CGPoint(x: -2.6, y: 8.2))
+            antler.move(to: CGPoint(x: -0.1, y: 11.2))
+            antler.addQuadCurve(to: CGPoint(x: 3.5, y: 17), control: CGPoint(x: 3, y: 12))
+            let piece = SKNode()
+            piece.position = CGPoint(x: base, y: -1)
+            piece.zRotation = lean
+            piece.setScale(size)
             // A dark outline under the antler's own brown: the back one drawn under the front.
-            let depth = CGFloat(index) * 0.1
-            let outline = shape(antler, fill: .clear, stroke: SKColor(red: 0.3, green: 0.17, blue: 0.07, alpha: 1), line: 4.4,
-                                z: depth)
-            let brown = shape(antler, fill: .clear, stroke: SKColor(red: 0.66, green: 0.44, blue: 0.24, alpha: 1), line: 2.6,
-                              z: depth + 0.05)
+            piece.zPosition = CGFloat(index) * 0.1
+            let outline = shape(antler, fill: .clear, stroke: SKColor(red: 0.3, green: 0.17, blue: 0.07, alpha: 1), line: 4.4, z: 0)
+            let brown = shape(antler, fill: .clear, stroke: SKColor(red: 0.66, green: 0.44, blue: 0.24, alpha: 1), line: 2.6, z: 0.05)
             for part in [outline, brown] {
                 part.lineCap = .round
                 part.lineJoin = .round
-                node.addChild(part)
+                piece.addChild(part)
             }
+            node.addChild(piece)
         }
         return node
     }
@@ -895,8 +997,9 @@ enum PearlShopArt {
         case .sparkles: (sparkleTexture, true, 0.62)
         case .rainbow: (ArcadeArt.glow, true, 0.7)
         case .cropDuster: (puffTexture, false, 0.6)
-        case .comet: (ArcadeArt.glow, true, 0.8)
-        case .notes: (noteTextures[0], false, 0.55)
+        // Not added to the water's color like the other lights: added to blue water, its orange turned white.
+        case .comet: (ArcadeArt.glow, false, 0.8)
+        case .notes: (noteTextures[0], false, 0.9)
         case .hearts: (heartTexture, false, 0.45)
         case .confetti: (confettiTexture, false, 0.3)
         }
@@ -917,16 +1020,48 @@ enum PearlShopArt {
         return SKTexture(image: image)
     }()
 
-    /// Two music notes, white: a quaver, then a pair.
-    static let noteTextures: [SKTexture] = ["\u{266A}", "\u{266B}"].map { glyph in
+    /// Music notes in five bright colors, edged dark so they show on any water: a quaver, then a pair, each color in
+    /// turn. (White notes all but vanished at phone size.)
+    static let noteTextures: [SKTexture] = (0..<10).map { index in
+        let colors = [UIColor(red: 1, green: 0.45, blue: 0.7, alpha: 1), UIColor(red: 1, green: 0.85, blue: 0.25, alpha: 1),
+                      UIColor(red: 0.35, green: 0.85, blue: 1, alpha: 1), UIColor(red: 0.55, green: 0.95, blue: 0.35, alpha: 1),
+                      UIColor(red: 0.78, green: 0.58, blue: 1, alpha: 1)]
         let side: CGFloat = 32
         let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { _ in
-            let text = NSAttributedString(string: glyph, attributes: [.font: UIFont.systemFont(ofSize: 26, weight: .bold),
-                                                                      .foregroundColor: UIColor.white])
+            let text = NSAttributedString(string: index.isMultiple(of: 2) ? "\u{266A}" : "\u{266B}", attributes: [
+                .font: UIFont.systemFont(ofSize: 25, weight: .heavy), .foregroundColor: colors[index % colors.count],
+                .strokeColor: UIColor(red: 0.1, green: 0.08, blue: 0.2, alpha: 0.9), .strokeWidth: -4,
+            ])
             let size = text.size()
             text.draw(at: CGPoint(x: (side - size.width) / 2, y: (side - size.height) / 2))
         }
         return SKTexture(image: image)
+    }
+
+    /// Dresses a trail's mote, the `number`th let go: its color, or which note it is.
+    static func dress(_ node: SKSpriteNode, as trail: PearlTrail, number: Int) {
+        switch trail {
+        case .rainbow:
+            node.color = SKColor(hue: (CGFloat(number) * 0.045).truncatingRemainder(dividingBy: 1), saturation: 0.85, brightness: 1,
+                                 alpha: 1)
+            node.colorBlendFactor = 1
+        case .comet:
+            node.color = cometColor(0)
+            node.colorBlendFactor = 1
+        case .notes:
+            node.texture = noteTextures[number % noteTextures.count]
+        case .confetti:
+            node.color = SKColor(hue: (CGFloat(number) * 0.13).truncatingRemainder(dividingBy: 1), saturation: 0.75, brightness: 1,
+                                 alpha: 1)
+            node.colorBlendFactor = 1
+        case .bubbles, .sparkles, .cropDuster, .hearts:
+            break
+        }
+    }
+
+    /// A comet's mote `t` of the way through its life: white-hot at your tail, cooling through orange to red.
+    static func cometColor(_ t: CGFloat) -> SKColor {
+        SKColor(red: 1, green: 0.92 - 0.55 * t, blue: 0.6 - 0.55 * t, alpha: 1)
     }
 
     private static let heartTexture: SKTexture = {
@@ -1003,21 +1138,7 @@ final class PearlTrailMotes {
         let side = look.size * radius
         node.size = CGSize(width: side, height: side)
         if look.additive { node.blendMode = .add }
-        if trail == .rainbow {
-            node.color = SKColor(hue: (CGFloat(count) * 0.045).truncatingRemainder(dividingBy: 1), saturation: 0.85,
-                                 brightness: 1, alpha: 1)
-            node.colorBlendFactor = 1
-        } else if trail == .comet {
-            // White-hot at your tail, cooling to orange along the tail.
-            node.color = SKColor(red: 1, green: 0.88, blue: 0.6, alpha: 1)
-            node.colorBlendFactor = 1
-        } else if trail == .notes {
-            node.texture = PearlShopArt.noteTextures[count % 2]
-        } else if trail == .confetti {
-            node.color = SKColor(hue: (CGFloat(count) * 0.13).truncatingRemainder(dividingBy: 1), saturation: 0.75, brightness: 1,
-                                 alpha: 1)
-            node.colorBlendFactor = 1
-        }
+        PearlShopArt.dress(node, as: trail, number: count)
         // A hair apart each, so two can't swap places as they're drawn.
         node.zPosition = z + CGFloat(count % 50) * 0.0001
         node.alpha = 0
@@ -1053,7 +1174,7 @@ final class PearlTrailMotes {
                 size = 1 - 0.6 * t
             case .comet:
                 size = 1 - 0.75 * t
-                mote.node.color = SKColor(red: 1, green: 0.88 - 0.4 * t, blue: 0.6 - 0.5 * t, alpha: 1)
+                mote.node.color = PearlShopArt.cometColor(t)
             case .notes:
                 // Floating up, swaying as they go.
                 point.x += sin(age * 6 + CGFloat(mote.index)) * 3
