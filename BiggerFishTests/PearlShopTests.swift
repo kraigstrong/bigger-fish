@@ -90,6 +90,15 @@ struct PearlShopTests {
                                (day(2027, 1, 1), true), (day(2027, 1, 6), true), (day(2027, 1, 7), false), (day(2027, 7, 4), false)] {
             #expect(christmas.contains(date, calendar: calendar) == onSale, "\(date)")
         }
+        // A player whose preferred calendar is another still finds Christmas in December: its days are the Gregorian's.
+        for identifier in [Calendar.Identifier.hebrew, .islamicUmmAlQura, .buddhist] {
+            var preferred = Calendar(identifier: identifier)
+            preferred.timeZone = calendar.timeZone
+            let seasonal = PearlSeason.calendar(preferring: preferred)
+            #expect(seasonal.identifier == .gregorian && seasonal.timeZone == preferred.timeZone)
+            #expect(christmas.contains(day(2026, 12, 25), calendar: seasonal), "\(identifier)")
+            #expect(!christmas.contains(day(2027, 7, 4), calendar: seasonal), "\(identifier)")
+        }
         let santa = try item("hat.santa"), antlers = try item("hat.antlers")
         #expect(santa.season == .christmas && antlers.season == .christmas)
         #expect(try item("hat.baseball").season == nil && item("trail.cropduster").season == nil)

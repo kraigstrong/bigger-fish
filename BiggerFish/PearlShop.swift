@@ -60,7 +60,16 @@ struct PearlSeason: Equatable {
     static let christmas = PearlSeason(name: "Christmas", from: Day(month: 12, day: 1), through: Day(month: 1, day: 6),
                                        symbol: "snowflake")
 
-    func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
+    /// The calendar a season's days are counted in: the Gregorian, whatever calendar the player prefers (Christmas is in
+    /// December in any of them), in the player's own time zone.
+    static func calendar(preferring preferred: Calendar = .current) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = preferred.timeZone
+        calendar.locale = preferred.locale
+        return calendar
+    }
+
+    func contains(_ date: Date, calendar: Calendar = PearlSeason.calendar()) -> Bool {
         let parts = calendar.dateComponents([.month, .day], from: date)
         guard let month = parts.month, let day = parts.day else { return false }
         let today = Day(month: month, day: day)
@@ -69,7 +78,9 @@ struct PearlSeason: Equatable {
 
     /// "Dec 1 – Jan 6".
     var dates: String {
-        let months = DateFormatter().shortMonthSymbols ?? []
+        let formatter = DateFormatter()
+        formatter.calendar = Self.calendar()
+        let months = formatter.shortMonthSymbols ?? []
         func name(_ day: Day) -> String { "\(months.indices.contains(day.month - 1) ? months[day.month - 1] : "\(day.month)") \(day.day)" }
         return "\(name(from)) – \(name(through))"
     }
@@ -77,7 +88,9 @@ struct PearlSeason: Equatable {
     /// Today, for what's on sale. Xcode builds can pretend it's Christmas, from the shop, to try the season's things.
     static var today: Date {
         #if DEBUG
-        if pretendItsChristmas, let christmas = Calendar.current.date(from: DateComponents(month: 12, day: 15)) {
+        let gregorian = calendar()
+        if pretendItsChristmas,
+           let christmas = gregorian.date(from: DateComponents(year: gregorian.component(.year, from: Date()), month: 12, day: 15)) {
             return christmas
         }
         #endif
