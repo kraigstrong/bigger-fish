@@ -64,7 +64,8 @@ diff -rq build/draw-order/before build/draw-order/after
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
-  - `ArcadeMaps.swift` — world selection and the level paths (one stop per level)
+  - `ArcadeMaps.swift` — world selection (scrolling sideways when the worlds don't fit the screen) and the level
+    paths (one stop per level)
   - `ScreenFit.swift` — the iPad: every level plays at the same fixed playfield (`GameTuning.playfieldSize`),
     fitted to the screen's width with its world's water in a band above and below (a touch in a band still
     steers), and the menus are laid out as on the biggest iPhone and scaled up to fill the screen (`ScreenScaled`).

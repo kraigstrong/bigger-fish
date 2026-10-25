@@ -62,6 +62,13 @@ enum GameTuning {
     static let launchBarThickness: CGFloat = 4
     static let launchBarSweepSeconds: Double = 0.55
 
+    /// The world map's stops are spread across the screen while that leaves them at least `worldMapTightestSpacing`
+    /// apart (in points): every iPhone's five worlds, the tightest an iPhone 16's at 118. Any closer, and a world's
+    /// name would run into the next world's ring, so they're `worldMapSpacing` apart instead, on a map that scrolls
+    /// sideways (`ArcadeWorldMap.stops`).
+    static let worldMapTightestSpacing: CGFloat = 116
+    static let worldMapSpacing: CGFloat = 130
+
     // MARK: Haptics (`GameScene.buzz`)
 
     /// Strengths (0–1): an ordinary meal's light tap, and a jellyfish bounce's bump. Close calls, stings, and being
