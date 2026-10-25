@@ -118,7 +118,10 @@ struct DrawOrderTests {
     // MARK: The moments
 
     static func sweep(_ capture: @escaping Capture) throws {
-        defer { PracticeScene.testDefaults = nil }
+        defer {
+            PracticeScene.testDefaults = nil
+            PracticeScene.standInPrice = nil
+        }
         for screen in screens {
             let named: Capture = { capture("\(screen.name) \($0)", $1, $2) }
             try maps(screen.size, named)
@@ -190,22 +193,36 @@ struct DrawOrderTests {
         capture("for grown-ups", stage, true)
     }
 
-    /// Past the free sample without the unlock: padlocks on the level path, some over stars, and the unlock's screens.
+    /// Past the free sample without the unlock: padlocks on the level path, some over stars, and the unlock's screens:
+    /// the grown-ups' screen from a padlocked level (its world ringed), before the App Store's price arrives and after,
+    /// and from the reef, where it covers the map and the fish swims by its title.
     private static func unlock(_ size: CGSize, _ capture: @escaping Capture) throws {
         let (stage, scene) = try reef(size, unlocked: false, progress: reefProgress)
+        PracticeScene.standInPrice = nil
         scene.debugShow(.world(world("multiplication")))
         stage.play(0.5, "padlocked path", capture)
         capture("padlocked path", stage, true)
         scene.debugShow(.unlockPrompt)
         stage.play(0.5, "unlock prompt", capture)
         capture("unlock prompt", stage, true)
-        let screens: [(PracticeScene.DebugScreen, String)] = [(.unlock, "unlock"), (.waiting, "unlock waiting"),
-                                                              (.unlocked, "unlocked")]
+        scene.debugShow(.unlock)
+        stage.play(0.25, "unlock", capture)
+        capture("unlock", stage, true)
+        PracticeScene.standInPrice = "$4.99"
+        scene.debugShow(.unlock)
+        stage.play(0.25, "unlock, priced", capture)
+        capture("unlock, priced", stage, true)
+        let screens: [(PracticeScene.DebugScreen, String)] = [(.waiting, "unlock waiting"), (.unlocked, "unlocked")]
         for (screen, name) in screens {
             scene.debugShow(screen)
             stage.play(0.25, name, capture)
             capture(name, stage, true)
         }
+        scene.debugShow(.home)
+        scene.debugShow(.unlock)
+        stage.play(1, "unlock from the reef", capture)
+        capture("unlock from the reef", stage, true)
+        PracticeScene.standInPrice = nil
     }
 
     /// A level's card, then a round with one wrong answer (the struggle, the spit, the panel that explains it), played
