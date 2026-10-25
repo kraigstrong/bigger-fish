@@ -397,7 +397,7 @@ private struct PearlShopThumbnail: View {
                 let node = SKSpriteNode(texture: mote.texture)
                 let side = mote.size * 30 * (1 - CGFloat(i) * 0.15)
                 node.size = CGSize(width: side, height: side)
-                node.position = CGPoint(x: -66 - CGFloat(i) * 16, y: sin(CGFloat(i) * 2.4) * 7 + (trail == .bubbles || trail == .cropDuster ? CGFloat(i) * 4 : 0))
+                node.position = CGPoint(x: -66 - CGFloat(i) * 16, y: sin(CGFloat(i) * 2.4) * 7 + ([.bubbles, .cropDuster, .notes, .hearts].contains(trail) ? CGFloat(i) * 4 : 0))
                 node.alpha = 1 - CGFloat(i) * 0.2
                 if trail == .rainbow {
                     node.color = SKColor(hue: CGFloat(i) * 0.18, saturation: 0.85, brightness: 1, alpha: 1)
