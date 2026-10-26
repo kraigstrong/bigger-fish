@@ -176,17 +176,9 @@ enum WallSweep {
             let fall = T.motion.maxFallSpeed * frame.verticalScale / frame.zoom * dt
             open = merged(open.map { max(floor, $0.lowerBound - fall)...min(surface, max(floor, $0.upperBound + rise)) })
             var cuts: [Cut] = []
-            let safe = frame.time < safeUntil
-            if hazards.contains(.fish) && !safe {
-                for f in frame.fish where GameRules.playerEncounter(r, f.radius) != .firstEatsSecond {
-                    let reach = (r + f.radius) * T.collisionScale
-                    let dx = world.delta(from: frame.x, to: f.x)
-                    guard abs(dx) < reach else { continue }
-                    let h = (reach * reach - dx * dx).squareRoot()
-                    cuts.append(Cut(kind: .fish(f.id), low: f.y - h, high: f.y + h))
-                }
-            }
+            var safe = frame.time < safeUntil
             let body = r * T.hazardHitboxScale
+            // Hooks and tentacles catch you before the fish are resolved (`GameScene.simulate`), swallowing or not.
             if hazards.contains(.hooks) {
                 for hook in frame.hooks {
                     let dx = world.delta(from: frame.x, to: hook.x)
@@ -214,6 +206,67 @@ enum WallSweep {
                 }
             }
             for cut in cuts { open = open.flatMap { subtract(cut.low...cut.high, from: $0) } }
+            // Then the fish, in the order the game resolves them against you: each in turn is either a route meal you
+            // eat (and from then on you're safe from the fish after it, for the swallow) or a bigger fish that cuts the
+            // water. A route meal: the first moment it's edible and you could be touching it, you eat it, then you're
+            // safe from fish for the swallow. One that passes you first, or is gone, is skipped (a gate closes the
+            // route). The recording drops a route meal as its center passes yours; it swims on for the rest of its
+            // contact window, so its last course is carried on.
+            var swimmers: [WallFrame.Swimmer] = frame.fish
+            for id in pending.keys.sorted() where ahead.contains(id) && !frame.fish.contains(where: { $0.id == id }) {
+                guard let last = lastSeen[id] else { continue }
+                swimmers.append(WallFrame.Swimmer(id: id, x: last.x + last.dx, y: last.y + last.dy, radius: last.radius))
+            }
+            for f in swimmers.sorted(by: { $0.id < $1.id }) {
+                let dx = world.delta(from: frame.x, to: f.x)
+                if dx > 0 && dx < frame.worldWidth / 4 { ahead.insert(f.id) }
+                var ate = false
+                if let meal = pending[f.id], ahead.contains(f.id) {
+                    let reach = (r + meal.radius) * T.collisionScale
+                    if dx <= -reach {
+                        missedMeal(meal, step: step, time: frame.time, why: missedWhy(f.id))
+                        if closed != nil { break }
+                        continue
+                    }
+                    // The heights that touch it now: a sliver as it first comes within reach, the whole reach as its
+                    // center passes yours. You eat it once that's at least half the reach (the player who touches it at
+                    // the very edge is a frame behind the one who waits a step), and go on from where you could be
+                    // while touching it.
+                    let h = (reach * reach - dx * dx).squareRoot()
+                    if abs(dx) >= reach * 0.87 {
+                        // Not yet.
+                    } else if you.swallow != nil {
+                        miss(f.id, "you were still swallowing")
+                    } else if GameRules.playerEncounter(r, f.radius) != .firstEatsSecond {
+                        miss(f.id, String(format: "bigger than you: r %.1f vs %.1f", f.radius, r))
+                    } else {
+                        let touching = open.compactMap { intersection($0, f.y - h...f.y + h) }
+                        if touching.isEmpty {
+                            let by = cuts.filter { $0.low < f.y + h && $0.high > f.y - h }.map(\.name)
+                            let places = open.map { String(format: "%.0f–%.0f", $0.lowerBound, $0.upperBound) }.joined(separator: ", ")
+                            miss(f.id, String(format: "at y %.0f you could be at %@%@", f.y, places,
+                                              by.isEmpty ? "" : ", cut off by " + by.joined(separator: ", ")))
+                        } else {
+                            open = touching
+                            pending[f.id] = nil
+                            eats.append((f.id, frame.time, dx, r))
+                            let duration = SwallowTiming.duration(sizeRatio: meal.radius / r, curve: T.swallowDurationCurve)
+                            safeUntil = frame.time + duration
+                            you.swallow = (0, duration, meal.radius)
+                            safe = true
+                            ate = true
+                        }
+                    }
+                }
+                guard !ate, hazards.contains(.fish), !safe, GameRules.playerEncounter(r, f.radius) != .firstEatsSecond else { continue }
+                let reach = (r + f.radius) * T.collisionScale
+                guard abs(dx) < reach else { continue }
+                let h = (reach * reach - dx * dx).squareRoot()
+                let cut = Cut(kind: .fish(f.id), low: f.y - h, high: f.y + h)
+                cuts.append(cut)
+                open = open.flatMap { subtract(cut.low...cut.high, from: $0) }
+            }
+            if closed != nil { break }
             guard let widest = open.max(by: { $0.upperBound - $0.lowerBound < $1.upperBound - $1.lowerBound }) else {
                 let by = cuts.map { String(format: "%@ %.0f–%.0f", $0.name, $0.low, $0.high) }.joined(separator: ", ")
                     + String(format: "; water %.0f–%.0f, you r %.0f", floor, surface, r)
@@ -235,54 +288,6 @@ enum WallSweep {
                     if tightest.map({ share < $0.share }) ?? true { tightest = squeeze }
                     if least.map({ total < $0.total }) ?? true { least = squeeze }
                 }
-            }
-            // A route's meal: the first moment it's edible and you could be touching it, you eat it (anywhere within
-            // reach of its body: being there isn't a squeeze, the water around a meal is as open as it is), then you're
-            // safe from fish for the swallow. One that passes you first, or is gone, closes the route.
-            // (The recording drops a route meal as its center passes yours; it swims on for the rest of its contact
-            // window, so its last course is carried on.)
-            var meals: [WallFrame.Swimmer] = frame.fish
-            for id in pending.keys.sorted() where ahead.contains(id) && !frame.fish.contains(where: { $0.id == id }) {
-                guard let last = lastSeen[id] else { continue }
-                meals.append(WallFrame.Swimmer(id: id, x: last.x + last.dx, y: last.y + last.dy, radius: last.radius))
-            }
-            for f in meals {
-                let dx = world.delta(from: frame.x, to: f.x)
-                if dx > 0 && dx < frame.worldWidth / 4 { ahead.insert(f.id) }
-                guard let meal = pending[f.id], ahead.contains(f.id) else { continue }
-                let reach = (r + meal.radius) * T.collisionScale
-                if dx <= -reach {
-                    missedMeal(meal, step: step, time: frame.time, why: missedWhy(f.id))
-                    if closed != nil { break }
-                    continue
-                }
-                // The heights that touch it now: a sliver as it first comes within reach, the whole reach as its center
-                // passes yours. You eat it once that's at least half the reach (the player who touches it at the very
-                // edge is a frame behind the one who waits a step), and go on from where you could be while touching it.
-                guard abs(dx) < reach * 0.87 else { continue }
-                guard you.swallow == nil else {
-                    miss(f.id, "you were still swallowing")
-                    continue
-                }
-                guard GameRules.playerEncounter(r, f.radius) == .firstEatsSecond else {
-                    miss(f.id, String(format: "bigger than you: r %.1f vs %.1f", f.radius, r))
-                    continue
-                }
-                let h = (reach * reach - dx * dx).squareRoot()
-                let touching = open.compactMap { intersection($0, f.y - h...f.y + h) }
-                guard !touching.isEmpty else {
-                    let by = cuts.filter { $0.low < f.y + h && $0.high > f.y - h }.map(\.name)
-                    let places = open.map { String(format: "%.0f–%.0f", $0.lowerBound, $0.upperBound) }.joined(separator: ", ")
-                    miss(f.id, String(format: "at y %.0f you could be at %@%@", f.y, places,
-                                      by.isEmpty ? "" : ", cut off by " + by.joined(separator: ", ")))
-                    continue
-                }
-                open = touching
-                pending[f.id] = nil
-                eats.append((f.id, frame.time, dx, r))
-                let duration = SwallowTiming.duration(sizeRatio: meal.radius / r, curve: T.swallowDurationCurve)
-                safeUntil = frame.time + duration
-                you.swallow = (0, duration, meal.radius)
             }
             for f in frame.fish where pending[f.id] != nil {
                 let was = lastSeen[f.id]
