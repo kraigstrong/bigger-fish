@@ -256,7 +256,10 @@ enum WallSweep {
                     if closed != nil { break }
                     continue
                 }
-                guard abs(dx) < reach else { continue }
+                // The heights that touch it now: a sliver as it first comes within reach, the whole reach as its center
+                // passes yours. You eat it once that's at least half the reach (the player who touches it at the very
+                // edge is a frame behind the one who waits a step), and go on from where you could be while touching it.
+                guard abs(dx) < reach * 0.87 else { continue }
                 guard you.swallow == nil else {
                     miss(f.id, "you were still swallowing")
                     continue
@@ -266,14 +269,15 @@ enum WallSweep {
                     continue
                 }
                 let h = (reach * reach - dx * dx).squareRoot()
-                guard open.contains(where: { intersection($0, f.y - h...f.y + h) != nil }) else {
+                let touching = open.compactMap { intersection($0, f.y - h...f.y + h) }
+                guard !touching.isEmpty else {
                     let by = cuts.filter { $0.low < f.y + h && $0.high > f.y - h }.map(\.name)
                     let places = open.map { String(format: "%.0f–%.0f", $0.lowerBound, $0.upperBound) }.joined(separator: ", ")
                     miss(f.id, String(format: "at y %.0f you could be at %@%@", f.y, places,
                                       by.isEmpty ? "" : ", cut off by " + by.joined(separator: ", ")))
                     continue
                 }
-                open = open.compactMap { intersection($0, f.y - reach...f.y + reach) }
+                open = touching
                 pending[f.id] = nil
                 eats.append((f.id, frame.time, dx, r))
                 let duration = SwallowTiming.duration(sizeRatio: meal.radius / r, curve: T.swallowDurationCurve)
@@ -402,8 +406,11 @@ struct WallStudy {
         var routes: [Route] = []
         var fullestFrames: [WallFrame] = []
         for (name, meals) in Self.routes(plan) {
-            let frames = record(meals, name == "fullest" ? 2.1 : 1.05)
-            if name == "fullest" { fullestFrames = frames }
+            // The fullest route is recorded for two laps, for the fish that come back round (by its meals: it's one
+            // route whatever it's called, and on a level with no lane to choose it's the reference route too).
+            let fullest = meals == plan.fullestRoute
+            let frames = record(meals, fullest ? 2.1 : 1.05)
+            if fullest { fullestFrames = frames }
             let route = meals.compactMap { byID[$0] }.map { WallSweep.Meal(id: $0.id, radius: $0.radius, gate: $0.role == .gate) }
             routes.append(Route(name: name, meals: meals,
                                 result: WallSweep.sweep(frames, route: route, jelly: jelly, until: lap * 1.05),
