@@ -26,7 +26,10 @@ the run's card and the map's Open Water button.
 Pearls are kept (`ArcadeProgress.pearls`, synced with progress) and spent in the **pearl shop** (`PearlShop.swift`,
 `PearlShopView.swift`, the list and prices in `GameTuning.pearlShop`), from the map's pearl button or a run's card:
 body colors, patterns, hats, faces, and trails for your fish, worn everywhere it swims, never making it look bigger. Limited
-editions are on sale only in their season (`PearlSeason`; Christmas's Dec 1 – Jan 6), and kept all year once bought.
+editions are on sale only in their season (`PearlSeason`; Christmas's Dec 1 – Jan 6, Valentine's Feb 1 – 15), and kept
+all year once bought. A look is never taken out of the shop, since a player may own it: retire it (`PearlItem.retired`:
+off sale, shown only to those who have it). Earned looks are saved as they're earned (`ArcadeSave.earnedLooks`), so
+changing a goal never takes one back.
 Some looks are never sold, only earned (`PearlGoal`): by an Open Water run, or as crowns like the map's (silver for a
 world conquered, gold for a Deep End, diamond for every Deep End). The shop's rail down the left has each kind of look
 and your saved outfits; looks added since you last looked are marked new. See

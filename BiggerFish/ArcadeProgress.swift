@@ -34,6 +34,9 @@ struct ArcadeSave: Codable, Equatable {
     /// Looks saved to wear again in a tap, by slot ("1", "2", "3"): what each wears and when it was saved, so the
     /// latest save of a slot on any device is kept.
     var savedOutfits: [String: WornLook]? = nil
+    /// The looks earned (`PearlItem.earnedBy`), kept from the moment each was, so one stays the player's whatever
+    /// becomes of its goal: made harder, sold instead, retired, or a crown's when a world joins the campaign.
+    var earnedLooks: Set<String>? = nil
     /// Fields this version doesn't know, from a later version, kept as they were.
     var laterFields: [String: SaveValue] = [:]
 
@@ -42,7 +45,7 @@ struct ArcadeSave: Codable, Equatable {
     enum CodingKeys: String, CodingKey, CaseIterable {
         case clearedLevels, bestTimes, hasSeenJellyLesson, seenUnlocks, hasSeenTutorial
         case pearlsEarned, pearlsSpent, ownedLooks, wornLook
-        case openWaterBest, openWaterFurthest, seenLooks, savedOutfits
+        case openWaterBest, openWaterFurthest, seenLooks, savedOutfits, earnedLooks
     }
 
     /// What's worn (`PlayerLook`): an item ID for each kind worn, and when it was last changed (seconds since 1970),
@@ -78,6 +81,7 @@ struct ArcadeSave: Codable, Equatable {
         openWaterFurthest = try? values.decodeIfPresent(Int.self, forKey: .openWaterFurthest)
         seenLooks = try? values.decodeIfPresent(Set<String>.self, forKey: .seenLooks)
         savedOutfits = try? values.decodeIfPresent([String: WornLook].self, forKey: .savedOutfits)
+        earnedLooks = try? values.decodeIfPresent(Set<String>.self, forKey: .earnedLooks)
         let all = try decoder.container(keyedBy: SaveKey.self)
         for key in all.allKeys where CodingKeys(stringValue: key.stringValue) == nil {
             laterFields[key.stringValue] = try? all.decode(SaveValue.self, forKey: key)
@@ -105,6 +109,7 @@ struct ArcadeSave: Codable, Equatable {
             case .openWaterFurthest: try container.encodeIfPresent(openWaterFurthest, forKey: field)
             case .seenLooks: try container.encodeIfPresent(seenLooks, forKey: field)
             case .savedOutfits: try container.encodeIfPresent(savedOutfits, forKey: field)
+            case .earnedLooks: try container.encodeIfPresent(earnedLooks, forKey: field)
             }
         }
     }
@@ -113,9 +118,9 @@ struct ArcadeSave: Codable, Equatable {
     /// and seen "conquered" screens are united, each level keeps the faster best time, and a lesson or tutorial seen on
     /// either side stays seen. Each install's pearls taken and spent keep the larger count, things bought are united,
     /// the look changed last is worn, the Open Water's better best run and further level are kept, looks seen in the shop
-    /// are united, and each outfit slot keeps its latest save. It comes out the same whichever save is which, except for fields from a later
-    /// version: this version never changes those, so iCloud's (the latest any device wrote) is kept when both sides have
-    /// one.
+    /// are united, each outfit slot keeps its latest save, and looks earned are united. It comes out the same whichever
+    /// save is which, except for fields from a later version: this version never changes those, so iCloud's (the latest
+    /// any device wrote) is kept when both sides have one.
     func merged(withCloud cloud: ArcadeSave) -> ArcadeSave {
         var merged = self
         for key in CodingKeys.allCases {
@@ -145,6 +150,8 @@ struct ArcadeSave: Codable, Equatable {
                 if let theirs = cloud.savedOutfits {
                     merged.savedOutfits = (savedOutfits ?? [:]).merging(theirs) { WornLook.latest($0, $1) }
                 }
+            case .earnedLooks:
+                if let theirs = cloud.earnedLooks { merged.earnedLooks = (earnedLooks ?? []).union(theirs) }
             }
         }
         merged.laterFields.merge(cloud.laterFields) { _, theirs in theirs }
@@ -250,6 +257,8 @@ final class ArcadeProgress: ObservableObject {
         } else {
             save = ArcadeSave()
         }
+        // A save from before looks earned were kept has them kept now.
+        if keepEarnedLooks() { writeLocal() }
         guard let cloud else { return }
         // Every change merges, whatever its reason: another device's progress, the first download after an install,
         // or a change of Apple ID. None of them ever removes progress from this device.
@@ -401,7 +410,8 @@ final class ArcadeProgress: ObservableObject {
         return earnedLooks.filter { !before.contains($0.id) }
     }
 
-    /// Whether what `goal` asks has been done: an Open Water run's best, or a crown on the map.
+    /// Whether what `goal` asks has been done: an Open Water run's best, or a crown on the map. Owning what it earns
+    /// goes by `earnedLooks` instead: a look, once earned, is kept.
     func hasDone(_ goal: PearlGoal) -> Bool {
         func conquered(_ world: ArcadeWorld, deepEnd: Bool) -> Bool {
             let main = ArcadeWorld.mainLevelCount
@@ -417,15 +427,35 @@ final class ArcadeProgress: ObservableObject {
         }
     }
 
-    /// The looks earned, not bought: those whose goal is done.
-    var earnedLooks: [PearlItem] { GameTuning.pearlShop.filter { $0.earnedBy.map(hasDone) == true } }
+    /// The looks earned, not bought: kept from when they were earned, or with their goal done now (and not retired).
+    var earnedLooks: [PearlItem] {
+        GameTuning.pearlShop.filter { $0.earnedBy != nil && (save.earnedLooks?.contains($0.id) == true || earnsNow($0)) }
+    }
+
+    /// A look still to be earned whose goal is done: retired, it's no longer earned.
+    private func earnsNow(_ item: PearlItem) -> Bool { !item.retired && item.earnedBy.map(hasDone) == true }
+
+    /// Keeps each look whose goal is done as earned, so nothing that later becomes of the goal takes it back. Whether
+    /// any is new.
+    @discardableResult private func keepEarnedLooks() -> Bool {
+        let kept = save.earnedLooks ?? []
+        let done = GameTuning.pearlShop.filter { !kept.contains($0.id) && earnsNow($0) }.map(\.id)
+        guard !done.isEmpty else { return false }
+        save.earnedLooks = kept.union(done)
+        return true
+    }
 
     /// Whether this player has bought a look with pearls (on any of their devices).
     var hasBoughtALook: Bool { !(save.ownedLooks ?? []).isEmpty }
 
-    /// Bought, or earned.
+    /// Bought, or earned (and kept, even if it's sold now or retired).
     func owns(_ item: PearlItem) -> Bool {
-        save.ownedLooks?.contains(item.id) == true || item.earnedBy.map(hasDone) == true
+        save.ownedLooks?.contains(item.id) == true || save.earnedLooks?.contains(item.id) == true || earnsNow(item)
+    }
+
+    /// The shop's shelf of `kind` (from `catalog`, the shop's): everything but a retired look this player doesn't have.
+    func shelf(_ kind: PearlItem.Kind, catalog: [PearlItem] = GameTuning.pearlShop) -> [PearlItem] {
+        catalog.filter { $0.kind == kind && (!$0.retired || owns($0)) }
     }
 
     /// Buys `item` and puts it on, if there are pearls enough, it isn't owned already, and it's on sale `today` (a
@@ -479,6 +509,7 @@ final class ArcadeProgress: ObservableObject {
 
     /// Saves on the device first, then backs up to iCloud, merged with anything there this device hasn't seen yet.
     private func persist() {
+        keepEarnedLooks()
         writeLocal()
         syncWithCloud()
     }
@@ -492,10 +523,12 @@ final class ArcadeProgress: ObservableObject {
         let merged = theirs.map(save.merged(withCloud:)) ?? save
         if merged != save {
             save = merged
+            // Another device's progress may have done a look's goal here.
+            keepEarnedLooks()
             writeLocal()
         }
         // Only what iCloud lacks is written: a fresh install with nothing to back up doesn't upload an empty save.
-        if merged != (theirs ?? ArcadeSave()) { write(merged, to: cloud) }
+        if save != (theirs ?? ArcadeSave()) { write(save, to: cloud) }
     }
 
     /// iCloud's save, or nil when it has none or one this version can't read. An unreadable one is set aside on the

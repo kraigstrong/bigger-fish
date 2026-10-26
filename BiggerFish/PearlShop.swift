@@ -31,7 +31,7 @@ struct PearlItem: Identifiable, Equatable {
         }
     }
 
-    /// Saved with what a player owns and wears: never rename one.
+    /// Saved with what a player owns and wears: never rename one, and never take one out of the shop (retire it).
     let id: String
     let kind: Kind
     let name: String
@@ -40,29 +40,35 @@ struct PearlItem: Identifiable, Equatable {
     let season: PearlSeason?
     /// What earns it, for one that's never sold: whoever's done it has it.
     let earnedBy: PearlGoal?
+    /// Gone from the shop: never sold or earned again, and shown only to those who have it, who keep it and wear it. How
+    /// a look is taken out of the shop, since a player may own it.
+    let retired: Bool
 
-    init(_ id: String, _ kind: Kind, _ name: String, price: Int, season: PearlSeason? = nil) {
+    init(_ id: String, _ kind: Kind, _ name: String, price: Int, season: PearlSeason? = nil, retired: Bool = false) {
         self.id = id
         self.kind = kind
         self.name = name
         self.price = price
         self.season = season
         earnedBy = nil
+        self.retired = retired
     }
 
-    init(_ id: String, _ kind: Kind, _ name: String, earnedBy goal: PearlGoal) {
+    init(_ id: String, _ kind: Kind, _ name: String, earnedBy goal: PearlGoal, retired: Bool = false) {
         self.id = id
         self.kind = kind
         self.name = name
         price = 0
         season = nil
         earnedBy = goal
+        self.retired = retired
     }
 
     static func item(_ id: String) -> PearlItem? { GameTuning.pearlShop.first { $0.id == id } }
 
-    /// Whether it can be bought on `date`: always, unless it's a limited edition out of its season, or it's earned.
-    func onSale(_ date: Date = PearlSeason.today) -> Bool { earnedBy == nil && season?.contains(date) ?? true }
+    /// Whether it can be bought on `date`: always, unless it's a limited edition out of its season, it's earned, or it's
+    /// retired.
+    func onSale(_ date: Date = PearlSeason.today) -> Bool { !retired && earnedBy == nil && season?.contains(date) ?? true }
 }
 
 /// What earns an item that's never sold (`PearlItem.earnedBy`): something done in an Open Water run, or a world's crown
@@ -103,7 +109,8 @@ enum PearlGoal: Equatable {
 }
 
 /// A time of year a limited edition is on sale, every year: from one day through another, the last day included, and
-/// across the new year when the last comes first (Christmas's: Kraig, 2026-10-24, "Dec 1 – Jan 6").
+/// across the new year when the last comes first (Christmas's: Kraig, 2026-10-24, "Dec 1 – Jan 6"). Its dates are
+/// the game's, so a season comes round each year with no update.
 struct PearlSeason: Equatable {
     struct Day: Equatable, Comparable {
         let month: Int
@@ -120,6 +127,10 @@ struct PearlSeason: Equatable {
 
     static let christmas = PearlSeason(name: "Christmas", from: Day(month: 12, day: 1), through: Day(month: 1, day: 6),
                                        symbol: "snowflake")
+    /// Kraig, 2026-10-26: "Feb 1-15 for Valentines day".
+    static let valentines = PearlSeason(name: "Valentine's", from: Day(month: 2, day: 1), through: Day(month: 2, day: 15),
+                                        symbol: "heart.fill")
+    static let all = [christmas, valentines]
 
     /// The calendar a season's days are counted in: the Gregorian, whatever calendar the player prefers (Christmas is in
     /// December in any of them), in the player's own time zone.
@@ -146,20 +157,22 @@ struct PearlSeason: Equatable {
         return "\(name(from)) – \(name(through))"
     }
 
-    /// Today, for what's on sale. Xcode builds can pretend it's Christmas, from the shop, to try the season's things.
+    /// Today, for what's on sale. Xcode builds can pretend it's a season, from the shop, to try its things.
     static var today: Date {
         #if DEBUG
         let gregorian = calendar()
-        if pretendItsChristmas,
-           let christmas = gregorian.date(from: DateComponents(year: gregorian.component(.year, from: Date()), month: 12, day: 15)) {
-            return christmas
+        if let pretend,
+           let day = gregorian.date(from: DateComponents(year: gregorian.component(.year, from: Date()), month: pretend.from.month,
+                                                         day: pretend.from.day)) {
+            return day
         }
         #endif
         return Date()
     }
 
     #if DEBUG
-    static var pretendItsChristmas = false
+    /// The season Xcode builds pretend it is (its first day), or nil for the real date.
+    static var pretend: PearlSeason?
     #endif
 }
 
