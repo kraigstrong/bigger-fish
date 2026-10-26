@@ -42,6 +42,47 @@ struct PearlShopTests {
         }
     }
 
+    /// Every look the shop has had. A player may own any of them, so none ever leaves `GameTuning.pearlShop`: retire one
+    /// instead (`PearlItem.retired`). Add a new look's ID here with it; one that never left Xcode builds can come off
+    /// with it.
+    static let everyLook: Set<String> = [
+        "color.copper", "color.mint", "color.cotton-candy", "color.purple", "color.gold", "color.ruby",
+        "color.blue-raspberry", "color.birthday-cake", "color.galaxy", "color.pearl", "color.rainbow",
+        "pattern.spots", "pattern.stripes", "pattern.zebra", "pattern.bands", "pattern.hearts", "pattern.stars",
+        "pattern.champion",
+        "hat.beanie", "hat.party", "hat.bow", "hat.flower", "hat.baseball", "hat.sailor", "hat.cowboy", "hat.cone",
+        "hat.pirate", "hat.tiara", "hat.wizard", "hat.unicorn", "hat.starfish", "hat.sharkfin", "hat.crown.silver",
+        "hat.crown", "hat.crown.diamond", "hat.santa", "hat.antlers",
+        "face.mustache", "face.sunglasses", "face.heartglasses", "face.nose",
+        "trail.bubbles", "trail.cropduster", "trail.notes", "trail.sparkles", "trail.confetti", "trail.rainbow",
+        "trail.comet", "trail.hearts",
+    ]
+
+    @Test func noLookEverLeavesTheShop() {
+        let ids = Set(GameTuning.pearlShop.map(\.id))
+        #expect(Self.everyLook.subtracting(ids).isEmpty, "Taken out of the shop (retire them instead): \(Self.everyLook.subtracting(ids).sorted())")
+        #expect(ids.subtracting(Self.everyLook).isEmpty, "New looks to add to everyLook: \(ids.subtracting(Self.everyLook).sorted())")
+        // The first shop's looks count as seen: none of them may be one the shop never had.
+        #expect(GameTuning.pearlShopFirstLooks.isSubset(of: Self.everyLook))
+    }
+
+    /// A retired look is never sold or earned again, and only those who have it see it in the shop, where it's theirs to
+    /// wear.
+    @Test func aRetiredLookStaysWithThoseWhoHaveIt() throws {
+        // Looks of their own: the shop's are saved as earned by what's done, whatever these say.
+        let cone = PearlItem("hat.old-cone", .hat, "Old cone", price: 80, retired: true)
+        let shark = PearlItem("hat.old-fin", .hat, "Old fin", earnedBy: .fishInOneRun(50), retired: true)
+        let beanie = try item("hat.beanie")
+        let catalog = [beanie, cone, shark]
+        #expect(!cone.onSale() && !shark.onSale() && beanie.onSale())
+        let newcomer = device(#"{"openWaterBest":80,"pearlsEarned":{"a":500}}"#, cloud: nil)
+        #expect(!newcomer.buy(cone) && !newcomer.owns(cone) && !newcomer.owns(shark) && newcomer.pearls == 500)
+        #expect(newcomer.shelf(.hat, catalog: catalog) == [beanie])
+        let owner = device(#"{"ownedLooks":["hat.old-cone"],"earnedLooks":["hat.old-fin"]}"#, cloud: nil)
+        #expect(owner.owns(cone) && owner.owns(shark))
+        #expect(owner.shelf(.hat, catalog: catalog) == [beanie, cone, shark])
+    }
+
     /// Nothing you wear makes your fish look bigger: colors and patterns stay inside your body, and a hat stays inside
     /// your length and stands no more than its headroom above your back fin.
     @Test func nothingMakesYouLookBigger() {
@@ -112,9 +153,16 @@ struct PearlShopTests {
             #expect(christmas.contains(day(2026, 12, 25), calendar: seasonal), "\(identifier)")
             #expect(!christmas.contains(day(2027, 7, 4), calendar: seasonal), "\(identifier)")
         }
+        // Valentine's (Kraig, 2026-10-26: "Feb 1-15").
+        for (date, onSale) in [(day(2027, 1, 31), false), (day(2027, 2, 1), true), (day(2027, 2, 14), true),
+                               (day(2027, 2, 15), true), (day(2027, 2, 16), false), (day(2026, 12, 25), false)] {
+            #expect(PearlSeason.valentines.contains(date, calendar: calendar) == onSale, "\(date)")
+        }
         let santa = try item("hat.santa"), antlers = try item("hat.antlers")
         #expect(santa.season == .christmas && antlers.season == .christmas)
+        #expect(try item("face.heartglasses").season == .valentines && item("trail.hearts").season == .valentines)
         #expect(try item("hat.baseball").season == nil && item("trail.cropduster").season == nil)
+        #expect(try item("pattern.hearts").season == nil)
         let progress = device(cloud: nil)
         progress.earnPearls(300)
         #expect(!progress.buy(santa, today: day(2027, 6, 1)) && !progress.owns(santa) && progress.pearls == 300)
@@ -122,6 +170,12 @@ struct PearlShopTests {
         progress.wear(progress.look.without(.hat))
         progress.wear(progress.look.wearing(santa))
         #expect(progress.look[.hat] == santa)
+        // Bought before it was a limited edition: still yours, worn all year.
+        let hearts = try item("trail.hearts")
+        let early = device(#"{"ownedLooks":["trail.hearts"]}"#, cloud: nil)
+        #expect(!hearts.onSale(day(2027, 7, 4)) && early.owns(hearts))
+        early.wear(early.look.wearing(hearts))
+        #expect(early.look[.trail] == hearts)
     }
 
     /// A look that's earned is never sold: an Open Water run earns it (and says so), or a crown on the map does, judged from
@@ -160,10 +214,41 @@ struct PearlShopTests {
         #expect(bought.owns(gold) && !bought.owns(silver))
     }
 
-    /// Looks added since the first shop are new until you've seen their shelf; what's been seen is kept and synced (both
-    /// devices' seen looks together).
-    @Test func newLooksStayNewUntilSeen() throws {
+    /// A look, once earned, is saved as the player's, so nothing that later becomes of its goal takes it back: made harder,
+    /// sold instead, or a crown's when a world joins the campaign. A save from before they were kept has its earned looks
+    /// kept as it loads, and another device's progress earns them here too.
+    @Test @MainActor func anEarnedLookIsKeptWhateverBecomesOfItsGoal() async throws {
+        let progress = device(cloud: nil)
+        progress.recordOpenWaterRun(fish: 50, furthest: 2)
+        #expect(progress.save.earnedLooks == ["hat.starfish", "hat.sharkfin"])
+        for index in 0..<ArcadeWorld.mainLevelCount { progress.clear(.kelpForest, index, seconds: 20) }
+        #expect(progress.save.earnedLooks == ["hat.starfish", "hat.sharkfin", "hat.crown.silver"])
+
+        // Kept, though nothing saved now does its goal (a goal made harder, or a world joining the campaign).
+        let kept = device(#"{"earnedLooks":["hat.sharkfin","hat.crown.diamond"]}"#, cloud: nil)
+        #expect(try kept.owns(item("hat.sharkfin")) && kept.owns(item("hat.crown.diamond")) && !kept.owns(item("hat.starfish")))
+        #expect(Set(kept.earnedLooks.map(\.id)) == ["hat.sharkfin", "hat.crown.diamond"])
+
         let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+        defaults.set(Data(#"{"openWaterBest":60}"#.utf8), forKey: ArcadeProgress.key)
+        #expect(ArcadeProgress(defaults: defaults, cloud: nil).save.earnedLooks == ["hat.sharkfin"])
+        #expect(try JSONDecoder().decode(ArcadeSave.self, from: #require(defaults.data(forKey: ArcadeProgress.key))).earnedLooks == ["hat.sharkfin"])
+        #expect(device(cloud: nil).save.earnedLooks == nil)
+
+        let cloud = FakeCloud()
+        let phone = device(cloud: cloud)
+        cloud.change(to: #"{"openWaterBest":120,"openWaterFurthest":5}"#)
+        try await settle { phone.save.earnedLooks == ["hat.starfish", "hat.sharkfin", "trail.comet", "pattern.champion"] }
+        #expect(cloud.save?.earnedLooks == phone.save.earnedLooks)
+    }
+
+    /// A first visit to the shop has nothing new. Looks added since a player's last visit are new until they've seen their
+    /// shelf; what's been seen is kept and synced (both devices' seen looks together).
+    @Test func newLooksStayNewUntilSeen() throws {
+        #expect(!GameTuning.pearlShop.contains(where: device(cloud: nil).isNew))
+        let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+        // Seen when the shop had only a beanie of these.
+        defaults.set(Data(#"{"seenLooks":["hat.beanie"]}"#.utf8), forKey: ArcadeProgress.key)
         let progress = ArcadeProgress(defaults: defaults, cloud: nil)
         let beanie = try item("hat.beanie"), tiara = try item("hat.tiara"), comet = try item("trail.comet")
         #expect(!progress.isNew(beanie) && progress.isNew(tiara) && progress.isNew(comet))
@@ -248,8 +333,8 @@ struct PearlShopTests {
         let saves = try [
             ArcadeSave(),
             JSONDecoder().decode(ArcadeSave.self, from: Data(ArcadeCloudSaveTests.firstVersion.utf8)),
-            JSONDecoder().decode(ArcadeSave.self, from: Data(#"{"pearlsEarned":{"a":40,"b":7},"pearlsSpent":{"a":25},"ownedLooks":["hat.beanie"],"wornLook":{"items":{"hat":"hat.beanie"},"changed":5}}"#.utf8)),
-            JSONDecoder().decode(ArcadeSave.self, from: Data(#"{"pearlsEarned":{"a":32,"c":60},"pearlsSpent":{"c":50},"ownedLooks":["trail.bubbles"],"wornLook":{"items":{"trail":"trail.bubbles"},"changed":9}}"#.utf8)),
+            JSONDecoder().decode(ArcadeSave.self, from: Data(#"{"pearlsEarned":{"a":40,"b":7},"pearlsSpent":{"a":25},"ownedLooks":["hat.beanie"],"wornLook":{"items":{"hat":"hat.beanie"},"changed":5},"earnedLooks":["hat.starfish"]}"#.utf8)),
+            JSONDecoder().decode(ArcadeSave.self, from: Data(#"{"pearlsEarned":{"a":32,"c":60},"pearlsSpent":{"c":50},"ownedLooks":["trail.bubbles"],"wornLook":{"items":{"trail":"trail.bubbles"},"changed":9},"earnedLooks":["hat.crown.silver"]}"#.utf8)),
         ]
         for a in saves {
             #expect(a.merged(withCloud: a) == a)
@@ -261,10 +346,12 @@ struct PearlShopTests {
                     #expect(ab.pearlsEarned?[install] == count)
                 }
                 #expect((a.ownedLooks ?? []).isSubset(of: ab.ownedLooks ?? []) && (b.ownedLooks ?? []).isSubset(of: ab.ownedLooks ?? []))
+                #expect((a.earnedLooks ?? []).union(b.earnedLooks ?? []) == ab.earnedLooks ?? [])
             }
         }
         let merged = saves[2].merged(withCloud: saves[3])
         #expect(merged.pearlsEarned == ["a": 40, "b": 7, "c": 60] && merged.pearlsSpent == ["a": 25, "c": 50])
+        #expect(merged.earnedLooks == ["hat.starfish", "hat.crown.silver"])
     }
 
     @MainActor private func settle(_ done: () -> Bool) async throws {

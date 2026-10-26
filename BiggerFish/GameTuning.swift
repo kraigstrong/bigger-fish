@@ -940,7 +940,8 @@ enum GameTuning {
 
     /// What the Open Water's pearls buy (`PearlItem`), in the shop's order: looks for your fish, shown everywhere it
     /// swims. Prices are steady (Kraig, 2026-10-22): the first thing in about two good runs, the dearest in about
-    /// fifteen. An ID is saved with what a player owns and wears, so never rename one; names and prices can change.
+    /// fifteen. An ID is saved with what a player owns and wears, so never rename one or take one out: retire it
+    /// (`PearlItem.retired`). Names, prices, seasons, art, and order can change.
     static let pearlShop: [PearlItem] = [
         // Sweet treats and a rainbow (Kraig, 2026-10-25: "more approachable and kid friendly... We need a rainbow fish
         // for sure"), with Gold and Pearl as they were ("the best colors"). Copper, Mint, Purple, and Ruby kept their
@@ -987,16 +988,16 @@ enum GameTuning {
         PearlItem("hat.antlers", .hat, "Reindeer antlers", price: 100, season: .christmas),
         PearlItem("face.mustache", .face, "Mustache", price: 50),
         PearlItem("face.sunglasses", .face, "Sunglasses", price: 60),
-        PearlItem("face.heartglasses", .face, "Heart glasses", price: 80),
+        PearlItem("face.heartglasses", .face, "Heart glasses", price: 80, season: .valentines),
         PearlItem("face.nose", .face, "Red nose", price: 100, season: .christmas),
         PearlItem("trail.bubbles", .trail, "Bubbles", price: 50),
         PearlItem("trail.cropduster", .trail, "Crop duster", price: 75),
         PearlItem("trail.notes", .trail, "Music notes", price: 90),
         PearlItem("trail.sparkles", .trail, "Sparkles", price: 100),
-        PearlItem("trail.hearts", .trail, "Hearts", price: 100),
         PearlItem("trail.confetti", .trail, "Confetti", price: 120),
         PearlItem("trail.rainbow", .trail, "Rainbow", price: 180),
         PearlItem("trail.comet", .trail, "Comet", earnedBy: .openWaterLevel(5)),
+        PearlItem("trail.hearts", .trail, "Hearts", price: 100, season: .valentines),
     ]
     /// How far a hat may stand above the top of your back fin, in your radius. Hats are only drawn, never part of what
     /// eats or is eaten (Kraig, 2026-10-22: "the hats may need to be a bit taller. They should just not be part of the
@@ -1008,11 +1009,19 @@ enum GameTuning {
     /// How long a trail's motes last; the crop duster's clouds hang about.
     static let pearlTrailSeconds: [PearlTrail: CGFloat] = [.bubbles: 0.5, .sparkles: 0.5, .rainbow: 0.5, .cropDuster: 1,
                                                             .comet: 0.45, .notes: 0.9, .hearts: 0.8, .confetti: 0.7]
-    /// The first shop's looks (2026-10-22): before a save remembers what's been seen, everything since is new.
+    /// The looks of the shop's first release (1.1): before a save remembers what's been seen there, these count as seen,
+    /// so a player's first visit has nothing marked new, and only looks added since are. Never add to it.
     static let pearlShopFirstLooks: Set<String> = [
-        "color.copper", "color.gold", "color.ruby", "color.pearl", "pattern.spots", "pattern.stripes", "pattern.bands",
-        "pattern.stars", "hat.beanie", "hat.flower", "hat.sailor", "hat.cone", "hat.crown", "trail.bubbles",
-        "trail.sparkles", "trail.rainbow",
+        "color.copper", "color.mint", "color.cotton-candy", "color.purple", "color.gold", "color.ruby",
+        "color.blue-raspberry", "color.birthday-cake", "color.galaxy", "color.pearl", "color.rainbow",
+        "pattern.spots", "pattern.stripes", "pattern.zebra", "pattern.bands", "pattern.hearts", "pattern.stars",
+        "pattern.champion",
+        "hat.beanie", "hat.party", "hat.bow", "hat.flower", "hat.baseball", "hat.sailor", "hat.cowboy", "hat.cone",
+        "hat.pirate", "hat.tiara", "hat.wizard", "hat.unicorn", "hat.starfish", "hat.sharkfin", "hat.crown.silver",
+        "hat.crown", "hat.crown.diamond", "hat.santa", "hat.antlers",
+        "face.mustache", "face.sunglasses", "face.heartglasses", "face.nose",
+        "trail.bubbles", "trail.cropduster", "trail.notes", "trail.sparkles", "trail.confetti", "trail.rainbow",
+        "trail.comet", "trail.hearts",
     ]
     /// Outfit slots in the shop: looks saved to wear again in a tap.
     static let pearlShopOutfits = 3
