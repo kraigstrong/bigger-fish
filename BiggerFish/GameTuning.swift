@@ -234,6 +234,9 @@ enum GameTuning {
     static let reviewRetryInterval: TimeInterval = 90 * 24 * 60 * 60
     /// How long after landing on the map the request waits, so it doesn't pop up mid-transition.
     static let reviewRequestDelay: TimeInterval = 1.0
+    /// A level beaten for the first time after this many deaths on it (in any number of sessions) is hard won: a high
+    /// point worth asking after.
+    static let reviewHardWonDeaths = 10
 
     // MARK: Free to try (`ArcadeUnlock`)
 
