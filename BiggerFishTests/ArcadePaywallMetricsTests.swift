@@ -9,8 +9,9 @@ import Testing
 struct ArcadePaywallMetricsTests {
     private typealias Sender = ArcadeMetricsTests.Sender
     private func defaults() -> UserDefaults { UserDefaults(suiteName: "paywall.tests.\(UUID().uuidString)")! }
+    /// The Open Water's events are held off, so these see only the paywall funnel's.
     private func analytics(_ d: UserDefaults, _ sender: Sender = Sender(), paywall: Bool = true) -> ArcadeAnalytics {
-        ArcadeAnalytics(defaults: d, sender: sender, enabled: true, paywallEvents: paywall)
+        ArcadeAnalytics(defaults: d, sender: sender, enabled: true, paywallEvents: paywall, openWaterEvents: false)
     }
     private func reef(_ level: Int, mode: String = "campaign") -> ArcadeMetricContext {
         ArcadeMetricContext(world: "shallow-reef", level: level, setup: level, seed: "7", mode: mode, revision: "golden.1")

@@ -266,10 +266,10 @@ final class ArcadeAnalytics {
     // MARK: The Open Water and the pearl shop
 
     /// The Open Water and the pearl shop: a summary of each run, where it ended, and what happened after; each visit to the
-    /// shop and what it bought; looks earned; and what your fish wears. Off until brightbench.app accepts these events
-    /// (it rejects a whole batch over one it doesn't know) and the Bigger Fish privacy page describes them. Turned off,
-    /// none of them is sent or saved, and every other event encodes exactly as before.
-    static let sendsOpenWaterEvents = false
+    /// shop and what it bought; looks earned; and what your fish wears. On since brightbench.app accepts these events
+    /// (kraigstrong/BrightBench#85; it rejects a whole batch over one it doesn't know) and the Bigger Fish privacy page
+    /// describes them. Turned off, none of them is sent or saved, and every other event encodes exactly as before.
+    static let sendsOpenWaterEvents = true
 
     /// Every Open Water run has the same context, never its own seed: each run's seed would make a new row on the stats
     /// server, and it caps those a day.
