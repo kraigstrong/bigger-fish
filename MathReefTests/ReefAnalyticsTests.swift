@@ -322,6 +322,16 @@ struct ReefAnalyticsTests {
         }
     }
 
+    /// Simulator builds, where these tests run, never record or send by default either.
+    @Test func simulatorBuildsNeverRecordOrSend() {
+        #expect(ReefAnalytics.isSimulator)
+        withDefaults { defaults in
+            let analytics = ReefAnalytics(defaults: defaults)
+            analytics.appLaunched()
+            #expect(analytics.queue.isEmpty)
+        }
+    }
+
     /// The scene ends its background task from this completion, so it must always run.
     @Test func resigningAlwaysCompletes() {
         withDefaults { defaults in
