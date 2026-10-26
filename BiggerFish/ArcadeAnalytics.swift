@@ -57,7 +57,7 @@ final class ArcadeAnalytics {
     /// The Open Water's own content revision, sent with every run in place of a level's: bump it when the run's worlds
     /// or their order (`GameTuning.openWaterWorlds`), its ramp (`openWaterFirstLevel`, the speed-up), the way its levels
     /// are dealt (`OpenWater.spec`), or the planner change, so the report keeps runs on different rules apart.
-    static let openWaterRevision = "2026-10-25.1"
+    static let openWaterRevision = "2026-10-26.1"
     /// Events wait on the device and go in batches: when this many are waiting, when the app goes to the background
     /// (or a level is interrupted), and at launch. Each send is a write to the stats server's Redis, billed per command,
     /// and the same counters in one batch are added up into one.

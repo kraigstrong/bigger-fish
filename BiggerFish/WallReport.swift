@@ -527,4 +527,64 @@ struct WallStudy {
         return "fish \(id) (\(f.role.rawValue), r \(Int(f.radius.rounded())))"
     }
 }
+
+// MARK: - The opening from the plan alone
+
+extension MeetingPlan {
+    /// The level's tightest squeeze from the plan alone, in milliseconds: every fish held to its way in is where the
+    /// plan puts it until it's let go, hooks and bells where their motions put them, and `WallSweep` sweeps the heights
+    /// you could be at through them with the reference route's fish gone as they're eaten (the wall report's free
+    /// measure, without the scene); `pinned` eats the route's meals as the report's route sweep does. Nil for a plan
+    /// whose fish swim freely from the start (the searching planner's): their swims are only known by simulating them.
+    func plannedOpening(pinned: Bool = false) -> WallSweep.Result? {
+        guard !fish.isEmpty, fish.allSatisfy({ $0.appearsAt != nil }) else { return nil }
+        typealias T = GameTuning
+        let dt = T.simulationStep, width = T.playfieldSize.width, lap = width * CGFloat(spec.worldScreens)
+        let world = WrappedWorld(width: lap)
+        let reference = fish.filter(\.referenceMeal)
+        let timeline = PlayerTimeline.reference(meals: reference.map { ($0.meetingDistance, $0.radius) },
+            crossSeconds: CGFloat(spec.crossSeconds), until: lap * 1.05, currents: currents ?? [], lap: lap)
+        let columns = kelp ?? []
+        let bells = spec.jellies.map { JellySpec.layout($0, count: jellies?.count ?? 0) }
+        var frames: [WallFrame] = []
+        frames.reserveCapacity(timeline.lastStep + 1)
+        for step in 0...timeline.lastStep {
+            let distance = timeline.distance[step], zoom = timeline.zoom[step], time = CGFloat(step) * dt
+            let x = world.wrap(distance)
+            let bounds = PlayerTimeline.waterBounds(zoom: zoom)
+            let swimmers = fish.compactMap { f -> WallFrame.Swimmer? in
+                // A route meal is eaten as its center passes yours, as the report's ghost run has it.
+                if !pinned, f.referenceMeal, f.meetingDistance <= distance { return nil }
+                guard let at = MeetingSolver.wayInPosition(f, step: step, timeline: timeline) else { return nil }
+                return WallFrame.Swimmer(id: f.id, x: world.wrap(at.x), y: at.y, radius: f.radius)
+            }
+            // A hook can catch you once it's less than half a lap ahead (`GameScene.isComingUp`).
+            let rigs = (hooks ?? []).enumerated().compactMap { index, hook -> WallFrame.Hook? in
+                let at = HookMotion.position(hook, time: time)
+                guard at.x - distance < lap / 2 else { return nil }
+                return WallFrame.Hook(index: index, x: world.wrap(at.x), y: at.y, bait: hook.baitRadius)
+            }
+            let drifting = (jellies ?? []).enumerated().map { index, jelly in
+                let at = JellyDrift.position(origin: jelly.origin, phase: jelly.phase, time: time, screenWidth: width, world: world)
+                return WallFrame.Bell(index: index, x: at.x, y: at.y)
+            }
+            let inKelp = columns.contains { abs(world.delta(from: $0.x, to: x)) <= $0.halfWidth }
+            frames.append(WallFrame(time: time, distance: distance, x: x, zoom: zoom, waterBottom: bounds.bottom, waterTop: bounds.top,
+                                    radius: timeline.radius[step], verticalScale: inKelp ? T.kelpDrag : 1,
+                                    fish: swimmers, hooks: rigs, bells: drifting, worldWidth: lap))
+        }
+        let route = pinned ? reference.map { WallSweep.Meal(id: $0.id, radius: $0.radius, gate: $0.role == .gate) } : nil
+        return WallSweep.sweep(frames, route: route, jelly: bells, until: lap * 1.05)
+    }
+
+    /// Whether the water shuts somewhere on the lap with every fish, hook and bell where the plan puts it, or its widest
+    /// lane at its tightest is under `GameTuning.wallOpening` (`plannedOpening`): no way through for anyone, as Kelp
+    /// Forest 13's first layout had. (A route of the plan's own that can't be swum isn't a wall by itself: players
+    /// find another, as the wall report shows on levels Kraig likes.) The pickers that take the first clean layout pass
+    /// one with a wall by, as they do a wall of giants. Always false for a plan whose fish swim freely from the start.
+    var hasWall: Bool {
+        guard let opening = plannedOpening() else { return false }
+        return opening.closed != nil || (opening.tightest?.share ?? 1) < GameTuning.wallOpening
+    }
+}
 #endif

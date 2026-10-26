@@ -291,6 +291,29 @@ shuts the water with its two walls, which the old bot, eating at its own pace, d
 **A report, never a gate.** No test fails on a level's squeeze: the route bot loses some of the best levels, and
 Heavyweights is 5.7% and a favorite. What counts as a wall is a product call.
 
+### What the planner checks since the wall report
+
+- **Threats between meals.** The analyzer's reach check (`RouteGraph.canStep`) used to ask only whether you could
+  swim from one meal's height to the next in the time between them. Now every bigger fish crossing your column on
+  the way counts (`ThreatRoutes`): its body shuts a band of water for as long as it's alongside you (its collision
+  reach over the closing speed, so a fish you overtake slowly is beside you for a while), and the heights you could
+  be at are carried forward from the last meal through each band, above or below it, to the next meal. Swallowing
+  the last meal keeps you safe for its duration; a fish still there afterward counts from then. Crossings carry each
+  fish's swimming speed for this (`EncounterCrossing.speed`; older plans without it are read as if head-on at your
+  speed). Sunset Cove 12's planned gate 16 (32.2) is the test case: six meals reach it as shipped (30.9), and at
+  32.2 the seventh meal the planner counted on, up top, had no way down past threats 14 and 15. The answers are
+  kept per (meal, next meal, eaten area), since the slack search asks the same ones many times over.
+- **A wall from the plan alone.** For a level whose fish appear just off screen and swim in on their way
+  (`MeetingSolver.justInTime`: Kelp Forest, Midnight Zone, Sunset Cove, Riptide Reef, the Open Water), every fish's
+  position until it's let go is known from the plan, as are the hooks' and bells'. `MeetingPlan.plannedOpening` runs
+  the wall report's sweep over them on the reference route in milliseconds, and `hasWall` says whether that route
+  can't be swum (the water shuts, or a gate goes by that you can't get to) or its widest lane is under
+  `GameTuning.wallOpening` of the water (0: only a shut route counts; the threshold is a product call). The pickers
+  that take a world's first clean layout (`kelpPlan` for the Deep End, `sunsetPlan`, `midnightPlan`, Riptide Reef's
+  trials, `OpenWater.plan`) pass one with a wall by, as they do a wall of giants. Riptide Reef 3's first layout, the
+  one Kraig couldn't get through, reads as a wall this way; its shipped layout 4 and every frozen level don't, so
+  nothing shipped changes.
+
 ### The campaign (2026-10-25)
 
 | world | level | name | fish | danger | free (fish): lane / all water | free (all hazards) | routes open | best route | reference route | outgrown |

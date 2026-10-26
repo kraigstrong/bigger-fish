@@ -665,7 +665,7 @@ enum GameTuning {
         let spec = kelpSpecs[index]
         if let variation = kelpRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation) }
         guard ArcadeWorld.isDeepEnd(index) else { return MeetingPlanner.kelpPlan(spec) }
-        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
+        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall && !$0.hasWall }
             ?? MeetingPlanner.kelpPlan(spec)
     }
     #endif
@@ -673,6 +673,10 @@ enum GameTuning {
     /// points: room for you at the size you'd be) anywhere in the water.
     static let giantRadius: CGFloat = 60
     static let giantWallGap: CGFloat = 80
+    /// A wall, from the plan alone (`MeetingPlan.hasWall`): the plan's own route can't be swum with every fish, hook and
+    /// bell where the plan puts it, or its widest lane at its tightest is under this share of the water. 0: only a shut
+    /// route counts (what counts as too tight is Kraig's call; Heavyweights is 5.7% by the old measure and a favorite).
+    static let wallOpening: CGFloat = 0
     /// Levels re-rolled to another layout of the same settings. Kelp Forest 9's first had two giants just under
     /// the biggest you can grow in the opening; whichever ate first was out of reach for good.
     /// The Deep End is pinned to the layouts Kraig played (the first each with no planner complaints and no wall of
@@ -819,7 +823,7 @@ enum GameTuning {
     static let riptideLevels: [Level] = riptideSpecs.indices.map { index in
         let spec = riptideSpecs[index]
         let plan = riptideRerolls[spec.name].map { MeetingPlanner.kelpPlan(spec, variation: $0) }
-            ?? (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty }
+            ?? (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasWall }
             ?? MeetingPlanner.kelpPlan(spec)
         var level = plan.level
         level.ecosystemSeedIndex = index
@@ -857,7 +861,7 @@ enum GameTuning {
         let spec = midnightSpecs[index], seedName = midnightSeedNames[spec.name]
         if let variation = midnightRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation, seedName: seedName) }
         return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
-            .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
+            .first { $0.issues.isEmpty && !$0.hasGiantWall && !$0.hasWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
     }
     #endif
     /// The dark multiplies everything outside your headlamp by this color: dim, not pitch black. Kraig's plays:
@@ -1117,7 +1121,7 @@ enum GameTuning {
         let spec = sunsetSpecs[index], seedName = sunsetSeedNames[spec.name]
         if let variation = sunsetRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation, seedName: seedName) }
         return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
-            .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
+            .first { $0.issues.isEmpty && !$0.hasGiantWall && !$0.hasWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
     }
     #endif
     /// No hook is passed before this many screens into the lap, so each one swims in from the right with its boat.

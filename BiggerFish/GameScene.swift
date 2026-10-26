@@ -4119,7 +4119,7 @@ final class GameScene: SKScene {
                     time: Double(before.time + (simClock - before.time) * fraction),
                     distance: Double(before.distance + (forwardDistance - before.distance) * fraction),
                     y: Double(last.y + (f.position.y - last.y) * fraction), radius: Double(f.radius),
-                    headOn: f.velocity.dx < 0, zoom: Double(zoom)))
+                    headOn: f.velocity.dx < 0, zoom: Double(zoom), speed: Double(abs(f.velocity.dx))))
             }
             onStep?()
             for id in eaten where crossed.contains(id) { if let gone = fishByID[id] { removeFish(gone) } }

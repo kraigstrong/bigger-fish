@@ -14,6 +14,9 @@ struct EncounterCrossing: Codable, Equatable {
     /// Swimming toward the player rather than being overtaken.
     let headOn: Bool
     let zoom: Double
+    /// Its own swimming speed (world points a second), for how long its body is alongside you: a fish swimming your
+    /// way is beside you for a while, one coming at you passes in a moment. Optional so older plans decode.
+    var speed: Double? = nil
 }
 
 /// A jellyfish crossing the player's column: stinging tentacles hang below its rim, and its dome
@@ -62,6 +65,8 @@ struct EncounterAnalysis: Codable, Equatable {
         var sizeRatio: Double?
         /// A fish bigger than you crosses close by at about the same time.
         var danger: Bool
+        /// The fish ids of the biggest fewest-meal route to it. Optional so older plans decode.
+        var fewestRoute: [Int]? = nil
     }
     static let routeCap = 999
     static let slackCap = 3
@@ -249,6 +254,79 @@ enum JellyRoutes {
     }
 }
 
+/// Getting between two meals past the bigger fish crossing your column on the way: each one's body shuts a band of
+/// water for as long as it's alongside you, and you have to be above or below it then, with the time to get there and
+/// on to the meal. Optimistic about steering, like the rest of the route graph: it rises and falls as fast as it can.
+enum ThreatRoutes {
+    /// A bigger fish crossing your column: the moment its center is level with yours, how long its body is alongside
+    /// you either side of that, and its reach (your radius and its, at the collision scale). The heights it shuts
+    /// taper from the full reach at the crossing to nothing at the ends of the window, as a circle does.
+    struct Band {
+        let center: Double
+        let half: Double
+        let y: CGFloat
+        let reach: CGFloat
+        let zoom: CGFloat
+        /// `opens`: not before the end of the last meal's swallow, which keeps you safe.
+        var opens: Double = -.infinity
+
+        var from: Double { max(opens, center - half) }
+        var to: Double { center + half }
+        /// The heights shut at `time`: the body's half-height at that moment, as a circle's.
+        func shut(at time: Double) -> ClosedRange<CGFloat> {
+            let away = abs(time - center)
+            let h = reach * CGFloat((max(0, 1 - (away / half) * (away / half))).squareRoot())
+            return (y - h)...(y + h)
+        }
+    }
+
+    /// `range` with `shut` taken out of it: what's left below and above.
+    private static func subtract(_ shut: ClosedRange<CGFloat>, from range: ClosedRange<CGFloat>) -> [ClosedRange<CGFloat>] {
+        guard shut.upperBound > range.lowerBound, shut.lowerBound < range.upperBound else { return [range] }
+        var left: [ClosedRange<CGFloat>] = []
+        if shut.lowerBound > range.lowerBound { left.append(range.lowerBound...shut.lowerBound) }
+        if shut.upperBound < range.upperBound { left.append(shut.upperBound...range.upperBound) }
+        return left
+    }
+
+    static func swim(from start: (time: Double, y: CGFloat), to target: (time: Double, y: CGFloat, zoom: CGFloat), tolerance: CGFloat,
+                     startSlack: CGFloat, radius: CGFloat, bands: [Band], reachScale: CGFloat = 1) -> Bool {
+        let fastest = Double(GameTuning.motion.maxRiseSpeed * reachScale)
+        // The lap in stretches, one per change of which fish are alongside you, each window in eighths so the taper
+        // shows. Over a stretch you must be clear of what's shut as it begins, and clear of what's shut as it ends
+        // after swimming as far as you can meanwhile: a band still widening leaves you the time to get out of its way.
+        let moments = Set(bands.flatMap { band in
+            stride(from: -1.0, through: 1.0, by: 0.25).map { band.center + band.half * $0 } + [band.opens]
+        }.filter { $0 > start.time && $0 < target.time } + [start.time, target.time]).sorted()
+        var spans = [(start.y - startSlack)...(start.y + startSlack)]
+        for (a, b) in zip(moments, moments.dropFirst()) {
+            let active = bands.filter { $0.from < b && $0.to > a }
+            let zoom = active.map(\.zoom).min() ?? target.zoom
+            let bounds = PlayerTimeline.waterBounds(zoom: zoom)
+            let water = (bounds.bottom + radius * 0.95)...max(bounds.bottom + radius * 0.95, bounds.top - radius * 0.95)
+            let opening = active.map { $0.shut(at: max(a, $0.from)) }, closing = active.map { $0.shut(at: min(b, $0.to)) }
+            let through = CGFloat(fastest * (b - a)) / zoom
+            // Each stretch of water you could be in is on one side of every fish as the slice begins (split where a
+            // fish's body is), and stays on that side of it: below it, you end up under what it shuts as the slice
+            // ends; above it, over.
+            var pieces = spans.compactMap { span -> ClosedRange<CGFloat>? in
+                let low = max(water.lowerBound, span.lowerBound), high = min(water.upperBound, span.upperBound)
+                return low <= high ? low...high : nil
+            }
+            for shut in opening { pieces = pieces.flatMap { Self.subtract(shut, from: $0) } }
+            spans = pieces.compactMap { piece -> ClosedRange<CGFloat>? in
+                var low = max(water.lowerBound, piece.lowerBound - through), high = min(water.upperBound, piece.upperBound + through)
+                for (begins, ends) in zip(opening, closing) {
+                    if piece.upperBound <= begins.lowerBound { high = min(high, ends.lowerBound) } else { low = max(low, ends.upperBound) }
+                }
+                return low <= high ? low...high : nil
+            }
+            if spans.isEmpty { return false }
+        }
+        return spans.contains { target.y >= $0.lowerBound - tolerance && target.y <= $0.upperBound + tolerance }
+    }
+}
+
 /// Meetings in time order; node 0 is the run's start.
 private struct RouteGraph {
     let meetings: [EncounterCrossing]
@@ -260,6 +338,11 @@ private struct RouteGraph {
     var reachScale: CGFloat = 1
     /// Other crossings at nearly the same moment, which can block a meal.
     private let simultaneous: [[Int]]
+    private final class Steps {
+        struct Key: Hashable { let previous: Int; let next: Int; let area: UInt; let least: UInt }
+        var known: [Key: Bool] = [:]
+    }
+    private let steps = Steps()
     private var count: Int { meetings.count }
 
     init(_ meetings: [EncounterCrossing], jellies: [JellyPass], efficiency: CGFloat, startRadius: CGFloat, startY: CGFloat) {
@@ -278,10 +361,23 @@ private struct RouteGraph {
     }
 
     /// Whether a player who has eaten `area` (squared radii), most recently `previous` (nil = start), can eat `next`.
-    /// Bigger is never worse, so routes compare by eaten area.
-    private func canStep(from previous: Int?, area: CGFloat, to next: Int) -> Bool {
+    /// Bigger is never worse, so routes compare by eaten area. The slack search asks the same question many times over,
+    /// so the answers are kept.
+    /// `least`: the smallest area a route to the same state could have eaten. Bigger is better for eating, but a
+    /// bigger body has less room past the bigger fish on the way, so the threats are checked for the smallest player
+    /// who could be here and the meal for the biggest: no route that exists is turned down.
+    private func canStep(from previous: Int?, area: CGFloat, least: CGFloat? = nil, to next: Int) -> Bool {
+        let least = min(area, least ?? area)
+        let key = Steps.Key(previous: previous ?? -1, next: next, area: area.bitPattern, least: least.bitPattern)
+        if let known = steps.known[key] { return known }
+        let answer = step(from: previous, area: area, least: least, to: next)
+        steps.known[key] = answer
+        return answer
+    }
+
+    private func step(from previous: Int?, area: CGFloat, least: CGFloat, to next: Int) -> Bool {
         let target = meetings[next]
-        let player = radius(eatenArea: area)
+        let player = radius(eatenArea: area), small = radius(eatenArea: least)
         let prey = CGFloat(target.radius)
         guard GameRules.playerEncounter(player, prey) == .firstEatsSecond else { return false }
         let fromTime = previous.map { meetings[$0].time } ?? 0
@@ -295,14 +391,42 @@ private struct RouteGraph {
             guard elapsed + EncounterAnalyzer.swallowLead >= swallow else { return false }
         }
         let tolerance = (player + prey) * EncounterAnalyzer.catchTolerance
+        // Bigger fish crossing your column on the way: each shuts a band of water for as long as its body is alongside
+        // you, and you have to be above or below it then and still make the next meal (Sunset Cove 12's gate needed a
+        // meal nobody could dive to between two of them; 15's designed route climbed into a giant).
+        let swallowed = previous.map { p -> Double in
+            let eaten = CGFloat(meetings[p].radius), before = radius(eatenArea: max(0, area - eaten * eaten))
+            return Double(SwallowTiming.duration(sizeRatio: eaten / before, curve: GameTuning.swallowDurationCurve))
+        } ?? 0
+        let yourSpeed = max(1, (target.distance - (previous.map { meetings[$0].distance } ?? 0)) / elapsed)
+        // Every bigger fish alongside you at some moment of the way, the two meals themselves aside: one whose center
+        // crossed before the last meal, or crosses after the next, counts too if its body is beside you meanwhile (a
+        // slowly overtaken giant is, for a while).
+        let bands = (0..<count).compactMap { index -> ThreatRoutes.Band? in
+            let other = meetings[index]
+            guard index != next, index != previous, CGFloat(other.radius) > player else { return nil }
+            let reach = (small + CGFloat(other.radius)) * GameTuning.collisionScale
+            let closing = other.headOn ? yourSpeed + (other.speed ?? 0) : max(yourSpeed * 0.25, yourSpeed - (other.speed ?? 0))
+            let half = Double(reach) / closing
+            // Swallowing the last meal keeps you safe for a while; the fish is still there once that's over.
+            guard other.time - half < target.time, other.time + half > fromTime + swallowed else { return nil }
+            return ThreatRoutes.Band(center: other.time, half: half, y: CGFloat(other.y), reach: reach, zoom: CGFloat(other.zoom),
+                                     opens: fromTime + swallowed)
+        }
+        let startSlack = previous.map { (player + CGFloat(meetings[$0].radius)) * EncounterAnalyzer.catchTolerance } ?? 0
+        let pastThreats = bands.isEmpty || ThreatRoutes.swim(from: (fromTime, fromY), to: (target.time, CGFloat(target.y), CGFloat(target.zoom)),
+                                                              tolerance: tolerance, startSlack: startSlack, radius: small, bands: bands, reachScale: reachScale)
         if jellies.isEmpty {
+            guard pastThreats else { return false }
             let needed = max(0, abs(CGFloat(target.y) - fromY) - tolerance)
             guard EncounterAnalyzer.verticalReach(seconds: elapsed) * reachScale / CGFloat(target.zoom) >= needed else { return false }
         } else {
+            // A bounce off a dome carries you faster than the threat check allows for, so a step that takes one is
+            // checked for bells alone, as before.
             let to = (time: target.time, y: CGFloat(target.y), zoom: CGFloat(target.zoom))
-            guard JellyRoutes.swim(from: (fromTime, fromY), to: to, tolerance: tolerance, radius: player, jellies: jellies)
+            guard pastThreats && JellyRoutes.swim(from: (fromTime, fromY), to: to, tolerance: tolerance, radius: player, jellies: jellies)
                 || JellyRoutes.bounce(from: (fromTime, fromY), to: to, tolerance: tolerance, radius: player, jellies: jellies,
-                                      startSlack: previous.map { (player + CGFloat(meetings[$0].radius)) * EncounterAnalyzer.catchTolerance } ?? 0)
+                                      startSlack: startSlack)
             else { return false }
         }
         // A bigger fish crossing on top of this one at the same moment makes the meal impossible.
@@ -315,40 +439,47 @@ private struct RouteGraph {
         return true
     }
 
-    /// best[i][c]: the most area eaten by a route whose c-th meal is meeting i (c >= 1), and the meal before it.
-    private func bestAreas() -> (area: [[CGFloat?]], previous: [[Int?]]) {
+    /// best[i][c]: the most area eaten by a route whose c-th meal is meeting i (c >= 1), and the meal before it;
+    /// least[i][c]: the least such area, for the room past the bigger fish on the way.
+    private func bestAreas() -> (area: [[CGFloat?]], least: [[CGFloat?]], previous: [[Int?]]) {
         var best = Array(repeating: Array<CGFloat?>(repeating: nil, count: count + 1), count: count)
+        var least = best
         var previous = Array(repeating: Array<Int?>(repeating: nil, count: count + 1), count: count)
         for i in 0..<count {
             let r = CGFloat(meetings[i].radius)
-            if canStep(from: nil, area: 0, to: i) { best[i][1] = r * r }
+            if canStep(from: nil, area: 0, to: i) { best[i][1] = r * r; least[i][1] = r * r }
             for p in 0..<i {
                 for c in 1..<count {
-                    guard let area = best[p][c], canStep(from: p, area: area, to: i) else { continue }
+                    guard let area = best[p][c], canStep(from: p, area: area, least: least[p][c], to: i) else { continue }
                     if best[i][c + 1].map({ area + r * r > $0 }) ?? true {
                         best[i][c + 1] = area + r * r
                         previous[i][c + 1] = p
                     }
+                    let small = least[p][c]! + r * r
+                    if least[i][c + 1].map({ small < $0 }) ?? true { least[i][c + 1] = small }
                 }
             }
         }
-        return (best, previous)
+        return (best, least, previous)
     }
 
-    /// The most area a route can eat and still reach `target`, ignoring meal counts.
+    /// Whether a route can reach `target`, ignoring meal counts: the most area a route can have eaten at each meal on
+    /// the way, and the least.
     private func reachable(_ target: Int, excluding excluded: Set<Int>) -> Bool {
-        var best = Array<CGFloat?>(repeating: nil, count: count)
+        var best = Array<CGFloat?>(repeating: nil, count: count), least = best
         if canStep(from: nil, area: 0, to: target) { return true }
         for i in 0..<target where !excluded.contains(i) {
             let r = CGFloat(meetings[i].radius)
-            var value: CGFloat? = canStep(from: nil, area: 0, to: i) ? r * r : nil
+            var value: CGFloat? = canStep(from: nil, area: 0, to: i) ? r * r : nil, small = value
             for p in 0..<i where !excluded.contains(p) {
-                if let area = best[p], canStep(from: p, area: area, to: i), value.map({ area + r * r > $0 }) ?? true {
-                    value = area + r * r
+                if let area = best[p], canStep(from: p, area: area, least: least[p], to: i) {
+                    if value.map({ area + r * r > $0 }) ?? true { value = area + r * r }
+                    if small.map({ least[p]! + r * r < $0 }) ?? true { small = least[p]! + r * r }
                 }
             }
             best[i] = value
-            if let value, canStep(from: i, area: value, to: target) { return true }
+            least[i] = small
+            if let value, canStep(from: i, area: value, least: small, to: target) { return true }
         }
         return false
     }
@@ -386,7 +517,7 @@ private struct RouteGraph {
     }
 
     func analysis() -> EncounterAnalysis {
-        let (best, previous) = bestAreas()
+        let (best, _, previous) = bestAreas()
         var maximum = 0
         var results: [EncounterAnalysis.Meeting] = []
         for (index, crossing) in meetings.enumerated() {
@@ -411,9 +542,15 @@ private struct RouteGraph {
                 return abs(pass.time - crossing.time) <= pass.halfWindow(playerRadius: player) + 0.1
                     && clear >= 0 && clear <= EncounterAnalyzer.dangerGap / CGFloat(crossing.zoom)
             }
+            var way: [Int] = [], at = index
+            for c in stride(from: fewest, through: 1, by: -1) {
+                way.append(meetings[at].fishID)
+                guard let before = previous[at][c] else { break }
+                at = before
+            }
             results.append(.init(crossing: crossing, minimumMeals: fewest - 1, maximumMeals: counts.max()! - 1,
                 routes: countRoutes(to: index, meals: fewest - 1), robustSlack: robustSlack(for: index),
-                sizeRatio: Double(r / player), danger: danger))
+                sizeRatio: Double(r / player), danger: danger, fewestRoute: way.reversed()))
         }
         var route: [Int] = []
         let ends = (0..<count).compactMap { i in best[i][maximum].map { (i, $0) } }
