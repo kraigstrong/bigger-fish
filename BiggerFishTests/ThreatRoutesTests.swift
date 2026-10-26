@@ -36,6 +36,10 @@ struct ThreatRoutesTests {
     @Test func aWideningBandLeavesTimeToGetClear() {
         let band = ThreatRoutes.Band(center: 0.5, half: 0.5, y: 200, reach: 100, zoom: 1)
         #expect(ThreatRoutes.swim(from: (0, 265), to: (1, 350, 1), tolerance: 23.4, startSlack: 0, radius: 16, bands: [band]))
+        // Under its line as it first comes within reach, you stay under: you can't pass through its body to end above it.
+        let under = ThreatRoutes.Band(center: 0.5, half: 0.5, y: 200, reach: 40, zoom: 1)
+        #expect(!ThreatRoutes.swim(from: (0, 199), to: (0.125, 228, 1), tolerance: 0, startSlack: 0, radius: 16, bands: [under]))
+        #expect(ThreatRoutes.swim(from: (0, 199), to: (0.125, 170, 1), tolerance: 0, startSlack: 0, radius: 16, bands: [under]))
         // Starting at the giant's own height with no time at all, there's no way out.
         let sudden = ThreatRoutes.Band(center: 0.02, half: 0.5, y: 200, reach: 100, zoom: 1)
         #expect(!ThreatRoutes.swim(from: (0, 200), to: (1, 350, 1), tolerance: 23.4, startSlack: 0, radius: 16, bands: [sudden]))
