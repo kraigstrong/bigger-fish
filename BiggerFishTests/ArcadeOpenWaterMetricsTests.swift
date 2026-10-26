@@ -190,16 +190,14 @@ struct ArcadeOpenWaterMetricsTests {
         let a = analytics(d, sender)
         a.wearing = ["hat.cone"]
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-        scene.debugStartOpenWater(seed: 1, planSeconds: 0.75)
+        // Both levels planned up front: the level change must not plan, nor wait on a plan, in this test.
+        scene.debugStartOpenWater(seed: 1, firstLevel: OpenWater.plan(0, seed: 1), nextLevel: OpenWater.plan(1, seed: 1), planSeconds: 0.75)
         scene.analytics = a
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         defer { withExtendedLifetime(view) {} }
         scene.debugStart()
         scene.debugAdvance(seconds: 2)
-        // The next level is planned ahead off the main thread, as on a phone; on a loaded CI runner that can take a
-        // while, so wait for it rather than have the level change plan it inline.
-        for _ in 0..<1500 where !scene.debugOpenWaterHasPlan(1) { try await Task.sleep(for: .milliseconds(20)) }
         #expect(scene.debugOpenWaterHasPlan(1) && scene.debugPhase == .playing)
         scene.debugFinishOpenWaterLevel()
         await settle()
