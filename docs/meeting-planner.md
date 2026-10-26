@@ -313,6 +313,21 @@ Heavyweights is 5.7% and a favorite. What counts as a wall is a product call.
   trials, `OpenWater.plan`) pass one with a wall by, as they do a wall of giants. Riptide Reef 3's first layout, the
   one Kraig couldn't get through, reads as a wall this way; its shipped layout 4 and every frozen level don't, so
   nothing shipped changes.
+- **Gates sized for the size you are at contact.** `PlayerTimeline` used to start each swallow when your forward
+  motion reached the meal's meeting point minus the collision reach, as if the fish stood still there. A fish coming
+  at you is still ahead of that point as you near it, and one you overtake is still behind it, so the real touch
+  comes later for the first (by the reach over the closing speed, a tenth of a second or two) and sooner for the
+  second, and the timeline grew you earlier than the game did. The wall report's route sweep, which grows you from
+  real contact, read Shallow Reef 14's reference route as shut at gate 22 for exactly this. Now each meal on the
+  timeline carries the fish's speed and heading (`PlayerTimeline.Meal`), and a plan made this way says so
+  (`MeetingPlan.contactTimed`), so its own timelines (`timeline(eating:`), the ghost checks, pearls, the plan-side
+  opening) follow it. A gate is sized to be just edible once you've grown from `needed` meals, but you keep growing
+  for 0.35 s after a swallow, and a gate met before that is met smaller; with the meetings timed, the designer sizes
+  each gate down by the share of its growth the reference route has at contact, as far as the gate's window (just
+  over `needed - 1` meals, just under `needed`) allows (`fitGatesToGrowth`), and reports a gate that can't be
+  ("gate N comes while you're still growing"), which the pickers pass by like any issue. Frozen plans, every campaign
+  level, have no mark and keep their old timing and sizes; re-planning a frozen level as it was played passes
+  `contactTimed: false`.
 
 ### The campaign (2026-10-25)
 

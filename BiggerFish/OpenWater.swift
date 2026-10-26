@@ -103,9 +103,7 @@ enum OpenWater {
         typealias T = GameTuning
         let world = WrappedWorld(width: T.playfieldSize.width * CGFloat(plan.spec.worldScreens)), dt = T.simulationStep
         let reference = plan.fish.filter(\.referenceMeal)
-        let timeline = PlayerTimeline.reference(meals: reference.map { ($0.meetingDistance, $0.radius) },
-            crossSeconds: CGFloat(plan.spec.crossSeconds), until: world.width * 1.05, currents: plan.currents ?? [],
-            lap: world.width)
+        let timeline = plan.referenceTimeline
         // Your way: a straight swim from each reference meal's meeting to the next, from the middle of the water.
         let ids = Set(reference.map(\.id))
         let start = PlayerTimeline.waterBounds(zoom: 1)

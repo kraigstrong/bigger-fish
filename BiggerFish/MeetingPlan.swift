@@ -313,6 +313,25 @@ struct MeetingPlan: Codable {
     var hooks: [PlannedHook]? = nil
     /// Riptide Reef's currents.
     var currents: [PlannedCurrent]? = nil
+    /// Planned with each meal's swallow starting when its body really reaches you (`PlayerTimeline.Meal`), so its gates
+    /// are sized for the size you are at contact. Nil (plans before 2026-10-26, every frozen level): as if each meal
+    /// stood still at its meeting point. Optional so older plans decode.
+    var contactTimed: Bool? = nil
+
+    /// The route's meals as the timeline takes them, with their speeds when the plan was timed that way.
+    func meals(_ ids: Set<Int>) -> [PlayerTimeline.Meal] {
+        fish.filter { ids.contains($0.id) }.map {
+            PlayerTimeline.Meal(distance: $0.meetingDistance, radius: $0.radius, speed: contactTimed == true ? $0.cruiseSpeed : 0, headOn: $0.headOn)
+        }
+    }
+
+    /// Player size, zoom and distance per simulation step for a player who eats exactly `ids` at their meetings.
+    func timeline(eating ids: Set<Int>) -> PlayerTimeline {
+        PlayerTimeline.reference(meals: meals(ids), crossSeconds: CGFloat(spec.crossSeconds),
+            until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05, currents: currents ?? [],
+            lap: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens))
+    }
+    var referenceTimeline: PlayerTimeline { timeline(eating: Set(fish.filter(\.referenceMeal).map(\.id))) }
 
     var level: Level {
         var level = Level(aiSpeedRange: CGFloat(spec.aiSpeed.lowerBound)...CGFloat(spec.aiSpeed.upperBound),
@@ -330,11 +349,8 @@ struct MeetingPlan: Codable {
     /// Where the reference route passes each jelly on the first lap.
     var jellyPasses: [JellyPass] {
         guard let jellySpec = spec.jellies, let jellies, !jellies.isEmpty else { return [] }
-        let timeline = PlayerTimeline.reference(meals: fish.filter(\.referenceMeal).map { ($0.meetingDistance, $0.radius) },
-            crossSeconds: CGFloat(spec.crossSeconds), until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05,
-            currents: currents ?? [], lap: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens))
         return MeetingPlanner.jellyPasses(jellies, spec: jellySpec, crossSeconds: CGFloat(spec.crossSeconds),
-            worldWidth: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens), timeline: timeline)
+            worldWidth: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens), timeline: referenceTimeline)
     }
     #endif
 
@@ -352,12 +368,7 @@ struct MeetingPlan: Codable {
     var fullestRoute: Set<Int> { Set(analysis.fullestRoute) }
 
     /// Player size per simulation step for a player who eats exactly `meals` at their meetings.
-    func radii(eating meals: Set<Int>) -> [CGFloat] {
-        PlayerTimeline.reference(meals: fish.filter { meals.contains($0.id) }.map { ($0.meetingDistance, $0.radius) },
-            crossSeconds: CGFloat(spec.crossSeconds),
-            until: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05, currents: currents ?? [],
-            lap: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens)).radius
-    }
+    func radii(eating meals: Set<Int>) -> [CGFloat] { timeline(eating: meals).radius }
 
     /// Player radius after each simulation step on the route the meetings were timed against, for ghost checks.
     var referenceRadii: [CGFloat] { radii(eating: Set(fish.filter(\.referenceMeal).map(\.id))) }
@@ -413,9 +424,11 @@ enum MeetingPlanner {
     /// Kelp Forest: every fish appears just off screen shortly before you meet it and swims straight to the
     /// meeting, so its spawn is worked out directly rather than searched for. One layout, in milliseconds.
     /// `seedName` plans the layout another name would get, for a level renamed after it was played.
-    static func kelpPlan(_ spec: MeetingSpec, variation: Int = 0, seedName: String? = nil) -> MeetingPlan {
+    /// `contactTimed`: false plans with the timing every plan had before 2026-10-26 (each meal as if standing still at
+    /// its meeting point), to re-plan a frozen level as it was played.
+    static func kelpPlan(_ spec: MeetingSpec, variation: Int = 0, seedName: String? = nil, contactTimed: Bool = true) -> MeetingPlan {
         let seed = kelpSeed(spec, variation: variation, seedName: seedName)
-        let design = MeetingDesigner.design(spec, seed: seed)
+        let design = MeetingDesigner.design(spec, seed: seed, contactTimed: contactTimed)
         var meetings = design.meetings
         for id in GameTuning.kelpSwimsAtYou[spec.name] ?? [] where meetings.indices.contains(id - 1) {
             meetings[id - 1].headOn = true
@@ -438,7 +451,7 @@ enum MeetingPlanner {
             worldWidth: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens), timeline: design.timeline) } ?? []
         let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: passes, reachScale: spec.reachScale)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
-            predicted: solved.crossings, analysis: analysis, issues: [], jellies: jellies)
+            predicted: solved.crossings, analysis: analysis, issues: [], jellies: jellies, contactTimed: true)
         let jellyIssues = spec.jellies == nil ? []
             : MeetingSolver.waysInThroughJellies(solved.fish, jellies: design.jellies, spec: spec, timeline: design.timeline)
         let hooks = spec.hooks.map { HookLayout.place($0, fish: solved.fish, crossings: solved.crossings,
@@ -447,7 +460,8 @@ enum MeetingPlanner {
         let placed = hooks?.hooks.enumerated().map { high.contains($0.offset + 1) ? HookLayout.sweptHigh($0.element) : $0.element }
         return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
             analysis: analysis, issues: design.issues + check(unchecked) + (hooks?.issues ?? []) + jellyIssues, jellies: jellies,
-            kelp: KelpLayout.columns(spec, seed: seed), hooks: placed, currents: design.currents.isEmpty ? nil : design.currents)
+            kelp: KelpLayout.columns(spec, seed: seed), hooks: placed, currents: design.currents.isEmpty ? nil : design.currents,
+            contactTimed: contactTimed ? true : nil)
     }
 
     private static func kelpSeed(_ spec: MeetingSpec, variation: Int, seedName: String?) -> UInt64 {
@@ -487,9 +501,9 @@ enum MeetingPlanner {
             worldWidth: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens), timeline: design.timeline) } ?? []
         let analysis = EncounterAnalyzer.analyze(solved.crossings, jellies: passes)
         let unchecked = MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish,
-            predicted: solved.crossings, analysis: analysis, issues: [], jellies: jellies)
+            predicted: solved.crossings, analysis: analysis, issues: [], jellies: jellies, contactTimed: true)
         return MeetingPlan(spec: spec, variation: variation, seed: seed, fish: solved.fish, predicted: solved.crossings,
-            analysis: analysis, issues: design.issues + solved.issues + check(unchecked), jellies: jellies)
+            analysis: analysis, issues: design.issues + solved.issues + check(unchecked), jellies: jellies, contactTimed: true)
     }
 
     /// Where the route `timeline` passes each jelly on its first lap.
@@ -592,6 +606,10 @@ struct PlayerTimeline {
     private(set) var zoom: [CGFloat] = [1]
     private(set) var distance: [CGFloat] = [0]
     private(set) var radius: [CGFloat] = [GameTuning.baseRadius]
+    /// The size you're growing to at each step (`radius` once the growth after a swallow is done).
+    private(set) var grown: [CGFloat] = [GameTuning.baseRadius]
+    /// The step each meal's swallow started at, meals in distance order; a meal never reached has none.
+    private(set) var contacts: [Int] = []
 
     var lastStep: Int { distance.count - 1 }
 
@@ -613,9 +631,27 @@ struct PlayerTimeline {
         return (center - (center - bottom) / zoom, center + (top - center) / zoom)
     }
 
+    /// A meal on the route: where you meet it and how big it is, and how fast it swims and which way, for when you
+    /// really touch it. A fish coming at you is still ahead of its meeting point as you near it, and one you overtake
+    /// is still behind it, so you touch the first later than a fish standing still there and the second sooner. Speed
+    /// 0 is the still fish, the timing every plan had before 2026-10-26.
+    struct Meal {
+        var distance: CGFloat
+        var radius: CGFloat
+        var speed: CGFloat = 0
+        var headOn = true
+    }
+
     /// Meals start when the player reaches each fish (sorted by distance) and complete like real swallows.
     /// `currents` (full height) speed you up where they run on each `lap`, eased as GameScene eases them.
     static func reference(meals: [(distance: CGFloat, radius: CGFloat)], crossSeconds: CGFloat, until end: CGFloat,
+                          currents: [PlannedCurrent] = [], lap: CGFloat = .infinity) -> PlayerTimeline {
+        reference(meals: meals.map { Meal(distance: $0.distance, radius: $0.radius) }, crossSeconds: crossSeconds, until: end,
+                  currents: currents, lap: lap)
+    }
+
+    /// The same, with each meal's swallow starting when its body really reaches yours (`Meal`).
+    static func reference(meals: [Meal], crossSeconds: CGFloat, until end: CGFloat,
                           currents: [PlannedCurrent] = [], lap: CGFloat = .infinity) -> PlayerTimeline {
         typealias T = GameTuning
         let dt = T.simulationStep
@@ -653,15 +689,23 @@ struct PlayerTimeline {
                 let t = min(1, growElapsed / T.growDuration)
                 radius = growFrom + (target - growFrom) * (1 - pow(1 - t, 3))
             }
-            if swallow == nil, next < meals.count,
-               covered >= meals[next].distance - (radius + meals[next].radius) * T.collisionScale {
-                swallow = (0, SwallowTiming.duration(sizeRatio: meals[next].radius / radius, curve: T.swallowDurationCurve),
-                           meals[next].radius)
-                next += 1
+            if swallow == nil, next < meals.count {
+                // How far short of its meeting point you touch it: the reach, as if it stood still, scaled by your speed
+                // over the closing speed (a fish coming at you closes faster, one you overtake slower).
+                let yours = T.playfieldSize.width / crossSeconds / zoom * pace
+                let closing = meals[next].headOn ? yours + meals[next].speed : max(yours * 0.25, yours - meals[next].speed)
+                if covered >= meals[next].distance - (radius + meals[next].radius) * T.collisionScale * yours / closing {
+                    swallow = (0, SwallowTiming.duration(sizeRatio: meals[next].radius / radius, curve: T.swallowDurationCurve),
+                               meals[next].radius)
+                    timeline.contacts.append(timeline.distance.count)
+                    next += 1
+                }
             }
+
             timeline.zoom.append(zoom)
             timeline.distance.append(covered)
             timeline.radius.append(radius)
+            timeline.grown.append(target)
         }
         return timeline
     }
@@ -685,6 +729,9 @@ struct DesignedMeeting {
     var guardsAfter = false
     /// A gate wall's side: 1 above the gate, -1 below.
     var wall: CGFloat?
+    /// A gate's sizes that work: from just over what `needed - 1` meals reach to just under what `needed` do. Once the
+    /// meetings are timed, a gate met while you're still growing from the last meal is sized down within it.
+    var gateWindow: ClosedRange<CGFloat>?
     /// A fork meal's fork (unique in the level), lane (0 long, 1 short), and place in the lane.
     var fork: Int?
     var lane = 0
@@ -716,7 +763,9 @@ struct DesignedJelly {
 enum MeetingDesigner {
     typealias T = GameTuning
 
-    static func design(_ spec: MeetingSpec, seed: UInt64)
+    /// `contactTimed`: each meal's swallow starts when its body really reaches you (false: as if it stood still at its
+    /// meeting point, the timing before 2026-10-26).
+    static func design(_ spec: MeetingSpec, seed: UInt64, contactTimed: Bool = true)
         -> (meetings: [DesignedMeeting], timeline: PlayerTimeline, jellies: [PlannedJelly], currents: [PlannedCurrent],
             issues: [String]) {
         var rng = SeededGenerator(seed: seed)
@@ -756,9 +805,12 @@ enum MeetingDesigner {
                 }
             }
             timeline = PlayerTimeline.reference(
-                meals: meetings.filter(\.onReferenceRoute).map { ($0.distance, $0.size * T.baseRadius) },
+                meals: meetings.filter(\.onReferenceRoute).map {
+                    PlayerTimeline.Meal(distance: $0.distance, radius: $0.size * T.baseRadius, speed: contactTimed ? $0.speed : 0, headOn: $0.headOn)
+                },
                 crossSeconds: CGFloat(spec.crossSeconds), until: T.playfieldSize.width * CGFloat(spec.worldScreens) * 1.05,
                 currents: currents, lap: T.playfieldSize.width * CGFloat(spec.worldScreens))
+            if contactTimed { fitGatesToGrowth(&meetings, timeline: timeline, spec: spec) }
             // Squeeze the lap's meetings into its first pass if they run long.
             let lastTime = CGFloat(timeline.step(reaching: lastDistance)) * T.simulationStep * 0.99
             if let first = times.first, let last = times.last, last > lastTime {
@@ -767,6 +819,13 @@ enum MeetingDesigner {
         }
         if let last = meetings.last, last.distance > lastDistance + 1 {
             issues.append("meetings overflow the lap")
+        }
+        if contactTimed {
+            for gate in meetings where gate.role == .gate && gate.gateWindow != nil {
+                if let short = gateShortfall(gate, meetings: meetings, timeline: timeline) {
+                    issues.append(String(format: "gate %d comes while you're still growing (%.1f against %.1f)", gate.key + 1, short.you, short.gate))
+                }
+            }
         }
         if let currentSpec = spec.currents, !currentsFit {
             issues.append("no room for \(currentSpec.speeds.count) currents")
@@ -781,6 +840,32 @@ enum MeetingDesigner {
         let jellies = spec.jellies.map { placeJellies(meetings, times: times, spec: spec, jellySpec: $0, timeline: timeline,
                                                       rng: &rng, issues: &issues) } ?? []
         return (meetings, timeline, jellies, currents, issues)
+    }
+
+    /// A gate is sized to be just edible once you've grown from `needed` meals, but you keep growing for 0.35 s after a
+    /// swallow, and a gate met before that is met smaller (Shallow Reef 14's gate 22 was lost by a hair that way). With
+    /// the meetings timed, each gate is sized down by the share of its growth the reference route has at contact, as far
+    /// as its window allows; one that can't be is reported by `gateShortfall`.
+    private static func fitGatesToGrowth(_ meetings: inout [DesignedMeeting], timeline: PlayerTimeline, spec: MeetingSpec) {
+        let reference = meetings.indices.filter { meetings[$0].onReferenceRoute }.sorted { meetings[$0].distance < meetings[$1].distance }
+        for (order, index) in reference.enumerated() where meetings[index].role == .gate {
+            guard let window = meetings[index].gateWindow, order < timeline.contacts.count else { continue }
+            let step = timeline.contacts[order]
+            let share = timeline.radius[step] / max(timeline.grown[step], 1)
+            let upper = min(window.upperBound, window.upperBound * share)
+            guard upper >= window.lowerBound else { continue }
+            meetings[index].size = window.lowerBound + (upper - window.lowerBound) * CGFloat(1 - spec.gateMargin)
+        }
+    }
+
+    /// How much smaller than a gate you still are when you touch it on the reference route, after growing from the
+    /// meals before it, if you are: the gate can't be sized down any further within its window.
+    static func gateShortfall(_ gate: DesignedMeeting, meetings: [DesignedMeeting], timeline: PlayerTimeline)
+        -> (you: CGFloat, gate: CGFloat)? {
+        let reference = meetings.filter(\.onReferenceRoute).sorted { $0.distance < $1.distance }
+        guard let order = reference.firstIndex(where: { $0.key == gate.key }), order < timeline.contacts.count else { return nil }
+        let you = timeline.radius[timeline.contacts[order]], size = gate.size * T.baseRadius
+        return GameRules.playerEncounter(you, size) == .firstEatsSecond ? nil : (you, size)
     }
 
     /// Sizes on the fewest-meal route: whichever lanes you take, any `needed` meals of a segment make
@@ -838,7 +923,7 @@ enum MeetingDesigner {
                 }
             }
             var sizes: [CGFloat] = []
-            var gate: CGFloat = 0, enoughRoute: [CGFloat] = [], enoughMeals: [Int] = []
+            var gate: CGFloat = 0, enoughRoute: [CGFloat] = [], enoughMeals: [Int] = [], window: ClosedRange<CGFloat>?
             // A meal you bounce off is quick to swallow, so the climb after it isn't spent chewing.
             let bouncedOff = Set(meals.compactMap(\.bounceFrom))
             for _ in 0..<100 {
@@ -856,6 +941,7 @@ enum MeetingDesigner {
                 let lower = short * 1.035, upper = grow(fewest, weakest) * 0.985
                 if lower < upper {
                     gate = lower + (upper - lower) * CGFloat(1 - spec.gateMargin)
+                    window = lower...upper
                     enoughRoute = weakest
                     enoughMeals = weakestMeals
                     break
@@ -888,7 +974,7 @@ enum MeetingDesigner {
             let fullest = routes.map { grow(most, $0.map { sizes[$0] }) }.max() ?? most
             if spec.walledGates { walledGates.append((meetings.count, fullest)) }
             meetings.append(DesignedMeeting(key: meetings.count, role: .gate, segment: segmentIndex, size: gate,
-                                            onReferenceRoute: true))
+                                            gateWindow: window, onReferenceRoute: true))
             most = grow(fullest, [gate])
             fewest = grow(grow(fewest, enoughRoute), [gate])
         }

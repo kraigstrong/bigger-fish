@@ -542,8 +542,7 @@ extension MeetingPlan {
         let dt = T.simulationStep, width = T.playfieldSize.width, lap = width * CGFloat(spec.worldScreens)
         let world = WrappedWorld(width: lap)
         let reference = fish.filter(\.referenceMeal)
-        let timeline = PlayerTimeline.reference(meals: reference.map { ($0.meetingDistance, $0.radius) },
-            crossSeconds: CGFloat(spec.crossSeconds), until: lap * 1.05, currents: currents ?? [], lap: lap)
+        let timeline = referenceTimeline
         let columns = kelp ?? []
         let bells = spec.jellies.map { JellySpec.layout($0, count: jellies?.count ?? 0) }
         var frames: [WallFrame] = []

@@ -4155,10 +4155,14 @@ extension GameScene {
     /// Plays the Open Water from its first level (`firstLevel`, if it's planned already), as a practice run: nothing
     /// is saved to the campaign, and its runs report their own way (`startOpenWaterMetrics`). Set before the scene is
     /// shown. `planSeconds`: how long the first level took to plan, for the stats.
-    func debugStartOpenWater(seed: UInt64, firstLevel plan: MeetingPlan? = nil, from index: Int = 0, planSeconds: Double? = nil) {
+    /// `nextLevel`: the level after it, planned already, so a test's level change needn't plan (inline on a starved
+    /// main thread, under CI's load, a plan can take minutes).
+    func debugStartOpenWater(seed: UInt64, firstLevel plan: MeetingPlan? = nil, nextLevel: MeetingPlan? = nil, from index: Int = 0,
+                             planSeconds: Double? = nil) {
         if let planSeconds { openWaterSlowestPlan[seed] = planSeconds }
         var run = OpenWaterRun(seed: seed, index: index)
         if let plan { run.store(plan, index: index) }
+        if let nextLevel { run.store(nextLevel, index: index + 1) }
         plannerLevel = run.plan(index).level
         arcadeWorld = run.leg.world
         openWater = run
