@@ -159,7 +159,8 @@ struct ArcadeMetricsTests {
 
     @Test func payloadPinsTheApprovedGameplaySummaryKeys() throws {
         let d = defaults(), sender = Sender()
-        let analytics = ArcadeAnalytics(defaults: d, sender: sender, enabled: true)
+        // The campaign's own keys, with the Open Water's events (which add `dressed`) held off.
+        let analytics = ArcadeAnalytics(defaults: d, sender: sender, enabled: true, openWaterEvents: false)
         analytics.start(context)
         var accumulator = ArcadeMetricAccumulator()
         accumulator.advance(seconds: 3, circuits: 0.25)
@@ -188,7 +189,7 @@ struct ArcadeMetricsTests {
         // others. Every value is sent once here, so brightbench.app's fixture (bigger-fish-swift-paywall.json, copied
         // from the file written below) proves its allowlist takes them all.
         let paywallSender = Sender()
-        let paywall = ArcadeAnalytics(defaults: defaults(), sender: paywallSender, enabled: true, paywallEvents: true)
+        let paywall = ArcadeAnalytics(defaults: defaults(), sender: paywallSender, enabled: true, paywallEvents: true, openWaterEvents: false)
         let sources = ArcadeAnalytics.OfferSource.allCases
         paywall.hasUnlock = false
         for source in sources { paywall.offerShown(source) }

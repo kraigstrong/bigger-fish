@@ -421,8 +421,8 @@ The paywall funnel (where the unlock's screen was shown from, purchase and resto
 world's ten main levels are beaten, and whether each run had the unlock) went on with the unlock's sale
 (`ArcadeAnalytics.sendsPaywallEvents`).
 
-The Open Water and the pearl shop report behind `ArcadeAnalytics.sendsOpenWaterEvents` (off until brightbench.app
-accepts them and the privacy policy describes them): one `endless` summary per run from its first level
+The Open Water and the pearl shop report behind `ArcadeAnalytics.sendsOpenWaterEvents` (on: brightbench.app accepts
+them, kraigstrong/BrightBench#85, and the privacy policy describes them): one `endless` summary per run from its first level
 (`ArcadeOpenWaterMetrics`: levels cleared, fish, pearls, game seconds, a new best, levels that waited on the next
 plan and for how long, the slowest plan, dressed), with Retry or leaving as its `decision` and once-per-install
 milestones for the first run and the first time round the worlds; one `shop` event per visit (door, pearls in hand,
