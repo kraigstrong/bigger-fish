@@ -2,7 +2,7 @@ import FishKit
 import SpriteKit
 import SwiftUI
 
-/// The pearl shop (Xcode builds only, for now): the Open Water's pearls spent on looks for your fish, from the world
+/// The pearl shop: the Open Water's pearls spent on looks for your fish, from the world
 /// map's pearl button or a run's result card. A rail down the left of each kind of look, then your outfits (Kraig,
 /// 2026-10-25: "Left category rail sounds great"); your fish in the middle; the shelf on the right. Tap something you
 /// own to wear it, or something you don't to try it on your fish first and buy it there. Buying puts it on.

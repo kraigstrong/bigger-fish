@@ -95,6 +95,18 @@ struct OpenWaterTests {
               + slowest.map { "\($0.key.rawValue) \(Int($0.value * 1000))" }.sorted().joined(separator: ", "))
     }
 
+    /// A level none of whose first round of deals plans cleanly deals again rather than play one with an issue (Kraig,
+    /// 2026-10-26: "fix the bad level problem"): run 1039's stage 3 Jelly Bloom, every first-round deal of which kept
+    /// "gate 8 has one route", plans cleanly from its second round. A level that plans in the first round is as it was.
+    @Test func aLevelThatWontPlanCleanlyDealsAgain() throws {
+        func recipe(_ plan: MeetingPlan) throws -> Int { try #require(plan.spec.name.split(separator: ".").last.flatMap { Int($0) }) }
+        #expect(OpenWater.leg(11).world == .jellyBloom)
+        let plan = OpenWater.plan(11, seed: 1039)
+        #expect(plan.issues.isEmpty && !plan.hasGiantWall && !plan.hasWall, "\(plan.issues)")
+        #expect(try recipe(plan) >= GameTuning.openWaterDeals)
+        #expect(try recipe(OpenWater.plan(0, seed: 1)) < GameTuning.openWaterDeals)
+    }
+
     /// Jelly Bloom's levels plan just in time like the other worlds': its bells where the designer puts them, every
     /// fish's way in clear of them, three stages deep across a handful of runs, in a few seconds at most.
     @Test func jellyLevelsPlanInTime() {
@@ -145,7 +157,7 @@ struct OpenWaterTests {
     /// height on screen, the camera starting that much closer and easing back.
     @Test func theNextLevelStartsAtOnceWithTheCameraClose() throws {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-        scene.debugStartOpenWater(seed: 1)
+        scene.startOpenWater(seed: 1)
         let played = scene.debugPlayOpenWater(untilLevel: 1, limit: 5, safeFromFish: true)
         #expect(played.index == 0 && !played.lost)
         let before = scene.debugYouOnScreen
@@ -162,7 +174,7 @@ struct OpenWaterTests {
     /// swimming." (its first level's card) doesn't belong on it.
     @Test func theRunsCardNamesNoRules() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-        scene.debugStartOpenWater(seed: 1)
+        scene.startOpenWater(seed: 1)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         defer { withExtendedLifetime(view) {} }
@@ -173,7 +185,7 @@ struct OpenWaterTests {
     /// offers the shop.
     @Test func takingAPearlCountsItWithoutGrowingYou() throws {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-        scene.debugStartOpenWater(seed: 1)
+        scene.startOpenWater(seed: 1)
         var kept = 0, shopped = 0
         scene.onPearl = { kept += 1 }
         scene.onShop = { shopped += 1 }
@@ -197,7 +209,7 @@ struct OpenWaterTests {
     /// on its way, and the world's own hazards. Nothing is ever won or cleared.
     @Test func eachLevelEndsOnItsLastGateAndStartsYouSmall() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-        scene.debugStartOpenWater(seed: 1)
+        scene.startOpenWater(seed: 1)
         var cleared = false
         scene.onClear = { _, _ in cleared = true }
         let worlds = GameTuning.openWaterWorlds
@@ -221,7 +233,7 @@ struct OpenWaterTests {
     /// at the first world.
     @Test func beingEatenEndsTheRun() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-        scene.debugStartOpenWater(seed: 5)
+        scene.startOpenWater(seed: 5)
         #expect(scene.debugPlayOpenWater(untilLevel: 1, safeFromFish: true).index == 1)
         #expect(scene.arcadeWorld == GameTuning.openWaterWorlds[1])
         scene.debugLose()
@@ -235,7 +247,7 @@ struct OpenWaterTests {
     /// under how far it got, and its Shop button shows the pearls you have to spend, kept up to date as they're spent.
     @Test func aRunsCardShowsTheBestAndYourPearls() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-        scene.debugStartOpenWater(seed: 1)
+        scene.startOpenWater(seed: 1)
         scene.openWaterBest = 2
         scene.pearlsToSpend = 38
         var runs: [Int] = []
@@ -287,7 +299,7 @@ struct OpenWaterTests {
     /// it got.
     @Test func aRunsCardSaysWhatItEarned() throws {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-        scene.debugStartOpenWater(seed: 5)
+        scene.startOpenWater(seed: 5)
         let shark = try #require(PearlItem.item("hat.sharkfin")), starfish = try #require(PearlItem.item("hat.starfish"))
         var earned = [shark], reached: [Int] = []
         scene.onOpenWaterRun = { _, furthest in
@@ -308,7 +320,7 @@ struct OpenWaterTests {
     /// nothing able to catch you, until it is.
     @Test func aLevelDoneEarlyPlaysOnUntilTheNextIsPlanned() async throws {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-        scene.debugStartOpenWater(seed: 1)
+        scene.startOpenWater(seed: 1)
         scene.debugPlansOpenWaterAhead = true
         // Played straight through, the next level's plan can't arrive: it comes back on the main thread.
         let played = scene.debugPlayOpenWater(untilLevel: 1, limit: 12)
@@ -329,7 +341,7 @@ struct OpenWaterTests {
     /// it on the main thread. Its second level, a Jelly Bloom one and the slowest to plan, was planned alongside.
     @Test func retryWaitsForTheNextRunsFirstLevel() async throws {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-        scene.debugStartOpenWater(seed: 5)
+        scene.startOpenWater(seed: 5)
         scene.debugPlansOpenWaterAhead = true
         _ = scene.debugPlayOpenWater(untilLevel: 1, limit: 3, safeFromFish: true)
         scene.debugLose()

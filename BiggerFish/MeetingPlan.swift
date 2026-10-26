@@ -345,14 +345,12 @@ struct MeetingPlan: Codable {
         return level
     }
 
-    #if DEBUG
     /// Where the reference route passes each jelly on the first lap.
     var jellyPasses: [JellyPass] {
         guard let jellySpec = spec.jellies, let jellies, !jellies.isEmpty else { return [] }
         return MeetingPlanner.jellyPasses(jellies, spec: jellySpec, crossSeconds: CGFloat(spec.crossSeconds),
             worldWidth: GameTuning.playfieldSize.width * CGFloat(spec.worldScreens), timeline: referenceTimeline)
     }
-    #endif
 
     /// The fewest-meal route: each segment's smallest `needed` foods, then its gate.
     var fewestMealRoute: Set<Int> {
@@ -386,9 +384,9 @@ struct MeetingPlan: Codable {
     }
 }
 
-// The planner runs on the Mac, in Xcode builds and tests only: the shipped game plays saved plans and never plans on
-// the device (`GameTuning.savedPlans`).
-#if DEBUG
+// The campaign's levels are planned on the Mac and ship as saved plans (`GameTuning.savedPlans`): a released game never
+// plans one on the device. The Open Water's levels are new every run, so they're planned on the device, just in time
+// (`kelpPlan`, by `OpenWater.plan`).
 enum MeetingPlanner {
     static let designAttempts = 12
     /// Jelly levels are harder to solve cleanly, so they try more layouts.
@@ -598,7 +596,6 @@ enum MeetingPlanner {
         text.utf8.reduce(UInt64(0xCBF2_9CE4_8422_2325)) { ($0 ^ UInt64($1)) &* 0x100_0000_01B3 }
     }
 }
-#endif
 
 /// Player size, zoom, and forward distance for every simulation step of a route, mirroring
 /// GameScene's update order: zoom, then movement, then swallowing, then growth, then contact.
@@ -711,7 +708,6 @@ struct PlayerTimeline {
     }
 }
 
-#if DEBUG
 struct DesignedMeeting {
     /// Stable while threats are inserted around the meals.
     var key: Int
@@ -2136,4 +2132,3 @@ enum KelpLayout {
         return columns
     }
 }
-#endif

@@ -65,8 +65,9 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   (`kelpFrozen`, `reefLabFrozen`, `jellyLabFrozen`, `midnightFrozen`, `sunsetFrozen`), regenerate the world's plans file with its marker (for Kelp
   Forest, `touch build/arcade-development/kelp-plans.request`, then run
   `MeetingPlannerTests/manualWriteKelpPlans()`), and commit the JSON. **Freeze every level before
-  publishing (TestFlight or the App Store):** the shipped game loads saved plans and never plans on the device,
-  and a planner change can't alter a level players have. To change a frozen level, take it out of the frozen
+  publishing (TestFlight or the App Store):** the shipped game loads saved plans and never plans a campaign level
+  on the device, and a planner change can't alter a level players have. (The Open Water's levels are new every run,
+  so they alone are planned on the device, just in time: `OpenWater.plan`.) To change a frozen level, take it out of the frozen
   set with Kraig's OK, tune it in code, and freeze it again.
 - **Tuning constants stay in one place per app:** `ReefTuning` at the top of
   `MathReef/PracticeScene.swift` and `BiggerFish/GameTuning.swift`.

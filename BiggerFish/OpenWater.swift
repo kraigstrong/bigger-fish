@@ -1,12 +1,11 @@
-#if DEBUG
 import FishKit
 import Foundation
 
-/// The Open Water (Xcode builds only, a prototype for after 1.0): an endless run round the campaign's worlds. A stage
-/// is one time round: each world in turn (`GameTuning.openWaterWorlds`) plays a new level made at its own level's
-/// difficulty, level 5 on stage 1, 6 on stage 2, and on (`GameTuning.openWaterFirstLevel`). Each is planned as the run
-/// reaches it. A level ends on its last gate: eat it and you shrink back to your starting size for the next world.
-/// There's always a bigger fish. Being eaten ends the run.
+/// The Open Water: an endless run round the campaign's worlds. A stage is one time round: each world in turn
+/// (`GameTuning.openWaterWorlds`) plays a new level made at its own level's difficulty, level 5 on stage 1, 6 on stage
+/// 2, and on (`GameTuning.openWaterFirstLevel`). Each is planned on the device as the run reaches it. A level ends on
+/// its last gate: eat it and you shrink back to your starting size for the next world. There's always a bigger fish.
+/// Being eaten ends the run.
 enum OpenWater {
     /// One level of a run: its stage, its world, and which of that world's levels it's made like (from 1; past the
     /// Deep End's last, 15, it goes on as 16, 17, and on).
@@ -78,17 +77,22 @@ enum OpenWater {
     /// issues and no wall of giants, trying many layouts of each (a layout that can't fit is passed over in a moment).
     /// If none does with every open-water big fish the template asks for, and `GameTuning.openWaterFewerToFit` allows,
     /// the same again with one fewer: around bells there's sometimes no room for them all (Jelly Bloom 7's recipe).
+    /// If still none does, fresh deals, a round at a time (`GameTuning.openWaterDealRounds`), rather than play a level
+    /// with an issue (Kraig, 2026-10-26: "fix the bad level problem"); only past the last round, the first that planned.
+    /// Each round's deals are new, so a level that plans in the first is just as it was.
     static func plan(_ index: Int, seed: UInt64) -> MeetingPlan {
         var best: MeetingPlan?
-        for fewer in 0...(GameTuning.openWaterFewerToFit ? 1 : 0) {
-            for recipe in 0..<GameTuning.openWaterDeals {
-                var spec = spec(index, seed: seed, recipe: recipe)
-                guard spec.extraThreats > fewer else { break }
-                spec.extraThreats -= fewer
-                for variation in 0..<GameTuning.openWaterLayouts where MeetingPlanner.kelpLayoutFits(spec, variation: variation) {
-                    let plan = MeetingPlanner.kelpPlan(spec, variation: variation)
-                    if plan.issues.isEmpty && !plan.hasGiantWall && !plan.hasWall { return plan }
-                    best = best ?? plan
+        for round in 0..<GameTuning.openWaterDealRounds {
+            for fewer in 0...(GameTuning.openWaterFewerToFit ? 1 : 0) {
+                for deal in 0..<GameTuning.openWaterDeals {
+                    var spec = spec(index, seed: seed, recipe: round * GameTuning.openWaterDeals + deal)
+                    guard spec.extraThreats > fewer else { break }
+                    spec.extraThreats -= fewer
+                    for variation in 0..<GameTuning.openWaterLayouts where MeetingPlanner.kelpLayoutFits(spec, variation: variation) {
+                        let plan = MeetingPlanner.kelpPlan(spec, variation: variation)
+                        if plan.issues.isEmpty && !plan.hasGiantWall && !plan.hasWall { return plan }
+                        best = best ?? plan
+                    }
                 }
             }
         }
@@ -223,4 +227,3 @@ struct OpenWaterRun {
         finished = false
     }
 }
-#endif

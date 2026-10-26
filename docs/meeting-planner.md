@@ -209,7 +209,7 @@ Gauntlet's six full-size big fish steered around bells into about 130 bumps.
 
 ## Just-in-time jellies (Open Water)
 
-The Open Water (Xcode builds only, `OpenWater.swift`) plans each level as the run reaches it, so Jelly Bloom's levels
+The Open Water (`OpenWater.swift`) plans each level on the device as the run reaches it, so Jelly Bloom's levels
 there can't wait minutes for the searching solver. `MeetingPlanner.kelpPlan` plans them like Kelp Forest's, fish
 appearing just off screen before their meetings, and keeps the bells where the designer puts them (pockets, stings,
 split forks, open water), with the route's passes by them in the analysis, so bounce meals and close calls check as in

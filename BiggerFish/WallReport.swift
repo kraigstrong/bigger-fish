@@ -7,9 +7,10 @@ import Foundation
 // `WallSweep` sweeps the heights you could be at forward through those frames, cutting out every bigger fish, hook and
 // curtain of tentacles as it comes within reach. The narrowest stretch of water left open, as a share of the water, is
 // the level's tightest squeeze. It's a report, never a gate: Kraig's play decides what's a wall (Heavyweights is 5.7%
-// and one of his favorites; Riptide Reef 3's first layout was 7.3% and impassable). See `WallReportTests`.
+// and one of his favorites; Riptide Reef 3's first layout was 7.3% and impassable). See `WallReportTests`. The sweep and
+// the plan's own opening (`MeetingPlan.hasWall`) ship, for the Open Water's levels planned on the device; the report
+// itself is Xcode builds'.
 
-#if DEBUG
 /// One simulation step of a level as a ghost run sees it: everything that could end your run, where it is. World
 /// points; x unwrapped only as far as `worldWidth` wraps it.
 struct WallFrame {
@@ -336,6 +337,7 @@ enum WallSweep {
     }
 }
 
+#if DEBUG
 /// A level's wall report: every route swept, the worst of them, and the fish that outgrow you.
 struct WallStudy {
     typealias T = GameTuning
@@ -528,6 +530,8 @@ struct WallStudy {
     }
 }
 
+#endif
+
 // MARK: - The opening from the plan alone
 
 extension MeetingPlan {
@@ -586,4 +590,3 @@ extension MeetingPlan {
         return opening.closed != nil || (opening.tightest?.share ?? 1) < GameTuning.wallOpening
     }
 }
-#endif

@@ -883,7 +883,7 @@ enum GameTuning {
     /// A soft glow around your lure, as a share of the beam's reach, so a fish right beside you is never invisible.
     static let headlampGlow: CGFloat = 0.14
 
-    // MARK: Open Water (prototype, Xcode builds only)
+    // MARK: Open Water
 
     /// The Open Water's worlds, in the order a stage takes you round them (`OpenWater`). Each plays a new level made
     /// at the stage's difficulty with the world's own hazards, every one planned just in time (Jelly Bloom's jellies
@@ -900,6 +900,9 @@ enum GameTuning {
     /// the deal that planned best.
     static let openWaterDeals = 12
     static let openWaterLayouts = 32
+    /// Rounds of those deals, each new, before a level plays one that didn't plan cleanly: about 1 level in 300 needs a
+    /// second (2026-10-26: 5 of 1,500, every one stage 3's Jelly Bloom). Each round can take as long as the first.
+    static let openWaterDealRounds = 4
     /// When no deal fits every open-water big fish its template asks for, plan the level with one fewer rather than
     /// play it with planner issues. Around Jelly Bloom's bells there's sometimes no room for them all.
     static let openWaterFewerToFit = true
@@ -936,7 +939,7 @@ enum GameTuning {
     /// included). The worlds aren't named: you can see which one you're in.
     static let openWaterBannerSeconds: Double = 1.6
 
-    // MARK: Pearl shop (prototype, Xcode builds only)
+    // MARK: Pearl shop
 
     /// What the Open Water's pearls buy (`PearlItem`), in the shop's order: looks for your fish, shown everywhere it
     /// swims. Prices are steady (Kraig, 2026-10-22): the first thing in about two good runs, the dearest in about
