@@ -158,6 +158,8 @@ final class ArcadeAnalytics {
         /// A world conquered without the unlock: its conquered screen is the offer. Shallow Reef, in practice, though a
         /// world beaten for free before the unlock went on sale shows it once too.
         case conquered
+        /// The day's free Open Water runs used up: Open Water on the world map, or Unlock on a run's card.
+        case openWaterLimit = "open_water_limit"
     }
 
     /// Whether the player has the unlock, while it's on sale; nil when it isn't, since then everything is open to

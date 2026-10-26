@@ -3,7 +3,7 @@ import UIKit
 
 /// Arcade-owned destinations; one prominent action keeps each result moving forward.
 enum ArcadeResultAction: Equatable {
-    case nextLevel, playAgain, tryAgain, levels, world, shop
+    case nextLevel, playAgain, tryAgain, levels, world, shop, unlock
 
     var title: String {
         switch self {
@@ -13,14 +13,16 @@ enum ArcadeResultAction: Equatable {
         case .levels: "Levels"
         case .world: "Back to world"
         case .shop: "Shop"
+        case .unlock: "Unlock all"
         }
     }
 
     /// `retryOnly`: the tutorial's, where being eaten just tries again. `shop`: an Open Water run's end, where the
-    /// pearl shop sits between trying again and leaving.
-    static func choices(passed: Bool, hasNext: Bool, retryOnly: Bool = false, shop: Bool = false) -> [Self] {
+    /// pearl shop sits between trying again and leaving; `outOfRuns`, the day's free runs used up, where the unlock
+    /// stands in for trying again.
+    static func choices(passed: Bool, hasNext: Bool, retryOnly: Bool = false, shop: Bool = false, outOfRuns: Bool = false) -> [Self] {
         if retryOnly && !passed { return [.tryAgain] }
-        if shop && !passed { return [.tryAgain, .shop, .levels] }
+        if shop && !passed { return [outOfRuns ? .unlock : .tryAgain, .shop, .levels] }
         if passed && hasNext { return [.nextLevel, .playAgain, .levels] }
         return passed ? [.world, .playAgain] : [.tryAgain, .levels]
     }
@@ -48,13 +50,14 @@ final class ArcadeResultPanel: SKNode {
     /// smaller line under the detail (an Open Water run's best). `shopPearls`: the pearl shop's button too, showing the
     /// pearls you have to spend (an Open Water run's end).
     init(size: CGSize, passed: Bool, hasNext: Bool, detail: String, progress: WorldProgressStrip? = nil, retryOnly: Bool = false,
-         heading headingOverride: String? = nil, note: String? = nil, shopPearls: Int? = nil) {
+         heading headingOverride: String? = nil, note: String? = nil, shopPearls: Int? = nil, outOfRuns: Bool = false) {
         headingText = headingOverride ?? (passed ? "Level passed!" : "Try again!")
         noteText = progress == nil ? note : nil
         self.shopPearls = shopPearls
         shownShopPearls = shopPearls
         super.init()
-        let choices = ArcadeResultAction.choices(passed: passed, hasNext: hasNext, retryOnly: retryOnly, shop: shopPearls != nil)
+        let choices = ArcadeResultAction.choices(passed: passed, hasNext: hasNext, retryOnly: retryOnly, shop: shopPearls != nil,
+                                                 outOfRuns: outOfRuns)
         primaryAction = choices.first
         let maxWidth = size.width - 100
         let heading = text(headingText, size: 32, heavy: true)

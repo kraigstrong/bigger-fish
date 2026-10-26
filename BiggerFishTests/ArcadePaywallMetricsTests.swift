@@ -122,7 +122,7 @@ struct ArcadePaywallMetricsTests {
         relaunched.offerShown(.unlockAll)
         #expect(relaunched.queue.last?.first == false)
         #expect(ArcadeAnalytics.OfferSource.allCases.map(\.rawValue)
-                == ["padlocked_level", "next_level", "unlock_all", "locked_world", "conquered"])
+                == ["padlocked_level", "next_level", "unlock_all", "locked_world", "conquered", "open_water_limit"])
     }
 
     @Test func purchaseOutcomesAreReportedWithTheScreenTheyWereOn() {

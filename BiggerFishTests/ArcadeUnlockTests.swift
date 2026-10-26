@@ -63,6 +63,33 @@ struct ArcadeUnlockTests {
     }
 
     /// The unlock is cached on the device so the maps draw right at launch and offline, apart from saved progress.
+    /// Without the unlock, the Open Water has its free runs a day on each device, back each new day where the player is.
+    @Test func freeOpenWaterRunsComeBackEachDay() {
+        #expect(ArcadeUnlock.limitsOpenWater(unlocked: false, selling: true))
+        #expect(!ArcadeUnlock.limitsOpenWater(unlocked: true, selling: true) && !ArcadeUnlock.limitsOpenWater(unlocked: false, selling: false))
+        let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        func at(_ day: Int, _ hour: Int) -> Date { calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour))! }
+        let runs = OpenWaterRuns(defaults: defaults)
+        let free = GameTuning.freeOpenWaterRunsPerDay
+        #expect(free == 5 && runs.left(at: at(3, 9)) == free)
+        for _ in 0..<free - 1 { runs.use(at: at(3, 9)) }
+        #expect(runs.left(at: at(3, 23)) == 1)
+        runs.use(at: at(3, 23))
+        runs.use(at: at(3, 23))
+        #expect(runs.left(at: at(3, 23)) == 0)
+        // Kept on the device, and back the next day.
+        #expect(OpenWaterRuns(defaults: defaults).left(at: at(3, 23)) == 0)
+        #expect(runs.left(at: at(4, 0)) == free)
+        runs.use(at: at(4, 8))
+        #expect(OpenWaterRuns(defaults: defaults).left(at: at(4, 8)) == free - 1)
+        // Its day is the Gregorian one, whatever calendar the player prefers.
+        var hebrew = Calendar(identifier: .hebrew)
+        hebrew.timeZone = .current
+        #expect(OpenWaterRuns.day(of: at(4, 8), calendar: hebrew) == "2026-11-04")
+    }
+
     @Test func purchasesStartLockedAndKeepTheirOwnKey() async {
         let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
         let purchases = await ArcadePurchases(defaults: defaults, syncWithAppStore: {})

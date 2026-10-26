@@ -138,6 +138,10 @@ final class GameScene: SKScene {
     /// (from 0), for the app to keep a new best: it answers with the looks the run earned (`PearlItem.earnedBy`).
     var openWaterBest = 0
     var onOpenWaterRun: ((_ fish: Int, _ furthest: Int) -> [PearlItem])?
+    /// The day's free runs still to take a pearl (the app's, `OpenWaterRuns`), or nil with the unlock: none left, a run's
+    /// card offers the unlock instead of Retry. And a run's first pearl, which counts it as one of them.
+    var openWaterRunsLeft: (() -> Int?)?
+    var onOpenWaterRunCounted: (() -> Void)?
     /// The run just ended beat the best, and the looks it earned: its card says so.
     private var openWaterNewBest = false
     private var openWaterEarned: [PearlItem] = []
@@ -156,8 +160,16 @@ final class GameScene: SKScene {
         return openWaterNewBest ? "New best!" : nil
     }
     private var openWaterResultNote: String? {
-        openWater != nil && openWaterBest > 0 ? "Best: \(openWaterBest) fish" : nil
+        guard openWater != nil else { return nil }
+        let best = openWaterBest > 0 ? "Best: \(openWaterBest) fish" : nil
+        let runs = openWaterRunsLeft?().map { left in
+            left == 0 ? "\(T.freeOpenWaterRunsPerDay) more runs tomorrow" : left == 1 ? "1 run left today" : "\(left) runs left today"
+        }
+        let note = [best, runs].compactMap { $0 }.joined(separator: " · ")
+        return note.isEmpty ? nil : note
     }
+    /// The day's free Open Water runs are used up: no new run until tomorrow, or the unlock.
+    private var outOfOpenWaterRuns: Bool { openWater != nil && openWaterRunsLeft?() == 0 }
     private var openWaterShopPearls: Int? {
         openWater != nil ? pearlsToSpend : nil
     }
@@ -859,7 +871,7 @@ final class GameScene: SKScene {
         let panel = ArcadeResultPanel(size: size, passed: passed, hasNext: !isFinalLevel && !isWorldFinale, detail: detail,
                                       progress: strip, retryOnly: isTutorial,
                                       heading: passed ? nil : openWaterResultHeading, note: passed ? nil : openWaterResultNote,
-                                      shopPearls: openWaterShopPearls)
+                                      shopPearls: openWaterShopPearls, outOfRuns: !passed && outOfOpenWaterRuns)
         panel.onSelect = { [weak self] action in self?.selectResult(action) }
         messageNode.addChild(panel)
         resultPanel = panel
@@ -922,12 +934,19 @@ final class GameScene: SKScene {
         case .shop:
             // Over the card, which waits underneath: closing the shop comes back to it.
             onShop?()
+        case .unlock:
+            leaveForOpenWaterUnlock()
         }
     }
 
     /// The same level again (Retry, Play again, or Restart, by touch or VoiceOver): no card first, just the prompt. In
     /// the Open Water, a new run from its first stage.
     private func replayLevel() {
+        // The day's free runs are used up (Restart on the pause menu, mid-run): the unlock's screen instead.
+        if outOfOpenWaterRuns {
+            leaveForOpenWaterUnlock()
+            return
+        }
         if let run = openWater {
             // The new run's first level was planned off the main thread as this one ended. If it isn't ready yet (a
             // moment at most), Retry waits for it rather than freeze the game while it's planned here.
@@ -4171,6 +4190,15 @@ extension GameScene {
     }
     #endif
 
+    /// Out of the day's free runs: back out, for the unlock's screen (`leftForUnlock`), which says when more come.
+    fileprivate func leaveForOpenWaterUnlock() {
+        #if DEBUG
+        finishRunRecording("unlock")
+        #endif
+        leftForUnlock = true
+        onExit?()
+    }
+
     /// A new run, the next seed on, from its first level (planned while the last run's result showed).
     fileprivate func startNextOpenWaterRun() {
         guard let run = openWater else { return }
@@ -4440,6 +4468,8 @@ extension GameScene {
             let taken = openWaterPearls.remove(at: index)
             openWater?.pearls += 1
             onPearl?()
+            // The run's first pearl makes it one of the day's free runs.
+            if openWater?.pearls == 1 { onOpenWaterRunCounted?() }
             // A gulp: your mouth snaps open (and closes as after any bite), and the pearl goes into it.
             player.mouth = 1
             openWaterGulps.append((taken.node, taken.node.position, realClock))
@@ -4674,6 +4704,9 @@ extension GameScene {
 
     /// The result card's line, once the run has ended.
     var debugResultDetail: String? { openWaterSummary }
+
+    /// Restart, as the pause menu's does.
+    func debugRestart() { replayLevel() }
     #endif
 }
 

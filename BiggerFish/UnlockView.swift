@@ -58,6 +58,16 @@ struct UnlockView: View {
         .task { await purchases.loadProduct() }
     }
 
+    /// What the screen says first: a world conquered, the day's free Open Water runs used up, or the unlock itself.
+    private var headline: (title: String, line: String) {
+        if let conquered { return ("\(conquered.title) conquered!", "Ready for bigger water? Unlock every world.") }
+        if source == .openWaterLimit {
+            return ("\(GameTuning.freeOpenWaterRunsPerDay) more runs tomorrow",
+                    "Or unlock every world, and swim the Open Water as much as you like.")
+        }
+        return ("Unlock every world", "Swim anywhere you like, whenever you like.")
+    }
+
     /// Spread over the screen's height. On a screen taller than a phone's (an iPad), the clips grow a little and it
     /// sits in the middle, no more spread out than that.
     private func offer(in size: CGSize) -> some View {
@@ -68,10 +78,9 @@ struct UnlockView: View {
         let margin: CGFloat = 12
         return VStack(spacing: 0) {
             VStack(spacing: 2) {
-                Text(conquered.map { "\($0.title) conquered!" } ?? "Unlock every world")
+                Text(headline.title)
                     .font(.custom("AvenirNext-Heavy", size: 27))
-                Text(conquered == nil ? "Swim anywhere you like, whenever you like."
-                                      : "Ready for bigger water? Unlock every world.")
+                Text(headline.line)
                     .font(.custom("AvenirNext-DemiBold", size: 14)).opacity(0.85)
             }
             .multilineTextAlignment(.center)
