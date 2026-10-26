@@ -298,81 +298,81 @@ Heavyweights is 5.7% and a favorite. What counts as a wall is a product call.
 | shallow-reef | 1 | Reef Lab 1 | 12 | 0 | 68.2% / 68.2% | 68.2% / 68.2% | 6 / 6 | fewest LS: 75.0% | 68.2% at 5.1 s: fish 7 (threat, r 30) / the surface |  |
 | shallow-reef | 2 | Easy | 17 | 2 | 29.1% / 54.5% | 29.1% / 54.5% | 12 / 12 | fewest SLL: 31.4% | 29.1% at 5.4 s: the floor / fish 10 (threat, r 40) |  |
 | shallow-reef | 3 | Reef Lab 5 | 23 | 6 | 33.8% / 48.8% | 33.8% / 48.8% | 10 / 16 | fewest SLS: 27.8% | closed at 7.6 s: gate 16 is out of reach (bigger than you: r 29.9 vs 28.4) (−1 meals) |  |
-| shallow-reef | 4 | Medium | 22 | 4 | 24.5% / 30.4% | 24.5% / 30.4% | 16 / 16 | lanes SLS: 23.7% | 18.7% at 3.0 s: fish 5 (threat, r 27) / the surface |  |
-| shallow-reef | 5 | Reef Lab 3 | 19 | 5 | 21.3% / 31.9% | 21.3% / 31.9% | 16 / 16 | lanes SSS: 20.6% | 19.1% at 5.1 s: the floor / fish 11 (threat, r 39) |  |
+| shallow-reef | 4 | Medium | 22 | 4 | 24.5% / 30.4% | 24.5% / 30.4% | 8 / 16 | lanes SLS: 23.9% | 18.8% at 3.0 s: fish 5 (threat, r 27) / the surface |  |
+| shallow-reef | 5 | Reef Lab 3 | 19 | 5 | 21.3% / 31.9% | 21.3% / 31.9% | 16 / 16 | lanes SSS: 22.0% | 20.3% at 5.1 s: the floor / fish 11 (threat, r 39) |  |
 | shallow-reef | 6 | Reef Lab 4 | 21 | 6 | 34.4% / 49.3% | 34.4% / 49.3% | 15 / 15 | lanes SSS: 21.2% | 17.2% at 6.3 s: fish 13 (threat, r 51) / the surface |  |
-| shallow-reef | 7 | Reef Lab 7 | 25 | 7 | 16.1% / 31.6% | 16.1% / 31.6% | 16 / 30 | fewest SLSS: 13.8% | closed at 6.7 s: gate 17 is out of reach (bigger than you: r 32.0 vs 31.7) (−1 meals) |  |
-| shallow-reef | 8 | Hard | 29 | 9 | 8.3% / 9.1% | 8.3% / 9.1% | 26 / 30 | lanes SLSS: 12.4% (−1 meals) | 10.8% at 4.9 s: fish 14 (threat, r 45) / the surface |  |
-| shallow-reef | 9 | Reef Lab 9 | 30 | 8 | 11.5% / 21.5% | 11.5% / 21.5% | 30 / 30 | lanes LSSS: 14.5% (−1 meals) | 13.6% at 5.4 s: fish 15 (threat, r 41) / the surface | fish 18 65→80 (you 77, lap 2) |
-| shallow-reef | 10 | Reef Lab 8 | 26 | 8 | 25.2% / 40.4% | 25.2% / 40.4% | 12 / 30 | fewest SLSS: 21.5% | 20.9% at 2.9 s: the floor / fish 5 (threat, r 26) |  |
+| shallow-reef | 7 | Reef Lab 7 | 25 | 7 | 16.1% / 31.6% | 16.1% / 31.6% | 16 / 30 | lanes SLSS: 14.1% | closed at 6.7 s: gate 17 is out of reach (bigger than you: r 32.0 vs 31.7) (−1 meals) |  |
+| shallow-reef | 8 | Hard | 29 | 9 | 8.3% / 9.1% | 8.3% / 9.1% | 26 / 30 | reference: 12.4% | 12.4% at 4.9 s: fish 14 (threat, r 45) / the surface |  |
+| shallow-reef | 9 | Reef Lab 9 | 30 | 8 | 11.5% / 21.5% | 11.5% / 21.5% | 30 / 30 | reference: 14.7% | 14.7% at 5.4 s: fish 15 (threat, r 41) / the surface | fish 18 65→80 (you 77, lap 2) |
+| shallow-reef | 10 | Reef Lab 8 | 26 | 8 | 25.2% / 40.4% | 25.2% / 40.4% | 14 / 30 | fewest SLSS: 22.7% | 21.7% at 2.9 s: the floor / fish 5 (threat, r 26) |  |
 | shallow-reef | 11 | Crossroads | 31 | 10 | 20.2% / 40.3% | 20.2% / 40.3% | 108 / 108 | lanes SSLSSS: 14.3% (−1 meals) | 13.0% at 6.8 s: the floor / fish 18 (threat, r 59) |  |
-| shallow-reef | 12 | Frenzy | 34 | 12 | 5.5% / 10.4% | 5.5% / 10.4% | 32 / 32 | lanes SSLS: 6.9% (−1 meals) | 5.5% at 5.7 s: the floor / fish 16 (threat, r 44) |  |
-| shallow-reef | 13 | Gauntlet | 33 | 12 | 9.4% / 9.4% | 9.4% / 9.4% | 32 / 32 | reference: 10.3% | 10.3% at 6.1 s: fish 16 (threat, r 90) / the surface |  |
-| shallow-reef | 14 | Heavyweights | 29 | 9 | closed | closed | 16 / 32 | lanes SSSS: 13.0% | closed at 7.5 s: the water closed (fish 21 272–444, fish 23 -28–166; water -25–425, you r 40) | fish 20 80→94 (you 93, lap 2) |
-| shallow-reef | 15 | Needle | 31 | 10 | 12.3% / 24.6% | 12.3% / 24.6% | 16 / 30 | fewest LLSS: 20.3% | closed at 6.4 s: gate 20 is out of reach (bigger than you: r 33.6 vs 31.3) (−1 meals) |  |
-| jelly-bloom | 1 | Jelly Lab 1 | 12 | 1 | 35.3% / 59.4% | 35.3% / 39.6% | 5 / 5 | fewest LL: 23.4% | 21.1% at 5.5 s: jelly 2 / the surface |  |
-| jelly-bloom | 2 | Jelly Lab 2 | 18 | 2 | 31.8% / 55.0% | 31.8% / 48.4% | 16 / 16 | reference: 21.4% | 21.4% at 7.0 s: jelly 2 / the surface |  |
-| jelly-bloom | 3 | Jelly Lab 3 | 19 | 3 | 32.0% / 56.5% | 32.0% / 47.5% | 12 / 16 | reference: 21.7% (−1 meals) | 21.7% at 4.2 s: the floor / jelly 1 (−1 meals) |  |
-| jelly-bloom | 4 | Jelly Lab 4 | 21 | 5 | 23.5% / 35.2% | 23.5% / 35.2% | 15 / 15 | lanes SSL: 19.3% | 15.4% at 5.1 s: the floor / fish 9 (threat, r 38) |  |
-| jelly-bloom | 5 | Jelly Lab 5 | 25 | 6 | 23.2% / 26.3% | 23.2% / 26.3% | 9 / 17 | fewest SLS: 17.8% | closed at 7.9 s: gate 18 is out of reach (at y 273 you could be at -24–219) (−1 meals) |  |
-| jelly-bloom | 6 | Jelly Lab 6 | 25 | 5 | 13.5% / 32.4% | 13.5% / 31.5% | 17 / 17 | fewest LSS: 12.8% | 11.7% at 4.9 s: the floor / jelly 1 |  |
-| jelly-bloom | 7 | Jelly Lab 7 | 27 | 9 | 12.5% / 21.1% | 5.5% / 5.5% | 25 / 33 | lanes SSLS: 23.6% (−2 meals) | 7.8% at 6.1 s: the floor / fish 17 (threat, r 46) (−1 meals) |  |
-| jelly-bloom | 8 | Jelly Lab 8 | 26 | 8 | 15.6% / 26.0% | 6.8% / 6.8% | 4 / 30 | lanes LLSS: 3.6% | closed at 6.2 s: the water closed (fish 15 200–371, fish 16 105–238, jelly 5 -7–114; water 0–400, you r 32) | fish 13 64→97 (you 74, lap 2) |
+| shallow-reef | 12 | Frenzy | 34 | 12 | 5.5% / 10.4% | 5.5% / 10.4% | 32 / 32 | lanes LSLS: 6.7% (−1 meals) | 5.5% at 5.7 s: the floor / fish 16 (threat, r 44) |  |
+| shallow-reef | 13 | Gauntlet | 33 | 12 | 9.4% / 9.4% | 9.4% / 9.4% | 24 / 32 | lanes SLSS: 10.7% (−1 meals) | closed at 6.6 s: gate 17 is out of reach (bigger than you: r 33.1 vs 30.3; then …; then bigger than you: r 33.1 vs 30.9) (−1 meals) |  |
+| shallow-reef | 14 | Heavyweights | 29 | 9 | closed | closed | 18 / 32 | fewest LSLS: 14.4% | closed at 7.5 s: the water closed (fish 21 273–443, fish 23 -27–166; water -26–426, you r 40) | fish 20 80→94 (you 93, lap 2) |
+| shallow-reef | 15 | Needle | 31 | 10 | 12.3% / 24.6% | 12.3% / 24.6% | 16 / 30 | fewest SLLS: 21.7% | closed at 6.4 s: gate 20 is out of reach (bigger than you: r 33.6 vs 31.3) (−1 meals) |  |
+| jelly-bloom | 1 | Jelly Lab 1 | 12 | 1 | 35.3% / 59.4% | 35.3% / 39.6% | 5 / 5 | fewest LL: 30.1% | 21.4% at 5.5 s: jelly 2 / the surface |  |
+| jelly-bloom | 2 | Jelly Lab 2 | 18 | 2 | 31.8% / 55.0% | 31.8% / 48.4% | 16 / 16 | fewest SSL: 19.8% | 15.2% at 7.0 s: jelly 2 / the surface |  |
+| jelly-bloom | 3 | Jelly Lab 3 | 19 | 3 | 32.0% / 56.5% | 32.0% / 47.5% | 12 / 16 | reference: 18.6% (−1 meals) | 18.6% at 4.2 s: the floor / jelly 1 (−1 meals) |  |
+| jelly-bloom | 4 | Jelly Lab 4 | 21 | 5 | 23.5% / 35.2% | 23.5% / 35.2% | 15 / 15 | fewest SLL: 19.3% | 14.7% at 6.6 s: the floor / jelly 2 |  |
+| jelly-bloom | 5 | Jelly Lab 5 | 25 | 6 | 23.2% / 26.3% | 23.2% / 26.3% | 9 / 17 | fewest SLS: 18.8% | closed at 7.9 s: gate 18 is out of reach (at y 273 you could be at -24–213) (−1 meals) |  |
+| jelly-bloom | 6 | Jelly Lab 6 | 25 | 5 | 13.5% / 32.4% | 13.5% / 31.5% | 17 / 17 | lanes SSS: 12.9% | 12.9% at 4.9 s: the floor / jelly 1 |  |
+| jelly-bloom | 7 | Jelly Lab 7 | 27 | 9 | 12.5% / 21.1% | 5.5% / 5.5% | 25 / 33 | lanes SSLS: 23.3% (−2 meals) | 8.4% at 6.1 s: the floor / fish 17 (threat, r 46) (−1 meals) |  |
+| jelly-bloom | 8 | Jelly Lab 8 | 26 | 8 | 15.6% / 26.0% | 6.8% / 6.8% | 0 / 30 | none | closed at 6.2 s: the water closed (fish 15 201–371, fish 16 106–238, jelly 5 -7–114; water 0–400, you r 31) | fish 13 64→97 (you 74, lap 2) |
 | jelly-bloom | 9 | Jelly Lab 9 | 28 | 9 | 8.6% / 20.0% | 6.8% / 12.4% | 26 / 30 | lanes LLSS: 8.1% | 6.8% at 5.7 s: fish 16 (threat, r 48) / the surface |  |
-| jelly-bloom | 10 | Jelly Lab 10 | 28 | 9 | 20.4% / 39.5% | 14.1% / 22.4% | 12 / 26 | fewest LSSS: 15.3% | closed at 9.3 s: gate 28 is out of reach (bigger than you: r 57.5 vs 53.5) (−1 meals) | fish 8 67→79 (you 77, lap 2) |
+| jelly-bloom | 10 | Jelly Lab 10 | 28 | 9 | 20.4% / 39.5% | 14.1% / 22.4% | 11 / 26 | lanes SSSS: 14.5% | closed at 9.3 s: gate 28 is out of reach (bigger than you: r 57.5 vs 53.5) (−1 meals) | fish 8 67→79 (you 77, lap 2) |
 | jelly-bloom | 11 | Bell Field | 25 | 10 | 40.6% / 46.0% | 21.8% / 26.7% | 13 / 17 | reference: 18.4% | 18.4% at 10.4 s: jelly 4 / the surface |  |
-| jelly-bloom | 12 | Jelly Frenzy | 34 | 12 | 14.6% / 21.1% | 14.6% / 19.1% | 17 / 33 | reference: 14.6% | 14.6% at 3.1 s: jelly 1 / the surface | fish 11 83→118 (you 94, lap 2) |
-| jelly-bloom | 13 | Jelly Gauntlet | 31 | 13 | 16.3% / 28.9% | 16.3% / 28.9% | 25 / 33 | lanes SLLL: 16.0% | 5.9% at 8.4 s: fish 23 (threat, r 96) / the surface |  |
-| jelly-bloom | 14 | Night Heavyweights | 25 | 6 | 23.0% / 32.8% | 13.5% / 21.5% | 24 / 24 | fewest LSLS: 20.7% | 14.3% at 7.9 s: the floor / jelly 4 |  |
-| jelly-bloom | 15 | Curtain | 26 | 10 | 11.3% / 20.4% | 11.3% / 20.4% | 18 / 28 | fewest LLSS: 12.8% | 6.3% at 8.8 s: the floor / fish 22 (threat, r 65) | fish 10 71→78 (you 77, lap 2); fish 15 70→79 (you 77, lap 2) |
-| kelp-forest | 1 | Kelp Forest 1 | 12 | 0 | 62.9% / 64.2% | 62.9% / 64.2% | 6 / 6 | fewest LS: 64.2% | 34.1% at 3.5 s: fish 4 (threat, r 26) / the surface |  |
+| jelly-bloom | 12 | Jelly Frenzy | 34 | 12 | 14.6% / 21.1% | 14.6% / 19.1% | 17 / 33 | fewest SLSS: 13.6% | 13.5% at 3.2 s: the floor / jelly 1 | fish 11 83→118 (you 94, lap 2) |
+| jelly-bloom | 13 | Jelly Gauntlet | 31 | 13 | 16.3% / 28.9% | 16.3% / 28.9% | 17 / 33 | fewest LSLS: 13.8% | closed at 9.4 s: gate 25 is out of reach (bigger than you: r 55.5 vs 51.7; then …; then bigger than you: r 55.5 vs 52.2) (−1 meals) |  |
+| jelly-bloom | 14 | Night Heavyweights | 25 | 6 | 23.0% / 32.8% | 13.5% / 21.5% | 24 / 24 | fewest LLLS: 18.3% | 14.3% at 8.0 s: the floor / jelly 4 |  |
+| jelly-bloom | 15 | Curtain | 26 | 10 | 11.3% / 20.4% | 11.3% / 20.4% | 24 / 28 | fewest LLSS: 12.9% | 5.6% at 8.8 s: fish 22 (threat, r 65) / the surface | fish 10 71→78 (you 77, lap 2); fish 15 70→79 (you 77, lap 2) |
+| kelp-forest | 1 | Kelp Forest 1 | 12 | 0 | 62.9% / 64.2% | 62.9% / 64.2% | 6 / 6 | fewest LS: 64.2% | 29.5% at 3.5 s: fish 4 (threat, r 26) / the surface |  |
 | kelp-forest | 2 | Kelp Forest 2 | 18 | 0 | 25.8% / 31.8% | 25.8% / 31.8% | 16 / 16 | reference: 25.8% | 25.8% at 5.0 s: fish 9 (threat, r 36) / the surface |  |
-| kelp-forest | 3 | Kelp Forest 3 | 19 | 2 | 35.0% / 58.3% | 35.0% / 58.3% | 16 / 16 | fewest SSS: 35.0% | 34.7% at 5.2 s: the floor / fish 11 (threat, r 32) |  |
-| kelp-forest | 4 | Kelp Forest 4 | 21 | 5 | 28.9% / 28.9% | 28.9% / 28.9% | 8 / 15 | lanes SLS: 28.8% | 26.1% at 3.2 s: the floor / fish 5 (threat, r 27) |  |
-| kelp-forest | 5 | Kelp Forest 5 | 23 | 4 | 27.4% / 42.4% | 27.4% / 42.4% | 16 / 16 | fewest SLS: 25.3% | 16.5% at 3.1 s: fish 5 (threat, r 28) / the surface |  |
-| kelp-forest | 6 | Kelp Forest 6 | 23 | 4 | 26.4% / 37.4% | 26.4% / 37.4% | 10 / 16 | lanes LLL: 25.4% | 4.5% at 6.2 s: the floor / fish 13 (threat, r 51) (−1 meals) |  |
+| kelp-forest | 3 | Kelp Forest 3 | 19 | 2 | 35.0% / 58.3% | 35.0% / 58.3% | 16 / 16 | reference: 35.1% | 35.1% at 5.2 s: the floor / fish 11 (threat, r 32) |  |
+| kelp-forest | 4 | Kelp Forest 4 | 21 | 5 | 28.9% / 28.9% | 28.9% / 28.9% | 8 / 15 | lanes SLS: 28.6% | 26.2% at 3.2 s: the floor / fish 5 (threat, r 27) |  |
+| kelp-forest | 5 | Kelp Forest 5 | 23 | 4 | 27.4% / 42.4% | 27.4% / 42.4% | 16 / 16 | fewest SLS: 19.2% | 15.3% at 8.5 s: the floor / fish 18 (threat, r 52) |  |
+| kelp-forest | 6 | Kelp Forest 6 | 23 | 4 | 26.4% / 37.4% | 26.4% / 37.4% | 10 / 16 | fewest LLS: 25.1% | 4.5% at 6.2 s: the floor / fish 13 (threat, r 51) (−1 meals) |  |
 | kelp-forest | 7 | Kelp Forest 7 | 25 | 5 | 16.5% / 25.2% | 16.5% / 25.2% | 10 / 26 | fewest LLSS: 7.4% | closed at 6.8 s: gate 17 is out of reach (bigger than you: r 32.5 vs 30.9) (−1 meals) |  |
-| kelp-forest | 8 | Kelp Forest 8 | 26 | 8 | 14.1% / 30.0% | 14.1% / 30.0% | 13 / 27 | lanes SLSS: 8.5% (−1 meals) | closed at 6.6 s: gate 17 is out of reach (bigger than you: r 33.0 vs 31.0) (−1 meals) |  |
-| kelp-forest | 9 | Kelp Forest 9 | 30 | 10 | 15.6% / 16.0% | 15.6% / 16.0% | 16 / 30 | lanes LLSS: 14.5% | 13.2% at 5.1 s: fish 14 (threat, r 46) / the surface | fish 16 66→82 (you 76, lap 2); fish 26 62→78 (you 76, lap 2) |
-| kelp-forest | 10 | Kelp Forest 10 | 30 | 9 | 14.7% / 17.5% | 14.7% / 17.5% | 8 / 30 | lanes SLSS: 16.6% (−1 meals) | closed at 6.0 s: the water closed (fish 18 4–159, fish 20 177–262, fish 19 260–426; water -14–414, you r 32) (−1 meals) |  |
-| kelp-forest | 11 | Kelp Forest 11 | 31 | 8 | 21.7% / 28.6% | 21.7% / 28.6% | 78 / 108 | lanes LLSSSS: 25.0% (−1 meals) | 23.9% at 6.1 s: fish 17 (threat, r 68) / the surface |  |
-| kelp-forest | 12 | Kelp Forest 12 | 34 | 12 | 17.0% / 20.4% | 17.0% / 20.4% | 17 / 33 | fullest: 18.2% | 16.8% at 3.5 s: fish 6 (threat, r 26) / the surface | fish 11 81→105 (you 98, lap 2); fish 24 81→99 (you 98, lap 2) |
-| kelp-forest | 13 | Kelp Forest 13 | 33 | 13 | 16.2% / 21.8% | 16.2% / 21.8% | 12 / 32 | fewest SLLS: 16.6% | closed at 3.8 s: gate 7 is out of reach (bigger than you: r 19.6 vs 18.1) (−1 meals) | fish 24 96→122 (you 115, lap 2); fish 10 92→135 (you 115, lap 3) |
-| kelp-forest | 14 | Kelp Forest 14 | 29 | 9 | 0.7% / 0.7% | 0.7% / 0.7% | 12 / 32 | fewest SLSS: 14.5% | 14.0% at 4.6 s: fish 12 (threat, r 36) / the surface |  |
-| kelp-forest | 15 | Kelp Forest 15 | 31 | 7 | 5.3% / 5.3% | 5.3% / 5.3% | 10 / 30 | lanes LSSL: 7.8% (−1 meals) | closed at 6.5 s: gate 21 is out of reach (at y 185 you could be at 321–421) | fish 25 61→78 (you 71, lap 2) |
-| sunset-cove | 1 | Sunset Cove 1 | 12 | 0 | 63.2% / 63.2% | 49.4% / 63.2% | 8 / 8 | fewest SL: 52.3% | 43.5% at 3.9 s: the floor / fish 5 (threat, r 28) |  |
-| sunset-cove | 2 | Sunset Cove 2 | 18 | 1 | 24.2% / 31.4% | 24.2% / 31.4% | 12 / 12 | fewest LLL: 24.6% | 24.2% at 4.9 s: the floor / fish 9 (threat, r 37) |  |
-| sunset-cove | 3 | Sunset Cove 3 | 19 | 4 | 33.0% / 58.7% | 33.0% / 55.3% | 16 / 16 | lanes SSS: 29.8% | 24.1% at 3.0 s: fish 5 (threat, r 29) / the surface |  |
-| sunset-cove | 4 | Sunset Cove 4 | 21 | 4 | 31.2% / 50.9% | 26.5% / 46.2% | 15 / 15 | lanes SLS: 21.9% | 21.2% at 3.2 s: the floor / fish 5 (threat, r 25) |  |
-| sunset-cove | 5 | Sunset Cove 5 | 23 | 7 | 21.2% / 32.9% | 21.2% / 32.9% | 8 / 16 | fullest: 20.5% | closed at 7.4 s: gate 16 is out of reach (bigger than you: r 30.9 vs 30.4) (−1 meals) | fish 17 48→66 (you 63, lap 2) |
-| sunset-cove | 6 | Sunset Cove 6 | 23 | 5 | 19.3% / 24.2% | 19.3% / 24.2% | 8 / 16 | fewest SLS: 4.3% | closed at 7.5 s: gate 16 is out of reach (bigger than you: r 31.1 vs 29.8) (−1 meals) |  |
+| kelp-forest | 8 | Kelp Forest 8 | 26 | 8 | 14.1% / 30.0% | 14.1% / 30.0% | 9 / 27 | lanes SLSS: 8.5% (−1 meals) | closed at 6.6 s: gate 17 is out of reach (bigger than you: r 33.0 vs 31.0) (−1 meals) |  |
+| kelp-forest | 9 | Kelp Forest 9 | 30 | 10 | 15.6% / 16.0% | 15.6% / 16.0% | 16 / 30 | lanes LLSS: 14.4% | 13.2% at 5.1 s: fish 14 (threat, r 46) / the surface | fish 16 66→82 (you 76, lap 2); fish 26 62→78 (you 76, lap 2) |
+| kelp-forest | 10 | Kelp Forest 10 | 30 | 9 | 14.7% / 17.5% | 14.7% / 17.5% | 8 / 30 | lanes SLSS: 16.7% (−1 meals) | closed at 6.0 s: the water closed (fish 18 4–159, fish 20 177–262, fish 19 260–426; water -14–414, you r 32) (−1 meals) |  |
+| kelp-forest | 11 | Kelp Forest 11 | 31 | 8 | 21.7% / 28.6% | 21.7% / 28.6% | 54 / 108 | lanes LLSSSS: 25.0% (−1 meals) | 23.9% at 6.1 s: fish 17 (threat, r 68) / the surface |  |
+| kelp-forest | 12 | Kelp Forest 12 | 34 | 12 | 17.0% / 20.4% | 17.0% / 20.4% | 17 / 33 | fullest: 17.6% | 16.8% at 3.5 s: fish 6 (threat, r 26) / the surface | fish 11 81→105 (you 98, lap 2); fish 24 81→99 (you 98, lap 2) |
+| kelp-forest | 13 | Kelp Forest 13 | 33 | 13 | 16.2% / 21.8% | 16.2% / 21.8% | 10 / 32 | fewest SLLS: 17.1% | closed at 3.8 s: gate 7 is out of reach (bigger than you: r 19.6 vs 18.1) (−1 meals) | fish 24 96→122 (you 115, lap 2); fish 10 92→135 (you 115, lap 3) |
+| kelp-forest | 14 | Kelp Forest 14 | 29 | 9 | 0.7% / 0.7% | 0.7% / 0.7% | 12 / 32 | lanes SLSS: 14.4% | 9.0% at 7.4 s: fish 23 (threat, r 59) / the surface |  |
+| kelp-forest | 15 | Kelp Forest 15 | 31 | 7 | 5.3% / 5.3% | 5.3% / 5.3% | 10 / 30 | lanes LSSL: 7.8% (−1 meals) | closed at 6.5 s: gate 21 is out of reach (at y 185 you could be at 326–421) | fish 25 61→78 (you 71, lap 2) |
+| sunset-cove | 1 | Sunset Cove 1 | 12 | 0 | 63.2% / 63.2% | 49.4% / 63.2% | 8 / 8 | fewest SL: 52.3% | 39.8% at 3.9 s: the floor / fish 5 (threat, r 28) |  |
+| sunset-cove | 2 | Sunset Cove 2 | 18 | 1 | 24.2% / 31.4% | 24.2% / 31.4% | 10 / 12 | fewest LLL: 24.6% | 24.2% at 4.9 s: the floor / fish 9 (threat, r 37) |  |
+| sunset-cove | 3 | Sunset Cove 3 | 19 | 4 | 33.0% / 58.7% | 33.0% / 55.3% | 16 / 16 | lanes SSS: 33.2% | 24.2% at 3.0 s: fish 5 (threat, r 29) / the surface |  |
+| sunset-cove | 4 | Sunset Cove 4 | 21 | 4 | 31.2% / 50.9% | 26.5% / 46.2% | 15 / 15 | lanes SLL: 21.9% | 21.4% at 3.2 s: the floor / fish 5 (threat, r 25) |  |
+| sunset-cove | 5 | Sunset Cove 5 | 23 | 7 | 21.2% / 32.9% | 21.2% / 32.9% | 8 / 16 | fewest LLL: 20.0% | closed at 7.4 s: gate 16 is out of reach (bigger than you: r 30.9 vs 30.4) (−1 meals) | fish 17 48→66 (you 63, lap 2) |
+| sunset-cove | 6 | Sunset Cove 6 | 23 | 5 | 19.3% / 24.2% | 19.3% / 24.2% | 8 / 16 | fewest LLS: 6.4% | closed at 7.5 s: gate 16 is out of reach (bigger than you: r 31.1 vs 29.8) (−1 meals) |  |
 | sunset-cove | 7 | Sunset Cove 7 | 25 | 7 | 17.3% / 17.3% | 14.8% / 17.3% | 22 / 30 | fewest LLSS: 14.4% | closed at 6.5 s: gate 17 is out of reach (bigger than you: r 33.8 vs 33.3) (−1 meals) | fish 16 65→79 (you 77, lap 2) |
-| sunset-cove | 8 | Sunset Cove 8 | 26 | 10 | 19.7% / 32.3% | 19.7% / 32.3% | 30 / 30 | lanes SLSS: 19.3% | 19.3% at 5.2 s: the floor / fish 12 (threat, r 48) | fish 8 65→79 (you 74, lap 2); fish 16 64→78 (you 74, lap 2) |
-| sunset-cove | 9 | Sunset Cove 9 | 30 | 10 | 12.8% / 12.8% | 12.8% / 12.8% | 26 / 30 | reference: 12.2% | 12.2% at 2.9 s: the floor / fish 5 (threat, r 27) | fish 17 66→84 (you 77, lap 2) |
-| sunset-cove | 10 | Sunset Cove 10 | 30 | 9 | 13.5% / 17.0% | 13.5% / 17.0% | 15 / 30 | lanes SLSS: 15.7% | 14.6% at 4.3 s: fish 11 (threat, r 36) / the surface | fish 26 60→84 (you 79, lap 2) |
-| sunset-cove | 11 | Sunset Cove 11 | 31 | 8 | 21.7% / 21.7% | 17.4% / 21.7% | 62 / 124 | lanes LSSLLS: 22.2% (−2 meals) | closed at 7.9 s: gate 21 is out of reach (bigger than you: r 36.5 vs 33.9) (−1 meals) |  |
+| sunset-cove | 8 | Sunset Cove 8 | 26 | 10 | 19.7% / 32.3% | 19.7% / 32.3% | 30 / 30 | reference: 19.3% | 19.3% at 5.2 s: the floor / fish 12 (threat, r 48) | fish 8 65→79 (you 74, lap 2); fish 16 64→78 (you 74, lap 2) |
+| sunset-cove | 9 | Sunset Cove 9 | 30 | 10 | 12.8% / 12.8% | 12.8% / 12.8% | 26 / 30 | reference: 12.6% | 12.6% at 2.9 s: the floor / fish 5 (threat, r 27) | fish 17 66→84 (you 77, lap 2) |
+| sunset-cove | 10 | Sunset Cove 10 | 30 | 9 | 13.5% / 17.0% | 13.5% / 17.0% | 15 / 30 | lanes SLSS: 15.7% | 13.5% at 4.3 s: fish 11 (threat, r 36) / the surface | fish 26 60→84 (you 79, lap 2) |
+| sunset-cove | 11 | Sunset Cove 11 | 31 | 8 | 21.7% / 21.7% | 17.4% / 21.7% | 54 / 124 | lanes LSLLLS: 19.1% (−2 meals) | closed at 7.9 s: gate 21 is out of reach (bigger than you: r 36.5 vs 33.9) (−1 meals) |  |
 | sunset-cove | 12 | Sunset Cove 12 | 34 | 10 | 12.7% / 20.3% | 11.2% / 18.1% | 8 / 24 | lanes SSLS: 12.3% (−1 meals) | closed at 5.9 s: gate 16 is out of reach (at y 191 you could be at 342–407) |  |
-| sunset-cove | 13 | Sunset Cove 13 | 33 | 13 | 14.8% / 14.8% | 14.8% / 14.8% | 16 / 32 | fewest LLLS: 14.4% | closed at 8.3 s: the water closed (fish 24 -51–233, fish 23 80–334; water -51–451, you r 51) | fish 18 95→128 (you 117, lap 2); fish 31 95→127 (you 117, lap 3) |
-| sunset-cove | 14 | Sunset Cove 14 | 29 | 8 | 1.9% / 1.9% | 1.9% / 1.9% | 12 / 32 | lanes LLSS: 17.4% | closed at 7.4 s: the water closed (fish 21 279–476, fish 23 16–157, fish 22 153–310; water -27–427, you r 38) |  |
+| sunset-cove | 13 | Sunset Cove 13 | 33 | 13 | 14.8% / 14.8% | 14.8% / 14.8% | 16 / 32 | fewest SLLS: 14.2% | closed at 8.3 s: the water closed (fish 24 -54–235, fish 23 81–332; water -52–452, you r 51) | fish 18 95→128 (you 117, lap 2); fish 31 95→127 (you 117, lap 3) |
+| sunset-cove | 14 | Sunset Cove 14 | 29 | 8 | 1.9% / 1.9% | 1.9% / 1.9% | 8 / 32 | lanes SLSS: 16.2% | closed at 7.4 s: the water closed (fish 21 279–476, fish 23 16–157, fish 22 153–310; water -27–427, you r 38) |  |
 | sunset-cove | 15 | Sunset Cove 15 | 31 | 10 | 9.8% / 19.2% | 9.8% / 12.0% | 8 / 30 | lanes LLSS: 8.7% (−1 meals) | closed at 6.4 s: gate 20 is out of reach (bigger than you: r 33.1 vs 30.8) (−1 meals) | fish 10 67→79 (you 75, lap 2); fish 16 67→78 (you 75, lap 2); fish 27 62→78 (you 75, lap 2); fish 10 67→79 (you 75, lap 3) |
-| midnight-zone | 1 | Midnight Zone 1 | 12 | 0 | 69.2% / 69.2% | 69.2% / 69.2% | 6 / 6 | fewest LS: 70.7% | 45.1% at 3.9 s: the floor / fish 5 (threat, r 25) |  |
-| midnight-zone | 2 | Midnight Zone 2 | 18 | 0 | 30.3% / 54.0% | 30.3% / 54.0% | 16 / 16 | fewest LLS: 31.2% | 21.7% at 5.3 s: fish 11 (threat, r 42) / the surface |  |
-| midnight-zone | 3 | Midnight Zone 3 | 19 | 5 | 12.5% / 19.9% | 12.5% / 19.9% | 14 / 16 | fewest SSS: 39.7% | 27.4% at 5.2 s: fish 11 (threat, r 39) / the surface |  |
-| midnight-zone | 4 | Midnight Zone 4 | 21 | 6 | 19.5% / 29.7% | 19.5% / 29.7% | 15 / 15 | reference: 19.2% | 19.2% at 6.2 s: the floor / fish 12 (threat, r 43) |  |
+| midnight-zone | 1 | Midnight Zone 1 | 12 | 0 | 69.2% / 69.2% | 69.2% / 69.2% | 6 / 6 | fewest LS: 70.7% | 41.4% at 4.0 s: the floor / fish 5 (threat, r 25) |  |
+| midnight-zone | 2 | Midnight Zone 2 | 18 | 0 | 30.3% / 54.0% | 30.3% / 54.0% | 16 / 16 | fewest SLS: 31.1% | 21.7% at 5.3 s: fish 11 (threat, r 42) / the surface |  |
+| midnight-zone | 3 | Midnight Zone 3 | 19 | 5 | 12.5% / 19.9% | 12.5% / 19.9% | 14 / 16 | fewest SSS: 39.7% | 27.5% at 5.2 s: fish 11 (threat, r 39) / the surface |  |
+| midnight-zone | 4 | Midnight Zone 4 | 21 | 6 | 19.5% / 29.7% | 19.5% / 29.7% | 8 / 15 | reference: 19.3% | 19.3% at 6.2 s: the floor / fish 12 (threat, r 43) |  |
 | midnight-zone | 5 | Midnight Zone 5 | 23 | 5 | 27.1% / 48.6% | 27.1% / 48.6% | 16 / 16 | lanes SLS: 26.4% | 14.5% at 6.1 s: the floor / fish 13 (threat, r 48) |  |
 | midnight-zone | 6 | Midnight Zone 6 | 25 | 8 | 15.5% / 19.2% | 15.5% / 19.2% | 20 / 30 | reference: 16.7% (−1 meals) | 16.7% at 5.5 s: fish 14 (threat, r 38) / the surface (−1 meals) |  |
 | midnight-zone | 7 | Midnight Zone 7 | 26 | 7 | 17.6% / 29.7% | 17.6% / 29.7% | 16 / 30 | fewest SLSS: 17.8% | closed at 6.7 s: gate 17 is out of reach (bigger than you: r 32.4 vs 30.0) (−1 meals) | fish 9 62→75 (you 72, lap 2); fish 9 62→77 (you 72, lap 3) |
-| midnight-zone | 8 | Midnight Zone 8 | 30 | 9 | 16.5% / 17.4% | 16.5% / 17.4% | 30 / 30 | fewest LLSS: 17.8% | 17.6% at 6.3 s: fish 18 (threat, r 69) / fish 19 (threat, r 43) | fish 9 68→90 (you 78, lap 2); fish 26 64→83 (you 78, lap 2) |
-| midnight-zone | 9 | Midnight Zone 9 | 30 | 11 | 8.7% / 8.7% | 8.7% / 8.7% | 22 / 30 | lanes SLSS: 15.0% | closed at 6.1 s: gate 20 is out of reach (bigger than you: r 35.2 vs 33.0) (−1 meals) | fish 11 73→88 (you 81, lap 2); fish 11 73→88 (you 81, lap 2) |
-| midnight-zone | 10 | Midnight Zone 10 | 30 | 10 | 15.7% / 18.6% | 15.7% / 18.6% | 23 / 26 | fewest SLSS: 15.5% | 14.9% at 2.4 s: fish 4 (threat, r 28) / the surface |  |
-| midnight-zone | 11 | Midnight Zone 11 | 31 | 9 | 22.5% / 36.1% | 22.5% / 36.1% | 72 / 108 | lanes SLLSSS: 22.4% (−1 meals) | closed at 7.9 s: gate 21 is out of reach (bigger than you: r 35.6 vs 33.3) (−1 meals) |  |
-| midnight-zone | 12 | Midnight Zone 12 | 34 | 10 | 13.7% / 17.9% | 13.7% / 17.9% | 21 / 33 | lanes LLLS: 14.2% | 13.7% at 7.9 s: the floor / fish 23 (threat, r 66) |  |
-| midnight-zone | 13 | Midnight Zone 13 | 33 | 15 | 9.8% / 10.2% | 9.8% / 10.2% | 20 / 32 | lanes LSLS: 7.9% (−2 meals) | 4.8% at 8.9 s: the floor / fish 26 (threat, r 91) | fish 8 94→122 (you 115, lap 2) |
-| midnight-zone | 14 | Midnight Zone 14 | 29 | 8 | 0.4% / 0.4% | 0.4% / 0.4% | 24 / 32 | fewest LSLL: 29.4% | 14.5% at 7.4 s: the floor / fish 22 (gate, r 42) |  |
-| midnight-zone | 15 | Midnight Zone 15 | 31 | 11 | 11.2% / 11.2% | 11.2% / 11.2% | 16 / 30 | fewest SLSS: 20.3% | closed at 6.5 s: gate 21 is out of reach (bigger than you: r 33.9 vs 31.4) (−1 meals) | fish 17 66→110 (you 76, lap 2) |
+| midnight-zone | 8 | Midnight Zone 8 | 30 | 9 | 16.5% / 17.4% | 16.5% / 17.4% | 30 / 30 | fewest LLSS: 17.5% | 17.4% at 6.3 s: fish 18 (threat, r 69) / fish 19 (threat, r 43) | fish 9 68→90 (you 78, lap 2); fish 26 64→83 (you 78, lap 2) |
+| midnight-zone | 9 | Midnight Zone 9 | 30 | 11 | 8.7% / 8.7% | 8.7% / 8.7% | 18 / 30 | lanes SLSS: 27.4% (−1 meals) | closed at 6.1 s: gate 20 is out of reach (bigger than you: r 35.2 vs 33.0) (−1 meals) | fish 11 73→88 (you 81, lap 2); fish 11 73→88 (you 81, lap 2) |
+| midnight-zone | 10 | Midnight Zone 10 | 30 | 10 | 15.7% / 18.6% | 15.7% / 18.6% | 15 / 26 | fewest SLSS: 15.5% | closed at 5.9 s: the water closed (fish 20 137–236, fish 18 -7–126, fish 19 230–404; water -20–420, you r 33) (−1 meals) |  |
+| midnight-zone | 11 | Midnight Zone 11 | 31 | 9 | 22.5% / 36.1% | 22.5% / 36.1% | 72 / 108 | lanes SLLSSS: 22.5% (−1 meals) | closed at 7.9 s: gate 21 is out of reach (bigger than you: r 35.6 vs 33.3) (−1 meals) |  |
+| midnight-zone | 12 | Midnight Zone 12 | 34 | 10 | 13.7% / 17.9% | 13.7% / 17.9% | 17 / 33 | lanes LLLS: 14.3% | 13.8% at 7.9 s: the floor / fish 23 (threat, r 66) |  |
+| midnight-zone | 13 | Midnight Zone 13 | 33 | 15 | 9.8% / 10.2% | 9.8% / 10.2% | 19 / 32 | lanes LSSL: 8.8% (−3 meals) | 4.8% at 8.9 s: the floor / fish 26 (threat, r 91) | fish 8 94→122 (you 115, lap 2) |
+| midnight-zone | 14 | Midnight Zone 14 | 29 | 8 | 0.4% / 0.4% | 0.4% / 0.4% | 24 / 32 | fewest LSLS: 29.1% | 11.2% at 7.4 s: fish 23 (threat, r 54) / the surface |  |
+| midnight-zone | 15 | Midnight Zone 15 | 31 | 11 | 11.2% / 11.2% | 11.2% / 11.2% | 16 / 30 | fewest LLSS: 19.7% | closed at 6.5 s: gate 21 is out of reach (bigger than you: r 33.9 vs 31.4) (−1 meals) | fish 17 66→110 (you 76, lap 2) |
 | riptide-reef | 1 | Riptide Reef 1 | 12 | 0 | 60.1% / 63.4% | 60.1% / 63.4% | 8 / 8 | fewest LS: 62.0% | 60.1% at 3.6 s: fish 4 (threat, r 29) / the surface |  |
-| riptide-reef | 2 | Riptide Reef 2 | 23 | 6 | 35.6% / 50.7% | 35.6% / 50.7% | 16 / 16 | lanes SSS: 35.5% | 27.4% at 3.2 s: the floor / fish 5 (threat, r 28) |  |
-| riptide-reef | 3 | Riptide Reef 3 | 34 | 12 | 9.6% / 12.5% | 9.6% / 12.5% | 24 / 32 | fewest SSLS: 9.9% | 9.6% at 7.0 s: the floor / fish 21 (threat, r 54) | fish 18 86→101 (you 96, lap 2) |
+| riptide-reef | 2 | Riptide Reef 2 | 23 | 6 | 35.6% / 50.7% | 35.6% / 50.7% | 16 / 16 | lanes SSS: 35.5% | 27.5% at 3.2 s: the floor / fish 5 (threat, r 28) |  |
+| riptide-reef | 3 | Riptide Reef 3 | 34 | 12 | 9.6% / 12.5% | 9.6% / 12.5% | 14 / 32 | fewest SSLS: 9.9% | 9.6% at 7.0 s: the floor / fish 21 (threat, r 54) | fish 18 86→101 (you 96, lap 2) |
 
 Shares of the water open at the tightest moment. "Free" sweeps the water with nothing eaten (the widest lane, then all
 the open water: the 2026-10-12 measure); "routes open" counts the routes a sweep got through, foods skipped where it
