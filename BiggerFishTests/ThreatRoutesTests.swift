@@ -26,6 +26,10 @@ struct ThreatRoutesTests {
         let high = Self.crossing(2, at: 2.7, y: 330, radius: 50), low = Self.crossing(4, at: 3.0, y: 120, radius: 50)
         let squeezed = EncounterAnalyzer.analyze(meals + [high, low])
         #expect(squeezed.meeting(fishID: 3)?.maximumMeals == 1)
+        // A giant you'd overtake slowly, whose center crosses just after the meal, is already beside the meal when you
+        // get there: the meal is in its shadow.
+        let shadow = Self.crossing(2, at: 3.4, y: 300, radius: 90, headOn: false, speed: 250)
+        #expect(EncounterAnalyzer.analyze(meals + [shadow]).meeting(fishID: 3)?.minimumMeals == nil)
         // A fish swimming your way is alongside you for longer than one coming at you.
         let overtaken = Self.crossing(2, at: 2.5, y: 300, radius: 90, headOn: false, speed: 250)
         #expect(EncounterAnalyzer.analyze(meals + [overtaken]).meeting(fishID: 3)?.minimumMeals == nil)
