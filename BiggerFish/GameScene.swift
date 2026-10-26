@@ -4088,7 +4088,9 @@ final class GameScene: SKScene {
     /// Every fish crossing an untouchable player's path, in order. `radii` replays the player's size
     /// per simulation step (a reference route), so zoom and forward distance match a real run, and
     /// the `eaten` fish disappear as they cross, as that route's meals would.
-    func debugEncounterCrossings(radii: [CGFloat]? = nil, eaten: Set<Int> = [], laps: CGFloat = 1) -> [EncounterCrossing] {
+    /// `onStep` sees the scene after every step, before that step's eaten fish go (`debugWallFrame`).
+    func debugEncounterCrossings(radii: [CGFloat]? = nil, eaten: Set<Int> = [], laps: CGFloat = 1,
+                                 onStep: (() -> Void)? = nil) -> [EncounterCrossing] {
         simulationHeadless = true
         simulationEcologyProbe = true
         simulationHolding = false
@@ -4119,9 +4121,27 @@ final class GameScene: SKScene {
                     y: Double(last.y + (f.position.y - last.y) * fraction), radius: Double(f.radius),
                     headOn: f.velocity.dx < 0, zoom: Double(zoom)))
             }
+            onStep?()
             for id in eaten where crossed.contains(id) { if let gone = fishByID[id] { removeFish(gone) } }
         }
         return crossings
+    }
+
+    /// Everything that could end your run this step, where it is, for the wall report (`WallSweep`): every fish still
+    /// swimming, every hook that could catch you, every bell, and how fast you can rise and fall here.
+    var debugWallFrame: WallFrame {
+        WallFrame(time: simClock, distance: forwardDistance, x: player.position.x, zoom: zoom, waterBottom: waterBottom,
+            waterTop: waterTop, radius: player.radius, verticalScale: inKelp(player.position) ? T.kelpDrag : 1,
+            fish: fish.compactMap { f in
+                f.isPlayer || f.state != .swimming ? nil : WallFrame.Swimmer(id: f.id, x: f.position.x, y: f.position.y, radius: f.radius)
+            },
+            hooks: hookRigs.enumerated().compactMap { index, rig in
+                guard isComingUp(rig, time: simClock) else { return nil }
+                let at = hookPosition(rig, time: simClock)
+                return WallFrame.Hook(index: index, x: at.x, y: at.y, bait: rig.hook.baitRadius)
+            },
+            bells: jellies.enumerated().map { WallFrame.Bell(index: $0, x: $1.position.x, y: $1.position.y) },
+            worldWidth: world.width)
     }
     #endif
 
