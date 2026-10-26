@@ -245,6 +245,21 @@ struct OpenWaterTests {
         another.debugRestart()
         #expect(anotherExits == 1 && another.leftForUnlock)
 
+        // A card left up past midnight, its runs back: Unlock all brings Retry back, not the unlock's screen.
+        let overnight = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        overnight.startOpenWater(seed: 1)
+        var renewed = 0, overnightExits = 0
+        overnight.openWaterRunsLeft = { renewed }
+        overnight.onExit = { overnightExits += 1 }
+        _ = overnight.debugPlayOpenWater(untilLevel: 0, limit: 1)
+        overnight.debugLose()
+        #expect(overnight.debugResultTitles == ["Unlock all", "Shop", "Levels"])
+        renewed = GameTuning.freeOpenWaterRunsPerDay
+        overnight.debugTapResult(.unlock)
+        #expect(overnightExits == 0 && !overnight.leftForUnlock)
+        #expect(overnight.debugResultTitles == ["Retry", "Shop", "Levels"])
+        #expect(overnight.debugResultNote == "\(GameTuning.freeOpenWaterRunsPerDay) runs left today")
+
         // With the unlock, nothing's counted and the card says nothing of runs.
         let unlocked = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
         unlocked.startOpenWater(seed: 1)

@@ -935,6 +935,11 @@ final class GameScene: SKScene {
             // Over the card, which waits underneath: closing the shop comes back to it.
             onShop?()
         case .unlock:
+            // The day's runs came back while the card was up (left open past midnight): Retry again, not the unlock.
+            guard outOfOpenWaterRuns else {
+                showResult(passed: false)
+                return
+            }
             leaveForOpenWaterUnlock()
         }
     }
