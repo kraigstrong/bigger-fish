@@ -444,14 +444,20 @@ struct ContentView: View {
             #endif
             firstClear = progress.isCleared(world, index) ? nil : index
             lastPlayWon = true
-            // A high point worth a review: conquering a world, or a first Deep End clear.
-            if firstClear != nil && (index == ArcadeWorld.mainLevelCount - 1 || ArcadeWorld.isDeepEnd(index)) { review.earned() }
+            // A high point worth a review: a level hard won, or a first Deep End clear.
+            if firstClear != nil { review.firstCleared(world.levelID(index), deepEnd: ArcadeWorld.isDeepEnd(index)) }
             if index == ArcadeWorld.mainLevelCount - 1 && !progress.isCleared(world, index) {
                 // Straight to the conquered screen, with no result card first.
                 conquered = world
                 game?.leavesForConqueredScreen = true
             }
             progress.clear(world, index, seconds: seconds)
+        }
+        game.onDeath = { [weak game] index in
+            #if DEBUG
+            guard let game, !game.debugPracticeRun else { return }
+            #endif
+            if !progress.isCleared(world, index) { review.died(on: world.levelID(index)) }
         }
         game.onJellyLesson = { [weak game] in
             #if DEBUG

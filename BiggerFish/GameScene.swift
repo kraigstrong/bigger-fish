@@ -257,6 +257,8 @@ final class GameScene: SKScene {
     }
 
     var onClear: ((Int, Double) -> Void)?
+    /// You died on the level at this index (not in the tutorial).
+    var onDeath: ((Int) -> Void)?
     var onExit: (() -> Void)?
     /// What your fish wears (`PlayerLook`), from the next time it's drawn: a change on the result card shows from Retry.
     var playerLook = PlayerLook.plain
@@ -1054,6 +1056,7 @@ final class GameScene: SKScene {
         if resultDelay > 0 { pendingLossResultAt = realClock + resultDelay }
         lossSoundsAtResult = soundsAtResult
         finishMetrics("death")
+        if !isTutorial { onDeath?(levelIndex) }
         #if DEBUG
         finishRunRecording("lost", fields: ["reason": lossReason])
         noteHitch(.death, resultDelay > 0 ? (reel != nil ? "hooked" : "stung") : "eaten")
