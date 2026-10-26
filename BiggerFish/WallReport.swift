@@ -142,6 +142,8 @@ enum WallSweep {
             guard let reasons = missed[id] else { return "" }
             return " (" + (reasons.count > 2 ? [reasons[0], "…", reasons[reasons.count - 1]] : reasons).joined(separator: "; then ") + ")"
         }
+        /// The last step's cuts, for naming what took the water a meal needed.
+        var lastCuts: [Cut] = []
         /// Each route meal's last position and course, carried on once the recording drops it.
         var lastSeen: [Int: (x: CGFloat, y: CGFloat, radius: CGFloat, dx: CGFloat, dy: CGFloat)] = [:]
         var safeUntil: CGFloat = -1
@@ -242,7 +244,9 @@ enum WallSweep {
                     } else {
                         let touching = open.compactMap { intersection($0, f.y - h...f.y + h) }
                         if touching.isEmpty {
-                            let by = cuts.filter { $0.low < f.y + h && $0.high > f.y - h }.map(\.name)
+                            // What took the water: this step's cuts so far, and the last step's (the fish resolved after
+                            // this one took it then).
+                            let by = Array(Set((cuts + lastCuts).filter { $0.low < f.y + h && $0.high > f.y - h }.map(\.name))).sorted()
                             let places = open.map { String(format: "%.0f–%.0f", $0.lowerBound, $0.upperBound) }.joined(separator: ", ")
                             miss(f.id, String(format: "at y %.0f you could be at %@%@", f.y, places,
                                               by.isEmpty ? "" : ", cut off by " + by.joined(separator: ", ")))
@@ -289,6 +293,7 @@ enum WallSweep {
                     if least.map({ total < $0.total }) ?? true { least = squeeze }
                 }
             }
+            lastCuts = cuts
             for f in frame.fish where pending[f.id] != nil {
                 let was = lastSeen[f.id]
                 lastSeen[f.id] = (f.x, f.y, f.radius, was.map { world.delta(from: $0.x, to: f.x) } ?? 0, was.map { f.y - $0.y } ?? 0)
