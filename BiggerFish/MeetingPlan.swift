@@ -1607,7 +1607,7 @@ enum MeetingSolver {
             placed.append((result.fish, result.path, releaseSteps[index]))
             crossings.append(EncounterCrossing(fishID: id, time: Double(meetTime), distance: Double(timeline.distance[meetStep]),
                 y: Double(result.path[min(meetStep, result.path.count - 1)].y), radius: Double(radius),
-                headOn: result.fish.headOn, zoom: Double(zoom)))
+                headOn: result.fish.headOn, zoom: Double(zoom), speed: Double(result.fish.cruiseSpeed)))
         }
         placed.sort { $0.fish.id < $1.fish.id }
         return (styled(placed.map(\.fish), seed: seed), crossings.sorted { $0.fishID < $1.fishID }, jellies, issues)
@@ -1906,7 +1906,7 @@ extension MeetingSolver {
             }
             fish.append(planned)
             crossings.append(EncounterCrossing(fishID: id, time: Double(CGFloat(meetStep) * dt), distance: Double(meeting.distance),
-                y: Double(y), radius: Double(radius), headOn: meeting.headOn, zoom: Double(zoom)))
+                y: Double(y), radius: Double(radius), headOn: meeting.headOn, zoom: Double(zoom), speed: Double(meeting.speed)))
         }
         return (styled(fish, seed: seed), crossings)
     }
