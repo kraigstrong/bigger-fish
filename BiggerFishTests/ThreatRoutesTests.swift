@@ -30,6 +30,10 @@ struct ThreatRoutesTests {
         // get there: the meal is in its shadow.
         let shadow = Self.crossing(2, at: 3.4, y: 300, radius: 90, headOn: false, speed: 250)
         #expect(EncounterAnalyzer.analyze(meals + [shadow]).meeting(fishID: 3)?.minimumMeals == nil)
+        // One that crossed before the first meal and is still beside you after it counts the same way.
+        let lingering = Self.crossing(2, at: 1.7, y: 200, radius: 90, headOn: false, speed: 250)
+        let behind = EncounterAnalyzer.analyze([lingering, Self.crossing(1, at: 2, y: 80, radius: 10), Self.crossing(3, at: 2.9, y: 260, radius: 10)])
+        #expect(behind.meeting(fishID: 3)?.maximumMeals == 0, "\(String(describing: behind.meeting(fishID: 3)))")
         // A fish swimming your way is alongside you for longer than one coming at you.
         let overtaken = Self.crossing(2, at: 2.5, y: 300, radius: 90, headOn: false, speed: 250)
         #expect(EncounterAnalyzer.analyze(meals + [overtaken]).meeting(fishID: 3)?.minimumMeals == nil)

@@ -399,11 +399,12 @@ private struct RouteGraph {
             return Double(SwallowTiming.duration(sizeRatio: eaten / before, curve: GameTuning.swallowDurationCurve))
         } ?? 0
         let yourSpeed = max(1, (target.distance - (previous.map { meetings[$0].distance } ?? 0)) / elapsed)
-        // Every bigger fish alongside you at some moment of the way, the target itself aside: one crossing just after the
-        // meal counts too if its body is beside you by then (a slowly overtaken giant is, for a while).
-        let bands = (((previous ?? -1) + 1)..<count).compactMap { index -> ThreatRoutes.Band? in
+        // Every bigger fish alongside you at some moment of the way, the two meals themselves aside: one whose center
+        // crossed before the last meal, or crosses after the next, counts too if its body is beside you meanwhile (a
+        // slowly overtaken giant is, for a while).
+        let bands = (0..<count).compactMap { index -> ThreatRoutes.Band? in
             let other = meetings[index]
-            guard index != next, CGFloat(other.radius) > player else { return nil }
+            guard index != next, index != previous, CGFloat(other.radius) > player else { return nil }
             let reach = (small + CGFloat(other.radius)) * GameTuning.collisionScale
             let closing = other.headOn ? yourSpeed + (other.speed ?? 0) : max(yourSpeed * 0.25, yourSpeed - (other.speed ?? 0))
             let half = Double(reach) / closing
