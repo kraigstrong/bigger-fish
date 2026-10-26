@@ -31,6 +31,16 @@ struct ThreatRoutesTests {
         #expect(EncounterAnalyzer.analyze(meals + [overtaken]).meeting(fishID: 3)?.minimumMeals == nil)
     }
 
+    /// A band still widening leaves you the time to get out of its way: from under a giant's line as it first comes
+    /// within reach, you can climb clear before its body fills the water.
+    @Test func aWideningBandLeavesTimeToGetClear() {
+        let band = ThreatRoutes.Band(center: 0.5, half: 0.5, y: 200, reach: 100, zoom: 1)
+        #expect(ThreatRoutes.swim(from: (0, 265), to: (1, 350, 1), tolerance: 23.4, startSlack: 0, radius: 16, bands: [band]))
+        // Starting at the giant's own height with no time at all, there's no way out.
+        let sudden = ThreatRoutes.Band(center: 0.02, half: 0.5, y: 200, reach: 100, zoom: 1)
+        #expect(!ThreatRoutes.swim(from: (0, 200), to: (1, 350, 1), tolerance: 23.4, startSlack: 0, radius: 16, bands: [sudden]))
+    }
+
     /// A bounce off a dome carries you faster than the threat check allows for, so a step that takes one is checked
     /// for bells alone: a big fish crossing low, nowhere near the bounce, doesn't close the meal high above the dome.
     @Test func aBounceAssistedStepIsntTurnedDownForAThreatBelowIt() {

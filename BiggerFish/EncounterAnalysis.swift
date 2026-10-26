@@ -272,19 +272,35 @@ enum ThreatRoutes {
 
         var from: Double { max(opens, center - half) }
         var to: Double { center + half }
-        /// The heights shut at some moment of `a...b`: the most, nearest the crossing.
-        func shut(_ a: Double, _ b: Double) -> ClosedRange<CGFloat> {
-            let away = a > center ? a - center : (b < center ? center - b : 0)
+        /// The heights shut at `time`: the body's half-height at that moment, as a circle's.
+        func shut(at time: Double) -> ClosedRange<CGFloat> {
+            let away = abs(time - center)
             let h = reach * CGFloat((max(0, 1 - (away / half) * (away / half))).squareRoot())
             return (y - h)...(y + h)
         }
+    }
+
+    /// `water` with the `shut` stretches taken out.
+    private static func sides(_ water: ClosedRange<CGFloat>, shut: [ClosedRange<CGFloat>]) -> [ClosedRange<CGFloat>] {
+        var sides = [water]
+        for band in shut {
+            sides = sides.flatMap { side -> [ClosedRange<CGFloat>] in
+                guard band.upperBound > side.lowerBound, band.lowerBound < side.upperBound else { return [side] }
+                var left: [ClosedRange<CGFloat>] = []
+                if band.lowerBound > side.lowerBound { left.append(side.lowerBound...band.lowerBound) }
+                if band.upperBound < side.upperBound { left.append(band.upperBound...side.upperBound) }
+                return left
+            }
+        }
+        return sides
     }
 
     static func swim(from start: (time: Double, y: CGFloat), to target: (time: Double, y: CGFloat, zoom: CGFloat), tolerance: CGFloat,
                      startSlack: CGFloat, radius: CGFloat, bands: [Band], reachScale: CGFloat = 1) -> Bool {
         let fastest = Double(GameTuning.motion.maxRiseSpeed * reachScale)
         // The lap in stretches, one per change of which fish are alongside you, each window in eighths so the taper
-        // shows; within one the shut heights don't change.
+        // shows. Over a stretch you must be clear of what's shut as it begins, and clear of what's shut as it ends
+        // after swimming as far as you can meanwhile: a band still widening leaves you the time to get out of its way.
         let moments = Set(bands.flatMap { band in
             stride(from: -1.0, through: 1.0, by: 0.25).map { band.center + band.half * $0 } + [band.opens]
         }.filter { $0 > start.time && $0 < target.time } + [start.time, target.time]).sorted()
@@ -294,24 +310,19 @@ enum ThreatRoutes {
             let zoom = active.map(\.zoom).min() ?? target.zoom
             let bounds = PlayerTimeline.waterBounds(zoom: zoom)
             let water = (bounds.bottom + radius * 0.95)...max(bounds.bottom + radius * 0.95, bounds.top - radius * 0.95)
-            // The water left open: the stretches between the shut bands.
-            var sides: [ClosedRange<CGFloat>] = [water]
-            for band in active {
-                let shut = band.shut(max(a, band.from), min(b, band.to))
-                sides = sides.flatMap { side -> [ClosedRange<CGFloat>] in
-                    guard shut.upperBound > side.lowerBound, shut.lowerBound < side.upperBound else { return [side] }
-                    var left: [ClosedRange<CGFloat>] = []
-                    if shut.lowerBound > side.lowerBound { left.append(side.lowerBound...shut.lowerBound) }
-                    if shut.upperBound < side.upperBound { left.append(shut.upperBound...side.upperBound) }
-                    return left
-                }
-            }
+            let opening = sides(water, shut: active.map { $0.shut(at: max(a, $0.from)) })
+            let closing = sides(water, shut: active.map { $0.shut(at: min(b, $0.to)) })
             let through = CGFloat(fastest * (b - a)) / zoom
-            spans = sides.flatMap { side in
+            let clear = opening.flatMap { side in
                 spans.compactMap { span -> ClosedRange<CGFloat>? in
                     let low = max(side.lowerBound, span.lowerBound), high = min(side.upperBound, span.upperBound)
-                    guard low <= high else { return nil }
-                    return max(side.lowerBound, low - through)...min(side.upperBound, high + through)
+                    return low <= high ? low...high : nil
+                }
+            }
+            spans = closing.flatMap { side in
+                clear.compactMap { span -> ClosedRange<CGFloat>? in
+                    let low = max(side.lowerBound, span.lowerBound - through), high = min(side.upperBound, span.upperBound + through)
+                    return low <= high ? low...high : nil
                 }
             }
             if spans.isEmpty { return false }
