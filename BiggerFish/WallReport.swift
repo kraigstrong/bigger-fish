@@ -331,11 +331,15 @@ struct WallStudy {
     /// One route through the level: the meals eaten, and what the sweep made of it.
     struct Route {
         let name: String
+        /// The meals the route set out to eat.
         let meals: Set<Int>
         /// The sweep pinned to the route's meals, everything deadly counted.
         let result: WallSweep.Result
         /// The same with bigger fish only.
         let fishOnly: WallSweep.Result
+        /// Foods the route couldn't get to, and why. A route is recorded again without them, so its growth, zoom and
+        /// speed are those of the player who really skipped them, until it skips nothing more.
+        let skipped: [(id: Int, reason: String)]
 
         /// 0 for a route that closed.
         var share: CGFloat { result.closed == nil ? result.tightest?.share ?? 1 : 0 }
@@ -409,12 +413,23 @@ struct WallStudy {
             // The fullest route is recorded for two laps, for the fish that come back round (by its meals: it's one
             // route whatever it's called, and on a level with no lane to choose it's the reference route too).
             let fullest = meals == plan.fullestRoute
-            let frames = record(meals, fullest ? 2.1 : 1.05)
+            var eating = meals, skipped: [(id: Int, reason: String)] = []
+            var frames = record(eating, fullest ? 2.1 : 1.05)
             if fullest { fullestFrames = frames }
-            let route = meals.compactMap { byID[$0] }.map { WallSweep.Meal(id: $0.id, radius: $0.radius, gate: $0.role == .gate) }
-            routes.append(Route(name: name, meals: meals,
-                                result: WallSweep.sweep(frames, route: route, jelly: jelly, until: lap * 1.05),
-                                fishOnly: WallSweep.sweep(frames, route: route, jelly: jelly, hazards: .fish, until: lap * 1.05)))
+            func sweep(_ hazards: WallSweep.Hazards) -> WallSweep.Result {
+                let route = eating.compactMap { byID[$0] }.map { WallSweep.Meal(id: $0.id, radius: $0.radius, gate: $0.role == .gate) }
+                return WallSweep.sweep(frames, route: route, jelly: jelly, hazards: hazards, until: lap * 1.05)
+            }
+            var result = sweep(.all)
+            // A skipped food means a smaller player than the recording assumed: record the route again without it.
+            for _ in 0..<4 where !result.skipped.isEmpty {
+                skipped += result.skipped
+                eating.subtract(result.skipped.map(\.id))
+                frames = record(eating, 1.05)
+                result = sweep(.all)
+            }
+            skipped += result.skipped
+            routes.append(Route(name: name, meals: meals, result: result, fishOnly: sweep(.fish), skipped: skipped))
         }
         let reference = routes.first { $0.name == "reference" }.map(\.meals) ?? []
         let referenceFrames = record(reference, 1.05)
@@ -470,8 +485,8 @@ struct WallStudy {
         let grown = outgrown.map { String(format: "fish %d %.0f→%.0f (you %.0f, lap %d)", $0.id, $0.planned, $0.grown, $0.yours, $0.lap) }
         return "| \(world) | \(level) | \(plan.spec.name) | \(fishCount) | \(dangerMeals) | " +
             "\(both(freeFishOnly)) | \(both(free)) | \(open.count) / \(routes.count) | " +
-            "\(best.map { "\($0.name): \(pct($0.result))" + ($0.result.skipped.isEmpty ? "" : " (−\($0.result.skipped.count) meals)") } ?? "none") | " +
-            "\(reference.map { at($0.result) + ($0.result.skipped.isEmpty ? "" : " (−\($0.result.skipped.count) meals)") } ?? "–") | " +
+            "\(best.map { "\($0.name): \(pct($0.result))" + ($0.skipped.isEmpty ? "" : " (−\($0.skipped.count) meals)") } ?? "none") | " +
+            "\(reference.map { at($0.result) + ($0.skipped.isEmpty ? "" : " (−\($0.skipped.count) meals)") } ?? "–") | " +
             (grown.isEmpty ? "" : grown.joined(separator: "; ")) + " |"
     }
 
@@ -486,7 +501,7 @@ struct WallStudy {
             ?? freeFishOnly.tightest.map { String(format: "%.1f%% at %.1f s between %@ and %@", $0.share * 100, $0.time, describe($0.below), describe($0.above)) } ?? "–")
         return ([freely] + routes.map { route in
             let eaten = route.result.eats.map { String(format: "%d at %.2f s (dx %.0f, you %.1f)", $0.id, $0.time, $0.dx, $0.radius) }.joined(separator: ", ")
-            let skips = route.result.skipped.isEmpty ? "" : "; skipped " + route.result.skipped.map(\.reason).joined(separator: ", ")
+            let skips = route.skipped.isEmpty ? "" : "; skipped " + route.skipped.map(\.reason).joined(separator: ", ")
             let all = (route.result.closed.map { String(format: "closed at %.1f s (%@); ate %@", $0.time, $0.reason, eaten) }
                 ?? route.result.tightest.map { String(format: "%.1f%% at %.1f s between %@ and %@", $0.share * 100, $0.time, describe($0.below), describe($0.above)) } ?? "open") + skips
             let fish = route.fishOnly.closed.map { _ in "closed" } ?? route.fishOnly.tightest.map { String(format: "%.1f%%", $0.share * 100) } ?? "–"
