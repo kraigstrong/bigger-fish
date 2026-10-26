@@ -222,9 +222,22 @@ struct PlayerLook: Equatable {
 
     /// Puts this look's markings, hat, and face things on a fish drawn in its `style`.
     func dress(_ node: FishNode) {
-        node.setMarkings(self[.pattern].flatMap(PearlShopArt.markings))
+        node.setMarkings(markings)
         node.setHeadwear(self[.hat].flatMap(PearlShopArt.hat))
         node.setFacewear(self[.face].flatMap(PearlShopArt.face))
+    }
+
+    /// The pattern's markings, over the color's coat if it has one.
+    private var markings: SKNode? {
+        let pattern = self[.pattern].flatMap(PearlShopArt.markings)
+        guard let coat = self[.color].flatMap(PearlShopArt.coat) else { return pattern }
+        let node = SKNode()
+        // Markings draw at 1.5, over FishKit's spots and stripes (1); a coat is paint on the body (0), under those and
+        // the body's sheen (0.5).
+        coat.zPosition = -1.3
+        node.addChild(coat)
+        if let pattern { node.addChild(pattern) }
+        return node
     }
 
     var trail: PearlTrail? { self[.trail].flatMap { PearlTrail(rawValue: $0.id) } }
@@ -258,16 +271,192 @@ enum PearlShopArt {
     }
 
     /// Each body color: the body, and the fins and tail. None is another fish's (FishKit's palette), so you can still
-    /// find yourself.
+    /// find yourself: where a body is near one (mint, pink, blue, purple), fins of another color or a coat (`coat`) set
+    /// it apart.
     static let colors: [String: (body: SKColor, accent: SKColor)] = [
-        "color.gold": (SKColor(red: 1.00, green: 0.80, blue: 0.18, alpha: 1), SKColor(red: 1.00, green: 0.93, blue: 0.55, alpha: 1)),
-        "color.ruby": (SKColor(red: 0.88, green: 0.16, blue: 0.26, alpha: 1), SKColor(red: 1.00, green: 0.55, blue: 0.52, alpha: 1)),
-        "color.copper": (SKColor(red: 0.78, green: 0.40, blue: 0.17, alpha: 1), SKColor(red: 0.98, green: 0.70, blue: 0.42, alpha: 1)),
-        "color.pearl": (SKColor(red: 0.95, green: 0.92, blue: 0.97, alpha: 1), SKColor(red: 0.98, green: 0.74, blue: 0.87, alpha: 1)),
-        // Mint chip and royal purple: plain mint and violet are other fish's colors, so their fins set them apart.
+        // Peanut butter, grape jelly fins.
+        "color.copper": (SKColor(red: 0.85, green: 0.62, blue: 0.36, alpha: 1), SKColor(red: 0.56, green: 0.20, blue: 0.62, alpha: 1)),
         "color.mint": (SKColor(red: 0.62, green: 0.92, blue: 0.80, alpha: 1), SKColor(red: 0.42, green: 0.26, blue: 0.16, alpha: 1)),
-        "color.purple": (SKColor(red: 0.52, green: 0.20, blue: 0.68, alpha: 1), SKColor(red: 1.00, green: 0.82, blue: 0.32, alpha: 1)),
+        "color.cotton-candy": (SKColor(red: 1.00, green: 0.70, blue: 0.86, alpha: 1), SKColor(red: 0.62, green: 0.85, blue: 1.00, alpha: 1)),
+        "color.purple": (SKColor(red: 0.50, green: 0.20, blue: 0.68, alpha: 1), SKColor(red: 1.00, green: 0.45, blue: 0.75, alpha: 1)),
+        "color.gold": (SKColor(red: 1.00, green: 0.80, blue: 0.18, alpha: 1), SKColor(red: 1.00, green: 0.93, blue: 0.55, alpha: 1)),
+        // Red fruit, green rind.
+        "color.ruby": (SKColor(red: 0.98, green: 0.34, blue: 0.40, alpha: 1), SKColor(red: 0.30, green: 0.70, blue: 0.30, alpha: 1)),
+        "color.blue-raspberry": (SKColor(red: 0.13, green: 0.44, blue: 1.00, alpha: 1), SKColor(red: 1.00, green: 0.30, blue: 0.50, alpha: 1)),
+        // Frosting.
+        "color.birthday-cake": (SKColor(red: 1.00, green: 0.97, blue: 0.92, alpha: 1), SKColor(red: 1.00, green: 0.62, blue: 0.80, alpha: 1)),
+        "color.galaxy": (SKColor(red: 0.17, green: 0.13, blue: 0.38, alpha: 1), SKColor(red: 1.00, green: 0.42, blue: 0.78, alpha: 1)),
+        "color.pearl": (SKColor(red: 0.95, green: 0.92, blue: 0.97, alpha: 1), SKColor(red: 0.98, green: 0.74, blue: 0.87, alpha: 1)),
+        "color.rainbow": (SKColor(red: 0.98, green: 0.97, blue: 1.00, alpha: 1), SKColor(red: 0.70, green: 0.50, blue: 0.95, alpha: 1)),
     ]
+
+    // MARK: Coats
+
+    /// What a color paints on the body when it's more than one color: under the body's sheen and any pattern, and
+    /// inside its white outline.
+    static func coat(_ item: PearlItem) -> SKNode? {
+        switch item.id {
+        case "color.mint": flecks(9, size: 2.4, color: SKColor(red: 0.30, green: 0.18, blue: 0.10, alpha: 1), shape: chip)
+        case "color.ruby": flecks(7, size: 2.2, color: SKColor(red: 0.12, green: 0.07, blue: 0.07, alpha: 1), shape: seed)
+        case "color.birthday-cake": sprinkles()
+        case "color.cotton-candy": swirl()
+        case "color.galaxy": galaxy()
+        case "color.rainbow": rainbow()
+        default: nil
+        }
+    }
+
+    /// The body's semi-axes, just inside its white outline.
+    private static let coatAxes = CGSize(width: FishNode.bodySize.width / 2 - 1.5, height: FishNode.bodySize.height / 2 - 1.5)
+
+    /// Spots spread evenly over the body (a sunflower's seeds, so no two bunch up), the same every time.
+    private static func spread(_ count: Int, inset: CGFloat = 0.8) -> [CGPoint] {
+        (0..<count).map { k in
+            let r = sqrt((CGFloat(k) + 0.5) / CGFloat(count)), angle = CGFloat(k) * 2.39996
+            return CGPoint(x: r * cos(angle) * coatAxes.width * inset, y: r * sin(angle) * coatAxes.height * inset)
+        }
+    }
+
+    /// Little bits scattered over the body, each turned its own way.
+    private static func flecks(_ count: Int, size: CGFloat, color: SKColor, shape: (CGFloat, Int) -> CGPath) -> SKNode {
+        let node = SKNode()
+        for (k, spot) in spread(count).enumerated() {
+            let fleck = SKShapeNode(path: shape(size, k))
+            fleck.position = spot
+            fleck.zRotation = CGFloat(k) * 1.7
+            fleck.fillColor = color
+            fleck.strokeColor = .clear
+            node.addChild(fleck)
+        }
+        return node
+    }
+
+    /// A chocolate chip: a lumpy little blob, each a bit different.
+    private static func chip(_ size: CGFloat, _ k: Int) -> CGPath {
+        let path = CGMutablePath()
+        for i in 0..<6 {
+            let angle = CGFloat(i) / 6 * 2 * .pi
+            let r = size * (0.75 + 0.25 * sin(CGFloat(i * 3 + k) * 1.9))
+            let point = CGPoint(x: r * cos(angle), y: r * sin(angle))
+            if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        path.closeSubpath()
+        return path
+    }
+
+    /// A watermelon seed: a teardrop.
+    private static func seed(_ size: CGFloat, _ k: Int) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: size * 1.4))
+        path.addQuadCurve(to: CGPoint(x: 0, y: -size), control: CGPoint(x: size * 1.6, y: -size * 0.6))
+        path.addQuadCurve(to: CGPoint(x: 0, y: size * 1.4), control: CGPoint(x: -size * 1.6, y: -size * 0.6))
+        path.closeSubpath()
+        return path
+    }
+
+    /// A birthday cake's sprinkles, every color.
+    private static func sprinkles() -> SKNode {
+        let colors = [SKColor(red: 1, green: 0.36, blue: 0.6, alpha: 1), SKColor(red: 0.25, green: 0.6, blue: 1, alpha: 1),
+                      SKColor(red: 1, green: 0.8, blue: 0.1, alpha: 1), SKColor(red: 0.3, green: 0.8, blue: 0.4, alpha: 1),
+                      SKColor(red: 0.62, green: 0.38, blue: 0.95, alpha: 1), SKColor(red: 1, green: 0.55, blue: 0.15, alpha: 1)]
+        let node = SKNode()
+        for (k, spot) in spread(16, inset: 0.84).enumerated() {
+            let sprinkle = SKShapeNode(rectOf: CGSize(width: 5, height: 1.8), cornerRadius: 0.9)
+            sprinkle.position = spot
+            sprinkle.zRotation = CGFloat(k) * 2.1
+            sprinkle.fillColor = colors[k % colors.count]
+            sprinkle.strokeColor = .clear
+            node.addChild(sprinkle)
+        }
+        return node
+    }
+
+    /// The body's edge at `x`: its half-height there, just inside the outline.
+    private static func coatHalfHeight(at x: CGFloat) -> CGFloat {
+        coatAxes.height * sqrt(max(0, 1 - pow(x / coatAxes.width, 2)))
+    }
+
+    /// Cotton candy: blue swirled up into the pink from your belly.
+    private static func swirl() -> SKNode {
+        let path = CGMutablePath()
+        let a = coatAxes.width, steps = 40
+        let xs = (0...steps).map { -a + 2 * a * CGFloat($0) / CGFloat(steps) }
+        for (i, x) in xs.enumerated() {
+            let edge = coatHalfHeight(at: x)
+            let wave = -0.1 * R + 0.22 * R * sin(x / a * 2.4 * .pi) - 0.08 * R * x / a
+            let point = CGPoint(x: x, y: min(max(wave, -edge), edge))
+            if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        for x in xs.reversed() { path.addLine(to: CGPoint(x: x, y: -coatHalfHeight(at: x))) }
+        path.closeSubpath()
+        let blue = SKShapeNode(path: path)
+        blue.fillColor = SKColor(red: 0.62, green: 0.85, blue: 1, alpha: 1)
+        blue.strokeColor = .clear
+        return blue
+    }
+
+    /// Galaxy: night-sky clouds of pink and blue, and stars.
+    private static func galaxy() -> SKNode {
+        let node = SKNode()
+        for (center, size, color) in [(CGPoint(x: -0.4 * R, y: 0.15 * R), CGSize(width: 1.1 * R, height: 0.6 * R),
+                                       SKColor(red: 0.85, green: 0.3, blue: 0.75, alpha: 0.5)),
+                                      (CGPoint(x: 0.25 * R, y: -0.25 * R), CGSize(width: 1.0 * R, height: 0.5 * R),
+                                       SKColor(red: 0.3, green: 0.6, blue: 1, alpha: 0.45))] {
+            let cloud = SKShapeNode(ellipseOf: size)
+            cloud.position = center
+            cloud.zRotation = 0.3
+            cloud.fillColor = color
+            cloud.strokeColor = .clear
+            node.addChild(cloud)
+        }
+        for (k, spot) in spread(12, inset: 0.86).enumerated() {
+            let star: SKShapeNode
+            if k % 4 == 1 {
+                star = SKShapeNode(path: starPath(points: 4, outer: 2.6, inner: 0.8))
+            } else {
+                star = SKShapeNode(circleOfRadius: k % 3 == 0 ? 1.1 : 0.75)
+            }
+            star.position = spot
+            star.fillColor = .white
+            star.strokeColor = .clear
+            star.zPosition = 0.01
+            node.addChild(star)
+        }
+        return node
+    }
+
+    /// Rainbow: the six colors arching over your body from your belly, red along your back.
+    private static func rainbow() -> SKNode {
+        let colors = [SKColor(red: 0.62, green: 0.36, blue: 0.92, alpha: 1), SKColor(red: 0.22, green: 0.55, blue: 1, alpha: 1),
+                      SKColor(red: 0.3, green: 0.8, blue: 0.36, alpha: 1), SKColor(red: 1, green: 0.88, blue: 0.2, alpha: 1),
+                      SKColor(red: 1, green: 0.56, blue: 0.16, alpha: 1), SKColor(red: 0.95, green: 0.22, blue: 0.28, alpha: 1)]
+        let a = coatAxes.width, b = coatAxes.height
+        // Arcs round the bottom of your belly. Along a ray from there at angle θ, the body reaches out to `reach(θ)`.
+        func reach(_ angle: CGFloat) -> CGFloat {
+            2 * sin(angle) / b / (pow(cos(angle) / a, 2) + pow(sin(angle) / b, 2))
+        }
+        let inner = 0.38 * R, outer = 2 * b, band = (outer - inner) / CGFloat(colors.count)
+        let angles = (0...60).map { 0.02 + (.pi - 0.04) * CGFloat($0) / 60 }
+        func point(_ angle: CGFloat, _ radius: CGFloat) -> CGPoint {
+            let r = min(radius, reach(angle))
+            return CGPoint(x: r * cos(angle), y: r * sin(angle) - b)
+        }
+        let node = SKNode()
+        for (i, color) in colors.enumerated() {
+            // The purple fills in under the arch: left white, it looked like a bite out of your belly.
+            let from = i == 0 ? 0 : inner + band * CGFloat(i), to = i == colors.count - 1 ? outer + 1 : inner + band * CGFloat(i + 1)
+            let path = CGMutablePath()
+            path.move(to: point(angles[0], to))
+            for angle in angles.dropFirst() { path.addLine(to: point(angle, to)) }
+            for angle in angles.reversed() { path.addLine(to: point(angle, from)) }
+            path.closeSubpath()
+            let arc = SKShapeNode(path: path)
+            arc.fillColor = color
+            arc.strokeColor = .clear
+            node.addChild(arc)
+        }
+        return node
+    }
 
     // MARK: Patterns
 
