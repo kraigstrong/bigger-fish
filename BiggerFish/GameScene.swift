@@ -139,6 +139,11 @@ final class GameScene: SKScene {
     /// The run just ended beat the best, and the looks it earned: its card says so.
     private var openWaterNewBest = false
     private var openWaterEarned: [PearlItem] = []
+    /// The run's numbers for the stats (`ArcadeAnalytics.startOpenWater`), while a run from the first level is reported.
+    private var openWaterMetrics: OpenWaterMetricAccumulator?
+    /// How long runs' levels took to plan, the slowest by run seed (a run's first level is planned before the scene, so
+    /// its time comes with the run: `debugStartOpenWater`).
+    private var openWaterSlowestPlan: [UInt64: Double] = [:]
     #endif
     private var isOpenWater: Bool {
         #if DEBUG
@@ -253,7 +258,11 @@ final class GameScene: SKScene {
     }
     func exitMetrics() {
         observeMetrics(); finishMetrics("quit")
-        enqueueMetricOperation { $0.leave(); $0.flush() }
+        #if DEBUG
+        finishOpenWaterMetrics("quit")
+        #endif
+        // Sent with the next batch, or when the app goes to the background.
+        enqueueMetricOperation { $0.leave() }
     }
 
     var onClear: ((Int, Double) -> Void)?
@@ -608,6 +617,9 @@ final class GameScene: SKScene {
         if phase == .playing { pauseRun() }
         holdTouches.removeAll()
         if let summary = metricAccumulator?.summary { enqueueMetricOperation { $0.checkpoint(summary) } }
+        #if DEBUG
+        checkpointOpenWaterMetrics()
+        #endif
         enqueueMetricOperation { $0.flush() }
     }
 
@@ -986,18 +998,23 @@ final class GameScene: SKScene {
         clearedBeforeRun = hasCleared?(levelIndex) ?? false
         // A world still being prototyped (Xcode builds only) never reports: the stats server knows only the campaign's
         // worlds and death causes, and drops a whole batch over one it doesn't.
-        var collects = analytics?.enabled == true && !isTutorial && ArcadeWorld.campaign.contains(arcadeWorld)
+        // The Open Water reports its runs its own way (`startOpenWaterMetrics`), never as a campaign level.
+        var collects = analytics?.enabled == true && !isTutorial && !isOpenWater && ArcadeWorld.campaign.contains(arcadeWorld)
         #if DEBUG
         collects = collects && !simulationHeadless && !debugPracticeRun && ArcadePlaytest.selection == nil
         #endif
+        metricDeathCause = "none"
         if collects {
             metricAccumulator = ArcadeMetricAccumulator()
-            fatalMetrics = nil; metricDeathCause = "none"
+            fatalMetrics = nil
             let context = metricContext, count = arcadeWorld.levelCount
             let cleared = hasCleared?(levelIndex) ?? false
             enqueueMetricOperation { $0.start(context, worldLevelCount: count, alreadyCleared: cleared) }
             observeMetrics()
         }
+        #if DEBUG
+        startOpenWaterMetrics()
+        #endif
         setPhase(.playing)
         #if DEBUG
         startRunRecording()
@@ -1011,6 +1028,7 @@ final class GameScene: SKScene {
         observeMetrics()
         if let summary = metricAccumulator?.summary { enqueueMetricOperation { $0.checkpoint(summary) } }
         #if DEBUG
+        checkpointOpenWaterMetrics()
         recordRunEvent("pause")
         recordRunSnapshot(force: true)
         runRecorder?.checkpoint()
@@ -1061,6 +1079,7 @@ final class GameScene: SKScene {
         // A delayed result (a sting) sounds the loss when the result appears, after the zap.
         if resultDelay == 0 { playSound(.lose) }
         #if DEBUG
+        finishOpenWaterMetrics("death")
         if let run = openWater {
             // The run's score is the fish it ate.
             openWaterNewBest = mealsEaten > openWaterBest
@@ -2289,10 +2308,10 @@ final class GameScene: SKScene {
     /// Caught: you're reeled up the line and out of the water (`renderHooks`), then the result.
     private func catchOnHook(_ index: Int, at hook: CGPoint) {
         let reason = "Caught on a hook."
+        // The stats server takes this cause from 1.0 (kraigstrong/BrightBench); before that it dropped a batch with it.
+        metricDeathCause = "hook"
         if metricAccumulator != nil {
-            // The stats server takes this cause from 1.0 (kraigstrong/BrightBench); before that it dropped a batch with it.
             observeMetrics()
-            metricDeathCause = "hook"
             fatalMetrics = metricAccumulator?.summary
         }
         #if DEBUG
@@ -2516,9 +2535,9 @@ final class GameScene: SKScene {
 
     private func removeByTentacles(_ victim: Fish) {
         let reason = "Caught in the tentacles."
+        if victim.isPlayer { metricDeathCause = "tentacles" }
         if victim.isPlayer && metricAccumulator != nil {
             observeMetrics()
-            metricDeathCause = "tentacles"
             fatalMetrics = metricAccumulator?.summary
         }
         #if DEBUG
@@ -2761,14 +2780,15 @@ final class GameScene: SKScene {
             tutorialMealWasEaten = true
         }
         if isTutorial && predator.isPlayer && tutorialWall.contains(prey.id) && tutorialWallBreach == nil { tutorialWallBreach = prey.id }
+        if prey.isPlayer { metricDeathCause = "predator" }
         if prey.isPlayer && metricAccumulator != nil {
             observeMetrics()
-            metricDeathCause = "predator"
             metricAccumulator?.fatal(ratio: Double(predator.radius / prey.radius))
             fatalMetrics = metricAccumulator?.summary
             finishMetrics("death") // The fatal interaction is committed; do not reclassify its animation as a quit.
         }
         #if DEBUG
+        if prey.isPlayer { finishOpenWaterMetrics("death") }
         if predator.isPlayer { mealLog.append((prey.id, simClock)) }
         recordRunEvent("swallow_start", fields: ["predatorID": predator.id, "preyID": prey.id,
                                                 "predatorRadius": predator.radius, "preyRadius": prey.radius])
@@ -4111,7 +4131,9 @@ final class GameScene: SKScene {
 extension GameScene {
     /// Plays the Open Water from its first level (`firstLevel`, if it's planned already), as a practice run: nothing
     /// is saved or reported. Set before the scene is shown.
-    func debugStartOpenWater(seed: UInt64, firstLevel plan: MeetingPlan? = nil, from index: Int = 0) {
+    /// `planSeconds`: how long the first level took to plan, for the stats.
+    func debugStartOpenWater(seed: UInt64, firstLevel plan: MeetingPlan? = nil, from index: Int = 0, planSeconds: Double? = nil) {
+        if let planSeconds { openWaterSlowestPlan[seed] = planSeconds }
         var run = OpenWaterRun(seed: seed, index: index)
         if let plan { run.store(plan, index: index) }
         plannerLevel = run.plan(index).level
@@ -4126,6 +4148,40 @@ extension GameScene {
     var debugOpenWaterSeed: UInt64? { openWater?.seed }
     var debugOpenWaterLevelDone: Bool { openWaterLevelDone }
     func debugOpenWaterHasPlan(_ index: Int) -> Bool { openWater?.hasPlan(index) == true }
+
+    /// A run from its first level starts being reported (with the Open Water's events on, and never in a headless
+    /// study): its numbers are kept from here and go to the stats when it ends. A run started further on isn't.
+    fileprivate func startOpenWaterMetrics() {
+        guard let run = openWater else { return }
+        openWaterMetrics = nil
+        guard run.index == 0, analytics?.collectsOpenWater == true, !simulationHeadless else { return }
+        var metrics = OpenWaterMetricAccumulator()
+        metrics.planned(seconds: openWaterSlowestPlan[run.seed] ?? 0)
+        openWaterMetrics = metrics
+        enqueueMetricOperation { $0.startOpenWater() }
+    }
+
+    /// The reported run so far: its score is the fish it ate.
+    private var openWaterRunMetrics: ArcadeOpenWaterMetrics? {
+        guard let metrics = openWaterMetrics, let run = openWater else { return nil }
+        return metrics.summary(at: Double(simClock), fish: mealsEaten, pearls: run.pearls, best: mealsEaten > openWaterBest,
+                               dressed: analytics?.wearing.isEmpty == false)
+    }
+
+    /// The run so far, saved in case the app is closed in the middle of it.
+    fileprivate func checkpointOpenWaterMetrics() {
+        guard let run = openWaterRunMetrics else { return }
+        enqueueMetricOperation { $0.checkpointOpenWater(run) }
+    }
+
+    /// The reported run ended: `death` (its cause is the last one recorded) or `quit`. Once only: a death is reported
+    /// when the fatal meal is committed, so leaving during the swallow can't make it a quit.
+    fileprivate func finishOpenWaterMetrics(_ outcome: String) {
+        guard let run = openWaterRunMetrics else { return }
+        openWaterMetrics = nil
+        let cause = metricDeathCause
+        enqueueMetricOperation { $0.finishOpenWater(outcome, cause: cause, run: run) }
+    }
     /// Makes a fish half again your size and puts it right on you, for a test of what can catch you.
     func debugPutBiggerFishOnYou() -> Bool {
         guard let other = fish.first(where: { !$0.isPlayer && $0.state == .swimming && !encounterProtected($0.id) })
@@ -4139,6 +4195,9 @@ extension GameScene {
     /// A new run, the next seed on, from its first level (planned while the last run's result showed).
     fileprivate func startNextOpenWaterRun() {
         guard let run = openWater else { return }
+        // A Restart in the middle of a run ends it as a quit (after a loss it's already reported).
+        finishOpenWaterMetrics("quit")
+        openWaterSlowestPlan[run.seed] = nil
         let seed = run.seed &+ 1
         var next = nextOpenWaterRun?.seed == seed ? nextOpenWaterRun! : OpenWaterRun(seed: seed)
         nextOpenWaterRun = nil
@@ -4167,6 +4226,7 @@ extension GameScene {
         // The next level is planned off the main thread as this one starts. If it isn't ready yet, this one plays on
         // until it is, rather than freeze the game while it's planned here: seconds, for a Jelly Bloom level on a phone.
         if plansOpenWaterAhead && !run.hasPlan(run.index + 1) {
+            openWaterMetrics?.waiting(at: Double(simClock))
             planOpenWaterLevelAhead(seed: run.seed, index: run.index + 1)
             return
         }
@@ -4188,7 +4248,13 @@ extension GameScene {
         buzz(.win)
         recordRunEvent("open_water_level_end", fields: ["index": run.index, "stage": run.leg.stage,
             "world": run.leg.world.rawValue, "radius": player.radius, "meals": mealsEaten])
+        openWaterMetrics?.cleared(at: Double(simClock))
         beginOpenWaterLevel()
+        // On into the first world again: all the way round for the first time.
+        if openWaterMetrics != nil && openWater?.index == GameTuning.openWaterWorlds.count {
+            enqueueMetricOperation { $0.openWaterWentRound() }
+        }
+        checkpointOpenWaterMetrics()
     }
 
     /// The world on screen as you leave it, without your fish or the counts: a picture to fade out over the next. It
@@ -4470,8 +4536,10 @@ extension GameScene {
         let key = OpenWaterPlanKey(seed: seed, index: index)
         guard openWaterPlanning.insert(key).inserted else { return }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let started = DispatchTime.now()
             let plan = OpenWater.plan(index, seed: seed)
-            DispatchQueue.main.async { self?.receiveOpenWaterPlan(plan, for: key) }
+            let seconds = Double(DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1e9
+            DispatchQueue.main.async { self?.receiveOpenWaterPlan(plan, for: key, seconds: seconds) }
         }
     }
 
@@ -4488,9 +4556,13 @@ extension GameScene {
 
     /// A level planned off the main thread: kept for this run or the next (any other run's is too late), and a Retry
     /// waiting on the next run's first level goes ahead.
-    private func receiveOpenWaterPlan(_ plan: MeetingPlan, for key: OpenWaterPlanKey) {
+    private func receiveOpenWaterPlan(_ plan: MeetingPlan, for key: OpenWaterPlanKey, seconds: Double) {
         openWaterPlanning.remove(key)
         guard let run = openWater else { return }
+        if key.seed == run.seed { openWaterMetrics?.planned(seconds: seconds) }
+        if key.seed == run.seed || key.seed == run.seed &+ 1 {
+            openWaterSlowestPlan[key.seed] = max(openWaterSlowestPlan[key.seed] ?? 0, seconds)
+        }
         if key.seed == run.seed {
             openWater?.store(plan, index: key.index)
         } else if key.seed == run.seed &+ 1 {

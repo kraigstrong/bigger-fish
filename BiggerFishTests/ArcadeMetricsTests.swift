@@ -123,14 +123,15 @@ struct ArcadeMetricsTests {
         await withCheckedContinuation { continuation in
             DispatchQueue.main.async { continuation.resume() }
         }
-        let runs = a.queue.filter { $0.kind == .run }
-        // exitMetrics flushes; inspect the actual outgoing batch.
-        let death = try #require(sender.batches.flatMap(\.events).first { $0.kind == .run })
+        // Leaving doesn't send (events go in batches); what's sent and what waits make the whole.
+        #expect(sender.batches.isEmpty)
+        let events = sender.batches.flatMap(\.events) + a.queue
+        let death = try #require(events.first { $0.kind == .run })
         #expect(death.outcome == "death" && death.cause == "predator")
         #expect(death.summary?.fatalRatio == 2)
         #expect(death.summary?.snapshot.path != .unknown)
-        #expect(runs.isEmpty)
-        #expect(!sender.batches.flatMap(\.events).contains { $0.outcome == "quit" || $0.outcome == "abandoned" })
+        #expect(events.filter { $0.kind == .run }.count == 1)
+        #expect(!events.contains { $0.outcome == "quit" || $0.outcome == "abandoned" })
         withExtendedLifetime(view) {}
     }
 

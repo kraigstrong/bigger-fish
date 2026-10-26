@@ -418,8 +418,23 @@ Bigger Fish, separate from Math Reef. `ArcadeAnalytics.isEnabled` controls colle
 on for the beta, with the endpoint, policy, and report live on brightbench.app.
 No player/install/session IDs, exact play timestamps, device information, or trajectories are sent.
 The paywall funnel (where the unlock's screen was shown from, purchase and restore outcomes, a milestone when a
-world's ten main levels are beaten, and whether each run had the unlock) is built but stays off behind
-`ArcadeAnalytics.sendsPaywallEvents` until brightbench.app accepts it and the privacy policy describes it.
+world's ten main levels are beaten, and whether each run had the unlock) went on with the unlock's sale
+(`ArcadeAnalytics.sendsPaywallEvents`).
+
+The Open Water and the pearl shop report behind `ArcadeAnalytics.sendsOpenWaterEvents` (off until brightbench.app
+accepts them and the privacy policy describes them): one `endless` summary per run from its first level
+(`ArcadeOpenWaterMetrics`: levels cleared, fish, pearls, game seconds, a new best, levels that waited on the next
+plan and for how long, the slowest plan, dressed), with Retry or leaving as its `decision` and once-per-install
+milestones for the first run and the first time round the worlds; one `shop` event per visit (door, pearls in hand,
+looks bought, and the Open Water runs before an install's first purchase); `earned` once per look; whether each
+campaign run was played `dressed`; and, at a launch's first run, the looks worn (`outfit`, counted piece by piece,
+never with a run). Every Open Water run shares one context (world `open-water`, seed `"0"`,
+`ArcadeAnalytics.openWaterRevision`): a run's own seed would make a stats row per run. Bump the revision when the
+run's worlds, ramp, dealing, or the planner change. Headless studies and runs started part-way in don't report.
+
+Events go in batches of `ArcadeAnalytics.batchSize` (25), when the app goes to the background or a level is
+interrupted, and at launch, not after every run: each send is a billed Redis write on brightbench.app, and the same
+counters in a batch add up into one. Simulator builds never collect.
 
 The schema records content identity (world, campaign/endless mode, displayed slot, original setup,
 seed, content revision, app version/build/channel), outcomes, local attempts-to-first-clear,

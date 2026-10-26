@@ -48,6 +48,8 @@ struct ContentView: View {
     @State private var startingOpenWater = false
     /// The pearl shop, from the world map or an Open Water run's result card (which waits under it).
     @State private var showsShop = false
+    /// The pearl shop's visit while it's open, for the stats (`ArcadeAnalytics.shopVisited`).
+    @State private var shopVisit: ArcadeAnalytics.ShopVisit?
     #endif
 
     var body: some View {
@@ -106,7 +108,7 @@ struct ContentView: View {
         #if DEBUG
         .overlay {
             if showsShop && credits == nil {
-                PearlShopView(progress: progress, onClose: { withAnimation { showsShop = false } })
+                PearlShopView(progress: progress, onBought: { shopVisit?.add($0.id) }, onClose: closeShop)
                     .transition(.opacity)
             }
         }
@@ -159,7 +161,22 @@ struct ContentView: View {
         }
         // Each run says whether it was played with the unlock, while the unlock is on sale.
         .onChange(of: purchases.isUnlocked, initial: true) { _, owned in analytics.hasUnlock = ArcadeUnlock.isSelling ? owned : nil }
-        .onChange(of: scenePhase) { _, phase in if phase == .background { analytics.backgrounded() } }
+        // Runs say whether your fish wore any look, and a launch's first reports which.
+        .onChange(of: progress.look, initial: true) { _, look in analytics.wearing = look.ids.values.sorted() }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .background else { return }
+            #if DEBUG
+            // The shop's visit so far goes with everything else; coming back to it open starts another.
+            if let visit = shopVisit {
+                analytics.shopVisited(visit)
+                shopVisit = ArcadeAnalytics.ShopVisit(source: visit.source, wallet: progress.pearls, hadBought: progress.hasBoughtALook)
+            }
+            #endif
+            analytics.backgrounded()
+        }
+        #if DEBUG
+        .onChange(of: scene == nil) { _, onMap in if onMap { reportEarnedLooks() } }
+        #endif
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         // Bigger on an iPad: the Skip buttons over the scenes (each menu screen sizes itself, `ScreenScaled`).
@@ -171,7 +188,11 @@ struct ContentView: View {
             purchases.start()
             if !metricsLaunched {
                 if analytics.enabled { ArcadeURLMetricSender.warmUp() }
-                analytics.launched(); analytics.flush(); metricsLaunched = true
+                analytics.launched()
+                #if DEBUG
+                reportEarnedLooks()
+                #endif
+                analytics.flush(); metricsLaunched = true
             }
             #if DEBUG
             StoreCapture.begin()
@@ -207,7 +228,7 @@ struct ContentView: View {
             showsSettings = true
             playCredits()
         case .tutorial: playTutorial()
-        case .shop: showsShop = true
+        case .shop: openShop(from: .map)
         case .pause:
             guard let scene else { return }
             Task { @MainActor in
@@ -323,25 +344,34 @@ struct ContentView: View {
         show(game)
     }
 
-    /// The Open Water, the endless run's prototype (`OpenWater`): always a practice run, so no progress or analytics.
+    /// The Open Water, the endless run's prototype (`OpenWater`): always a practice run, so no campaign progress, but its
+    /// runs are reported their own way (`ArcadeAnalytics.startOpenWater`).
     /// Its first level is planned off the main thread first (planning one takes a moment); leaving goes back to the
     /// world map.
     private func playOpenWater(seed: UInt64 = .random(in: 1...UInt64(UInt32.max)), from start: Int = 0) {
         guard !startingOpenWater else { return }
         startingOpenWater = true
         Task {
-            let plan = await Task.detached(priority: .userInitiated) { OpenWater.plan(start, seed: seed) }.value
+            let (plan, seconds) = await Task.detached(priority: .userInitiated) {
+                let started = DispatchTime.now()
+                let plan = OpenWater.plan(start, seed: seed)
+                return (plan, Double(DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1e9)
+            }.value
             startingOpenWater = false
             guard scene == nil else { return }
             let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-            game.debugStartOpenWater(seed: seed, firstLevel: plan, from: start)
+            game.debugStartOpenWater(seed: seed, firstLevel: plan, from: start, planSeconds: seconds)
+            game.analytics = analytics
             // Each pearl's kept as it's taken, however the run ends.
             game.onPearl = { progress.earnPearls(1) }
-            game.onShop = { withAnimation { showsShop = true } }
+            game.onShop = { openShop(from: .runCard) }
             game.pearlsToSpend = progress.pearls
             game.openWaterBest = progress.openWaterBest
             game.onOpenWaterRun = { progress.recordOpenWaterRun(fish: $0, furthest: $1) }
-            game.onExit = { scene = nil }
+            game.onExit = { [weak game] in
+                game?.exitMetrics()
+                scene = nil
+            }
             show(game)
         }
     }
@@ -357,11 +387,30 @@ struct ContentView: View {
         #endif
     }
 
+    #if DEBUG
+    /// Opens the pearl shop, from the world map or an Open Water run's card: a visit begins.
+    private func openShop(from source: ArcadeAnalytics.ShopSource) {
+        shopVisit = ArcadeAnalytics.ShopVisit(source: source, wallet: progress.pearls, hadBought: progress.hasBoughtALook)
+        withAnimation { showsShop = true }
+    }
+
+    private func closeShop() {
+        if let shopVisit { analytics.shopVisited(shopVisit) }
+        shopVisit = nil
+        withAnimation { showsShop = false }
+    }
+
+    /// Looks earned so far, each reported once: checked at launch and whenever the world map comes back.
+    private func reportEarnedLooks() {
+        analytics.earned(progress.earnedLooks.map(\.id))
+    }
+    #endif
+
     /// The world map's way into the pearl shop: Xcode builds only, and never in a capture or screen check.
     private var pearlShopAction: (() -> Void)? {
         #if DEBUG
         guard StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil else { return nil }
-        return { withAnimation { showsShop = true } }
+        return { openShop(from: .map) }
         #else
         return nil
         #endif

@@ -8,6 +8,8 @@ import SwiftUI
 /// own to wear it, or something you don't to try it on your fish first and buy it there. Buying puts it on.
 struct PearlShopView: View {
     @ObservedObject var progress: ArcadeProgress
+    /// A look bought here (for the stats' visit).
+    var onBought: (PearlItem) -> Void = { _ in }
     let onClose: () -> Void
     /// What's on the shelf: a kind's looks, or your saved outfits.
     private enum Shelf: Hashable {
@@ -152,7 +154,10 @@ struct PearlShopView: View {
         } else if let item = trying {
             let short = item.price - progress.pearls
             Button {
-                if progress.buy(item) { trying = nil }
+                if progress.buy(item) {
+                    trying = nil
+                    onBought(item)
+                }
             } label: {
                 HStack(spacing: 8) {
                     Text(short > 0 ? "\(short) more pearls" : "Buy \(item.name)")

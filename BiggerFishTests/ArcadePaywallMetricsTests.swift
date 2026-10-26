@@ -141,8 +141,9 @@ struct ArcadePaywallMetricsTests {
         #expect(restores.map(\.source) == ["unlock_all", "settings"])
     }
 
-    /// What happens on the maps is sent when the app goes to the background, not left for the next run or launch.
-    @Test func goingToTheBackgroundSendsTheMapsEventsOnlyWithTheFunnelOn() {
+    /// What happens on the maps is sent when the app goes to the background, not left for the next run or launch (as
+    /// is everything else waiting, funnel or not).
+    @Test func goingToTheBackgroundSendsTheMapsEvents() {
         for paywall in [true, false] {
             let sender = Sender()
             let a = analytics(defaults(), sender, paywall: paywall)
@@ -150,8 +151,8 @@ struct ArcadePaywallMetricsTests {
             a.offerShown(.unlockAll); a.purchase(.cancelled, from: .unlockAll)
             a.backgrounded()
             let sent = sender.batches.flatMap(\.events)
-            #expect(sent.map(\.kind) == (paywall ? [.milestone, .offer, .purchase] : []))
-            #expect(a.queue.map(\.name) == (paywall ? [] : ["first_launch"]))
+            #expect(sent.map(\.kind) == (paywall ? [.milestone, .offer, .purchase] : [.milestone]))
+            #expect(a.queue.isEmpty)
         }
     }
 
