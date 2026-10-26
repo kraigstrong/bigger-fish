@@ -197,6 +197,10 @@ struct ArcadeOpenWaterMetricsTests {
         defer { withExtendedLifetime(view) {} }
         scene.debugStart()
         scene.debugAdvance(seconds: 2)
+        // The next level is planned ahead off the main thread, as on a phone; on a loaded CI runner that can take a
+        // while, so wait for it rather than have the level change plan it inline.
+        for _ in 0..<1500 where !scene.debugOpenWaterHasPlan(1) { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(scene.debugOpenWaterHasPlan(1) && scene.debugPhase == .playing)
         scene.debugFinishOpenWaterLevel()
         await settle()
         // Closed now, the run would be reported as left unfinished, a level in.
