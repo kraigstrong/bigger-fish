@@ -69,6 +69,15 @@ final class ReefAnalytics {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || NSClassFromString("XCTestCase") != nil
     }
+    /// Simulator builds never record or send either: runs there (Xcode's, agents', screenshots) aren't real play, and
+    /// each send is a write to brightbench.app's Redis, billed per command, so a simulator left running costs money.
+    static var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
     /// brightbench.app's analytics endpoint (kraigstrong/BrightBench, `apps/marketing`).
     static let endpoint = URL(string: "https://brightbench.app/api/math-reef/events")!
     /// Sent as `X-App-Key` to filter out stray bots. Not a secret: anyone can pull it out of the
@@ -108,7 +117,7 @@ final class ReefAnalytics {
     init(
         defaults: UserDefaults = .standard,
         sender: AnalyticsSender = URLSessionAnalyticsSender(),
-        enabled: Bool = ReefAnalytics.isEnabled && !ReefAnalytics.isRunningTests
+        enabled: Bool = ReefAnalytics.isEnabled && !ReefAnalytics.isRunningTests && !ReefAnalytics.isSimulator
     ) {
         self.defaults = defaults
         self.sender = sender
