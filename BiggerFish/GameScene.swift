@@ -141,6 +141,13 @@ final class GameScene: SKScene {
     private var openWaterEarned: [PearlItem] = []
     /// The run's numbers for the stats (`ArcadeAnalytics.startOpenWater`), while a run from the first level is reported.
     private var openWaterMetrics: OpenWaterMetricAccumulator?
+    var debugUpdates = 0
+    var debugOffMainUpdates = 0
+    var debugReentrantUpdates = 0
+    var debugInSync = false
+    var debugTraceOn = false
+    var debugTrace: [String] = []
+    var debugPlayerEatenAt: String?
     /// How long runs' levels took to plan, the slowest by run seed (a run's first level is planned before the scene, so
     /// its time comes with the run: `debugStartOpenWater`).
     private var openWaterSlowestPlan: [UInt64: Double] = [:]
@@ -244,10 +251,18 @@ final class GameScene: SKScene {
         metricAccumulator?.advance(seconds: Double(simClock), circuits: Double(forwardDistance / world.width))
         metricAccumulator?.observe(metricSnapshot())
     }
-    private func enqueueMetricOperation(_ operation: @escaping (ArcadeAnalytics) -> Void) {
+    private func enqueueMetricOperation(_ operation: @escaping (ArcadeAnalytics) -> Void, label: String = #function) {
         guard let analytics, analytics.enabled else { return }
+        #if DEBUG
+        if debugTraceOn { debugTrace.append("queue \(label) sim \(simClock)") }
+        #endif
         // Every scene lifecycle operation uses this FIFO, preserving order without disk work on contacts.
-        DispatchQueue.main.async { operation(analytics) }
+        DispatchQueue.main.async { [weak self] in
+            #if DEBUG
+            if self?.debugTraceOn == true { self?.debugTrace.append("run \(label)") }
+            #endif
+            operation(analytics)
+        }
     }
     private func finishMetrics(_ outcome: String) {
         guard let accumulator = metricAccumulator else { return }
@@ -1164,6 +1179,12 @@ final class GameScene: SKScene {
     // MARK: - Frame loop
 
     override func update(_ currentTime: TimeInterval) {
+        #if DEBUG
+        debugUpdates += 1
+        if !Thread.isMainThread { debugOffMainUpdates += 1 }
+        if debugInSync { debugReentrantUpdates += 1 }
+        if debugTraceOn && debugTrace.count < 400 { debugTrace.append("tick \(debugUpdates) main \(Thread.isMainThread) at \(String(format: "%.3f", currentTime)) phase \(phase) sim \(String(format: "%.2f", simClock))") }
+        #endif
         guard isBuilt else { return }
         if hapticsWaitForWindow { prepareHaptics() }
         #if DEBUG
@@ -2791,6 +2812,7 @@ final class GameScene: SKScene {
             finishMetrics("death") // The fatal interaction is committed; do not reclassify its animation as a quit.
         }
         #if DEBUG
+        if prey.isPlayer { debugPlayerEatenAt = "sim \(simClock) by \(predator.id) r \(predator.radius) you \(prey.radius)" }
         if prey.isPlayer { finishOpenWaterMetrics("death") }
         if predator.isPlayer { mealLog.append((prey.id, simClock)) }
         recordRunEvent("swallow_start", fields: ["predatorID": predator.id, "preyID": prey.id,
@@ -4500,6 +4522,14 @@ extension GameScene {
 
     /// Ends the level as eating its last gate does: the next begins.
     func debugFinishOpenWaterLevel() { finishOpenWaterLevel() }
+
+    // TEMP diagnostics for the flaky run report test.
+    var debugMetricsDiagnosis: String {
+        "phase \(phase) sim \(simClock) real \(realClock) updates \(debugUpdates) offMain \(debugOffMainUpdates) reentrant \(debugReentrantUpdates) meals \(mealsEaten) player \(player.state) "
+            + "r \(player.radius) at \(player.position) metrics \(openWaterMetrics != nil) cause \(metricDeathCause) "
+            + "swallows \(swallows.map { "\($0.predatorID)>\($0.preyID)" }) index \(openWater?.index ?? -1) "
+            + "eaten \(debugPlayerEatenAt ?? "-") fish \(fish.count) analytics \(analytics != nil)"
+    }
 
     /// Your fish on screen: its radius, and its height from the middle of the water.
     var debugYouOnScreen: (radius: CGFloat, height: CGFloat) {

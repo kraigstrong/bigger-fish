@@ -196,13 +196,31 @@ struct ArcadeOpenWaterMetricsTests {
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         defer { withExtendedLifetime(view) {} }
+        scene.debugTraceOn = true
         scene.debugStart()
+        scene.debugInSync = true
+        let atStart = scene.debugMetricsDiagnosis
         scene.debugAdvance(seconds: 2)
+        let afterAdvance = scene.debugMetricsDiagnosis
         #expect(scene.debugOpenWaterHasPlan(1) && scene.debugPhase == .playing)
         scene.debugFinishOpenWaterLevel()
-        await settle()
+        let afterFinish = scene.debugMetricsDiagnosis
+        scene.debugInSync = false
+        scene.debugTrace.append("settle called")
+        await withCheckedContinuation { c in DispatchQueue.main.async { scene.debugTrace.append("settle block"); c.resume() } }
+        scene.debugTrace.append("continuation")
+        scene.debugTraceOn = false
+        let trace = scene.debugTrace.joined(separator: " / ")
+        let stored = d.dictionaryRepresentation().filter { $0.key.hasPrefix("biggerFish.metrics") }.map {
+            "\($0.key)=\(($0.value as? Data).map { String(decoding: $0, as: UTF8.self) } ?? "\($0.value)")"
+        }.sorted()
+        let diag = "DIAG \(Date()) START \(atStart) || ADVANCED \(afterAdvance) || FINISHED \(afterFinish) || SETTLED \(scene.debugMetricsDiagnosis) || STORED \(stored.map { String($0.prefix(60)) }) || TRACE \(trace)\n"
+        let log = URL(fileURLWithPath: "/private/tmp/claude-501/-Users-kraig-code-bigger-fish--claude-worktrees-festive-satoshi-658a45/3a5b441e-de1d-48e5-9a6a-2435b030553a/scratchpad/diag.log")
+        if let handle = try? FileHandle(forWritingTo: log) { handle.seekToEndOfFile(); handle.write(Data(diag.utf8)); try? handle.close() }
+        else { try? Data(diag.utf8).write(to: log) }
         // Closed now, the run would be reported as left unfinished, a level in.
-        let pending = try #require(d.data(forKey: "biggerFish.metrics.v1.pendingOpenWater"))
+        let pending = try #require(d.data(forKey: "biggerFish.metrics.v1.pendingOpenWater"),
+            "START \(atStart) || ADVANCED \(afterAdvance) || FINISHED \(afterFinish) || SETTLED \(scene.debugMetricsDiagnosis) || TRACE \(trace) || STORED \(stored) || QUEUE \(a.queue.map { "\($0.kind) \($0.name ?? "") \($0.outcome ?? "")" })")
         #expect(String(decoding: pending, as: UTF8.self).contains("\"levels\":1"))
         // Eaten by a fish half again your size, put right on you as soon as one is swimming (or stung first, in the
         // second level's Jelly Bloom).
@@ -228,6 +246,38 @@ struct ArcadeOpenWaterMetricsTests {
         #expect(events.contains { $0.kind == .decision && $0.name == "leave" && $0.context == ArcadeAnalytics.openWaterContext })
         #expect(!events.contains { $0.kind == .run || $0.name == "level_started" || $0.name == "world_started" })
         #expect(d.data(forKey: "biggerFish.metrics.v1.pendingOpenWater") == nil)
+    }
+
+    // TEMP: the run report test's first half, repeated, with its trace attached.
+    @Test(arguments: 0..<8) func diagRepeat(_ i: Int) async throws {
+        let d = defaults(), sender = Sender()
+        let a = analytics(d, sender)
+        a.wearing = ["hat.cone"]
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 1, firstLevel: OpenWater.plan(0, seed: 1), nextLevel: OpenWater.plan(1, seed: 1), planSeconds: 0.75)
+        scene.analytics = a
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        defer { withExtendedLifetime(view) {} }
+        scene.debugTraceOn = true
+        scene.debugStart()
+        scene.debugInSync = true
+        scene.debugAdvance(seconds: 2)
+        let afterAdvance = scene.debugMetricsDiagnosis
+        #expect(scene.debugOpenWaterHasPlan(1) && scene.debugPhase == .playing)
+        scene.debugFinishOpenWaterLevel()
+        let afterFinish = scene.debugMetricsDiagnosis
+        scene.debugInSync = false
+        let suspended = Date()
+        scene.debugTrace.append("settle called")
+        await withCheckedContinuation { c in DispatchQueue.main.async { scene.debugTrace.append("settle block +\(Date().timeIntervalSince(suspended))"); c.resume() } }
+        scene.debugTrace.append("continuation +\(Date().timeIntervalSince(suspended))")
+        scene.debugTraceOn = false
+        let trace = scene.debugTrace.joined(separator: "\n  ")
+        let present = d.data(forKey: "biggerFish.metrics.v1.pendingOpenWater") != nil
+        let report = "case \(i) pending \(present)\nADVANCED \(afterAdvance)\nFINISHED \(afterFinish)\nSETTLED \(scene.debugMetricsDiagnosis)\nQUEUE \(a.queue.map { "\($0.kind) \($0.name ?? "") \($0.outcome ?? "")" })\nTRACE\n  \(trace)"
+        Attachment.record(report, named: "diag-\(i).txt")
+        #expect(present, "\(report)")
     }
 
     /// These keys and values and no others: brightbench.app's fixture (bigger-fish-swift-open-water.json, copied from
