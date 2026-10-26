@@ -1,12 +1,11 @@
-#if DEBUG
 import FishKit
 import Foundation
 
-/// The Open Water (Xcode builds only, a prototype for after 1.0): an endless run round the campaign's worlds. A stage
-/// is one time round: each world in turn (`GameTuning.openWaterWorlds`) plays a new level made at its own level's
-/// difficulty, level 5 on stage 1, 6 on stage 2, and on (`GameTuning.openWaterFirstLevel`). Each is planned as the run
-/// reaches it. A level ends on its last gate: eat it and you shrink back to your starting size for the next world.
-/// There's always a bigger fish. Being eaten ends the run.
+/// The Open Water: an endless run round the campaign's worlds. A stage is one time round: each world in turn
+/// (`GameTuning.openWaterWorlds`) plays a new level made at its own level's difficulty, level 5 on stage 1, 6 on stage
+/// 2, and on (`GameTuning.openWaterFirstLevel`). Each is planned on the device as the run reaches it. A level ends on
+/// its last gate: eat it and you shrink back to your starting size for the next world. There's always a bigger fish.
+/// Being eaten ends the run.
 enum OpenWater {
     /// One level of a run: its stage, its world, and which of that world's levels it's made like (from 1; past the
     /// Deep End's last, 15, it goes on as 16, 17, and on).
@@ -223,4 +222,3 @@ struct OpenWaterRun {
         finished = false
     }
 }
-#endif

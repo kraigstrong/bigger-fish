@@ -17,9 +17,8 @@ and backed up to the player's own iCloud, so they come back after a reinstall an
 device; the two copies merge so that syncing never un-clears a level.
 
 Free to try: all of Shallow Reef, plus two levels of each other world; a one-time purchase opens every world
-from the start and every Deep End (`ArcadeUnlock.swift`). No endless mode, pearls, or shop yet in the released game;
-Xcode builds have the endless run's prototype, **Open Water** (`OpenWater.swift`, from the world map's button, or launch
-with `-openWater <seed>`): round the worlds a stage at a time (`GameTuning.openWaterWorlds`), each a new level dealt like that world's level 5 on stage 1, 6 on stage 2, and on,
+from the start and every Deep End (`ArcadeUnlock.swift`). From 1.1, the endless run, **Open Water** (`OpenWater.swift`,
+from the world map's button; Xcode builds can launch with `-openWater <seed>`): round the worlds a stage at a time (`GameTuning.openWaterWorlds`), each a new level dealt like that world's level 5 on stage 1, 6 on stage 2, and on,
 planned as the run reaches it. Eating a level's last gate ends it and shrinks you back to your starting size for the
 next world; being eaten ends the run. Pearls sit beside the big fish, a few a level (`OpenWater.pearls`): touch one to take it. Fish eaten and pearls count at the top.
 A run's score is the fish it ate: the best is kept (`ArcadeProgress.openWaterBest`, synced with progress) and shown on
@@ -310,8 +309,9 @@ shipped as saved plans in the app.
 | Kelp Forest | `kelpSpecs` | `KelpPlans.json` | `kelpFrozen` |
 | Midnight Zone | `midnightSpecs` | `MidnightPlans.json` | `midnightFrozen` |
 
-The shipped game plays the saved plans and never plans on the device: the planner is in Xcode builds only, and a
-Release build with a level missing from its plans file stops at launch. `FrozenLevelTests` pins every frozen
+The shipped game plays the saved plans and never plans a campaign level on the device: a Release build with a level
+missing from its plans file stops at launch. The planner ships only for the Open Water, whose levels are new every run
+(`OpenWater.plan`, just in time, off the main thread). `FrozenLevelTests` pins every frozen
 level, so changing one is never a side effect. AGENTS.md has the workflow: iterate in code, freeze before
 publishing.
 

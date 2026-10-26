@@ -472,15 +472,8 @@ final class ArcadeProgress: ObservableObject {
         persist()
     }
 
-    /// What your fish wears everywhere it swims. Xcode builds only for now: the shop is a prototype, so a released
-    /// build shows the plain orange fish, whatever's saved.
-    var look: PlayerLook {
-        #if DEBUG
-        wornLook
-        #else
-        .plain
-        #endif
-    }
+    /// What your fish wears everywhere it swims.
+    var look: PlayerLook { wornLook }
 
     private var wornLook: PlayerLook { PlayerLook(ids: save.wornLook?.items ?? [:]) }
 

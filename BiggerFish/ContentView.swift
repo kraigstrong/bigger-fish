@@ -44,13 +44,13 @@ struct ContentView: View {
     @State private var menuScale: CGFloat = 1
     #if DEBUG
     @State private var showsTuning = false
+    #endif
     /// An Open Water run's first level is being planned (`playOpenWater`).
     @State private var startingOpenWater = false
     /// The pearl shop, from the world map or an Open Water run's result card (which waits under it).
     @State private var showsShop = false
     /// The pearl shop's visit while it's open, for the stats (`ArcadeAnalytics.shopVisited`).
     @State private var shopVisit: ArcadeAnalytics.ShopVisit?
-    #endif
 
     var body: some View {
         Group {
@@ -105,14 +105,12 @@ struct ContentView: View {
                     .transition(.opacity)
             }
         }
-        #if DEBUG
         .overlay {
             if showsShop && credits == nil {
                 PearlShopView(progress: progress, onBought: { shopVisit?.add($0.id) }, onClose: closeShop)
                     .transition(.opacity)
             }
         }
-        #endif
         .overlay(alignment: .topLeading) {
             // Small, for players who've played before and reinstalled.
             if let scene, scene.isTutorial {
@@ -150,10 +148,8 @@ struct ContentView: View {
         .onChange(of: quietOnMap) { _, quiet in if quiet { askForReviewIfDue() } }
         // Bought or put on in the shop over a result card: worn from the next try.
         .onChange(of: progress.look) { _, look in scene?.playerLook = look }
-        #if DEBUG
         // Taken in a run, or spent in the shop over its result card: the card's Shop button shows what's left.
         .onChange(of: progress.pearls) { _, pearls in scene?.pearlsToSpend = pearls }
-        #endif
         .onChange(of: offer == nil) { _, closed in
             guard !closed else { return }
             review.sawOffer()
@@ -165,18 +161,14 @@ struct ContentView: View {
         .onChange(of: progress.look, initial: true) { _, look in analytics.wearing = look.ids.values.sorted() }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .background else { return }
-            #if DEBUG
             // The shop's visit so far goes with everything else; coming back to it open starts another.
             if let visit = shopVisit {
                 analytics.shopVisited(visit)
                 shopVisit = ArcadeAnalytics.ShopVisit(source: visit.source, wallet: progress.pearls, hadBought: progress.hasBoughtALook)
             }
-            #endif
             analytics.backgrounded()
         }
-        #if DEBUG
         .onChange(of: scene == nil) { _, onMap in if onMap { reportEarnedLooks() } }
-        #endif
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         // Bigger on an iPad: the Skip buttons over the scenes (each menu screen sizes itself, `ScreenScaled`).
@@ -189,9 +181,7 @@ struct ContentView: View {
             if !metricsLaunched {
                 if analytics.enabled { ArcadeURLMetricSender.warmUp() }
                 analytics.launched()
-                #if DEBUG
                 reportEarnedLooks()
-                #endif
                 analytics.flush(); metricsLaunched = true
             }
             #if DEBUG
@@ -343,9 +333,10 @@ struct ContentView: View {
         selectedWorld = .shallowReef
         show(game)
     }
+    #endif
 
-    /// The Open Water, the endless run's prototype (`OpenWater`): always a practice run, so no campaign progress, but its
-    /// runs are reported their own way (`ArcadeAnalytics.startOpenWater`).
+    /// The Open Water, the endless run (`OpenWater`): no campaign progress, but its runs are reported their own way
+    /// (`ArcadeAnalytics.startOpenWater`).
     /// Its first level is planned off the main thread first (planning one takes a moment); leaving goes back to the
     /// world map.
     private func playOpenWater(seed: UInt64 = .random(in: 1...UInt64(UInt32.max)), from start: Int = 0) {
@@ -360,7 +351,7 @@ struct ContentView: View {
             startingOpenWater = false
             guard scene == nil else { return }
             let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-            game.debugStartOpenWater(seed: seed, firstLevel: plan, from: start, planSeconds: seconds)
+            game.startOpenWater(seed: seed, firstLevel: plan, from: start, planSeconds: seconds)
             game.analytics = analytics
             // Each pearl's kept as it's taken, however the run ends.
             game.onPearl = { progress.earnPearls(1) }
@@ -375,19 +366,15 @@ struct ContentView: View {
             show(game)
         }
     }
-    #endif
 
-    /// The world map's way into the Open Water: Xcode builds only, and never in a capture or screen check.
+    /// The world map's way into the Open Water: never in a capture or screen check (Xcode builds).
     private var openWaterAction: (() -> Void)? {
         #if DEBUG
         guard StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil else { return nil }
-        return { playOpenWater() }
-        #else
-        return nil
         #endif
+        return { playOpenWater() }
     }
 
-    #if DEBUG
     /// Opens the pearl shop, from the world map or an Open Water run's card: a visit begins.
     private func openShop(from source: ArcadeAnalytics.ShopSource) {
         shopVisit = ArcadeAnalytics.ShopVisit(source: source, wallet: progress.pearls, hadBought: progress.hasBoughtALook)
@@ -404,16 +391,13 @@ struct ContentView: View {
     private func reportEarnedLooks() {
         analytics.earned(progress.earnedLooks.map(\.id))
     }
-    #endif
 
-    /// The world map's way into the pearl shop: Xcode builds only, and never in a capture or screen check.
+    /// The world map's way into the pearl shop: never in a capture or screen check (Xcode builds).
     private var pearlShopAction: (() -> Void)? {
         #if DEBUG
         guard StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil else { return nil }
-        return { openShop(from: .map) }
-        #else
-        return nil
         #endif
+        return { openShop(from: .map) }
     }
 
     /// The first-launch tutorial (`ArcadeTutorial`): seen once however it ends, then on to Shallow Reef's levels.

@@ -25,9 +25,9 @@ struct ArcadeWorldMap: View {
     let onUnlock: (ArcadeWorld?) -> Void
     /// Settings: sound, vibration, the tutorial, restoring, privacy and support.
     let onSettings: () -> Void
-    /// The Open Water, the endless run's prototype: a button beside Settings in Xcode builds, none otherwise.
+    /// The Open Water, the endless run: a button beside Settings (none in a capture or screen check).
     var onOpenWater: (() -> Void)? = nil
-    /// The pearl shop, the Open Water's: a button beside it, showing your pearls, in Xcode builds only.
+    /// The pearl shop, the Open Water's: a button beside it, showing your pearls.
     var onPearlShop: (() -> Void)? = nil
 
     var body: some View {
@@ -150,8 +150,8 @@ private struct UnlockButton: View {
     }
 }
 
-/// On the world map in Xcode builds: the way into the Open Water, the endless run's prototype, with your best run (in
-/// fish eaten) once you have one.
+/// On the world map: the way into the Open Water, the endless run, with your best run (in fish eaten) once you have
+/// one.
 private struct OpenWaterButton: View {
     let best: Int
     let action: () -> Void

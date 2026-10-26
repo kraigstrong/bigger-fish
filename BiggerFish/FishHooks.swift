@@ -215,8 +215,7 @@ enum HookSplash {
 
 // MARK: - Planning
 
-// The planner runs in Xcode builds and tests only, like the meeting planner.
-#if DEBUG
+// Planned with the level's fish, like the meeting planner: on the Mac for Sunset Cove, on the device for the Open Water.
 /// Hangs a level's hooks around its planned meetings. The reference route the meetings were timed against must stay
 /// open: every hook keeps clear of your way from meal to meal (and of every reference meal's meeting) by a margin,
 /// for a little before and after you pass it, so a hook makes you pick a lane rather than forcing a death.
@@ -539,4 +538,3 @@ enum HookLayout {
         return (placed.sorted { $0.passTime < $1.passTime }, issues)
     }
 }
-#endif
