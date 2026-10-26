@@ -95,6 +95,18 @@ struct OpenWaterTests {
               + slowest.map { "\($0.key.rawValue) \(Int($0.value * 1000))" }.sorted().joined(separator: ", "))
     }
 
+    /// A level none of whose first round of deals plans cleanly deals again rather than play one with an issue (Kraig,
+    /// 2026-10-26: "fix the bad level problem"): run 1039's stage 3 Jelly Bloom, every first-round deal of which kept
+    /// "gate 8 has one route", plans cleanly from its second round. A level that plans in the first round is as it was.
+    @Test func aLevelThatWontPlanCleanlyDealsAgain() throws {
+        func recipe(_ plan: MeetingPlan) throws -> Int { try #require(plan.spec.name.split(separator: ".").last.flatMap { Int($0) }) }
+        #expect(OpenWater.leg(11).world == .jellyBloom)
+        let plan = OpenWater.plan(11, seed: 1039)
+        #expect(plan.issues.isEmpty && !plan.hasGiantWall && !plan.hasWall, "\(plan.issues)")
+        #expect(try recipe(plan) >= GameTuning.openWaterDeals)
+        #expect(try recipe(OpenWater.plan(0, seed: 1)) < GameTuning.openWaterDeals)
+    }
+
     /// Jelly Bloom's levels plan just in time like the other worlds': its bells where the designer puts them, every
     /// fish's way in clear of them, three stages deep across a handful of runs, in a few seconds at most.
     @Test func jellyLevelsPlanInTime() {

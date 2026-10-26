@@ -903,6 +903,9 @@ enum GameTuning {
     /// the deal that planned best.
     static let openWaterDeals = 12
     static let openWaterLayouts = 32
+    /// Rounds of those deals, each new, before a level plays one that didn't plan cleanly: about 1 level in 300 needs a
+    /// second (2026-10-26: 5 of 1,500, every one stage 3's Jelly Bloom). Each round can take as long as the first.
+    static let openWaterDealRounds = 4
     /// When no deal fits every open-water big fish its template asks for, plan the level with one fewer rather than
     /// play it with planner issues. Around Jelly Bloom's bells there's sometimes no room for them all.
     static let openWaterFewerToFit = true
