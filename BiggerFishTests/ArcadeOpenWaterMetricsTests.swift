@@ -248,6 +248,33 @@ struct ArcadeOpenWaterMetricsTests {
         #expect(d.data(forKey: "biggerFish.metrics.v1.pendingOpenWater") == nil)
     }
 
+    // TEMP experiment: the run loop turns (as other work on the main thread can make it) while settle's block waits.
+    @Test(arguments: [false, true]) func diagRunLoopTurnsBeforeSettle(_ paused: Bool) async throws {
+        let d = defaults(), sender = Sender()
+        let a = analytics(d, sender)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.debugStartOpenWater(seed: 1, firstLevel: OpenWater.plan(0, seed: 1), nextLevel: OpenWater.plan(1, seed: 1), planSeconds: 0.75)
+        scene.analytics = a
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        view.isPaused = paused
+        defer { withExtendedLifetime(view) {} }
+        scene.debugTraceOn = true
+        scene.debugStart()
+        scene.debugAdvance(seconds: 2)
+        scene.debugFinishOpenWaterLevel()
+        // Ahead of settle's block: something that lets the run loop turn for a while.
+        DispatchQueue.main.async { RunLoop.current.run(until: Date().addingTimeInterval(8)) }
+        await settle()
+        scene.debugTraceOn = false
+        let present = d.data(forKey: "biggerFish.metrics.v1.pendingOpenWater") != nil
+        let ticks = scene.debugTrace.filter { $0.hasPrefix("tick") }
+        let report = "paused \(paused) pending \(present) ticks \(ticks.count) \(scene.debugMetricsDiagnosis)\n  "
+            + scene.debugTrace.filter { !$0.hasPrefix("tick") }.joined(separator: "\n  ") + "\n  last ticks: \(ticks.suffix(3))"
+        Attachment.record(report, named: "runloop-\(paused).txt")
+        #expect(present, "\(report)")
+    }
+
     // TEMP: the run report test's first half, repeated, with its trace attached.
     @Test(arguments: 0..<8) func diagRepeat(_ i: Int) async throws {
         let d = defaults(), sender = Sender()
