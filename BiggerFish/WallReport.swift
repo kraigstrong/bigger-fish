@@ -146,9 +146,11 @@ enum WallSweep {
         var lastCuts: [Cut] = []
         /// Each route meal's last position and course, carried on once the recording drops it.
         var lastSeen: [Int: (x: CGFloat, y: CGFloat, radius: CGFloat, dx: CGFloat, dy: CGFloat)] = [:]
-        var safeUntil: CGFloat = -1
         var bounceUntil: CGFloat = -1
         for (step, frame) in frames.enumerated() where frame.distance < until {
+            // Your size this step, as the game has it: you move, and hooks and tentacles catch you, at the size you were;
+            // then the swallow ends and you grow; then the fish are resolved against you at the size you are.
+            let before = route == nil ? frame.radius : you.radius
             if route != nil {
                 if var current = you.swallow {
                     current.elapsed += dt
@@ -170,7 +172,7 @@ enum WallSweep {
             }
             let r = route == nil ? frame.radius : you.radius
             let world = WrappedWorld(width: frame.worldWidth)
-            let floor = frame.waterBottom + r * 0.95, surface = max(frame.waterBottom + r * 0.95, frame.waterTop - r * 0.95)
+            let floor = frame.waterBottom + before * 0.95, surface = max(frame.waterBottom + before * 0.95, frame.waterTop - before * 0.95)
             let waterHeight = max(1, frame.waterTop - frame.waterBottom)
             if open.isEmpty && step == 0 { open = [floor...surface] }
             // Rising and falling as fast as you can (a bounce lifts you faster for a moment).
@@ -178,8 +180,9 @@ enum WallSweep {
             let fall = T.motion.maxFallSpeed * frame.verticalScale / frame.zoom * dt
             open = merged(open.map { max(floor, $0.lowerBound - fall)...min(surface, max(floor, $0.upperBound + rise)) })
             var cuts: [Cut] = []
-            var safe = frame.time < safeUntil
-            let body = r * T.hazardHitboxScale
+            // Swallowing, you're safe from fish (`resolveCollisions` takes only swimming fish), not from hooks or tentacles.
+            var safe = you.swallow != nil
+            let body = before * T.hazardHitboxScale
             // Hooks and tentacles catch you before the fish are resolved (`GameScene.simulate`), swallowing or not.
             if hazards.contains(.hooks) {
                 for hook in frame.hooks {
@@ -255,7 +258,6 @@ enum WallSweep {
                             pending[f.id] = nil
                             eats.append((f.id, frame.time, dx, r))
                             let duration = SwallowTiming.duration(sizeRatio: meal.radius / r, curve: T.swallowDurationCurve)
-                            safeUntil = frame.time + duration
                             you.swallow = (0, duration, meal.radius)
                             safe = true
                             ate = true
@@ -435,7 +437,8 @@ struct WallStudy {
             for _ in 0..<4 where !result.skipped.isEmpty {
                 skipped += result.skipped
                 eating.subtract(result.skipped.map(\.id))
-                frames = record(eating, 1.05)
+                frames = record(eating, fullest ? 2.1 : 1.05)
+                if fullest { fullestFrames = frames }
                 result = sweep(.all)
             }
             skipped += result.skipped
