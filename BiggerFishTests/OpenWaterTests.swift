@@ -5,9 +5,9 @@ import SpriteKit
 import Testing
 @testable import BiggerFish
 
-/// The Open Water, the endless run's prototype (Xcode builds only): round the worlds a stage at a time, each world a new
-/// level made at that stage's difficulty, planned as the run reaches it; eat a level's last gate and you shrink back to
-/// your starting size for the next; being eaten ends the run.
+/// The Open Water, the endless run: round the worlds a stage at a time, each world a new level made at that stage's
+/// difficulty, planned as the run reaches it; eat a level's last gate and you shrink back to your starting size for the
+/// next; being eaten ends the run.
 @MainActor
 struct OpenWaterTests {
     /// A stage goes round every world at one difficulty: each world's level 5 on stage 1, level 6 on stage 2.
@@ -202,6 +202,71 @@ struct OpenWaterTests {
         #expect(scene.debugResultTitles == ["Retry", "Shop", "Levels"])
         scene.debugTapResult(.shop)
         #expect(shopped == 1 && scene.debugResultTitles == ["Retry", "Shop", "Levels"])
+    }
+
+    /// Without the unlock, a run is one of the day's free runs once it takes its first pearl (Kraig, 2026-10-26: "first
+    /// pearl is a great compromise!"), counted once however many it takes. Its card says how many are left; with none, it
+    /// offers the unlock in place of Retry, and Restart goes there too.
+    @Test func aFreeRunCountsAtItsFirstPearl() throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.startOpenWater(seed: 1)
+        var left = 1, counted = 0, exits = 0
+        scene.openWaterRunsLeft = { left }
+        scene.onOpenWaterRunCounted = {
+            counted += 1
+            left -= 1
+        }
+        scene.onExit = { exits += 1 }
+        _ = scene.debugPlayOpenWater(untilLevel: 0)
+        #expect(counted == 0)
+        _ = try #require(scene.debugTakeFirstPearl())
+        if !scene.debugOpenWaterPearls.isEmpty { _ = scene.debugTakeFirstPearl() }
+        #expect(counted == 1 && left == 0)
+        scene.debugLose()
+        #expect(scene.debugResultNote == "\(GameTuning.freeOpenWaterRunsPerDay) more runs tomorrow")
+        #expect(scene.debugResultTitles == ["Unlock all", "Shop", "Levels"])
+        #expect(!scene.leftForUnlock)
+        scene.debugTapResult(.unlock)
+        #expect(exits == 1 && scene.leftForUnlock)
+
+        // With runs left, the card says how many, and Retry starts the next.
+        let another = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        another.startOpenWater(seed: 1)
+        another.openWaterBest = 40
+        another.openWaterRunsLeft = { 3 }
+        _ = another.debugPlayOpenWater(untilLevel: 0, limit: 1)
+        another.debugLose()
+        #expect(another.debugResultNote == "Best: 40 fish · 3 runs left today")
+        #expect(another.debugResultTitles == ["Retry", "Shop", "Levels"])
+        // None left now (as when a run's first pearl took the day's last): Restart, mid-run, goes to the unlock.
+        var anotherExits = 0
+        another.openWaterRunsLeft = { 0 }
+        another.onExit = { anotherExits += 1 }
+        another.debugRestart()
+        #expect(anotherExits == 1 && another.leftForUnlock)
+
+        // A card left up past midnight, its runs back: Unlock all brings Retry back, not the unlock's screen.
+        let overnight = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        overnight.startOpenWater(seed: 1)
+        var renewed = 0, overnightExits = 0
+        overnight.openWaterRunsLeft = { renewed }
+        overnight.onExit = { overnightExits += 1 }
+        _ = overnight.debugPlayOpenWater(untilLevel: 0, limit: 1)
+        overnight.debugLose()
+        #expect(overnight.debugResultTitles == ["Unlock all", "Shop", "Levels"])
+        renewed = GameTuning.freeOpenWaterRunsPerDay
+        overnight.debugTapResult(.unlock)
+        #expect(overnightExits == 0 && !overnight.leftForUnlock)
+        #expect(overnight.debugResultTitles == ["Retry", "Shop", "Levels"])
+        #expect(overnight.debugResultNote == "\(GameTuning.freeOpenWaterRunsPerDay) runs left today")
+
+        // With the unlock, nothing's counted and the card says nothing of runs.
+        let unlocked = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        unlocked.startOpenWater(seed: 1)
+        unlocked.openWaterRunsLeft = { nil }
+        _ = unlocked.debugPlayOpenWater(untilLevel: 0, limit: 1)
+        unlocked.debugLose()
+        #expect(unlocked.debugResultNote == nil && unlocked.debugResultTitles == ["Retry", "Shop", "Levels"])
     }
 
     /// Each level ends once you eat its last gate, and the next world's begins the way a level does: you at your

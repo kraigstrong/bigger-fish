@@ -41,6 +41,51 @@ enum ArcadeUnlock {
 
     /// Every Deep End level in the campaign.
     static var deepEndLevels: Int { ArcadeWorld.campaign.reduce(0) { $0 + $1.deepEndCount } }
+
+    /// Without the unlock, the Open Water has `GameTuning.freeOpenWaterRunsPerDay` runs a day (`OpenWaterRuns`).
+    static func limitsOpenWater(unlocked: Bool, selling: Bool = isSelling) -> Bool { selling && !unlocked }
+}
+
+/// The day's free Open Water runs on this device (`ArcadeUnlock.limitsOpenWater`): each counted as it takes its first
+/// pearl, so a run lost in its first seconds costs nothing. A day is the player's own calendar day, so the runs come back
+/// at midnight. Kept on the device alone, apart from progress: each device has its own, and nothing of it goes to iCloud.
+final class OpenWaterRuns: ObservableObject {
+    /// The day the runs were counted on ("2026-10-26"), and how many.
+    @Published private(set) var day: String
+    @Published private(set) var used: Int
+    private let defaults: UserDefaults
+    static let key = "biggerFish.openWaterRuns"
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        day = defaults.string(forKey: Self.key + ".day") ?? ""
+        used = defaults.integer(forKey: Self.key + ".used")
+    }
+
+    /// Runs still to take a pearl today.
+    func left(at now: Date = Date()) -> Int {
+        Self.day(of: now) == day ? max(0, GameTuning.freeOpenWaterRunsPerDay - used) : GameTuning.freeOpenWaterRunsPerDay
+    }
+
+    /// A run took its first pearl.
+    func use(at now: Date = Date()) {
+        let today = Self.day(of: now)
+        if today != day {
+            day = today
+            used = 0
+        }
+        used += 1
+        defaults.set(day, forKey: Self.key + ".day")
+        defaults.set(used, forKey: Self.key + ".used")
+    }
+
+    /// The calendar day `date` falls on where the player is, in the Gregorian calendar whatever calendar they prefer.
+    static func day(of date: Date, calendar preferred: Calendar = .current) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = preferred.timeZone
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
 }
 
 /// The one-time purchase that unlocks every world (a non-consumable, shared with Family Sharing if it's turned on

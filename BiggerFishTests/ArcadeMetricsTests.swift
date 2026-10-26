@@ -214,7 +214,7 @@ struct ArcadeMetricsTests {
         #expect(keys("restore") == [["kind", "outcome", "source"]])
         #expect(keys("milestone", "world_conquered") == [["kind", "name", "context"]])
         #expect(keys("run") == [["kind", "context", "outcome", "cause", "replay", "attempt", "summary", "unlocked"]])
-        let offerSources: Set = ["padlocked_level", "next_level", "unlock_all", "locked_world", "conquered"]
+        let offerSources: Set = ["padlocked_level", "next_level", "unlock_all", "locked_world", "conquered", "open_water_limit"]
         #expect(values("offer", "source") == offerSources)
         #expect(values("purchase", "outcome") == ["unlocked", "pending", "cancelled", "failed"])
         #expect(values("purchase", "source").isSubset(of: offerSources))

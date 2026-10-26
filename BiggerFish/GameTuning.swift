@@ -243,6 +243,9 @@ enum GameTuning {
     /// Levels free without the unlock in each world after Shallow Reef (all ten of whose are free): a taste of what the
     /// unlock opens. 0 locks those worlds whole.
     static let freeLevelsPerWorld = 2
+    /// Open Water runs a day without the unlock (Kraig, 2026-10-26: "include it in the free mode, but limit to 5 runs per
+    /// day"), on each device. A run counts once it takes its first pearl ("first pearl is a great compromise!").
+    static let freeOpenWaterRunsPerDay = 5
 
     // MARK: Meeting planner
 

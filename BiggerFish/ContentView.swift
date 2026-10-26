@@ -9,6 +9,8 @@ struct ContentView: View {
     @StateObject private var progress = ArcadeProgress()
     #endif
     @StateObject private var purchases = ArcadePurchases()
+    /// The day's free Open Water runs on this device, without the unlock.
+    @StateObject private var openWaterRuns = OpenWaterRuns()
     @State private var analytics = ArcadeAnalytics()
     @State private var metricsLaunched = false
     @State private var selectedWorld: ArcadeWorld?
@@ -72,7 +74,8 @@ struct ContentView: View {
                                    withAnimation { offer = UnlockOffer(featured: world, source: world == nil ? .unlockAll : .lockedWorld) }
                                },
                                onSettings: { withAnimation { showsSettings = true } },
-                               onOpenWater: openWaterAction, onPearlShop: pearlShopAction)
+                               onOpenWater: openWaterAction, openWaterRunsLeft: limitsOpenWater ? openWaterRuns.left() : nil,
+                               onPearlShop: pearlShopAction)
             }
         }
         .overlay {
@@ -275,6 +278,8 @@ struct ContentView: View {
 
     /// The unlock is bought, or isn't on sale yet: nothing past the free levels is locked.
     private var unlocked: Bool { !ArcadeUnlock.isSelling || purchases.isUnlocked }
+    /// The Open Water has its free runs a day (`OpenWaterRuns`).
+    private var limitsOpenWater: Bool { ArcadeUnlock.limitsOpenWater(unlocked: purchases.isUnlocked) }
 
     /// Menu music under the maps, game music under a level, the credits' own calm pick under the credits, quiet while
     /// loading.
@@ -341,6 +346,11 @@ struct ContentView: View {
     /// world map.
     private func playOpenWater(seed: UInt64 = .random(in: 1...UInt64(UInt32.max)), from start: Int = 0) {
         guard !startingOpenWater else { return }
+        // The day's free runs used up: what the unlock opens, and when more come.
+        if limitsOpenWater && openWaterRuns.left() == 0 {
+            withAnimation { offer = UnlockOffer(featured: nil, source: .openWaterLimit) }
+            return
+        }
         startingOpenWater = true
         Task {
             let (plan, seconds) = await Task.detached(priority: .userInitiated) {
@@ -359,9 +369,12 @@ struct ContentView: View {
             game.pearlsToSpend = progress.pearls
             game.openWaterBest = progress.openWaterBest
             game.onOpenWaterRun = { progress.recordOpenWaterRun(fish: $0, furthest: $1) }
+            game.openWaterRunsLeft = { limitsOpenWater ? openWaterRuns.left() : nil }
+            game.onOpenWaterRunCounted = { if limitsOpenWater { openWaterRuns.use() } }
             game.onExit = { [weak game] in
                 game?.exitMetrics()
                 scene = nil
+                if game?.leftForUnlock == true { withAnimation { offer = UnlockOffer(featured: nil, source: .openWaterLimit) } }
             }
             show(game)
         }

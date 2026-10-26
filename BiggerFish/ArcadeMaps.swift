@@ -27,6 +27,8 @@ struct ArcadeWorldMap: View {
     let onSettings: () -> Void
     /// The Open Water, the endless run: a button beside Settings (none in a capture or screen check).
     var onOpenWater: (() -> Void)? = nil
+    /// The day's free Open Water runs left, without the unlock (`OpenWaterRuns`); nil with it.
+    var openWaterRunsLeft: Int? = nil
     /// The pearl shop, the Open Water's: a button beside it, showing your pearls.
     var onPearlShop: (() -> Void)? = nil
 
@@ -86,7 +88,9 @@ struct ArcadeWorldMap: View {
                 Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
                     .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
                 HStack(spacing: 14) {
-                    if let onOpenWater { OpenWaterButton(best: progress.openWaterBest, action: onOpenWater) }
+                    if let onOpenWater {
+                        OpenWaterButton(best: progress.openWaterBest, runsLeft: openWaterRunsLeft, action: onOpenWater)
+                    }
                     if let onPearlShop { PearlShopButton(pearls: progress.pearls, action: onPearlShop) }
                     if !unlocked { UnlockButton { onUnlock(nil) } }
                     SettingsButton(action: onSettings)
@@ -151,17 +155,23 @@ private struct UnlockButton: View {
 }
 
 /// On the world map: the way into the Open Water, the endless run, with your best run (in fish eaten) once you have
-/// one.
+/// one. Without the unlock, the day's free runs left instead ("Tomorrow" when they're used up).
 private struct OpenWaterButton: View {
     let best: Int
+    let runsLeft: Int?
     let action: () -> Void
+
+    private var detail: String? {
+        if let runsLeft { return runsLeft == 0 ? "Tomorrow" : "\(runsLeft) left" }
+        return best > 0 ? "Best \(best)" : nil
+    }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Label("Open Water", systemImage: "infinity")
-                if best > 0 {
-                    Text("Best \(best)").font(.custom("AvenirNext-DemiBold", size: 14)).monospacedDigit().opacity(0.75)
+                if let detail {
+                    Text(detail).font(.custom("AvenirNext-DemiBold", size: 14)).monospacedDigit().opacity(0.75)
                 }
             }
             .font(.custom("AvenirNext-Heavy", size: 15))
@@ -170,7 +180,8 @@ private struct OpenWaterButton: View {
             .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 1.5))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(best > 0 ? "Open Water, endless run, best \(best) fish" : "Open Water, endless run")
+        .accessibilityLabel(["Open Water, endless run", runsLeft.map { $0 == 0 ? "no runs left today" : "\($0) left today" }
+                             ?? (best > 0 ? "best \(best) fish" : nil)].compactMap { $0 }.joined(separator: ", "))
     }
 }
 
