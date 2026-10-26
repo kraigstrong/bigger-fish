@@ -4130,8 +4130,8 @@ final class GameScene: SKScene {
 #if DEBUG
 extension GameScene {
     /// Plays the Open Water from its first level (`firstLevel`, if it's planned already), as a practice run: nothing
-    /// is saved or reported. Set before the scene is shown.
-    /// `planSeconds`: how long the first level took to plan, for the stats.
+    /// is saved to the campaign, and its runs report their own way (`startOpenWaterMetrics`). Set before the scene is
+    /// shown. `planSeconds`: how long the first level took to plan, for the stats.
     func debugStartOpenWater(seed: UInt64, firstLevel plan: MeetingPlan? = nil, from index: Int = 0, planSeconds: Double? = nil) {
         if let planSeconds { openWaterSlowestPlan[seed] = planSeconds }
         var run = OpenWaterRun(seed: seed, index: index)
