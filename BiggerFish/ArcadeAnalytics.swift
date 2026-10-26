@@ -1,8 +1,9 @@
 import Foundation
 
 struct ArcadeMetricEvent: Codable, Equatable {
-    /// `offer`, `purchase`, and `restore` are the paywall funnel's (sent only with `sendsPaywallEvents` on).
-    enum Kind: String, Codable { case milestone, run, decision, offer, purchase, restore }
+    /// `offer`, `purchase`, and `restore` are the paywall funnel's (sent only with `sendsPaywallEvents` on); `endless`,
+    /// `shop`, `earned`, and `outfit` the Open Water's and the pearl shop's (only with `sendsOpenWaterEvents` on).
+    enum Kind: String, Codable { case milestone, run, decision, offer, purchase, restore, endless, shop, earned, outfit }
     let kind: Kind
     var name: String?
     var context: ArcadeMetricContext?
@@ -18,6 +19,20 @@ struct ArcadeMetricEvent: Codable, Equatable {
     var first: Bool?
     /// On a run, while the unlock is on sale: whether this player had it.
     var unlocked: Bool?
+    // The Open Water's and the pearl shop's fields, left out of the JSON like the paywall's when nil.
+    /// On a campaign run: whether your fish wore any look.
+    var dressed: Bool?
+    /// On an `endless` event: the run.
+    var openWater: ArcadeOpenWaterMetrics?
+    /// On a `shop` visit: pearls in hand as it opened, the looks bought, and on the install's first purchase, the Open
+    /// Water runs finished before it.
+    var wallet: Int?
+    var bought: [String]?
+    var firstPurchaseRuns: Int?
+    /// On an `earned` event: the look.
+    var id: String?
+    /// On an `outfit` event: what your fish wore, a look per kind.
+    var pieces: [String]?
 }
 
 struct ArcadeMetricBatch: Codable {
@@ -39,24 +54,42 @@ final class ArcadeAnalytics {
     // Beta collection: the endpoint and policy are live; App Store disclosures remain a release check.
     static let isEnabled = true
     static let revision = "2026-10-04.1"
+    /// The Open Water's own content revision, sent with every run in place of a level's: bump it when the run's worlds
+    /// or their order (`GameTuning.openWaterWorlds`), its ramp (`openWaterFirstLevel`, the speed-up), the way its levels
+    /// are dealt (`OpenWater.spec`), or the planner change, so the report keeps runs on different rules apart.
+    static let openWaterRevision = "2026-10-25.1"
+    /// Events wait on the device and go in batches: when this many are waiting, when the app goes to the background
+    /// (or a level is interrupted), and at launch. Each send is a write to the stats server's Redis, billed per command,
+    /// and the same counters in one batch are added up into one.
+    static let batchSize = 25
     static let endpoint = URL(string: "https://brightbench.app/api/bigger-fish/events")!
     // Public noise filter, not authentication. Strict server validation is the protection.
     static let appKey = "bigger-fish-gameplay-v1"
     static var isRunningTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || NSClassFromString("XCTestCase") != nil
     }
+    /// Simulator builds never collect: Xcode's and agents' runs there aren't play worth counting (or paying for).
+    static var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        true
+        #else
+        false
+        #endif
+    }
     static var defaultEnabled: Bool {
         #if DEBUG
         if ArcadePlaytest.selection != nil || ArcadePlaytest.planner != nil || ArcadePlaytest.screen != nil
             || StoreCapture.moment != nil { return false }
         #endif
-        return isEnabled && !isRunningTests
+        return isEnabled && !isRunningTests && !isSimulator
     }
     private let defaults: UserDefaults
     private let sender: ArcadeMetricSender
     let enabled: Bool
     /// `sendsPaywallEvents`, or a test's choice.
     private let sendsPaywall: Bool
+    /// `sendsOpenWaterEvents`, or a test's choice.
+    private let sendsOpenWater: Bool
     private let prefix = "biggerFish.metrics.v1."
     private struct Queued: Codable {
         var event: ArcadeMetricEvent
@@ -65,12 +98,16 @@ final class ArcadeAnalytics {
         let channel: String
     }
     private var pending: Queued?
+    private var pendingOpenWater: Queued?
     private var result: Queued?
+    /// Whether this launch's first run has been played (its outfit is reported then, if any).
+    private var playedThisLaunch = false
     private var expectedWorldLevels: Int?
 
     init(defaults: UserDefaults = .standard, sender: ArcadeMetricSender = ArcadeURLMetricSender(), enabled: Bool = ArcadeAnalytics.defaultEnabled,
-         paywallEvents: Bool = ArcadeAnalytics.sendsPaywallEvents) {
+         paywallEvents: Bool = ArcadeAnalytics.sendsPaywallEvents, openWaterEvents: Bool = ArcadeAnalytics.sendsOpenWaterEvents) {
         self.defaults = defaults; self.sender = sender; self.enabled = enabled; self.sendsPaywall = paywallEvents
+        self.sendsOpenWater = openWaterEvents
     }
     private var storedQueue: [Queued] {
         defaults.data(forKey: prefix + "queue").flatMap { try? JSONDecoder().decode([Queued].self, from: $0) } ?? []
@@ -152,11 +189,10 @@ final class ArcadeAnalytics {
         enqueue(ArcadeMetricEvent(kind: .restore, outcome: found ? "restored" : "not_found", source: place))
     }
 
-    /// The app went to the background. Offers, purchases, and restores happen on the maps, where no run's end sends
-    /// them, so they go now rather than wait for the next run or launch (a player who leaves for good would never send
-    /// them). Only with the paywall funnel on, so nothing else changes until then.
+    /// The app went to the background: everything waiting goes now, rather than wait for a full batch or the next launch
+    /// (a player who leaves for good would never send it).
     func backgrounded() {
-        guard enabled, sendsPaywall else { return }
+        guard enabled else { return }
         flush()
     }
 
@@ -167,6 +203,10 @@ final class ArcadeAnalytics {
             old.event.outcome = "abandoned"; old.event.cause = "none"; old.event.summary?.fatalRatio = nil; enqueueStored(old)
         }
         defaults.removeObject(forKey: prefix + "pending")
+        if let data = defaults.data(forKey: prefix + "pendingOpenWater"), var old = try? JSONDecoder().decode(Queued.self, from: data) {
+            old.event.outcome = "abandoned"; old.event.cause = "none"; enqueueStored(old)
+        }
+        defaults.removeObject(forKey: prefix + "pendingOpenWater")
         if let data = defaults.data(forKey: prefix + "result"), let old = try? JSONDecoder().decode(Queued.self, from: data) {
             enqueueStored(Queued(event: ArcadeMetricEvent(kind: .decision, name: "unknown", context: old.event.context, outcome: old.event.outcome), appVersion: old.appVersion, build: old.build, channel: old.channel))
         }
@@ -183,8 +223,9 @@ final class ArcadeAnalytics {
         let attempt = min(1000, defaults.integer(forKey: prefix + "attempt." + key) + 1)
         if !replay { defaults.set(attempt, forKey: prefix + "attempt." + key) }
         pending = stamp(ArcadeMetricEvent(kind: .run, context: context, outcome: "abandoned", cause: "none", replay: replay, attempt: replay ? 0 : attempt, summary: ArcadeRunMetrics(),
-            unlocked: sendsPaywall ? hasUnlock : nil))
+            unlocked: sendsPaywall ? hasUnlock : nil, dressed: sendsOpenWater ? !wearing.isEmpty : nil))
         checkpoint(ArcadeRunMetrics())
+        reportOutfit()
     }
     func checkpoint(_ summary: ArcadeRunMetrics) {
         guard enabled, pending != nil else { return }
@@ -219,10 +260,135 @@ final class ArcadeAnalytics {
             result = event
             defaults.set(try? JSONEncoder().encode(event), forKey: prefix + "result")
         }
-        // Sending is initiated off the gameplay/meal stack (URLSession does its own asynchronous work).
-        DispatchQueue.main.async { [weak self] in self?.flush() }
     }
     func leave() { decide("leave", next: nil) }
+
+    // MARK: The Open Water and the pearl shop
+
+    /// The Open Water and the pearl shop: a summary of each run, where it ended, and what happened after; each visit to the
+    /// shop and what it bought; looks earned; and what your fish wears. Off until brightbench.app accepts these events
+    /// (it rejects a whole batch over one it doesn't know) and the Bigger Fish privacy page describes them. Turned off,
+    /// none of them is sent or saved, and every other event encodes exactly as before.
+    static let sendsOpenWaterEvents = false
+
+    /// Every Open Water run has the same context, never its own seed: each run's seed would make a new row on the stats
+    /// server, and it caps those a day.
+    static let openWaterContext = ArcadeMetricContext(world: "open-water", level: 1, setup: 1, seed: "0", mode: "endless",
+                                                      revision: ArcadeAnalytics.openWaterRevision)
+
+    /// Whether the Open Water and the shop are reported (the scene starts a run's numbers only then).
+    var collectsOpenWater: Bool { enabled && sendsOpenWater }
+
+    /// The looks your fish wears now (IDs, a kind each), kept up to date by the app: runs say whether it wore any, and a
+    /// launch's first run reports which.
+    var wearing: [String] = []
+
+    /// An Open Water run began, from its first level. Like a campaign start, it settles what the last lost run led to.
+    func startOpenWater() {
+        guard collectsOpenWater else { return }
+        let context = Self.openWaterContext
+        decide("retry", next: context)
+        installMilestone("open_water_started", context: context)
+        pendingOpenWater = stamp(ArcadeMetricEvent(kind: .endless, context: context, outcome: "abandoned", cause: "none",
+            unlocked: sendsPaywall ? hasUnlock : nil, openWater: ArcadeOpenWaterMetrics(dressed: !wearing.isEmpty)))
+        checkpointOpenWater(ArcadeOpenWaterMetrics(dressed: !wearing.isEmpty))
+        reportOutfit()
+    }
+
+    /// The run so far, saved: if the app is closed in the middle, it's reported as left unfinished at the next launch.
+    func checkpointOpenWater(_ run: ArcadeOpenWaterMetrics) {
+        guard collectsOpenWater, pendingOpenWater != nil else { return }
+        pendingOpenWater?.event.openWater = run
+        defaults.set(try? JSONEncoder().encode(pendingOpenWater), forKey: prefix + "pendingOpenWater")
+    }
+
+    /// The run went all the way round the worlds for the first time on this install.
+    func openWaterWentRound() {
+        guard collectsOpenWater else { return }
+        installMilestone("open_water_round", context: Self.openWaterContext)
+    }
+
+    /// The run ended: `death` (with its cause) or `quit`. A death's Retry or leaving is reported as its decision.
+    func finishOpenWater(_ outcome: String, cause: String = "none", run: ArcadeOpenWaterMetrics) {
+        guard collectsOpenWater, var event = pendingOpenWater else { return }
+        event.event.outcome = outcome; event.event.cause = outcome == "death" ? cause : "none"; event.event.openWater = run
+        pendingOpenWater = nil; defaults.removeObject(forKey: prefix + "pendingOpenWater")
+        enqueueStored(event)
+        defaults.set(min(10000, defaults.integer(forKey: prefix + "openWaterRuns") + 1), forKey: prefix + "openWaterRuns")
+        if outcome == "death" {
+            result = event
+            defaults.set(try? JSONEncoder().encode(event), forKey: prefix + "result")
+        }
+    }
+
+    /// Where the pearl shop was opened from.
+    enum ShopSource: String, CaseIterable {
+        /// The world map's pearl button.
+        case map
+        /// The Shop button on an Open Water run's card.
+        case runCard = "run_card"
+    }
+
+    /// One visit to the pearl shop, as it goes: where from, the pearls in hand as it opened, whether this player had
+    /// bought a look before, and the looks bought.
+    struct ShopVisit: Equatable {
+        let source: ShopSource
+        let wallet: Int
+        let hadBought: Bool
+        private(set) var bought: [String] = []
+
+        init(source: ShopSource, wallet: Int, hadBought: Bool) {
+            self.source = source; self.wallet = wallet; self.hadBought = hadBought
+        }
+
+        /// A look bought on this visit.
+        mutating func add(_ id: String) {
+            if !bought.contains(id) { bought.append(id) }
+        }
+    }
+
+    /// A visit to the shop ended (it closed, or the app went to the background with it open). Sent with the next batch.
+    func shopVisited(_ visit: ShopVisit) {
+        guard collectsOpenWater else { return }
+        var event = ArcadeMetricEvent(kind: .shop, source: visit.source.rawValue)
+        event.wallet = min(100_000, max(0, visit.wallet))
+        event.bought = Array(visit.bought.prefix(64))
+        let key = prefix + "purchased"
+        if !visit.bought.isEmpty && !defaults.bool(forKey: key) {
+            defaults.set(true, forKey: key)
+            if !visit.hadBought { event.firstPurchaseRuns = defaults.integer(forKey: prefix + "openWaterRuns") }
+        }
+        enqueue(event)
+    }
+
+    /// The looks earned so far (`ArcadeProgress.earnedLooks`): each is reported once per install.
+    func earned(_ ids: [String]) {
+        guard collectsOpenWater else { return }
+        for id in ids where !defaults.bool(forKey: prefix + "earned." + id) {
+            defaults.set(true, forKey: prefix + "earned." + id)
+            var event = ArcadeMetricEvent(kind: .earned)
+            event.id = id
+            enqueue(event)
+        }
+    }
+
+    /// At a launch's first run, if your fish wears any looks, which: counted piece by piece, never with a run or level.
+    private func reportOutfit() {
+        guard sendsOpenWater, !playedThisLaunch else { return }
+        playedThisLaunch = true
+        guard !wearing.isEmpty else { return }
+        var event = ArcadeMetricEvent(kind: .outfit)
+        event.pieces = wearing.sorted()
+        enqueue(event)
+    }
+
+    /// A milestone sent once per install, whatever the Open Water's revision.
+    private func installMilestone(_ name: String, context: ArcadeMetricContext) {
+        let key = prefix + "milestone." + name + ".install"
+        guard !defaults.bool(forKey: key) else { return }
+        defaults.set(true, forKey: key)
+        enqueue(ArcadeMetricEvent(kind: .milestone, name: name, context: context))
+    }
     private func decide(_ decision: String, next: ArcadeMetricContext?) {
         guard enabled, let old = result else { return }
         let same = old.event.context == next
@@ -247,7 +413,10 @@ final class ArcadeAnalytics {
         #if DEBUG
         HitchLog.shared?.note(.analyticsEvent, "queued")
         #endif
-        defaults.set(try? JSONEncoder().encode(Array((storedQueue + [event]).suffix(100))), forKey: prefix + "queue")
+        let queue = Array((storedQueue + [event]).suffix(100))
+        defaults.set(try? JSONEncoder().encode(queue), forKey: prefix + "queue")
+        // A full batch goes, initiated off the gameplay/meal stack (URLSession does its own asynchronous work).
+        if queue.count >= Self.batchSize { DispatchQueue.main.async { [weak self] in self?.flush() } }
     }
     /// At-most-once delivery: remove before sending, never retry uncertain deliveries without IDs.
     /// Offline events remain bounded until a flush; failed batches are dropped, like Math Reef.

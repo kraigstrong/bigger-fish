@@ -420,6 +420,9 @@ final class ArcadeProgress: ObservableObject {
     /// The looks earned, not bought: those whose goal is done.
     var earnedLooks: [PearlItem] { GameTuning.pearlShop.filter { $0.earnedBy.map(hasDone) == true } }
 
+    /// Whether this player has bought a look with pearls (on any of their devices).
+    var hasBoughtALook: Bool { !(save.ownedLooks ?? []).isEmpty }
+
     /// Bought, or earned.
     func owns(_ item: PearlItem) -> Bool {
         save.ownedLooks?.contains(item.id) == true || item.earnedBy.map(hasDone) == true
