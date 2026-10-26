@@ -938,12 +938,20 @@ enum GameTuning {
     /// swims. Prices are steady (Kraig, 2026-10-22): the first thing in about two good runs, the dearest in about
     /// fifteen. An ID is saved with what a player owns and wears, so never rename one; names and prices can change.
     static let pearlShop: [PearlItem] = [
-        PearlItem("color.copper", .color, "Copper", price: 50),
-        PearlItem("color.mint", .color, "Mint", price: 60),
-        PearlItem("color.purple", .color, "Purple", price: 60),
+        // Sweet treats and a rainbow (Kraig, 2026-10-25: "more approachable and kid friendly... We need a rainbow fish
+        // for sure"), with Gold and Pearl as they were ("the best colors"). Copper, Mint, Purple, and Ruby kept their
+        // IDs, so whoever bought Copper has the peanut butter and jelly fish.
+        PearlItem("color.copper", .color, "PB & J", price: 50),
+        PearlItem("color.mint", .color, "Mint chocolate chip", price: 60),
+        PearlItem("color.cotton-candy", .color, "Cotton candy", price: 60),
+        PearlItem("color.purple", .color, "Grape soda", price: 60),
         PearlItem("color.gold", .color, "Gold", price: 75),
-        PearlItem("color.ruby", .color, "Ruby", price: 75),
+        PearlItem("color.ruby", .color, "Watermelon", price: 75),
+        PearlItem("color.blue-raspberry", .color, "Blue raspberry", price: 75),
+        PearlItem("color.birthday-cake", .color, "Birthday cake", price: 100),
+        PearlItem("color.galaxy", .color, "Galaxy", price: 120),
         PearlItem("color.pearl", .color, "Pearl", price: 150),
+        PearlItem("color.rainbow", .color, "Rainbow", price: 200),
         PearlItem("pattern.spots", .pattern, "Spots", price: 25),
         PearlItem("pattern.stripes", .pattern, "Stripes", price: 25),
         PearlItem("pattern.zebra", .pattern, "Zebra", price: 75),

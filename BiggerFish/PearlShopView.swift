@@ -286,7 +286,9 @@ struct PearlShopView: View {
             VStack(spacing: 4) {
                 PearlShopThumbnail(look: item.map(PlayerLook().wearing) ?? PlayerLook())
                     .frame(height: 50)
+                // Long names ("Mint chocolate chip") shrink to fit the narrowest tile rather than lose their end.
                 Text(item?.name ?? "Plain").font(.custom("AvenirNext-DemiBold", size: 13)).lineLimit(1)
+                    .minimumScaleFactor(0.7).padding(.horizontal, 6)
                 Group {
                     if worn {
                         Label("On", systemImage: "checkmark")
