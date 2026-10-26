@@ -921,9 +921,7 @@ final class GameScene: SKScene {
             onExit?()
         case .shop:
             // Over the card, which waits underneath: closing the shop comes back to it.
-            #if DEBUG
             onShop?()
-            #endif
         }
     }
 
