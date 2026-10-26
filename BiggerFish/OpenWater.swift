@@ -87,7 +87,7 @@ enum OpenWater {
                 spec.extraThreats -= fewer
                 for variation in 0..<GameTuning.openWaterLayouts where MeetingPlanner.kelpLayoutFits(spec, variation: variation) {
                     let plan = MeetingPlanner.kelpPlan(spec, variation: variation)
-                    if plan.issues.isEmpty && !plan.hasGiantWall { return plan }
+                    if plan.issues.isEmpty && !plan.hasGiantWall && !plan.hasWall { return plan }
                     best = best ?? plan
                 }
             }
