@@ -195,6 +195,10 @@ struct ArcadeOpenWaterMetricsTests {
         scene.analytics = a
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
+        // Only the test moves the scene. A live view plays it on in real time whenever the main thread's run loop turns
+        // while the test waits (under CI's load, for seconds): the second level, unsteered, until a fish eats you, which
+        // reports the run as a death before the test looks.
+        view.isPaused = true
         defer { withExtendedLifetime(view) {} }
         scene.debugStart()
         scene.debugAdvance(seconds: 2)
