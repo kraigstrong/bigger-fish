@@ -125,6 +125,18 @@ struct ArcadeOpenWaterMetricsTests {
         #expect(a.queue.filter { $0.kind == .earned }.map(\.id) == ["hat.starfish", "hat.crown"])
     }
 
+    /// Every look's ID is one brightbench.app takes. It rejects a whole batch over one ID it doesn't, and the game sends
+    /// each event once, so the batch's stats are lost: the silver and diamond crowns' were, until the site took dots
+    /// in a look's name (BrightBench#91).
+    @Test func everyLookIDIsOneTheSiteTakes() throws {
+        // `lookId` in BrightBench's apps/marketing/src/lib/bigger-fish-open-water.ts.
+        let pattern = try NSRegularExpression(pattern: #"^[a-z]{1,16}\.(?=[a-z0-9.-]{1,40}$)[a-z0-9-]+(?:\.[a-z0-9-]+)*$"#)
+        for item in GameTuning.pearlShop {
+            let id = item.id
+            #expect(pattern.firstMatch(in: id, range: NSRange(id.startIndex..., in: id)) != nil, "\(id)")
+        }
+    }
+
     /// Runs say whether your fish wore any look. The launch's first run reports which, once, piece by piece; a launch
     /// whose first run is plain reports none.
     @Test func aLaunchsFirstRunReportsTheOutfitAndEveryRunWhetherDressed() {
