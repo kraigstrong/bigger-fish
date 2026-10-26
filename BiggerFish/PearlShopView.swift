@@ -22,8 +22,8 @@ struct PearlShopView: View {
     @State private var shown = false
     @State private var preview = PearlShopPreviewScene()
     #if DEBUG
-    /// Xcode builds: the season's limited editions on sale, whatever the date (`PearlSeason.pretendItsChristmas`).
-    @State private var christmas = PearlSeason.pretendItsChristmas
+    /// Xcode builds: a season's limited editions on sale, whatever the date (`PearlSeason.pretend`).
+    @State private var pretendSeason = PearlSeason.pretend
     #endif
 
     private var shownLook: PlayerLook { trying.map(progress.look.wearing) ?? progress.look }
@@ -70,7 +70,7 @@ struct PearlShopView: View {
         VStack(spacing: 6) {
             ForEach(PearlItem.Kind.allCases, id: \.self) { kind in
                 railButton(.kind(kind), title: kind.title, symbol: kind.symbol,
-                           hasNew: GameTuning.pearlShop.contains { $0.kind == kind && progress.isNew($0) })
+                           hasNew: progress.shelf(kind).contains(where: progress.isNew))
             }
             Rectangle().fill(.white.opacity(0.18)).frame(height: 1).padding(.vertical, 4).padding(.horizontal, 10)
             railButton(.outfits, title: "Outfits", symbol: "hanger", hasNew: false)
@@ -104,7 +104,7 @@ struct PearlShopView: View {
     /// The kind on the shelf, seen: its looks are no longer new (marked as you leave it, so you see what was).
     private func sawShelf() {
         guard case .kind(let kind) = shelf else { return }
-        progress.sawLooks(GameTuning.pearlShop.filter { $0.kind == kind })
+        progress.sawLooks(progress.shelf(kind))
     }
 
     /// The shop's name, your pearls, your fish in what it's wearing (and what it's trying on), and the way to buy it.
@@ -131,9 +131,12 @@ struct PearlShopView: View {
             Button("+\(GameTuning.pearlShopTestGift) pearls (Xcode builds)") { progress.earnPearls(GameTuning.pearlShopTestGift) }
                 .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.6)
                 .buttonStyle(.plain)
-            Button(christmas ? "It's Christmas (Xcode builds)" : "Pretend it's Christmas (Xcode builds)") {
-                christmas.toggle()
-                PearlSeason.pretendItsChristmas = christmas
+            // Round the seasons, then back to the real date.
+            Button("Season: \(pretendSeason?.name ?? "today's date") (Xcode builds)") {
+                let seasons = PearlSeason.all
+                let next = pretendSeason.flatMap { seasons.firstIndex(of: $0) }.map { $0 + 1 } ?? 0
+                pretendSeason = next < seasons.count ? seasons[next] : nil
+                PearlSeason.pretend = pretendSeason
             }
             .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.6)
             .buttonStyle(.plain)
@@ -195,7 +198,7 @@ struct PearlShopView: View {
                 case .kind(let kind):
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 10)], spacing: 10) {
                         tile(nil, kind: kind)
-                        ForEach(GameTuning.pearlShop.filter { $0.kind == kind }) { item in tile(item, kind: kind) }
+                        ForEach(progress.shelf(kind)) { item in tile(item, kind: kind) }
                     }
                     .padding(.bottom, 8)
                 case .outfits:
