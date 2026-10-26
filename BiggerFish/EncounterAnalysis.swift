@@ -332,7 +332,7 @@ private struct RouteGraph {
     /// Other crossings at nearly the same moment, which can block a meal.
     private let simultaneous: [[Int]]
     private final class Steps {
-        struct Key: Hashable { let previous: Int; let next: Int; let area: UInt }
+        struct Key: Hashable { let previous: Int; let next: Int; let area: UInt; let least: UInt }
         var known: [Key: Bool] = [:]
     }
     private let steps = Steps()
@@ -356,17 +356,21 @@ private struct RouteGraph {
     /// Whether a player who has eaten `area` (squared radii), most recently `previous` (nil = start), can eat `next`.
     /// Bigger is never worse, so routes compare by eaten area. The slack search asks the same question many times over,
     /// so the answers are kept.
-    private func canStep(from previous: Int?, area: CGFloat, to next: Int) -> Bool {
-        let key = Steps.Key(previous: previous ?? -1, next: next, area: area.bitPattern)
+    /// `least`: the smallest area a route to the same state could have eaten. Bigger is better for eating, but a
+    /// bigger body has less room past the bigger fish on the way, so the threats are checked for the smallest player
+    /// who could be here and the meal for the biggest: no route that exists is turned down.
+    private func canStep(from previous: Int?, area: CGFloat, least: CGFloat? = nil, to next: Int) -> Bool {
+        let least = min(area, least ?? area)
+        let key = Steps.Key(previous: previous ?? -1, next: next, area: area.bitPattern, least: least.bitPattern)
         if let known = steps.known[key] { return known }
-        let answer = step(from: previous, area: area, to: next)
+        let answer = step(from: previous, area: area, least: least, to: next)
         steps.known[key] = answer
         return answer
     }
 
-    private func step(from previous: Int?, area: CGFloat, to next: Int) -> Bool {
+    private func step(from previous: Int?, area: CGFloat, least: CGFloat, to next: Int) -> Bool {
         let target = meetings[next]
-        let player = radius(eatenArea: area)
+        let player = radius(eatenArea: area), small = radius(eatenArea: least)
         let prey = CGFloat(target.radius)
         guard GameRules.playerEncounter(player, prey) == .firstEatsSecond else { return false }
         let fromTime = previous.map { meetings[$0].time } ?? 0
@@ -391,7 +395,7 @@ private struct RouteGraph {
         let bands = (((previous ?? -1) + 1)..<next).compactMap { index -> ThreatRoutes.Band? in
             let other = meetings[index]
             guard CGFloat(other.radius) > player, other.time < target.time else { return nil }
-            let reach = (player + CGFloat(other.radius)) * GameTuning.collisionScale
+            let reach = (small + CGFloat(other.radius)) * GameTuning.collisionScale
             let closing = other.headOn ? yourSpeed + (other.speed ?? 0) : max(yourSpeed * 0.25, yourSpeed - (other.speed ?? 0))
             let half = Double(reach) / closing
             // Swallowing the last meal keeps you safe for a while; the fish is still there once that's over.
@@ -400,19 +404,19 @@ private struct RouteGraph {
                                      opens: fromTime + swallowed)
         }
         let startSlack = previous.map { (player + CGFloat(meetings[$0].radius)) * EncounterAnalyzer.catchTolerance } ?? 0
-        if !bands.isEmpty {
-            guard ThreatRoutes.swim(from: (fromTime, fromY), to: (target.time, CGFloat(target.y), CGFloat(target.zoom)),
-                                    tolerance: tolerance, startSlack: startSlack, radius: player, bands: bands, reachScale: reachScale)
-            else { return false }
-        }
+        let pastThreats = bands.isEmpty || ThreatRoutes.swim(from: (fromTime, fromY), to: (target.time, CGFloat(target.y), CGFloat(target.zoom)),
+                                                              tolerance: tolerance, startSlack: startSlack, radius: small, bands: bands, reachScale: reachScale)
         if jellies.isEmpty {
+            guard pastThreats else { return false }
             let needed = max(0, abs(CGFloat(target.y) - fromY) - tolerance)
             guard EncounterAnalyzer.verticalReach(seconds: elapsed) * reachScale / CGFloat(target.zoom) >= needed else { return false }
         } else {
+            // A bounce off a dome carries you faster than the threat check allows for, so a step that takes one is
+            // checked for bells alone, as before.
             let to = (time: target.time, y: CGFloat(target.y), zoom: CGFloat(target.zoom))
-            guard JellyRoutes.swim(from: (fromTime, fromY), to: to, tolerance: tolerance, radius: player, jellies: jellies)
+            guard pastThreats && JellyRoutes.swim(from: (fromTime, fromY), to: to, tolerance: tolerance, radius: player, jellies: jellies)
                 || JellyRoutes.bounce(from: (fromTime, fromY), to: to, tolerance: tolerance, radius: player, jellies: jellies,
-                                      startSlack: previous.map { (player + CGFloat(meetings[$0].radius)) * EncounterAnalyzer.catchTolerance } ?? 0)
+                                      startSlack: startSlack)
             else { return false }
         }
         // A bigger fish crossing on top of this one at the same moment makes the meal impossible.
@@ -425,40 +429,47 @@ private struct RouteGraph {
         return true
     }
 
-    /// best[i][c]: the most area eaten by a route whose c-th meal is meeting i (c >= 1), and the meal before it.
-    private func bestAreas() -> (area: [[CGFloat?]], previous: [[Int?]]) {
+    /// best[i][c]: the most area eaten by a route whose c-th meal is meeting i (c >= 1), and the meal before it;
+    /// least[i][c]: the least such area, for the room past the bigger fish on the way.
+    private func bestAreas() -> (area: [[CGFloat?]], least: [[CGFloat?]], previous: [[Int?]]) {
         var best = Array(repeating: Array<CGFloat?>(repeating: nil, count: count + 1), count: count)
+        var least = best
         var previous = Array(repeating: Array<Int?>(repeating: nil, count: count + 1), count: count)
         for i in 0..<count {
             let r = CGFloat(meetings[i].radius)
-            if canStep(from: nil, area: 0, to: i) { best[i][1] = r * r }
+            if canStep(from: nil, area: 0, to: i) { best[i][1] = r * r; least[i][1] = r * r }
             for p in 0..<i {
                 for c in 1..<count {
-                    guard let area = best[p][c], canStep(from: p, area: area, to: i) else { continue }
+                    guard let area = best[p][c], canStep(from: p, area: area, least: least[p][c], to: i) else { continue }
                     if best[i][c + 1].map({ area + r * r > $0 }) ?? true {
                         best[i][c + 1] = area + r * r
                         previous[i][c + 1] = p
                     }
+                    let small = least[p][c]! + r * r
+                    if least[i][c + 1].map({ small < $0 }) ?? true { least[i][c + 1] = small }
                 }
             }
         }
-        return (best, previous)
+        return (best, least, previous)
     }
 
-    /// The most area a route can eat and still reach `target`, ignoring meal counts.
+    /// Whether a route can reach `target`, ignoring meal counts: the most area a route can have eaten at each meal on
+    /// the way, and the least.
     private func reachable(_ target: Int, excluding excluded: Set<Int>) -> Bool {
-        var best = Array<CGFloat?>(repeating: nil, count: count)
+        var best = Array<CGFloat?>(repeating: nil, count: count), least = best
         if canStep(from: nil, area: 0, to: target) { return true }
         for i in 0..<target where !excluded.contains(i) {
             let r = CGFloat(meetings[i].radius)
-            var value: CGFloat? = canStep(from: nil, area: 0, to: i) ? r * r : nil
+            var value: CGFloat? = canStep(from: nil, area: 0, to: i) ? r * r : nil, small = value
             for p in 0..<i where !excluded.contains(p) {
-                if let area = best[p], canStep(from: p, area: area, to: i), value.map({ area + r * r > $0 }) ?? true {
-                    value = area + r * r
+                if let area = best[p], canStep(from: p, area: area, least: least[p], to: i) {
+                    if value.map({ area + r * r > $0 }) ?? true { value = area + r * r }
+                    if small.map({ least[p]! + r * r < $0 }) ?? true { small = least[p]! + r * r }
                 }
             }
             best[i] = value
-            if let value, canStep(from: i, area: value, to: target) { return true }
+            least[i] = small
+            if let value, canStep(from: i, area: value, least: small, to: target) { return true }
         }
         return false
     }
@@ -496,7 +507,7 @@ private struct RouteGraph {
     }
 
     func analysis() -> EncounterAnalysis {
-        let (best, previous) = bestAreas()
+        let (best, _, previous) = bestAreas()
         var maximum = 0
         var results: [EncounterAnalysis.Meeting] = []
         for (index, crossing) in meetings.enumerated() {

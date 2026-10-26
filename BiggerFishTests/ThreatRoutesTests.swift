@@ -31,6 +31,32 @@ struct ThreatRoutesTests {
         #expect(EncounterAnalyzer.analyze(meals + [overtaken]).meeting(fishID: 3)?.minimumMeals == nil)
     }
 
+    /// A bounce off a dome carries you faster than the threat check allows for, so a step that takes one is checked
+    /// for bells alone: a big fish crossing low, nowhere near the bounce, doesn't close the meal high above the dome.
+    @Test func aBounceAssistedStepIsntTurnedDownForAThreatBelowIt() {
+        let jelly = JellyPass(jellyID: 0, time: 2, rim: 200, domeRadius: 40, tentacleLength: 70, speed: 300, zoom: 1)
+        let pocket = Self.crossing(1, at: 1.95, y: 240, radius: 10), high = Self.crossing(2, at: 2.3, y: 380, radius: 10)
+        #expect(EncounterAnalyzer.analyze([pocket, high], jellies: [jelly]).meeting(fishID: 2)?.maximumMeals == 1)
+        let low = Self.crossing(3, at: 2.2, y: 30, radius: 40)
+        #expect(EncounterAnalyzer.analyze([pocket, low, high], jellies: [jelly]).meeting(fishID: 2)?.maximumMeals == 1)
+    }
+
+    /// Bigger is better for eating, but a bigger body has less room past a big fish: the graph keeps the smallest route
+    /// to each state as well as the biggest, so a gap only a smaller player fits through still counts.
+    @Test func aGapOnlyASmallerPlayerFitsStillCounts() {
+        // Two first meals to choose between, one tiny and one big, then a giant filling the water but for a sliver at
+        // the floor, then a meal past it: the player who ate the tiny one fits through.
+        // After the small meal you're 16.96 (a 2-point gap at the floor under the giant), after the big one 19.16 (none),
+        // and the meal past the giant (16.5) is edible after either, not from the start.
+        let water = PlayerTimeline.waterBounds(zoom: 1)
+        let tiny = Self.crossing(1, at: 1, y: 200, radius: 8), big = Self.crossing(2, at: 1.05, y: 60, radius: 15)
+        let giant = Self.crossing(3, at: 2.5, y: water.top, radius: 327.5)
+        let after = Self.crossing(4, at: 3.5, y: 100, radius: 16.5)
+        let analysis = EncounterAnalyzer.analyze([tiny, big, giant, after])
+        #expect(analysis.meeting(fishID: 4)?.minimumMeals == 1 && analysis.meeting(fishID: 4)?.maximumMeals == 1)
+        #expect(analysis.meeting(fishID: 4)?.fewestRoute == [1, 4])
+    }
+
     /// Sunset Cove 12 as shipped: gate 16 (30.9) opens after six meals. At its planned 32.2 the planner counted on a
     /// seventh up top (11 or 13), and the way down from 13 ends between threats 14 and 15: Kraig's 42 runs and his
     /// tester's never got through, and #193 shrank the gate. The check closes the way down from 13; the way down from 11
