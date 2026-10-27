@@ -16,6 +16,7 @@ extension ArcadeWorld {
     }
 }
 
+/// Adventure: the worlds, from the home screen (`ArcadeHome`), with your fish over the one you're on.
 struct ArcadeWorldMap: View {
     @ObservedObject var progress: ArcadeProgress
     /// The unlock is bought (or not on sale): every world is open.
@@ -23,14 +24,8 @@ struct ArcadeWorldMap: View {
     let onSelect: (ArcadeWorld) -> Void
     /// The unlock's screen, featuring the world tapped (nil from the Unlock button).
     let onUnlock: (ArcadeWorld?) -> Void
-    /// Settings: sound, vibration, the tutorial, restoring, privacy and support.
-    let onSettings: () -> Void
-    /// The Open Water, the endless run: a button beside Settings (none in a capture or screen check).
-    var onOpenWater: (() -> Void)? = nil
-    /// The day's free Open Water runs left, without the unlock (`OpenWaterRuns`); nil with it.
-    var openWaterRunsLeft: Int? = nil
-    /// The pearl shop, the Open Water's: a button beside it, showing your pearls.
-    var onPearlShop: (() -> Void)? = nil
+    /// Back to the home screen.
+    let onBack: () -> Void
 
     var body: some View {
         ScreenScaled { size, _ in
@@ -42,11 +37,8 @@ struct ArcadeWorldMap: View {
             let stops = Self.stops(count: worlds.count, in: CGSize(width: size.width, height: spread))
             let width = stops.width
             let centers = stops.centers.map { CGPoint(x: $0.x, y: $0.y + (size.height - spread) / 2) }
-            // The first open world with main levels left, else the last open one.
             let isOpen = { (world: ArcadeWorld) in ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) }
-            let focus = ArcadeWorld.campaign.firstIndex { world in
-                isOpen(world) && progress.clearedCounts(in: world).main < min(world.levelCount, ArcadeWorld.mainLevelCount)
-            } ?? (ArcadeWorld.campaign.lastIndex(where: isOpen) ?? 0)
+            let focus = ArcadeWorld.campaign.firstIndex(of: Self.currentWorld(progress, unlocked: unlocked)) ?? 0
             ZStack(alignment: .topLeading) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ZStack(alignment: .topLeading) {
@@ -67,8 +59,7 @@ struct ArcadeWorldMap: View {
                             // A ring around the world fills in an arc per level beaten; once it's conquered, the ring
                             // turns gold for its Deep End.
                             let deepEnd = complete && world.deepEndCount > 0 ? (cleared: cleared.deepEnd, count: world.deepEndCount) : nil
-                            let crown = WorldCrown.earned(conquered: complete,
-                                                          deepEndCleared: deepEnd.map { $0.cleared >= $0.count } ?? false)
+                            let crown = progress.crown(in: world, unlocked: unlocked)
                             let deepEndLabel = deepEnd.map { ", Deep End \($0.cleared) of \($0.count) cleared" } ?? ""
                             Button { open ? onSelect(world) : onUnlock(world) } label: {
                                 WorldMapStop(title: world.title, world: world,
@@ -87,27 +78,21 @@ struct ArcadeWorldMap: View {
                 // Opened on the world you're on, where your fish waits.
                 .defaultScrollAnchor(UnitPoint(x: Self.scrollAnchor(centering: centers[focus].x, width: width, screenWidth: size.width),
                                                y: 0.5))
-                // The game's name in the bottom corner with what to do beside it, leaving the top row to its buttons: on a
-                // narrow screen (an iPhone SE, the iPhone Duo's outer screen) they need all of it (Kraig, 2026-10-26:
-                // "Title lower left maybe?").
-                HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
-                    Text(width > size.width ? "Choose a world. Swipe to explore." : "Choose a world")
-                        .font(.custom("AvenirNext-DemiBold", size: 13))
-                }
-                .padding(.leading, 24).padding(.bottom, 6)
-                .frame(width: size.width, height: size.height, alignment: .bottomLeading)
-                .allowsHitTesting(false)
+                // Back and Adventure's name along the top, as on a world's levels; the game's name is the home
+                // screen's. When the worlds run past the screen's edge, how to see them along the bottom.
                 HStack(spacing: 14) {
-                    if let onOpenWater {
-                        OpenWaterButton(best: progress.openWaterBest, runsLeft: openWaterRunsLeft, action: onOpenWater)
-                    }
-                    if let onPearlShop { PearlShopButton(pearls: progress.pearls, action: onPearlShop) }
-                    if !unlocked { UnlockButton { onUnlock(nil) } }
-                    SettingsButton(action: onSettings)
+                    MapBackButton(accessibilityLabel: "Back to the home screen", action: onBack)
+                    Text("Adventure").font(.custom("AvenirNext-Heavy", size: 26))
+                    Spacer(minLength: 0)
+                    if !unlocked { UnlockAllButton { onUnlock(nil) } }
                 }
-                .frame(width: size.width - 24, alignment: .trailing)
-                .padding(.top, 14)
+                .padding(.horizontal, 24).padding(.top, 10)
+                if width > size.width {
+                    Text("Swipe to explore.").font(.custom("AvenirNext-DemiBold", size: 12))
+                        .padding(.bottom, 12)
+                        .frame(width: size.width, height: size.height, alignment: .bottom)
+                        .allowsHitTesting(false)
+                }
             }
         }
         .foregroundStyle(.white)
@@ -116,6 +101,16 @@ struct ArcadeWorldMap: View {
 
     /// How far above the world you're on your fish swims.
     static let fishLift: CGFloat = 72
+
+    /// The world you're on: the first open one with main levels left, else the last open one. Your fish waits there on
+    /// the map, which opens scrolled to it.
+    static func currentWorld(_ progress: ArcadeProgress, unlocked: Bool) -> ArcadeWorld {
+        let campaign = ArcadeWorld.campaign
+        let isOpen = { (world: ArcadeWorld) in ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) }
+        return campaign.first { world in
+            isOpen(world) && progress.clearedCounts(in: world).main < min(world.levelCount, ArcadeWorld.mainLevelCount)
+        } ?? campaign.last(where: isOpen) ?? campaign[0]
+    }
 
     /// Where the world map's stops go on a screen `size` big, and how wide the map is: spread across the screen as
     /// they always were when that leaves them at least `GameTuning.worldMapTightestSpacing` apart, and otherwise
@@ -144,91 +139,18 @@ struct ArcadeWorldMap: View {
     }
 }
 
-/// On the world map without the unlock: a small gold way to see what it opens.
-private struct UnlockButton: View {
+/// Back, in a map's top corner: to the home screen from the worlds, to the worlds from a world's levels.
+private struct MapBackButton: View {
+    let accessibilityLabel: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Label("Unlock all", systemImage: "lock.open.fill")
-                .font(.custom("AvenirNext-Heavy", size: 15))
-                .foregroundStyle(Color(red: 0.04, green: 0.12, blue: 0.24))
-                .padding(.horizontal, 16).frame(height: 40)
-                .background(DeepEndColors.gold, in: Capsule())
-                .shadow(color: DeepEndColors.gold.opacity(0.4), radius: 8)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Unlock every world")
-    }
-}
-
-/// On the world map: the way into the Open Water, the endless run, with your best run (in fish eaten) once you have
-/// one. Without the unlock, the day's free runs left instead ("Tomorrow" when they're used up).
-private struct OpenWaterButton: View {
-    let best: Int
-    let runsLeft: Int?
-    let action: () -> Void
-
-    private var detail: String? {
-        if let runsLeft { return runsLeft == 0 ? "Tomorrow" : "\(runsLeft) left" }
-        return best > 0 ? "Best \(best)" : nil
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Label("Open Water", systemImage: "infinity")
-                if let detail {
-                    Text(detail).font(.custom("AvenirNext-DemiBold", size: 14)).monospacedDigit().opacity(0.75)
-                }
-            }
-            .font(.custom("AvenirNext-Heavy", size: 15))
-            .padding(.horizontal, 16).frame(height: 40)
-            .background(Capsule().fill(.white.opacity(0.18)))
-            .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 1.5))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(["Open Water, endless run", runsLeft.map { $0 == 0 ? "no runs left today" : "\($0) left today" }
-                             ?? (best > 0 ? "best \(best) fish" : nil)].compactMap { $0 }.joined(separator: ", "))
-    }
-}
-
-/// On the world map in Xcode builds, beside the Open Water: the pearl shop, with how many pearls you have.
-private struct PearlShopButton: View {
-    let pearls: Int
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 7) {
-                PearlIcon(size: 15)
-                Text("\(pearls)").font(.custom("AvenirNext-Heavy", size: 15)).monospacedDigit()
-            }
-            .padding(.horizontal, 14).frame(height: 40)
-            .background(Capsule().fill(.white.opacity(0.18)))
-            .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 1.5))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Pearl shop, \(pearls) pearls")
-    }
-}
-
-/// On the world map: the gear that opens Settings.
-private struct SettingsButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: 18, weight: .bold))
-                .frame(width: 40, height: 40)
-                .background(Circle().fill(.white.opacity(0.18)))
-                .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
+            Image(systemName: "chevron.left").font(.system(size: 18, weight: .bold))
                 .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Settings")
+                .background(.black.opacity(0.25), in: Circle())
+                .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
+        }.buttonStyle(.plain).accessibilityLabel(accessibilityLabel)
     }
 }
 
@@ -311,12 +233,7 @@ struct ArcadeLevelMap: View {
                     .onAppear { proxy.scrollTo("level-\(focus)", anchor: .center) }
                 }
                 HStack(spacing: 14) {
-                    Button(action: onBack) {
-                        Image(systemName: "chevron.left").font(.system(size: 18, weight: .bold))
-                            .frame(width: 44, height: 44)
-                            .background(.black.opacity(0.25), in: Circle())
-                            .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5))
-                    }.buttonStyle(.plain).accessibilityLabel("Back to worlds")
+                    MapBackButton(accessibilityLabel: "Back to worlds", action: onBack)
                     Text(world.title).font(.custom("AvenirNext-Heavy", size: 26))
                     WorldProgressBar(progress: WorldProgress(world: world, level: 0) { progress.isCleared(world, $0) })
                     Spacer(minLength: 0)

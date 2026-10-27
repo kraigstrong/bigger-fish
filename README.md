@@ -17,14 +17,15 @@ and backed up to the player's own iCloud, so they come back after a reinstall an
 device; the two copies merge so that syncing never un-clears a level.
 
 Free to try: all of Shallow Reef, plus two levels of each other world; a one-time purchase opens every world
-from the start and every Deep End (`ArcadeUnlock.swift`). From 1.1, the endless run, **Open Water** (`OpenWater.swift`,
-from the world map's button; Xcode builds can launch with `-openWater <seed>`): round the worlds a stage at a time (`GameTuning.openWaterWorlds`), each a new level dealt like that world's level 5 on stage 1, 6 on stage 2, and on,
+from the start and every Deep End (`ArcadeUnlock.swift`). From 1.1, the home screen (`ArcadeHome.swift`) offers two
+ways to play: **Adventure**, the campaign's world map, and the endless run, **Open Water** (`OpenWater.swift`; Xcode builds can launch with `-openWater <seed>`): round the worlds a stage at a time (`GameTuning.openWaterWorlds`), each a new level dealt like that world's level 5 on stage 1, 6 on stage 2, and on,
 planned as the run reaches it. Eating a level's last gate ends it and shrinks you back to your starting size for the
 next world; being eaten ends the run. Pearls sit beside the big fish, a few a level (`OpenWater.pearls`): touch one to take it. Fish eaten and pearls count at the top.
 A run's score is the fish it ate: the best is kept (`ArcadeProgress.openWaterBest`, synced with progress) and shown on
-the run's card and the map's Open Water button.
+the run's card and the home screen's Open Water button.
 Pearls are kept (`ArcadeProgress.pearls`, synced with progress) and spent in the **pearl shop** (`PearlShop.swift`,
-`PearlShopView.swift`, the list and prices in `GameTuning.pearlShop`), from the map's pearl button or a run's card:
+`PearlShopView.swift`, the list and prices in `GameTuning.pearlShop`), from the home screen's Shop button (or your fish
+there) or a run's card:
 body colors, patterns, hats, faces, and trails for your fish, worn everywhere it swims, never making it look bigger. Limited
 editions are on sale only in their season (`PearlSeason`; Christmas's Dec 1 – Jan 6, Valentine's Feb 1 – 15), and kept
 all year once bought. A look is never taken out of the shop, since a player may own it: retire it (`PearlItem.retired`:
@@ -66,7 +67,10 @@ diff -rq build/draw-order/before build/draw-order/after
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
-  - `ArcadeMaps.swift` — world selection (scrolling sideways when the worlds don't fit the screen) and the level
+  - `ArcadeHome.swift` — the home screen: your fish and the Shop on the left, Adventure (a crown per world; for a
+    new player, "Start here" and how a level is won) and the Open Water (your best, the day's free runs) on the
+    right. Its two pictures are drawn by `IconographyTests` (`ModeAdventure`, `ModeOpenWater`)
+  - `ArcadeMaps.swift` — Adventure's world map (scrolling sideways when the worlds don't fit the screen) and the level
     paths (one stop per level)
   - `ScreenFit.swift` — the iPad: every level plays at the same fixed playfield (`GameTuning.playfieldSize`),
     fitted to the screen's width with its world's water in a band above and below (a touch in a band still
@@ -75,7 +79,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     (`UIRequiresFullScreen`), so it doesn't join Split View or resize in Stage Manager. An iPhone Duo still resizes
     the app as it opens and closes: the same fitting draws a level on either screen, and a level in play pauses
     (`GameScene.screenDidResize`)
-  - `SettingsView.swift` — Settings from the world map's gear: sound, music, vibration, replaying the tutorial,
+  - `SettingsView.swift` — Settings from the home screen's gear: sound, music, vibration, replaying the tutorial,
     restoring the unlock, the privacy policy and support (biggerfish.app), the credits, and the version
   - `CreditsScene.swift` / `ArcadeCredits.swift` / `Credits.json` — the credits, played: from Settings, a calm swim
     where every name is a fish to eat (design, the play-testers, then the music and sound credits), with a thank-you for each
@@ -337,11 +341,11 @@ For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4`
 plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save, which never
 syncs to iCloud.
 Add `-arcadeResult passed` or `-arcadeResult failed` to preview its result panel without recording a
-clear. Remove the arguments to return to the normal world map and real campaign progress.
+clear. Remove the arguments to return to the normal home screen and real campaign progress.
 
 To check a screen's layout at a device's size (an iPad, a small phone), `-arcadeScreen <screen>` opens it at launch:
-`worlds`, `settings`, `unlock`, `conquered`, `credits`, `tutorial`, or `pause` (with `-arcadePlaytest` for the
-level to pause). It plays in a staged save of its own (`biggerFish.screen`: Shallow Reef conquered, the tutorial
+`home`, `new-player` (the home screen as the tutorial leaves a new player on it), `worlds`, `settings`, `unlock`,
+`conquered`, `credits`, `tutorial`, `shop`, or `pause` (with `-arcadePlaytest` for the level to pause). It plays in a staged save of its own (`biggerFish.screen`: Shallow Reef conquered, the tutorial
 seen), which never syncs to iCloud. Add `-arcadeMap <world ID>` for a level map, `-arcadeUnlocked YES` or `NO` for
 either side of the unlock, or `-arcadePlaytest` with `-arcadeResult` for a result card. `-arcadeScreenCapture <name>`
 saves the screen once it settles, at full resolution, to the app's `Documents/ScreenCheck/<name>.png`: an iPad

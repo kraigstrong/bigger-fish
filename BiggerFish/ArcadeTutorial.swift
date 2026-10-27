@@ -52,7 +52,7 @@ enum ArcadeTutorial {
         }
     }
 
-    /// The line it ends on before fading to the map.
+    /// The line it ends on before fading to the home screen.
     static let finale = "Now you're ready to play!"
 
     /// Your radius at the start of a beat, eating what the beats before it fed you.

@@ -13,6 +13,8 @@ struct ContentView: View {
     @StateObject private var openWaterRuns = OpenWaterRuns()
     @State private var analytics = ArcadeAnalytics()
     @State private var metricsLaunched = false
+    /// Adventure's world map, from the home screen; without it (and no world chosen), the home screen.
+    @State private var showsWorlds = false
     @State private var selectedWorld: ArcadeWorld?
     @State private var scene: GameScene?
     /// The level's pause menu is up (`GameScene.onPause`).
@@ -36,7 +38,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     /// The unlock's screen, featuring the world the player was trying to get into.
     @State private var offer: UnlockOffer?
-    /// Settings, from the gear on the world map.
+    /// Settings, from the gear on the home screen.
     @State private var showsSettings = false
     /// The credits game, from Settings (`CreditsScene`). Settings stays open underneath, so leaving goes back to it.
     @State private var credits: CreditsScene?
@@ -49,7 +51,7 @@ struct ContentView: View {
     #endif
     /// An Open Water run's first level is being planned (`playOpenWater`).
     @State private var startingOpenWater = false
-    /// The pearl shop, from the world map or an Open Water run's result card (which waits under it).
+    /// The pearl shop, from the home screen or an Open Water run's result card (which waits under it).
     @State private var showsShop = false
     /// The pearl shop's visit while it's open, for the stats (`ArcadeAnalytics.shopVisited`).
     @State private var shopVisit: ArcadeAnalytics.ShopVisit?
@@ -66,16 +68,20 @@ struct ContentView: View {
             } else if let world = selectedWorld {
                 ArcadeLevelMap(world: world, progress: progress, unlocked: unlocked, returnedFrom: returnedFrom,
                                advancedFrom: advancedFrom,
-                               onBack: { selectedWorld = nil; returnedFrom = nil; advancedFrom = nil },
+                               onBack: { selectedWorld = nil; returnedFrom = nil; advancedFrom = nil; showsWorlds = true },
                                onPlay: { play(world, index: $0) })
-            } else {
+            } else if showsWorlds {
                 ArcadeWorldMap(progress: progress, unlocked: unlocked, onSelect: { selectedWorld = $0; returnedFrom = nil },
                                onUnlock: { world in
                                    withAnimation { offer = UnlockOffer(featured: world, source: world == nil ? .unlockAll : .lockedWorld) }
                                },
-                               onSettings: { withAnimation { showsSettings = true } },
-                               onOpenWater: openWaterAction, openWaterRunsLeft: limitsOpenWater ? openWaterRuns.left() : nil,
-                               onPearlShop: pearlShopAction)
+                               onBack: { showsWorlds = false })
+            } else {
+                ArcadeHome(progress: progress, unlocked: unlocked,
+                           openWaterRunsLeft: limitsOpenWater ? openWaterRuns.left() : nil,
+                           onAdventure: openAdventure, onOpenWater: { playOpenWater() }, onShop: { openShop(from: .map) },
+                           onUnlock: { withAnimation { offer = UnlockOffer(featured: nil, source: .unlockAll) } },
+                           onSettings: { withAnimation { showsSettings = true } })
             }
         }
         .overlay {
@@ -190,6 +196,8 @@ struct ContentView: View {
             #if DEBUG
             StoreCapture.begin()
             StoreFootage.begin()
+            // App Store captures and footage open on the world map, as 1.0's did: never the home screen.
+            if StoreCapture.moment != nil || StoreFootage.request != nil { showsWorlds = true }
             if scene == nil, let world = ArcadePlaytest.mapSelection {
                 selectedWorld = world
             }
@@ -211,7 +219,8 @@ struct ContentView: View {
     private func open(_ screen: ArcadePlaytest.Screen) {
         ArcadePlaytest.captureScreen()
         switch screen {
-        case .worlds: break
+        case .home, .newPlayer: break
+        case .worlds: showsWorlds = true
         case .settings: showsSettings = true
         case .unlock: offer = UnlockOffer(featured: .jellyBloom, source: nil)
         case .conquered:
@@ -244,7 +253,7 @@ struct ContentView: View {
         withAnimation { celebrating = world }
     }
 
-    /// On a map with nothing else on screen (no unlock, conquered, or Settings screen), after a win, with the app in front: the moment to ask for a review, if
+    /// On the home screen or a map with nothing else on screen (no unlock, conquered, or Settings screen), after a win, with the app in front: the moment to ask for a review, if
     /// one is due. (In the background or under Notification Center, a request may show nothing yet use up an ask.)
     private var quietOnMap: Bool {
         loaded && scenePhase == .active && scene == nil && celebrating == nil && offer == nil && !showsSettings && lastPlayWon
@@ -272,7 +281,7 @@ struct ContentView: View {
         if let celebrating { return HitchContext(celebrationOffer == nil ? .conquered : .unlock, detail: celebrating.rawValue) }
         if showsSettings { return HitchContext(.settings) }
         if let selectedWorld { return HitchContext(.levelMap, detail: selectedWorld.rawValue) }
-        return HitchContext(.worldMap)
+        return HitchContext(showsWorlds ? .worldMap : .home)
     }
     #endif
 
@@ -305,7 +314,7 @@ struct ContentView: View {
         // The prototypes plan their levels in code; behind the map, so a level opens at once.
         Task.detached(priority: .utility) { _ = ArcadeWorld.prototypes.map(\.levels.count) }
         #endif
-        // A new player starts with the tutorial, then lands on Shallow Reef (not a level launched for playtesting).
+        // A new player starts with the tutorial, then lands on the home screen (not a level launched for playtesting).
         var startsWithTutorial = progress.needsTutorial
         #if DEBUG
         startsWithTutorial = startsWithTutorial && ArcadePlaytest.selection == nil && ArcadePlaytest.openWaterSeed == nil
@@ -314,7 +323,7 @@ struct ContentView: View {
             playTutorial()
             return
         }
-        // Players who beat a tenth level before its unlock screen existed see it once, on the world map. It's only
+        // Players who beat a tenth level before its unlock screen existed see it once, over the home screen. It's only
         // counted as seen if it shows: someone who taps into a level in the moment before keeps it for next time.
         if let world = progress.unseenUnlock {
             try? await Task.sleep(for: .seconds(0.5))
@@ -343,7 +352,7 @@ struct ContentView: View {
     /// The Open Water, the endless run (`OpenWater`): no campaign progress, but its runs are reported their own way
     /// (`ArcadeAnalytics.startOpenWater`).
     /// Its first level is planned off the main thread first (planning one takes a moment); leaving goes back to the
-    /// world map.
+    /// home screen.
     private func playOpenWater(seed: UInt64 = .random(in: 1...UInt64(UInt32.max)), from start: Int = 0) {
         guard !startingOpenWater else { return }
         // The day's free runs used up: what the unlock opens, and when more come.
@@ -380,15 +389,16 @@ struct ContentView: View {
         }
     }
 
-    /// The world map's way into the Open Water: never in a capture or screen check (Xcode builds).
-    private var openWaterAction: (() -> Void)? {
-        #if DEBUG
-        guard StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil else { return nil }
-        #endif
-        return { playOpenWater() }
+    /// Adventure, from the home screen: the world map, your fish over the world you're on. (Kraig, 2026-10-26, after
+    /// it first opened that world's levels: "I think I'd want to see the world map".)
+    private func openAdventure() {
+        selectedWorld = nil
+        returnedFrom = nil
+        advancedFrom = nil
+        showsWorlds = true
     }
 
-    /// Opens the pearl shop, from the world map or an Open Water run's card: a visit begins.
+    /// Opens the pearl shop, from the home screen or an Open Water run's card: a visit begins.
     private func openShop(from source: ArcadeAnalytics.ShopSource) {
         shopVisit = ArcadeAnalytics.ShopVisit(source: source, wallet: progress.pearls, hadBought: progress.hasBoughtALook)
         withAnimation { showsShop = true }
@@ -400,20 +410,13 @@ struct ContentView: View {
         withAnimation { showsShop = false }
     }
 
-    /// Looks earned so far, each reported once: checked at launch and whenever the world map comes back.
+    /// Looks earned so far, each reported once: checked at launch and whenever a level or run ends.
     private func reportEarnedLooks() {
         analytics.earned(progress.earnedLooks.map(\.id))
     }
 
-    /// The world map's way into the pearl shop: never in a capture or screen check (Xcode builds).
-    private var pearlShopAction: (() -> Void)? {
-        #if DEBUG
-        guard StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil else { return nil }
-        #endif
-        return { openShop(from: .map) }
-    }
-
-    /// The first-launch tutorial (`ArcadeTutorial`): seen once however it ends, then on to Shallow Reef's levels.
+    /// The first-launch tutorial (`ArcadeTutorial`): seen once however it ends, then the home screen, where Adventure
+    /// says to start there.
     /// `beat` (Xcode builds, from the tuner): start partway, to playtest one beat.
     private func playTutorial(from beat: ArcadeTutorial.Beat = .holdToRise) {
         let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
@@ -425,10 +428,11 @@ struct ContentView: View {
         game.onTutorialFinished = { progress.sawTutorial() }
         game.onExit = {
             progress.sawTutorial()
-            // A gentle fade to Shallow Reef's map, not a cut.
+            // A gentle fade to the home screen, not a cut.
             withAnimation(.easeInOut(duration: 0.7)) {
                 scene = nil
-                selectedWorld = .shallowReef
+                selectedWorld = nil
+                showsWorlds = false
                 returnedFrom = nil
             }
         }

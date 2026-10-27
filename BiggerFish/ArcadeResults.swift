@@ -3,7 +3,7 @@ import UIKit
 
 /// Arcade-owned destinations; one prominent action keeps each result moving forward.
 enum ArcadeResultAction: Equatable {
-    case nextLevel, playAgain, tryAgain, levels, world, shop, unlock
+    case nextLevel, playAgain, tryAgain, levels, world, home, shop, unlock
 
     var title: String {
         switch self {
@@ -12,17 +12,18 @@ enum ArcadeResultAction: Equatable {
         case .tryAgain: "Retry"
         case .levels: "Levels"
         case .world: "Back to world"
+        case .home: "Home"
         case .shop: "Shop"
         case .unlock: "Unlock all"
         }
     }
 
     /// `retryOnly`: the tutorial's, where being eaten just tries again. `shop`: an Open Water run's end, where the
-    /// pearl shop sits between trying again and leaving; `outOfRuns`, the day's free runs used up, where the unlock
-    /// stands in for trying again.
+    /// pearl shop sits between trying again and leaving for the home screen (there's no level map to go back to);
+    /// `outOfRuns`, the day's free runs used up, where the unlock stands in for trying again.
     static func choices(passed: Bool, hasNext: Bool, retryOnly: Bool = false, shop: Bool = false, outOfRuns: Bool = false) -> [Self] {
         if retryOnly && !passed { return [.tryAgain] }
-        if shop && !passed { return [outOfRuns ? .unlock : .tryAgain, .shop, .levels] }
+        if shop && !passed { return [outOfRuns ? .unlock : .tryAgain, .shop, .home] }
         if passed && hasNext { return [.nextLevel, .playAgain, .levels] }
         return passed ? [.world, .playAgain] : [.tryAgain, .levels]
     }
