@@ -107,6 +107,9 @@ final class GameScene: SKScene {
     #if DEBUG
     /// The game's way of planning, for a test of a headless study (`plansOpenWaterAhead`).
     var debugPlansOpenWaterAhead = false
+    /// Each level planned as it's reached, as a headless study plans: for footage drawn a frame at a time
+    /// (`StoreFootage`), which a plan made off the main thread couldn't reach until it's done.
+    var debugPlansOpenWaterInline = false
     #endif
     /// The level's last gate, which ends it once you eat it; other fish can't eat it, nor it them.
     private var openWaterFinale: Int?
@@ -4696,7 +4699,7 @@ extension GameScene {
     /// it instead, so they play the same however fast they run.
     private var plansOpenWaterAhead: Bool {
         #if DEBUG
-        return !simulationHeadless || debugPlansOpenWaterAhead
+        return (!simulationHeadless || debugPlansOpenWaterAhead) && !debugPlansOpenWaterInline
         #else
         return true
         #endif
@@ -5068,8 +5071,15 @@ extension GameScene {
         startRun()
     }
 
-    /// No pause button, level name, or card over the frame.
-    func debugHideInterface() { uiLayer.isHidden = true }
+    /// No pause button, level name, or card over the frame. An Open Water run keeps its fish and pearls counted at the
+    /// top, where they show pearls being taken.
+    func debugHideInterface() {
+        guard openWater != nil else {
+            uiLayer.isHidden = true
+            return
+        }
+        for node in uiLayer.children where node !== openWaterCounts { node.isHidden = true }
+    }
 
     /// One display frame of `seconds`, played and drawn as `update` does, specks and sun rays included: for footage
     /// recorded a frame at a time (`StoreFootage`).

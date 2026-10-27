@@ -63,7 +63,26 @@ struct PearlShopView: View {
         }
         .onChange(of: shownLook) { _, look in preview.look = look }
         .onDisappear { sawShelf() }
+        #if DEBUG
+        .task { if StoreFootage.shopTour { await tour() } }
+        #endif
     }
+
+    #if DEBUG
+    /// Footage of the shop (`StoreFootage.shopTour`): each look's shelf, the look tried on, then bought.
+    private func tour() async {
+        for step in StoreFootage.shopTourSteps {
+            try? await Task.sleep(for: .seconds(step.wait))
+            guard let item = PearlItem.item(step.item) else { continue }
+            if step.buys {
+                if progress.buy(item) { trying = nil }
+            } else {
+                if shelf != .kind(item.kind) { shelf = .kind(item.kind) }
+                trying = item
+            }
+        }
+    }
+    #endif
 
     // MARK: The rail
 
@@ -142,7 +161,7 @@ struct PearlShopView: View {
             action.opacity(showsHints ? 0 : 1)
             #if DEBUG
             Button("+\(GameTuning.pearlShopTestGift) pearls (Xcode builds)") { progress.earnPearls(GameTuning.pearlShopTestGift) }
-                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints ? 0 : 0.6)
+                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints || StoreFootage.shopTour ? 0 : 0.6)
                 .buttonStyle(.plain)
             // Round the seasons, then back to the real date.
             Button("Season: \(pretendSeason?.name ?? "today's date") (Xcode builds)") {
@@ -151,7 +170,7 @@ struct PearlShopView: View {
                 pretendSeason = next < seasons.count ? seasons[next] : nil
                 PearlSeason.pretend = pretendSeason
             }
-            .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints ? 0 : 0.6)
+            .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints || StoreFootage.shopTour ? 0 : 0.6)
             .buttonStyle(.plain)
             #endif
         }

@@ -3,7 +3,8 @@
 #
 #   scripts/bigger-fish-trailer.sh
 #
-# Records the footage scripts/trailer/edl.json needs that isn't in build/footage/ yet (scripts/bigger-fish-footage.sh),
+# Records the footage scripts/trailer/edl.json needs that isn't in build/footage/ yet (scripts/bigger-fish-footage.sh:
+# levels, Open Water runs as open-water.<seed>, and the pearl shop's tour as shop-tour),
 # renders the captions in the game's typeface (scripts/trailer/captions.py), and composes the cut over the game's
 # music (scripts/trailer/compose.py). Output goes to build/trailer/ (ignored by git):
 #   bigger-fish-trailer.mp4       1920x886, 60 fps, ending on the release line: for biggerfish.app
@@ -28,6 +29,10 @@ missing=$(python3 - "$EDL" "$FOOTAGE" <<'EOF'
 import json, os, re, sys
 edl, footage = sys.argv[1:3]
 for name in sorted({shot['footage'] for shot in json.load(open(edl))['shots']}):
+    if name == 'shop-tour':
+        if not os.path.exists(os.path.join(footage, name + '.mp4')):
+            print('shop - - -')
+        continue
     match = re.fullmatch(r'([a-z-]+\.\d+)-(collector|opportunist|cautious)-([\d.]+)-([\d.]+)', name)
     if not match:
         sys.exit(f'not a recording name: {name}')
@@ -38,8 +43,13 @@ EOF
 built=0
 while read -r level policy from to; do
     [ -n "$level" ] || continue
-    echo "recording $level ($policy bot, $from-${to}s)"
-    FOOTAGE_NO_BUILD=$built scripts/bigger-fish-footage.sh "$level" "$policy" "$from" "$to" >/dev/null </dev/null
+    if [ "$level" = shop ]; then
+        echo "recording the pearl shop's tour"
+        FOOTAGE_NO_BUILD=$built scripts/bigger-fish-footage.sh --shop >/dev/null </dev/null
+    else
+        echo "recording $level ($policy bot, $from-${to}s)"
+        FOOTAGE_NO_BUILD=$built scripts/bigger-fish-footage.sh "$level" "$policy" "$from" "$to" >/dev/null </dev/null
+    fi
     built=1
 done <<< "$missing"
 
