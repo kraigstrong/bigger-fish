@@ -276,43 +276,37 @@ import UIKit
         return cove
     }
 
-    /// Adventure: a treasure map, its dotted trail winding from the player's little orange fish past a stop in each
-    /// world's color, in the map's order, to a gold crown.
+    /// Adventure: the world map in a pool of lagoon water, its dotted trail winding from the player's little orange fish
+    /// past a stop in each world's color, in the map's order, to a gold crown.
     private func adventure() -> SKNode {
         let map = SKNode()
         let side = Self.tile
-        let ink = UIColor(red: 0.52, green: 0.32, blue: 0.15, alpha: 1)
-        let parchment = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
+        let ink = UIColor(red: 0.04, green: 0.12, blue: 0.24, alpha: 1)
+        let lagoon = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
             let cg = context.cgContext
-            let disc = CGRect(x: side * 0.03, y: side * 0.03, width: side * 0.94, height: side * 0.94)
-            cg.saveGState()
-            cg.addEllipse(in: disc)
+            cg.addEllipse(in: CGRect(x: side * 0.03, y: side * 0.03, width: side * 0.94, height: side * 0.94))
             cg.clip()
-            let paper = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                colors: [UIColor(red: 1, green: 0.95, blue: 0.8, alpha: 1).cgColor,
-                         UIColor(red: 0.93, green: 0.79, blue: 0.56, alpha: 1).cgColor] as CFArray, locations: [0, 1])!
-            cg.drawRadialGradient(paper, startCenter: CGPoint(x: side / 2, y: side * 0.44), startRadius: 0,
-                                  endCenter: CGPoint(x: side / 2, y: side / 2), endRadius: side * 0.5, options: [.drawsAfterEndLocation])
-            // A few faint stains, as an old map has.
-            cg.setFillColor(ink.withAlphaComponent(0.07).cgColor)
-            for (x, y, r) in [(0.72, 0.3, 0.13), (0.25, 0.68, 0.1), (0.62, 0.78, 0.07)] {
-                cg.fillEllipse(in: CGRect(x: side * (x - r), y: side * (y - r), width: side * r * 2, height: side * r * 2))
+            let water = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [UIColor(red: 0.36, green: 0.86, blue: 0.84, alpha: 1).cgColor,
+                         UIColor(red: 0.12, green: 0.55, blue: 0.62, alpha: 1).cgColor,
+                         UIColor(red: 0.05, green: 0.27, blue: 0.40, alpha: 1).cgColor] as CFArray, locations: [0, 0.5, 1])!
+            cg.drawLinearGradient(water, start: .zero, end: CGPoint(x: 0, y: side), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+            // Soft patches of light, as sun makes in shallow water.
+            cg.setFillColor(UIColor(white: 1, alpha: 0.07).cgColor)
+            for (x, y, r) in [(0.3, 0.26, 0.16), (0.74, 0.5, 0.12), (0.4, 0.72, 0.1)] {
+                cg.fillEllipse(in: CGRect(x: side * (x - r), y: side * (y - r * 0.6), width: side * r * 2, height: side * r * 1.2))
             }
-            cg.restoreGState()
-            cg.setStrokeColor(ink.withAlphaComponent(0.85).cgColor)
-            cg.setLineWidth(6)
-            cg.strokeEllipse(in: disc.insetBy(dx: 3, dy: 3))
         }
-        let paper = SKSpriteNode(texture: SKTexture(image: parchment))
-        paper.zPosition = -5
-        map.addChild(paper)
+        let pool = SKSpriteNode(texture: SKTexture(image: lagoon))
+        pool.zPosition = -5
+        map.addChild(pool)
         // The fish at the trail's start, a stop for each world, the crown at its end: all of it centered on the map and
         // inside its rim, the fish level.
         let route = [CGPoint(x: -62, y: -66), CGPoint(x: -2, y: -86), CGPoint(x: 58, y: -60), CGPoint(x: 28, y: -12),
                      CGPoint(x: -32, y: 12), CGPoint(x: -12, y: 64), CGPoint(x: 50, y: 66)]
         for dot in dots(along: route, spacing: 15) {
             let node = SKShapeNode(circleOfRadius: 4)
-            node.fillColor = ink.withAlphaComponent(0.8)
+            node.fillColor = UIColor(white: 1, alpha: 0.75)
             node.strokeColor = .clear
             node.position = dot
             node.zPosition = -2

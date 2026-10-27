@@ -16,7 +16,7 @@ extension ArcadeWorld {
     }
 }
 
-/// Adventure's worlds, one step back from the levels of the world you're on (`ArcadeHome` opens those).
+/// Adventure: the worlds, from the home screen (`ArcadeHome`), with your fish over the one you're on.
 struct ArcadeWorldMap: View {
     @ObservedObject var progress: ArcadeProgress
     /// The unlock is bought (or not on sale): every world is open.
@@ -103,7 +103,7 @@ struct ArcadeWorldMap: View {
     static let fishLift: CGFloat = 72
 
     /// The world you're on: the first open one with main levels left, else the last open one. Your fish waits there on
-    /// the map, and Adventure opens its levels.
+    /// the map, which opens scrolled to it.
     static func currentWorld(_ progress: ArcadeProgress, unlocked: Bool) -> ArcadeWorld {
         let campaign = ArcadeWorld.campaign
         let isOpen = { (world: ArcadeWorld) in ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) }

@@ -12,7 +12,7 @@ struct ArcadeHome: View {
     let unlocked: Bool
     /// The day's free Open Water runs left, without the unlock (`OpenWaterRuns`); nil with it.
     var openWaterRunsLeft: Int? = nil
-    /// Into the worlds, at the one you're on.
+    /// Adventure's world map.
     let onAdventure: () -> Void
     let onOpenWater: () -> Void
     let onShop: () -> Void

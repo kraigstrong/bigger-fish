@@ -362,8 +362,8 @@ struct PearlShopTests {
     // MARK: The run's card
 
     @Test func anOpenWaterRunsCardOffersTheShop() {
-        #expect(ArcadeResultAction.choices(passed: false, hasNext: true, shop: true) == [.tryAgain, .shop, .levels])
-        #expect(ArcadeResultAction.choices(passed: false, hasNext: true, shop: true, outOfRuns: true) == [.unlock, .shop, .levels])
+        #expect(ArcadeResultAction.choices(passed: false, hasNext: true, shop: true) == [.tryAgain, .shop, .home])
+        #expect(ArcadeResultAction.choices(passed: false, hasNext: true, shop: true, outOfRuns: true) == [.unlock, .shop, .home])
         #expect(ArcadeResultAction.choices(passed: false, hasNext: true) == [.tryAgain, .levels])
     }
 }

@@ -13,7 +13,7 @@ struct ContentView: View {
     @StateObject private var openWaterRuns = OpenWaterRuns()
     @State private var analytics = ArcadeAnalytics()
     @State private var metricsLaunched = false
-    /// Adventure's world map, from Back on a world's levels; without it (and no world chosen), the home screen.
+    /// Adventure's world map, from the home screen; without it (and no world chosen), the home screen.
     @State private var showsWorlds = false
     @State private var selectedWorld: ArcadeWorld?
     @State private var scene: GameScene?
@@ -389,12 +389,13 @@ struct ContentView: View {
         }
     }
 
-    /// Adventure, from the home screen: straight to the levels of the world you're on, with all the worlds one step back.
+    /// Adventure, from the home screen: the world map, your fish over the world you're on. (Kraig, 2026-10-26, after
+    /// it first opened that world's levels: "I think I'd want to see the world map".)
     private func openAdventure() {
-        showsWorlds = true
+        selectedWorld = nil
         returnedFrom = nil
         advancedFrom = nil
-        selectedWorld = ArcadeWorldMap.currentWorld(progress, unlocked: unlocked)
+        showsWorlds = true
     }
 
     /// Opens the pearl shop, from the home screen or an Open Water run's card: a visit begins.

@@ -2,7 +2,8 @@ import Foundation
 import Testing
 @testable import BiggerFish
 
-/// The home screen: Adventure's crowns and where it opens, what it tells a new player, and the Open Water's lines.
+/// The home screen: Adventure's crowns and the world its map waits on, what it tells a new player, and the Open Water's
+/// lines.
 @MainActor
 struct ArcadeHomeTests {
     private func fresh() -> ArcadeProgress {
@@ -27,8 +28,8 @@ struct ArcadeHomeTests {
         #expect(progress.crown(in: .kelpForest, unlocked: true) == .none)
     }
 
-    /// Adventure opens the levels of the world you're on: the first with main levels left, else the last.
-    @Test func adventureOpensTheWorldYoureOn() {
+    /// Adventure's map waits on the world you're on: the first with main levels left, else the last.
+    @Test func adventuresMapWaitsOnTheWorldYoureOn() {
         let progress = fresh()
         #expect(ArcadeWorldMap.currentWorld(progress, unlocked: true) == .shallowReef)
         clearAll(.shallowReef, in: progress)

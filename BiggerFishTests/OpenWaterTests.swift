@@ -199,9 +199,9 @@ struct OpenWaterTests {
         #expect(scene.debugResultDetail?.hasSuffix("· 1 pearl") == true)
         // The run's pearl counts up into the rest on the Shop button.
         #expect(scene.debugResultShownShopPearls == 9 && scene.debugResultShopPearls == 10)
-        #expect(scene.debugResultTitles == ["Retry", "Shop", "Levels"])
+        #expect(scene.debugResultTitles == ["Retry", "Shop", "Home"])
         scene.debugTapResult(.shop)
-        #expect(shopped == 1 && scene.debugResultTitles == ["Retry", "Shop", "Levels"])
+        #expect(shopped == 1 && scene.debugResultTitles == ["Retry", "Shop", "Home"])
     }
 
     /// Without the unlock, a run is one of the day's free runs once it takes its first pearl (Kraig, 2026-10-26: "first
@@ -224,7 +224,7 @@ struct OpenWaterTests {
         #expect(counted == 1 && left == 0)
         scene.debugLose()
         #expect(scene.debugResultNote == "\(GameTuning.freeOpenWaterRunsPerDay) more runs tomorrow")
-        #expect(scene.debugResultTitles == ["Unlock all", "Shop", "Levels"])
+        #expect(scene.debugResultTitles == ["Unlock all", "Shop", "Home"])
         #expect(!scene.leftForUnlock)
         scene.debugTapResult(.unlock)
         #expect(exits == 1 && scene.leftForUnlock)
@@ -237,7 +237,7 @@ struct OpenWaterTests {
         _ = another.debugPlayOpenWater(untilLevel: 0, limit: 1)
         another.debugLose()
         #expect(another.debugResultNote == "Best: 40 fish · 3 runs left today")
-        #expect(another.debugResultTitles == ["Retry", "Shop", "Levels"])
+        #expect(another.debugResultTitles == ["Retry", "Shop", "Home"])
         // None left now (as when a run's first pearl took the day's last): Restart, mid-run, goes to the unlock.
         var anotherExits = 0
         another.openWaterRunsLeft = { 0 }
@@ -253,11 +253,11 @@ struct OpenWaterTests {
         overnight.onExit = { overnightExits += 1 }
         _ = overnight.debugPlayOpenWater(untilLevel: 0, limit: 1)
         overnight.debugLose()
-        #expect(overnight.debugResultTitles == ["Unlock all", "Shop", "Levels"])
+        #expect(overnight.debugResultTitles == ["Unlock all", "Shop", "Home"])
         renewed = GameTuning.freeOpenWaterRunsPerDay
         overnight.debugTapResult(.unlock)
         #expect(overnightExits == 0 && !overnight.leftForUnlock)
-        #expect(overnight.debugResultTitles == ["Retry", "Shop", "Levels"])
+        #expect(overnight.debugResultTitles == ["Retry", "Shop", "Home"])
         #expect(overnight.debugResultNote == "\(GameTuning.freeOpenWaterRunsPerDay) runs left today")
 
         // With the unlock, nothing's counted and the card says nothing of runs.
@@ -266,7 +266,7 @@ struct OpenWaterTests {
         unlocked.openWaterRunsLeft = { nil }
         _ = unlocked.debugPlayOpenWater(untilLevel: 0, limit: 1)
         unlocked.debugLose()
-        #expect(unlocked.debugResultNote == nil && unlocked.debugResultTitles == ["Retry", "Shop", "Levels"])
+        #expect(unlocked.debugResultNote == nil && unlocked.debugResultTitles == ["Retry", "Shop", "Home"])
     }
 
     /// Each level ends once you eat its last gate, and the next world's begins the way a level does: you at your
@@ -411,7 +411,7 @@ struct OpenWaterTests {
         _ = scene.debugPlayOpenWater(untilLevel: 1, limit: 3, safeFromFish: true)
         scene.debugLose()
         scene.debugTapResult(.tryAgain)
-        #expect(scene.debugOpenWaterSeed == 5 && scene.debugResultTitles == ["Retry", "Shop", "Levels"])
+        #expect(scene.debugOpenWaterSeed == 5 && scene.debugResultTitles == ["Retry", "Shop", "Home"])
         for _ in 0..<1500 where scene.debugOpenWaterSeed == 5 { try await Task.sleep(for: .milliseconds(20)) }
         #expect(scene.debugOpenWaterSeed == 6 && scene.debugOpenWaterIndex == 0)
         #expect(scene.arcadeWorld == GameTuning.openWaterWorlds[0])

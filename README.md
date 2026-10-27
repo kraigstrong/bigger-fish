@@ -18,8 +18,7 @@ device; the two copies merge so that syncing never un-clears a level.
 
 Free to try: all of Shallow Reef, plus two levels of each other world; a one-time purchase opens every world
 from the start and every Deep End (`ArcadeUnlock.swift`). From 1.1, the home screen (`ArcadeHome.swift`) offers two
-ways to play: **Adventure**, the campaign, which opens the levels of the world you're on (Back shows all the worlds),
-and the endless run, **Open Water** (`OpenWater.swift`; Xcode builds can launch with `-openWater <seed>`): round the worlds a stage at a time (`GameTuning.openWaterWorlds`), each a new level dealt like that world's level 5 on stage 1, 6 on stage 2, and on,
+ways to play: **Adventure**, the campaign's world map, and the endless run, **Open Water** (`OpenWater.swift`; Xcode builds can launch with `-openWater <seed>`): round the worlds a stage at a time (`GameTuning.openWaterWorlds`), each a new level dealt like that world's level 5 on stage 1, 6 on stage 2, and on,
 planned as the run reaches it. Eating a level's last gate ends it and shrinks you back to your starting size for the
 next world; being eaten ends the run. Pearls sit beside the big fish, a few a level (`OpenWater.pearls`): touch one to take it. Fish eaten and pearls count at the top.
 A run's score is the fish it ate: the best is kept (`ArcadeProgress.openWaterBest`, synced with progress) and shown on

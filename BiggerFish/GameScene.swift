@@ -286,6 +286,7 @@ final class GameScene: SKScene {
     private var bounceCooldown: CGFloat = 0
     /// A planned level played outside the campaign: the Open Water's, or (in Xcode builds) a test level.
     private var plannerLevel: Level?
+    /// The pause menu's way out: Level map from a level, Home from the Open Water or the tutorial (`leavesForHome`).
     private var mapButton = MenuButtonRow(title: "Level map", symbol: "map.fill", style: .secondary, theme: .arcade)
     private var resultPanel: ArcadeResultPanel?
     #if DEBUG
@@ -909,6 +910,10 @@ final class GameScene: SKScene {
         }
     }
 
+    /// Leaving goes to the home screen, not a level map: the Open Water and the tutorial come from there. (Kraig: the
+    /// same Level map button went home from one and to the levels from the other.)
+    private var leavesForHome: Bool { openWater != nil || isTutorial }
+
     private func selectResult(_ action: ArcadeResultAction) {
         switch action {
         case .nextLevel:
@@ -926,7 +931,7 @@ final class GameScene: SKScene {
             resetGame(startPlaying: false)
         case .playAgain, .tryAgain:
             replayLevel()
-        case .levels, .world:
+        case .levels, .world, .home:
             #if DEBUG
             finishRunRecording("level_map")
             #endif
@@ -3132,10 +3137,15 @@ final class GameScene: SKScene {
     }
 
     /// The pause menu, in Settings' language: its deep-blue backdrop over the paused game, "Paused" and the level, then
-    /// two columns: Play (Resume as the game's gold button, then Restart level and Level map) and Sound (the switches).
-    /// Built with the scene and on each pause; pausing sets the switches to the current settings.
+    /// two columns: Play (Resume as the game's gold button, then Restart level and Level map, or Home) and Sound (the
+    /// switches). Built with the scene and on each pause; pausing sets the switches to the current settings.
     private func buildPauseMenu() {
         pauseMenu.removeAllChildren()
+        // Built with the scene, before a run is known to be the Open Water's: named for where it goes by the first pause.
+        if leavesForHome && mapButton.name != "home" {
+            mapButton = MenuButtonRow(title: "Home", symbol: "house.fill", style: .secondary, theme: .arcade)
+            mapButton.name = "home"
+        }
         let backdrop = MenuBackdrop.node(size: size, theme: .arcade)
         backdrop.name = "pauseBackdrop"
         pauseMenu.addChild(backdrop)
@@ -3219,7 +3229,7 @@ final class GameScene: SKScene {
         accessibilityElements = [
             element(resumeButton, "Resume") { $0.setPhase(.playing) },
             element(restartButton, "Restart level") { $0.replayLevel() },
-            element(mapButton, "Level map") { scene in
+            element(mapButton, leavesForHome ? "Home" : "Level map") { scene in
                 #if DEBUG
                 scene.finishRunRecording("level_map")
                 #endif
