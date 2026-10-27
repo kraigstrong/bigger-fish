@@ -1,3 +1,6 @@
 • Math Reef now runs on iPad, filling the whole screen.
-• Settings has separate switches for sound effects, music, and vibration, and a button to replay the tutorial.
+• On iPhone Duo it fills either screen, and folding or unfolding keeps your place.
+• A fresh look for Settings, with separate switches for sound effects, music, and vibration, and a button to replay the tutorial.
+• Grown-ups can see everything the unlock includes before buying.
+• New players get a reminder of how to swim in their first rounds.
 • Smoother swimming on iPhones with ProMotion displays.
