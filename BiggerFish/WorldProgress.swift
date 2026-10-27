@@ -25,6 +25,17 @@ enum WorldCrown {
     }
 }
 
+extension ArcadeProgress {
+    /// A world's crown, on the world map and the home screen: silver once its ten levels are beaten, gold once its Deep
+    /// End is too. None for a world that isn't open.
+    func crown(in world: ArcadeWorld, unlocked: Bool) -> WorldCrown {
+        guard ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) else { return .none }
+        let cleared = clearedCounts(in: world)
+        return WorldCrown.earned(conquered: cleared.main >= min(world.levelCount, ArcadeWorld.mainLevelCount),
+                                 deepEndCleared: world.deepEndCount > 0 && cleared.deepEnd >= world.deepEndCount)
+    }
+}
+
 /// A level's run (its world's ten main levels, or its Deep End) and which of them are cleared.
 struct WorldProgress: Equatable {
     let world: ArcadeWorld

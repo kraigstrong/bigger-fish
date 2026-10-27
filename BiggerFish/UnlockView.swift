@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 /// What the unlock opens: a clip of each world it adds, The Deep End, its price, and restore. Shown when a player taps
-/// a level past the free ones (or plays up to one), taps Unlock on the world map, or beats Shallow Reef without it.
+/// a level past the free ones (or plays up to one), taps Unlock on the home screen or the world map, or beats Shallow Reef without it.
 struct UnlockView: View {
     @ObservedObject var purchases: ArcadePurchases
     /// The world the player was trying to get into, ringed in its color.

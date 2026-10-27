@@ -51,7 +51,7 @@ final class ArcadeAudio {
     }
     /// Raw values are the `.m4a` files in Sounds/.
     enum Music: String, CaseIterable {
-        /// Under the world map and level maps.
+        /// Under the home screen and the maps.
         case menu = "menu-music"
         /// Under a level, from its ready screen to its result.
         case game = "game-music"

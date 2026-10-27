@@ -151,14 +151,14 @@ final class ArcadeAnalytics {
         case padlockedLevel = "padlocked_level"
         /// Next level, on a win's card, onto a padlocked level.
         case nextLevel = "next_level"
-        /// The Unlock all button on the world map.
+        /// The Unlock all button on the home screen or the world map.
         case unlockAll = "unlock_all"
         /// A world with no free levels, tapped on the world map. None today: every world has some.
         case lockedWorld = "locked_world"
         /// A world conquered without the unlock: its conquered screen is the offer. Shallow Reef, in practice, though a
         /// world beaten for free before the unlock went on sale shows it once too.
         case conquered
-        /// The day's free Open Water runs used up: Open Water on the world map, or Unlock on a run's card.
+        /// The day's free Open Water runs used up: Open Water on the home screen, or Unlock on a run's card.
         case openWaterLimit = "open_water_limit"
     }
 
@@ -325,7 +325,8 @@ final class ArcadeAnalytics {
 
     /// Where the pearl shop was opened from.
     enum ShopSource: String, CaseIterable {
-        /// The world map's pearl button.
+        /// The home screen's Shop button or your fish (the world map's pearl button before the home screen; the stat
+        /// keeps its name).
         case map
         /// The Shop button on an Open Water run's card.
         case runCard = "run_card"

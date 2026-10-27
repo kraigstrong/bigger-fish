@@ -62,15 +62,14 @@ struct WorldMapTests {
         }
     }
 
-    /// On every phone, the shortest (an iPhone 17e's 369) included: your fish over a top-row world stays below the
-    /// buttons, and the bottom row's names stay above the title in the bottom corner. (Math Reef's rows put the fish
-    /// against the Open Water and Unlock buttons and the title.)
+    /// On every phone, the shortest (an iPhone 17e's 369) included: your fish over a top-row world stays below Back and
+    /// Adventure's name, and the bottom row's names stay above "Swipe to explore." along the bottom. (Math Reef's rows put
+    /// the fish against the buttons and the names against the bottom line.)
     @Test func theFishAndTheNamesClearTheMenus() {
-        // The buttons are 44 tall, 14 from the top. The fish (radius 18) reaches about 20 above where it swims and
-        // bobs 4 more. A world's name ends 70 below its center, and the title's capitals
-        // (30-point type, 6 from the bottom) stand 35 high: its descent 8 and its cap height 21 over that 6. Each
-        // keeps a few points' gap.
-        let buttonsBottom: CGFloat = 14 + 44, fishTop: CGFloat = 20 + 4, namesBottom: CGFloat = 70, footer: CGFloat = 6 + 8 + 21
+        // Back is 44 tall, 10 from the top. The fish (radius 18) reaches about 20 above where it swims and bobs 4 more.
+        // A world's name ends 70 below its center, and "Swipe to explore." (12-point type, 12 from the bottom) stands
+        // 24 high: its descent 3 and its cap height 9 over that 12. Each keeps a few points' gap.
+        let buttonsBottom: CGFloat = 10 + 44, fishTop: CGFloat = 20 + 4, namesBottom: CGFloat = 70, footer: CGFloat = 12 + 3 + 9
         let gap: CGFloat = 4
         for size in Self.phones {
             let stops = ArcadeWorldMap.stops(count: ArcadeWorld.mapWorlds(includingPrototypes: true).count, in: size)

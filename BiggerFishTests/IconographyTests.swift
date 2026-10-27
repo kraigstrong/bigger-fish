@@ -6,14 +6,16 @@ import Testing
 import UIKit
 @testable import BiggerFish
 
-/// The app icon and the world map icons are drawn from the game's own fish and jellyfish art. This
-/// redraws them into `BiggerFish/Assets.xcassets` when build/arcade-development/iconography.request exists.
+/// The app icon, the world map icons, and the home screen's two ways to play are drawn from the game's own fish and
+/// jellyfish art. This redraws them into `BiggerFish/Assets.xcassets` when build/arcade-development/iconography.request
+/// exists.
 @MainActor struct IconographyTests {
     private static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     private static let assets = root.appendingPathComponent("BiggerFish/Assets.xcassets")
 
     @Test func shippedIconographyExists() {
-        for name in ["WorldShallowReef", "WorldJellyBloom", "WorldKelpForest", "WorldMidnightZone", "WorldSunsetCove", "LaunchArt"] { #expect(UIImage(named: name) != nil, "\(name) is missing") }
+        for name in ["WorldShallowReef", "WorldJellyBloom", "WorldKelpForest", "WorldMidnightZone", "WorldSunsetCove", "LaunchArt",
+                     "ModeAdventure", "ModeOpenWater"] { #expect(UIImage(named: name) != nil, "\(name) is missing") }
         #expect(UIColor(named: "LaunchBackground") != nil)
         let icon = Self.assets.appendingPathComponent("AppIcon.appiconset/AppIcon-1024.png")
         let image = CGImageSourceCreateWithURL(icon as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
@@ -32,6 +34,20 @@ import UIKit
         try write(worldIcon(midnightZone()), to: "WorldMidnightZone.imageset/WorldMidnightZone.png", opaque: false)
         try write(launchChase(), to: "LaunchArt.imageset/LaunchArt.png", opaque: false)
         try write(worldIcon(sunsetCove()), to: "WorldSunsetCove.imageset/WorldSunsetCove.png", opaque: false)
+        try writeModeIcons()
+    }
+
+    /// The home screen's two pictures alone, when build/arcade-development/mode-icons.request exists.
+    @Test func manualRenderModeIcons() throws {
+        let marker = Self.root.appendingPathComponent("build/arcade-development/mode-icons.request")
+        guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        try writeModeIcons()
+        try FileManager.default.removeItem(at: marker)
+    }
+
+    private func writeModeIcons() throws {
+        try write(worldIcon(adventure()), to: "ModeAdventure.imageset/ModeAdventure.png", opaque: false)
+        try write(worldIcon(openWater()), to: "ModeOpenWater.imageset/ModeOpenWater.png", opaque: false)
     }
 
     /// Sunset Cove's picture alone (the prototype's), when build/arcade-development/sunset-icon.request exists.
@@ -258,6 +274,161 @@ import UIKit
         cove.addChild(fish(Self.pink, player: false, radius: bait, at: hook, tilt: 0.12, facing: -1))
         cove.addChild(fish(.player, player: true, radius: 38, at: CGPoint(x: -62, y: -70), tilt: 0.28, facing: 1))
         return cove
+    }
+
+    /// Adventure: a treasure map, its dotted trail winding from the player's little orange fish past a stop in each
+    /// world's color, in the map's order, to a gold crown.
+    private func adventure() -> SKNode {
+        let map = SKNode()
+        let side = Self.tile
+        let ink = UIColor(red: 0.52, green: 0.32, blue: 0.15, alpha: 1)
+        let parchment = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
+            let cg = context.cgContext
+            let disc = CGRect(x: side * 0.03, y: side * 0.03, width: side * 0.94, height: side * 0.94)
+            cg.saveGState()
+            cg.addEllipse(in: disc)
+            cg.clip()
+            let paper = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [UIColor(red: 1, green: 0.95, blue: 0.8, alpha: 1).cgColor,
+                         UIColor(red: 0.93, green: 0.79, blue: 0.56, alpha: 1).cgColor] as CFArray, locations: [0, 1])!
+            cg.drawRadialGradient(paper, startCenter: CGPoint(x: side * 0.42, y: side * 0.4), startRadius: 0,
+                                  endCenter: CGPoint(x: side / 2, y: side / 2), endRadius: side * 0.5, options: [.drawsAfterEndLocation])
+            // A few faint stains, as an old map has.
+            cg.setFillColor(ink.withAlphaComponent(0.07).cgColor)
+            for (x, y, r) in [(0.72, 0.3, 0.13), (0.25, 0.68, 0.1), (0.62, 0.78, 0.07)] {
+                cg.fillEllipse(in: CGRect(x: side * (x - r), y: side * (y - r), width: side * r * 2, height: side * r * 2))
+            }
+            cg.restoreGState()
+            cg.setStrokeColor(ink.withAlphaComponent(0.85).cgColor)
+            cg.setLineWidth(6)
+            cg.strokeEllipse(in: disc.insetBy(dx: 3, dy: 3))
+        }
+        let paper = SKSpriteNode(texture: SKTexture(image: parchment))
+        paper.zPosition = -5
+        map.addChild(paper)
+        // The fish at the trail's start, a stop for each world, the crown at its end.
+        let route = [CGPoint(x: -94, y: -66), CGPoint(x: -32, y: -92), CGPoint(x: 30, y: -76), CGPoint(x: 16, y: -20),
+                     CGPoint(x: -48, y: 12), CGPoint(x: -14, y: 66), CGPoint(x: 62, y: 70)]
+        for dot in dots(along: route, spacing: 15) {
+            let node = SKShapeNode(circleOfRadius: 4)
+            node.fillColor = ink.withAlphaComponent(0.8)
+            node.strokeColor = .clear
+            node.position = dot
+            node.zPosition = -2
+            map.addChild(node)
+        }
+        for (world, center) in zip(ArcadeWorld.campaign, route.dropFirst()) {
+            let stop = SKShapeNode(circleOfRadius: 16)
+            stop.fillColor = world.mapColor
+            stop.strokeColor = .white
+            stop.lineWidth = 4.5
+            stop.position = center
+            map.addChild(stop)
+        }
+        let crown = SKSpriteNode(texture: SKTexture(image: symbol("crown.fill", size: 64, color: UIColor(DeepEndColors.gold),
+                                                                  outline: ink)))
+        crown.position = CGPoint(x: route[route.count - 1].x, y: route[route.count - 1].y + 6)
+        crown.zPosition = 2
+        map.addChild(crown)
+        map.addChild(fish(.player, player: true, radius: 30, at: CGPoint(x: route[0].x - 8, y: route[0].y + 4), tilt: -0.12))
+        return map
+    }
+
+    /// The Open Water: a pool of open sea, sunlit from above, and the player's little orange fish following a trail of
+    /// pearls (the mode's own, in their Shallow Reef look) up and away.
+    private func openWater() -> SKNode {
+        let sea = SKNode()
+        let side = Self.tile
+        let water = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
+            let cg = context.cgContext
+            cg.addEllipse(in: CGRect(x: side * 0.03, y: side * 0.03, width: side * 0.94, height: side * 0.94))
+            cg.clip()
+            let depth = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [UIColor(red: 0.38, green: 0.8, blue: 0.95, alpha: 1).cgColor,
+                         UIColor(red: 0.1, green: 0.42, blue: 0.75, alpha: 1).cgColor,
+                         UIColor(red: 0.03, green: 0.12, blue: 0.36, alpha: 1).cgColor] as CFArray, locations: [0, 0.45, 1])!
+            cg.drawLinearGradient(depth, start: .zero, end: CGPoint(x: 0, y: side), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+            // Sunlight slanting down from the surface.
+            cg.setFillColor(UIColor(white: 1, alpha: 0.08).cgColor)
+            for i in 0..<4 {
+                let x = side * (0.08 + CGFloat(i) * 0.24)
+                cg.move(to: CGPoint(x: x, y: 0)); cg.addLine(to: CGPoint(x: x + side * 0.1, y: 0))
+                cg.addLine(to: CGPoint(x: x + side * 0.3, y: side)); cg.addLine(to: CGPoint(x: x + side * 0.12, y: side))
+                cg.closePath(); cg.fillPath()
+            }
+        }
+        let pool = SKSpriteNode(texture: SKTexture(image: water))
+        pool.zPosition = -5
+        sea.addChild(pool)
+        let look = GameTuning.openWaterPearlLook(.shallowReef)
+        for (index, at) in [CGPoint(x: 16, y: -6), CGPoint(x: 58, y: 24), CGPoint(x: 92, y: 62)].enumerated() {
+            let pearl = SKNode()
+            pearl.position = at
+            let glow = SKSpriteNode(texture: ArcadeArt.glow, size: CGSize(width: 60, height: 60))
+            glow.color = look.fill
+            glow.colorBlendFactor = 1
+            glow.blendMode = .add
+            glow.alpha = 0.55
+            let radius: CGFloat = 14 - CGFloat(index)
+            let ball = SKShapeNode(circleOfRadius: radius)
+            ball.fillColor = look.fill
+            ball.strokeColor = look.rim
+            ball.lineWidth = 3
+            ball.zPosition = 0.1
+            let shine = SKShapeNode(circleOfRadius: radius * 0.32)
+            shine.fillColor = .white
+            shine.strokeColor = .clear
+            shine.position = CGPoint(x: -radius * 0.35, y: radius * 0.35)
+            shine.zPosition = 0.2
+            for part in [glow, ball, shine] as [SKNode] { pearl.addChild(part) }
+            sea.addChild(pearl)
+        }
+        for (x, y, r) in [(-104.0, 6.0, 7.0), (-96.0, 34.0, 5.0), (-108.0, 58.0, 8.0)] {
+            let bubble = SKShapeNode(circleOfRadius: r)
+            bubble.strokeColor = SKColor(white: 1, alpha: 0.55)
+            bubble.fillColor = SKColor(white: 1, alpha: 0.12)
+            bubble.lineWidth = 2.5
+            bubble.position = CGPoint(x: x, y: y)
+            sea.addChild(bubble)
+        }
+        sea.addChild(fish(.player, player: true, radius: 42, at: CGPoint(x: -46, y: -46), mouth: 0.55, tilt: 0.3))
+        return sea
+    }
+
+    /// Points `spacing` apart along a smooth curve through `points` (Catmull-Rom).
+    private func dots(along points: [CGPoint], spacing: CGFloat) -> [CGPoint] {
+        var samples: [CGPoint] = []
+        for i in 0..<(points.count - 1) {
+            let p0 = points[max(i - 1, 0)], p1 = points[i], p2 = points[i + 1], p3 = points[min(i + 2, points.count - 1)]
+            for step in 0..<40 {
+                let t = CGFloat(step) / 40, t2 = t * t, t3 = t2 * t
+                func blend(_ a: CGFloat, _ b: CGFloat, _ c: CGFloat, _ d: CGFloat) -> CGFloat {
+                    0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (3 * b - a - 3 * c + d) * t3)
+                }
+                samples.append(CGPoint(x: blend(p0.x, p1.x, p2.x, p3.x), y: blend(p0.y, p1.y, p2.y, p3.y)))
+            }
+        }
+        samples.append(points[points.count - 1])
+        var result: [CGPoint] = [], travelled = spacing
+        for (a, b) in zip(samples, samples.dropFirst()) {
+            travelled += hypot(b.x - a.x, b.y - a.y)
+            if travelled >= spacing { result.append(b); travelled = 0 }
+        }
+        return result
+    }
+
+    /// An SF Symbol drawn in `color`, ringed in `outline`.
+    private func symbol(_ name: String, size: CGFloat, color: UIColor, outline: UIColor) -> UIImage {
+        let config = UIImage.SymbolConfiguration(pointSize: size, weight: .bold)
+        let base = UIImage(systemName: name, withConfiguration: config)!
+        let pad: CGFloat = 4
+        return UIGraphicsImageRenderer(size: CGSize(width: base.size.width + pad * 2, height: base.size.height + pad * 2)).image { _ in
+            let ring = base.withTintColor(outline, renderingMode: .alwaysOriginal)
+            for angle in stride(from: 0.0, to: 2 * Double.pi, by: Double.pi / 8) {
+                ring.draw(at: CGPoint(x: pad + cos(angle) * 3, y: pad + sin(angle) * 3))
+            }
+            base.withTintColor(color, renderingMode: .alwaysOriginal).draw(at: CGPoint(x: pad, y: pad))
+        }
     }
 
     /// A giant-kelp stalk: a thick wavy stem with blades on alternate sides, each with a float, olive at the

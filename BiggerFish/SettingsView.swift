@@ -7,7 +7,7 @@ enum ArcadeLinks {
     static let support = URL(string: "https://biggerfish.app/support")!
 }
 
-/// Settings, from the gear on the world map: sound, music, and vibration; replaying the tutorial; restoring the
+/// Settings, from the gear on the home screen: sound, music, and vibration; replaying the tutorial; restoring the
 /// unlock; the privacy policy and support; the credits, played as a little game (`CreditsScene`); and the version.
 struct SettingsView: View {
     @ObservedObject var settings = ArcadeSettings.shared
