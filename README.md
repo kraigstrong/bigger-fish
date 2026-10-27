@@ -190,7 +190,7 @@ scripts/store-capture.sh video
 python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-capture/video/preview.mp4 0.2-2.3 2.6-4.7 5.1-11.0 17.8-23.4 65.6-77.4
 STORE_CAPTURE_DEVICE=<iPhone 17 Pro Max UDID> STORE_CAPTURE_SCALE=2.2348 STORE_CAPTURE_OUT="$PWD/build/store-creative" scripts/store-capture.sh screenshots play
 python3 scripts/store-creative.py build/store-creative/screenshots/play-28.png build/store-creative/search.png --center 0.52
-python3 scripts/store-creative.py build/store-creative/screenshots/play-28.png build/store-creative/header.png --center 0.52 --scale 0.7
+python3 scripts/store-creative.py build/store-creative/screenshots/play-28.png build/store-creative/header.png --center 0.52 --scale 0.7 --focus 0.454,0.321 --phone build/store-creative/header-phone.png
 ```
 
 `STORE_CAPTURE_DEVICE` takes a simulator's name or its UDID (`xcrun simctl list devices`). A name is looked up on
@@ -219,10 +219,12 @@ the newest runtime, which in Xcode 27.1 has only the iPhone Duo, so give an olde
 - **Header and search results image:** the App Store's creative assets (iOS 27), each 5244×2950. With
   `STORE_CAPTURE_SCALE`, screenshots are drawn that many times the screen's resolution and without the
   corners' label and buttons; 2.2348 on the 6.9" iPhone makes them 2950 pixels tall. `scripts/store-creative.py`
-  crops one to 16:9 around `--center` and adds the tagline ("Swim into the right answer") in the water below.
-  The search results take it full size. The header takes it at `--scale 0.7`, the round smaller at the top with
-  the water carried on below, because an iPhone shows only the header's middle half and top 60% or so. Pick a
-  frame whose answer fish stay clear of the tagline. Upload both with `push.py media --header … --search …`.
+  crops one to 16:9 around `--center`. The search results take it full size, with the tagline ("Swim into the
+  right answer") in the water below: pick a frame whose answer fish stay clear of it. The header takes it at
+  `--scale 0.7` with no tagline: an iPhone shows only its middle half and top 60% or so, with the status bar's
+  blur and the back and share buttons over the top, so `--focus` (the middle of the question, the fish, and the
+  answers) goes in the clear water below them, and `--phone` saves what an iPhone shows to check before
+  uploading. Upload both with `push.py media --header … --search …`.
 - **Autopilot:** it drifts around mid-water, sometimes eyes a wrong answer first, and swoops into
   the right one as the wave gets close (waiting off to one side, then diving or climbing through
   it), so it plays like a kid rather than a bot. It steers clear of the other answers, so the only
