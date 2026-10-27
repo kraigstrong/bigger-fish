@@ -60,6 +60,8 @@ struct ArcadeWorldMap: View {
                             let cleared = progress.clearedCounts(in: world)
                             let main = min(world.levelCount, ArcadeWorld.mainLevelCount)
                             let complete = open && cleared.main >= main
+                            // What's left, said only to VoiceOver: on the map the ring shows it (Kraig, 2026-10-26: "We have
+                            // the rings. I think that's enough. let's remove that text entirely").
                             let detail = !open ? "Unlock to play"
                                 : complete ? "Conquered!" : cleared.main == 0 ? "\(main) levels to conquer" : "\(main - cleared.main) more to conquer"
                             // A ring around the world fills in an arc per level beaten; once it's conquered, the ring
@@ -69,7 +71,7 @@ struct ArcadeWorldMap: View {
                                                           deepEndCleared: deepEnd.map { $0.cleared >= $0.count } ?? false)
                             let deepEndLabel = deepEnd.map { ", Deep End \($0.cleared) of \($0.count) cleared" } ?? ""
                             Button { open ? onSelect(world) : onUnlock(world) } label: {
-                                WorldMapStop(title: world.title, detail: detail, world: world,
+                                WorldMapStop(title: world.title, world: world,
                                              color: world.color, placeholder: false, locked: !open, deepEnd: deepEnd,
                                              progress: open && !complete ? (cleared: cleared.main, count: main) : nil,
                                              crown: crown)
@@ -85,8 +87,17 @@ struct ArcadeWorldMap: View {
                 // Opened on the world you're on, where your fish waits.
                 .defaultScrollAnchor(UnitPoint(x: Self.scrollAnchor(centering: centers[focus].x, width: width, screenWidth: size.width),
                                                y: 0.5))
-                Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
-                    .padding(.leading, 24).padding(.top, 15).allowsHitTesting(false)
+                // The game's name in the bottom corner with what to do beside it, leaving the top row to its buttons: on a
+                // narrow screen (an iPhone SE, the iPhone Duo's outer screen) they need all of it (Kraig, 2026-10-26:
+                // "Title lower left maybe?").
+                HStack(alignment: .firstTextBaseline, spacing: 16) {
+                    Text("Bigger Fish").font(.custom("AvenirNext-Heavy", size: 30))
+                    Text(width > size.width ? "Choose a world. Swipe to explore." : "Choose a world")
+                        .font(.custom("AvenirNext-DemiBold", size: 13))
+                }
+                .padding(.leading, 24).padding(.bottom, 6)
+                .frame(width: size.width, height: size.height, alignment: .bottomLeading)
+                .allowsHitTesting(false)
                 HStack(spacing: 14) {
                     if let onOpenWater {
                         OpenWaterButton(best: progress.openWaterBest, runsLeft: openWaterRunsLeft, action: onOpenWater)
@@ -97,9 +108,6 @@ struct ArcadeWorldMap: View {
                 }
                 .frame(width: size.width - 24, alignment: .trailing)
                 .padding(.top, 14)
-                VStack { Spacer(); Text(width > size.width ? "Choose a world. Swipe to explore." : "Choose a world")
-                    .font(.custom("AvenirNext-DemiBold", size: 13)).padding(.bottom, 12) }
-                    .frame(width: size.width).allowsHitTesting(false)
             }
         }
         .foregroundStyle(.white)
@@ -334,7 +342,6 @@ struct ArcadeLevelMap: View {
 
 private struct WorldMapStop: View {
     let title: String
-    let detail: String
     let world: ArcadeWorld?
     let color: Color
     let placeholder: Bool
@@ -373,11 +380,8 @@ private struct WorldMapStop: View {
                     .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
                     .offset(y: -50)
             }
-            VStack(spacing: 4) {
-                Text(title).font(.custom("AvenirNext-Heavy", size: 16))
-                Text(detail).font(.custom("AvenirNext-DemiBold", size: 13)).multilineTextAlignment(.center)
-                    .fixedSize()
-            }.offset(y: 70)
+            // Its name just under its ring, where it's always been.
+            Text(title).font(.custom("AvenirNext-Heavy", size: 16)).fixedSize().offset(y: 59)
         }
         .opacity(placeholder ? 0.65 : locked ? 0.85 : 1)
         .frame(width: 140, height: 180).contentShape(Rectangle())
