@@ -17,8 +17,10 @@
 #                                 an iPhone, 1600x1200 on an iPad; trim it to 15-30 seconds with
 #                                 scripts/store-preview.py
 #
-# STORE_CAPTURE_DEVICE picks the simulator (default iPhone 17 Pro Max; 'iPad Pro 13-inch (M5)' for the
-# iPad), STORE_CAPTURE_OUT the output folder, and STORE_CAPTURE_SECONDS the video's length (default 86).
+# STORE_CAPTURE_DEVICE picks the simulator, by name or UDID (default iPhone 17 Pro Max; 'iPad Pro 13-inch (M5)'
+# for the iPad), STORE_CAPTURE_OUT the output folder, and STORE_CAPTURE_SECONDS the video's length (default 86).
+# STORE_CAPTURE_SCALE draws screenshots that many times the screen's resolution (up to 3), for the App Store's
+# header and search results image (scripts/store-creative.py): 2.2348 on the 6.9" iPhone makes them 2950 pixels tall.
 # A capture plays frame by frame, a 60th of a second of play each however long the simulator takes to save
 # one, so the video comes out smooth and a burst of screenshots catches the same moments on any device.
 set -euo pipefail
@@ -33,8 +35,11 @@ STATIC_SCENES=(home world crown)
 PLAY_SCENES=(play wrong addition exponents)
 
 build() {
+    # A UDID picks one simulator exactly; a name is looked up on the newest runtime (Xcode 27.1's has only the Duo).
+    local which="name=$DEVICE"
+    [[ $DEVICE =~ ^[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}$ ]] && which="id=$DEVICE"
     xcodebuild build -quiet -project BiggerFish.xcodeproj -scheme MathReef -configuration Debug \
-        -destination "platform=iOS Simulator,name=$DEVICE" -derivedDataPath "$DERIVED"
+        -destination "platform=iOS Simulator,$which" -derivedDataPath "$DERIVED"
     xcrun simctl boot "$DEVICE" 2>/dev/null || true
     xcrun simctl install "$DEVICE" "$DERIVED/Build/Products/Debug-iphonesimulator/MathReef.app"
 }
@@ -43,7 +48,7 @@ pause() { perl -e "select(undef, undef, undef, $1)"; }
 
 launch() {
     xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
-    xcrun simctl launch "$DEVICE" "$BUNDLE" -storeCapture "$1" >/dev/null
+    xcrun simctl launch "$DEVICE" "$BUNDLE" -storeCapture "$1" ${STORE_CAPTURE_SCALE:+-storeCaptureScale "$STORE_CAPTURE_SCALE"} >/dev/null
 }
 
 # Screenshot scenes save the frames the app draws (no Dynamic Island over them) in its Documents

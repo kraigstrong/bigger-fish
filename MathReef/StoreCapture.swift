@@ -104,6 +104,13 @@ enum StoreCapture {
     /// path, the card, a full round, and the results and crown.
     static let videoSeconds: TimeInterval = number(after: "-storeCaptureSeconds") ?? 86
 
+    /// How many times the screen's resolution the screenshots are drawn at: `-storeCaptureScale`, up to 3, for App Store
+    /// art bigger than the screen (the header and search results image is 5244 x 2950: on the 6.9" iPhone, 2.2348 makes
+    /// the frames 2950 pixels tall). The scene is drawn bigger as it is, so shapes stay sharp (text, drawn at the screen's
+    /// scale, is a little soft up close, and crisp at the sizes the App Store shows), and without the corners' label and
+    /// buttons (`PracticeScene.saveCaptureFrame`).
+    static let scale: CGFloat = number(after: "-storeCaptureScale").map { CGFloat(min($0, 3)) } ?? 1
+
     /// How much play each frame of a capture is (`Stepper`).
     static let frameStep: TimeInterval = 1.0 / 60
     private static let launched = Date().timeIntervalSince1970
@@ -117,12 +124,12 @@ enum StoreCapture {
 
     // MARK: Frames
 
-    /// The scene as the screen shows it, at the screen's full resolution: on an iPad, `ReefScreen.scale` times the
-    /// scene's own size, at the screen's scale.
+    /// The scene as the screen shows it, at the screen's full resolution (times `scale`): on an iPad, `ReefScreen.scale`
+    /// times the scene's own size, at the screen's scale.
     @MainActor static func image(of scene: SKScene) -> CGImage? {
         guard let view = scene.view, let stepper else { return nil }
         let window = view.window?.bounds.size ?? view.bounds.size
-        let pixels = view.traitCollection.displayScale
+        let pixels = view.traitCollection.displayScale * scale
         return stepper.image(size: CGSize(width: (window.width * pixels).rounded(), height: (window.height * pixels).rounded()))
     }
 

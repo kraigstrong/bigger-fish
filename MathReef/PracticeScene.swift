@@ -972,7 +972,13 @@ final class PracticeScene: SKScene {
     /// Saves what the scene draws, at full resolution, to Documents/StoreCapture. Unlike a simulator
     /// screenshot, it has no Dynamic Island drawn over it.
     private func saveCaptureFrame(_ name: String) {
-        guard let image = StoreCapture.image(of: self) else { return }
+        // App Store art (drawn bigger than the screen) leaves out the corners' label and buttons, which a crop to its
+        // shape would cut in half.
+        let corners = StoreCapture.scale > 1 ? [progressLabel, closeButton, settingsButton].filter { !$0.isHidden } : []
+        corners.forEach { $0.isHidden = true }
+        let image = StoreCapture.image(of: self)
+        corners.forEach { $0.isHidden = false }
+        guard let image else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             let dir = StoreCapture.framesDirectory
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
