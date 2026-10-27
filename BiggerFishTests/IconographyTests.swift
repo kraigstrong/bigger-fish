@@ -291,7 +291,7 @@ import UIKit
             let paper = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
                 colors: [UIColor(red: 1, green: 0.95, blue: 0.8, alpha: 1).cgColor,
                          UIColor(red: 0.93, green: 0.79, blue: 0.56, alpha: 1).cgColor] as CFArray, locations: [0, 1])!
-            cg.drawRadialGradient(paper, startCenter: CGPoint(x: side * 0.42, y: side * 0.4), startRadius: 0,
+            cg.drawRadialGradient(paper, startCenter: CGPoint(x: side / 2, y: side * 0.44), startRadius: 0,
                                   endCenter: CGPoint(x: side / 2, y: side / 2), endRadius: side * 0.5, options: [.drawsAfterEndLocation])
             // A few faint stains, as an old map has.
             cg.setFillColor(ink.withAlphaComponent(0.07).cgColor)
@@ -306,9 +306,10 @@ import UIKit
         let paper = SKSpriteNode(texture: SKTexture(image: parchment))
         paper.zPosition = -5
         map.addChild(paper)
-        // The fish at the trail's start, a stop for each world, the crown at its end.
-        let route = [CGPoint(x: -94, y: -66), CGPoint(x: -32, y: -92), CGPoint(x: 30, y: -76), CGPoint(x: 16, y: -20),
-                     CGPoint(x: -48, y: 12), CGPoint(x: -14, y: 66), CGPoint(x: 62, y: 70)]
+        // The fish at the trail's start, a stop for each world, the crown at its end: all of it centered on the map and
+        // inside its rim, the fish level.
+        let route = [CGPoint(x: -62, y: -66), CGPoint(x: -2, y: -86), CGPoint(x: 58, y: -60), CGPoint(x: 28, y: -12),
+                     CGPoint(x: -32, y: 12), CGPoint(x: -12, y: 64), CGPoint(x: 50, y: 66)]
         for dot in dots(along: route, spacing: 15) {
             let node = SKShapeNode(circleOfRadius: 4)
             node.fillColor = ink.withAlphaComponent(0.8)
@@ -325,12 +326,12 @@ import UIKit
             stop.position = center
             map.addChild(stop)
         }
-        let crown = SKSpriteNode(texture: SKTexture(image: symbol("crown.fill", size: 64, color: UIColor(DeepEndColors.gold),
+        let crown = SKSpriteNode(texture: SKTexture(image: symbol("crown.fill", size: 56, color: UIColor(DeepEndColors.gold),
                                                                   outline: ink)))
         crown.position = CGPoint(x: route[route.count - 1].x, y: route[route.count - 1].y + 6)
         crown.zPosition = 2
         map.addChild(crown)
-        map.addChild(fish(.player, player: true, radius: 30, at: CGPoint(x: route[0].x - 8, y: route[0].y + 4), tilt: -0.12))
+        map.addChild(fish(.player, player: true, radius: 28, at: route[0]))
         return map
     }
 
