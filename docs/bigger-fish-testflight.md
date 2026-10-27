@@ -56,10 +56,13 @@ On a physical iPhone, with a fresh install and again as an update over the last 
 
 Since 0.3:
 
-- **Fresh install:** the tutorial plays first: hold to rise, let go to fall, eat a smaller fish, dodge a bigger
-  one, watch a missed fish grow and catch it back, then eat through the wall to be the last fish swimming. Missing
-  a wall meal gets you eaten, and Retry starts the wall again. It ends on the home screen. Settings > Replay
-  tutorial plays it again.
+- **Fresh install:** the home screen first. Adventure's first tap plays its tutorial ("Eat every fish to win"): hold
+  to rise, let go to fall, eat a smaller fish, dodge a bigger one, watch a missed fish grow and catch it back, then
+  eat through the wall and catch the last two ("2 fish left"). Missing a wall meal gets you eaten, and Retry starts
+  the wall again. It ends on the world map. Open Water's first tap plays its own (eat smaller, avoid bigger, gather a
+  pearl; rising and falling only if Adventure's hasn't taught them), then the run starts. The Shop's first open shows
+  arrows to your pearls, the kinds, and the shelf; a tap clears them. Settings > How to play plays any of them again,
+  then goes home.
 - **Update over 0.3:** no tutorial (you have cleared levels); progress, Deep End rings, and best times are kept.
 - Every world is open from the start (the unlock isn't sold yet, so everyone plays as if they'd bought it), five
   of them: Sunset Cove fourth, Midnight Zone fifth. Riptide Reef isn't there (it's an Xcode-only prototype).
@@ -71,7 +74,7 @@ Since 0.3:
 - The world map rings and the level map's bar fill in as you clear levels; the card after a win shows the pips
   filling. Beating a world's level 10 shows its conquered screen with The Deep End.
 - The home screen's gear opens Settings: Sound effects, Music, and Vibration (remembered, and in the pause menu
-  too), Replay tutorial, Privacy Policy and Support (biggerfish.app), Credits, and the version.
+  too), How to play (Adventure, Open Water, Shop), Privacy Policy and Support (biggerfish.app), Credits, and the version.
 - Meals, close calls, bounces, stings, being eaten, and wins are felt (with Vibration on). Vibration off stops them.
 - The screen sleeps on the maps, cards, and pause menu as it normally would, but not while you play.
 

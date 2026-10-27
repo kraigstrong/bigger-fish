@@ -55,6 +55,8 @@ struct ContentView: View {
     @State private var showsShop = false
     /// The pearl shop's visit while it's open, for the stats (`ArcadeAnalytics.shopVisited`).
     @State private var shopVisit: ArcadeAnalytics.ShopVisit?
+    /// The Shop's tutorial over it: the first time it's opened, or from Settings' How to play.
+    @State private var showsShopHints = false
 
     var body: some View {
         Group {
@@ -87,7 +89,10 @@ struct ContentView: View {
         .overlay {
             if scene == nil && credits == nil && showsSettings {
                 SettingsView(purchases: purchases, analytics: analytics,
-                             onReplayTutorial: { showsSettings = false; playTutorial() },
+                             onHowToPlay: { course in
+                                 showsSettings = false
+                                 if course == .shop { openShop(from: .map, hints: true) } else { playTutorial(course) }
+                             },
                              onPlayCredits: playCredits,
                              onClose: { withAnimation { showsSettings = false } })
                     .transition(.opacity)
@@ -116,7 +121,12 @@ struct ContentView: View {
         }
         .overlay {
             if showsShop && credits == nil {
-                PearlShopView(progress: progress, onBought: { shopVisit?.add($0.id) }, onClose: closeShop)
+                PearlShopView(progress: progress, showsHints: showsShopHints, onBought: { shopVisit?.add($0.id) },
+                              onHintsSeen: {
+                                  progress.sawTutorial(.shop)
+                                  withAnimation(.easeOut(duration: 0.2)) { showsShopHints = false }
+                              },
+                              onClose: closeShop)
                     .transition(.opacity)
             }
         }
@@ -145,8 +155,11 @@ struct ContentView: View {
                 selectedWorld = world
                 celebrate(world, preview: true)
             }
-            .replayingTutorial { playTutorial() }
-            .replayingTutorialWall { playTutorial(from: .eatEnough) }
+            .replayingTutorial { course in
+                scene = nil
+                if course == .shop { openShop(from: .map, hints: true) } else { playTutorial(course) }
+            }
+            .replayingTutorialWall { playTutorial(.adventure, from: .eatEnough) }
             .previewingUnlock {
                 scene = nil
                 withAnimation { offer = UnlockOffer(featured: nil, source: nil) }
@@ -229,8 +242,10 @@ struct ContentView: View {
         case .credits:
             showsSettings = true
             playCredits()
-        case .tutorial: playTutorial()
+        case .tutorial: playTutorial(.adventure)
+        case .openWaterTutorial: playTutorial(.openWater)
         case .shop: openShop(from: .map)
+        case .shopHints: openShop(from: .map, hints: true)
         case .pause:
             guard let scene else { return }
             Task { @MainActor in
@@ -314,15 +329,7 @@ struct ContentView: View {
         // The prototypes plan their levels in code; behind the map, so a level opens at once.
         Task.detached(priority: .utility) { _ = ArcadeWorld.prototypes.map(\.levels.count) }
         #endif
-        // A new player starts with the tutorial, then lands on the home screen (not a level launched for playtesting).
-        var startsWithTutorial = progress.needsTutorial
-        #if DEBUG
-        startsWithTutorial = startsWithTutorial && ArcadePlaytest.selection == nil && ArcadePlaytest.openWaterSeed == nil
-        #endif
-        if startsWithTutorial {
-            playTutorial()
-            return
-        }
+        // A new player starts on the home screen: each way to play has its tutorial the first time it's opened.
         // Players who beat a tenth level before its unlock screen existed see it once, over the home screen. It's only
         // counted as seen if it shows: someone who taps into a level in the moment before keeps it for next time.
         if let world = progress.unseenUnlock {
@@ -352,7 +359,7 @@ struct ContentView: View {
     /// The Open Water, the endless run (`OpenWater`): no campaign progress, but its runs are reported their own way
     /// (`ArcadeAnalytics.startOpenWater`).
     /// Its first level is planned off the main thread first (planning one takes a moment); leaving goes back to the
-    /// home screen.
+    /// home screen. The first time, its tutorial plays while it's planned, then the run starts.
     private func playOpenWater(seed: UInt64 = .random(in: 1...UInt64(UInt32.max)), from start: Int = 0) {
         guard !startingOpenWater else { return }
         // The day's free runs used up: what the unlock opens, and when more come.
@@ -360,47 +367,74 @@ struct ContentView: View {
             withAnimation { offer = UnlockOffer(featured: nil, source: .openWaterLimit) }
             return
         }
+        let planning = Task.detached(priority: .userInitiated) {
+            let started = DispatchTime.now()
+            let plan = OpenWater.plan(start, seed: seed)
+            return (plan, Double(DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1e9)
+        }
+        var tutorialFirst = progress.needsTutorial(.openWater)
+        #if DEBUG
+        tutorialFirst = tutorialFirst && ArcadePlaytest.openWaterSeed == nil
+        #endif
+        if tutorialFirst {
+            playTutorial(.openWater) {
+                Task {
+                    let (plan, seconds) = await planning.value
+                    withAnimation(.easeInOut(duration: 0.7)) { showOpenWater(seed: seed, from: start, plan: plan, seconds: seconds) }
+                }
+            }
+            return
+        }
         startingOpenWater = true
         Task {
-            let (plan, seconds) = await Task.detached(priority: .userInitiated) {
-                let started = DispatchTime.now()
-                let plan = OpenWater.plan(start, seed: seed)
-                return (plan, Double(DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1e9)
-            }.value
+            let (plan, seconds) = await planning.value
             startingOpenWater = false
             guard scene == nil else { return }
-            let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
-            game.startOpenWater(seed: seed, firstLevel: plan, from: start, planSeconds: seconds)
-            game.analytics = analytics
-            // Each pearl's kept as it's taken, however the run ends.
-            game.onPearl = { progress.earnPearls(1) }
-            game.onShop = { openShop(from: .runCard) }
-            game.pearlsToSpend = progress.pearls
-            game.openWaterBest = progress.openWaterBest
-            game.onOpenWaterRun = { progress.recordOpenWaterRun(fish: $0, furthest: $1) }
-            game.openWaterRunsLeft = { limitsOpenWater ? openWaterRuns.left() : nil }
-            game.onOpenWaterRunCounted = { if limitsOpenWater { openWaterRuns.use() } }
-            game.onExit = { [weak game] in
-                game?.exitMetrics()
-                scene = nil
-                if game?.leftForUnlock == true { withAnimation { offer = UnlockOffer(featured: nil, source: .openWaterLimit) } }
-            }
-            show(game)
+            showOpenWater(seed: seed, from: start, plan: plan, seconds: seconds)
         }
     }
 
+    /// An Open Water run, its first level planned.
+    private func showOpenWater(seed: UInt64, from start: Int, plan: MeetingPlan, seconds: Double) {
+        let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        game.startOpenWater(seed: seed, firstLevel: plan, from: start, planSeconds: seconds)
+        game.analytics = analytics
+        // Each pearl's kept as it's taken, however the run ends.
+        game.onPearl = { progress.earnPearls(1) }
+        game.onShop = { openShop(from: .runCard) }
+        game.pearlsToSpend = progress.pearls
+        game.openWaterBest = progress.openWaterBest
+        game.onOpenWaterRun = { progress.recordOpenWaterRun(fish: $0, furthest: $1) }
+        game.openWaterRunsLeft = { limitsOpenWater ? openWaterRuns.left() : nil }
+        game.onOpenWaterRunCounted = { if limitsOpenWater { openWaterRuns.use() } }
+        game.onExit = { [weak game] in
+            game?.exitMetrics()
+            scene = nil
+            if game?.leftForUnlock == true { withAnimation { offer = UnlockOffer(featured: nil, source: .openWaterLimit) } }
+        }
+        show(game)
+    }
+
     /// Adventure, from the home screen: the world map, your fish over the world you're on. (Kraig, 2026-10-26, after
-    /// it first opened that world's levels: "I think I'd want to see the world map".)
+    /// it first opened that world's levels: "I think I'd want to see the world map".) The first time, its tutorial
+    /// plays first, then fades to the map.
     private func openAdventure() {
+        guard !progress.needsTutorial(.adventure) else {
+            playTutorial(.adventure) { withAnimation(.easeInOut(duration: 0.7)) { openAdventure() } }
+            return
+        }
+        scene = nil
         selectedWorld = nil
         returnedFrom = nil
         advancedFrom = nil
         showsWorlds = true
     }
 
-    /// Opens the pearl shop, from the home screen or an Open Water run's card: a visit begins.
-    private func openShop(from source: ArcadeAnalytics.ShopSource) {
+    /// Opens the pearl shop, from the home screen or an Open Water run's card: a visit begins. `hints`: the Shop's
+    /// tutorial over it; without it, only the first time.
+    private func openShop(from source: ArcadeAnalytics.ShopSource, hints: Bool? = nil) {
         shopVisit = ArcadeAnalytics.ShopVisit(source: source, wallet: progress.pearls, hadBought: progress.hasBoughtALook)
+        showsShopHints = hints ?? progress.needsTutorial(.shop)
         withAnimation { showsShop = true }
     }
 
@@ -415,19 +449,31 @@ struct ContentView: View {
         analytics.earned(progress.earnedLooks.map(\.id))
     }
 
-    /// The first-launch tutorial (`ArcadeTutorial`): seen once however it ends, then the home screen, where Adventure
-    /// says to start there.
+    /// Adventure's or the Open Water's tutorial (`ArcadeTutorial`), seen once however it ends. The first time its way to
+    /// play is opened, finishing or skipping it goes on with `next` (Adventure's world map, an Open Water run), and it
+    /// skips rising and falling if the other taught them. From Settings' How to play (no `next`), it's played whole,
+    /// and it goes back home, as leaving from its pause menu (Home) does.
     /// `beat` (Xcode builds, from the tuner): start partway, to playtest one beat.
-    private func playTutorial(from beat: ArcadeTutorial.Beat = .holdToRise) {
-        let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+    private func playTutorial(_ course: ArcadeTutorial.Course, from beat: ArcadeTutorial.Beat? = nil, then next: (() -> Void)? = nil) {
+        let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: course,
+                             knowsControls: next != nil && progress.knowsControls)
         #if DEBUG
-        game.debugSetTutorialStart(beat)
+        if let beat { game.debugSetTutorialStart(beat) }
         #endif
         game.analytics = analytics
         // Seen once it's finished, skipped or left; closing the app partway through plays it again next time.
-        game.onTutorialFinished = { progress.sawTutorial() }
-        game.onExit = {
-            progress.sawTutorial()
+        game.onTutorialFinished = { progress.sawTutorial(course) }
+        // Left once: Skip stays up through its closing line (and while an Open Water run's first level is still being
+        // planned), and a second way out mustn't start a second run.
+        var left = false
+        game.onExit = { [weak game] in
+            guard !left else { return }
+            left = true
+            progress.sawTutorial(course)
+            if let next, game?.leftTutorialForHome != true {
+                next()
+                return
+            }
             // A gentle fade to the home screen, not a cut.
             withAnimation(.easeInOut(duration: 0.7)) {
                 scene = nil

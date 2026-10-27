@@ -1271,7 +1271,7 @@ enum GameTuning {
     static let shallowReefOrder = [0, 1, 4, 5, 2, 3, 6, 9, 8, 7, 10, 11, 12, 13, 14]
     static let shallowReefLevels: [Level] = shallowReefOrder.map { reefLabLevels[$0] }
 
-    // MARK: First-launch tutorial (`ArcadeTutorial`)
+    // MARK: Tutorials (`ArcadeTutorial`)
 
     /// Its fish (radius; you start at `baseRadius`, 16). The first meal takes you to 18.4; the fish you miss (14)
     /// eats two little ones (12) and reaches 20.7, clearly bigger than you; the last meal is sized so you end
@@ -1350,6 +1350,14 @@ enum GameTuning {
     static let tutorialRaceLane: CGFloat = 0.72
     static let tutorialHeldShare: CGFloat = 0.28
     static let tutorialHeldGlide: CGFloat = 220
+    /// The Open Water's pearl beat: the pearl sits `tutorialPearlAhead` screens ahead of you, `tutorialPearlShare` of the
+    /// way up the water, and a bigger fish (`tutorialBigFish`) swims slowly at you from just past it, nearer the
+    /// middle: close enough to feel it, with room to take the pearl over it. Missed, another comes the other way up. Once
+    /// it's taken, what pearls are for shows for `tutorialPearlsAreForSeconds` (at a pace of 1) before it ends.
+    static let tutorialPearlAhead: CGFloat = 1.0
+    static let tutorialPearlShare: CGFloat = 0.7
+    static let tutorialPearlGuard = TutorialSwim(ahead: 1.06, home: 0.42, wander: 0.03, heading: -1, speed: 16)
+    static let tutorialPearlsAreForSeconds: CGFloat = 1.6
     /// After the last catch: when its closing line fades in, and when it leaves for the map (seconds, real time).
     static let tutorialFinaleDelay: CGFloat = 0.5
     static let tutorialFinaleSeconds: CGFloat = 2.8

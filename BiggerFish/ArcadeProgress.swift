@@ -15,7 +15,8 @@ struct ArcadeSave: Codable, Equatable {
     var hasSeenJellyLesson = false
     /// Worlds whose "conquered" unlock screen has been shown.
     var seenUnlocks: Set<String>? = nil
-    /// The first-launch tutorial has been shown (finished, skipped, or left).
+    /// Adventure's tutorial (the first-launch tutorial, before the home screen) has been shown: finished, skipped, or
+    /// left.
     var hasSeenTutorial: Bool? = nil
     /// The Open Water's pearls: taken and spent, each counted by the install that took or spent them
     /// (`ArcadeProgress.install`), so two devices' pearls add up and spending on one can't be undone by the other.
@@ -37,6 +38,9 @@ struct ArcadeSave: Codable, Equatable {
     /// The looks earned (`PearlItem.earnedBy`), kept from the moment each was, so one stays the player's whatever
     /// becomes of its goal: made harder, sold instead, retired, or a crown's when a world joins the campaign.
     var earnedLooks: Set<String>? = nil
+    /// The Open Water's tutorial and the Shop's hints have been shown (finished, skipped, or left).
+    var hasSeenOpenWaterTutorial: Bool? = nil
+    var hasSeenShopTutorial: Bool? = nil
     /// Fields this version doesn't know, from a later version, kept as they were.
     var laterFields: [String: SaveValue] = [:]
 
@@ -46,6 +50,7 @@ struct ArcadeSave: Codable, Equatable {
         case clearedLevels, bestTimes, hasSeenJellyLesson, seenUnlocks, hasSeenTutorial
         case pearlsEarned, pearlsSpent, ownedLooks, wornLook
         case openWaterBest, openWaterFurthest, seenLooks, savedOutfits, earnedLooks
+        case hasSeenOpenWaterTutorial, hasSeenShopTutorial
     }
 
     /// What's worn (`PlayerLook`): an item ID for each kind worn, and when it was last changed (seconds since 1970),
@@ -82,6 +87,8 @@ struct ArcadeSave: Codable, Equatable {
         seenLooks = try? values.decodeIfPresent(Set<String>.self, forKey: .seenLooks)
         savedOutfits = try? values.decodeIfPresent([String: WornLook].self, forKey: .savedOutfits)
         earnedLooks = try? values.decodeIfPresent(Set<String>.self, forKey: .earnedLooks)
+        hasSeenOpenWaterTutorial = try? values.decodeIfPresent(Bool.self, forKey: .hasSeenOpenWaterTutorial)
+        hasSeenShopTutorial = try? values.decodeIfPresent(Bool.self, forKey: .hasSeenShopTutorial)
         let all = try decoder.container(keyedBy: SaveKey.self)
         for key in all.allKeys where CodingKeys(stringValue: key.stringValue) == nil {
             laterFields[key.stringValue] = try? all.decode(SaveValue.self, forKey: key)
@@ -110,13 +117,15 @@ struct ArcadeSave: Codable, Equatable {
             case .seenLooks: try container.encodeIfPresent(seenLooks, forKey: field)
             case .savedOutfits: try container.encodeIfPresent(savedOutfits, forKey: field)
             case .earnedLooks: try container.encodeIfPresent(earnedLooks, forKey: field)
+            case .hasSeenOpenWaterTutorial: try container.encodeIfPresent(hasSeenOpenWaterTutorial, forKey: field)
+            case .hasSeenShopTutorial: try container.encodeIfPresent(hasSeenShopTutorial, forKey: field)
             }
         }
     }
 
     /// This save with iCloud's merged in. Merging only ever adds, so syncing can never un-clear a level: cleared levels
-    /// and seen "conquered" screens are united, each level keeps the faster best time, and a lesson or tutorial seen on
-    /// either side stays seen. Each install's pearls taken and spent keep the larger count, things bought are united,
+    /// and seen "conquered" screens are united, each level keeps the faster best time, and a lesson or any of the
+    /// tutorials seen on either side stays seen. Each install's pearls taken and spent keep the larger count, things bought are united,
     /// the look changed last is worn, the Open Water's better best run and further level are kept, looks seen in the shop
     /// are united, each outfit slot keeps its latest save, and looks earned are united. It comes out the same whichever
     /// save is which, except for fields from a later version: this version never changes those, so iCloud's (the latest
@@ -152,6 +161,12 @@ struct ArcadeSave: Codable, Equatable {
                 }
             case .earnedLooks:
                 if let theirs = cloud.earnedLooks { merged.earnedLooks = (earnedLooks ?? []).union(theirs) }
+            case .hasSeenOpenWaterTutorial:
+                if let theirs = cloud.hasSeenOpenWaterTutorial {
+                    merged.hasSeenOpenWaterTutorial = hasSeenOpenWaterTutorial == true || theirs
+                }
+            case .hasSeenShopTutorial:
+                if let theirs = cloud.hasSeenShopTutorial { merged.hasSeenShopTutorial = hasSeenShopTutorial == true || theirs }
             }
         }
         merged.laterFields.merge(cloud.laterFields) { _, theirs in theirs }
@@ -356,12 +371,30 @@ final class ArcadeProgress: ObservableObject {
         persist()
     }
 
-    /// Only a new player sees the tutorial: someone updating with levels already cleared knows the game.
-    var needsTutorial: Bool { save.hasSeenTutorial != true && save.clearedLevels.isEmpty }
+    /// Each tutorial plays the first time its part of the home screen is opened, once. Only someone new to it: a player
+    /// updating with a level cleared knows Adventure, one with a run or a pearl the Open Water, and one with a look bought
+    /// the Shop.
+    func needsTutorial(_ course: ArcadeTutorial.Course) -> Bool {
+        switch course {
+        case .adventure: save.hasSeenTutorial != true && save.clearedLevels.isEmpty
+        case .openWater: save.hasSeenOpenWaterTutorial != true && openWaterBest == 0 && (save.pearlsEarned ?? [:]).isEmpty
+        case .shop: save.hasSeenShopTutorial != true && !hasBoughtALook
+        }
+    }
 
-    func sawTutorial() {
-        save.hasSeenTutorial = true
+    func sawTutorial(_ course: ArcadeTutorial.Course) {
+        switch course {
+        case .adventure: save.hasSeenTutorial = true
+        case .openWater: save.hasSeenOpenWaterTutorial = true
+        case .shop: save.hasSeenShopTutorial = true
+        }
         persist()
+    }
+
+    /// Rising and falling are learned (in either played tutorial, a level, or a run): the other tutorial starts at its
+    /// first meal.
+    var knowsControls: Bool {
+        save.hasSeenTutorial == true || save.hasSeenOpenWaterTutorial == true || !save.clearedLevels.isEmpty || openWaterBest > 0
     }
 
     func sawJellyLesson() {

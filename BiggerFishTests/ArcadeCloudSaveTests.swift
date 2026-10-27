@@ -87,17 +87,18 @@ struct ArcadeCloudSaveTests {
     }
 
     @Test func aLessonOrTutorialSeenOnEitherSideStaysSeen() throws {
-        let saw = try save(#"{"hasSeenJellyLesson":true,"hasSeenTutorial":true}"#)
-        let notYet = try save(#"{"hasSeenJellyLesson":false,"hasSeenTutorial":false}"#)
-        let before = try save(#"{"clearedLevels":[]}"#)  // From before the tutorial existed: no field at all.
+        let saw = try save(#"{"hasSeenJellyLesson":true,"hasSeenTutorial":true,"hasSeenOpenWaterTutorial":true,"hasSeenShopTutorial":true}"#)
+        let notYet = try save(#"{"hasSeenJellyLesson":false,"hasSeenTutorial":false,"hasSeenOpenWaterTutorial":false,"hasSeenShopTutorial":false}"#)
+        let before = try save(#"{"clearedLevels":[]}"#)  // From before the tutorials existed: no field at all.
+        let seen = { (save: ArcadeSave) in [save.hasSeenTutorial, save.hasSeenOpenWaterTutorial, save.hasSeenShopTutorial] }
         for (mine, theirs) in [(saw, notYet), (notYet, saw), (saw, before), (before, saw)] {
             let merged = mine.merged(withCloud: theirs)
-            #expect(merged.hasSeenJellyLesson && merged.hasSeenTutorial == true)
+            #expect(merged.hasSeenJellyLesson && seen(merged) == [true, true, true])
         }
-        #expect(notYet.merged(withCloud: before).hasSeenTutorial == false)
-        #expect(before.merged(withCloud: notYet).hasSeenTutorial == false)
+        #expect(seen(notYet.merged(withCloud: before)) == [false, false, false])
+        #expect(seen(before.merged(withCloud: notYet)) == [false, false, false])
         // Neither side has the field: it stays out of the save, as it always has.
-        #expect(before.merged(withCloud: before).hasSeenTutorial == nil && !before.merged(withCloud: before).hasSeenJellyLesson)
+        #expect(seen(before.merged(withCloud: before)) == [nil, nil, nil] && !before.merged(withCloud: before).hasSeenJellyLesson)
     }
 
     @Test func seenConqueredScreensAreUnited() throws {
@@ -194,7 +195,7 @@ struct ArcadeCloudSaveTests {
             cloud.values[ArcadeProgress.key] = Data(remote.utf8)
             let (progress, defaults) = device(local, cloud: cloud)
             #expect(progress.save == expected)
-            #expect(progress.save.bestTimes["shallow-reef.1"] == 19 && progress.unseenUnlock == nil && !progress.needsTutorial)
+            #expect(progress.save.bestTimes["shallow-reef.1"] == 19 && progress.unseenUnlock == nil && !progress.needsTutorial(.adventure))
             #expect(stored(defaults) == expected && cloud.save == expected)
             // It reloads the same, with or without iCloud.
             #expect(ArcadeProgress(defaults: defaults, cloud: nil).save == expected)
@@ -240,22 +241,22 @@ struct ArcadeCloudSaveTests {
     @Test func aReinstallGetsItsProgressBack() throws {
         let cloud = FakeCloud()
         let (first, _) = device(cloud: cloud)
-        first.sawTutorial()
+        first.sawTutorial(.adventure)
         first.clear(.shallowReef, 0, seconds: 31)
         first.clear(.shallowReef, 1, seconds: 28)
         first.sawJellyLesson()
 
         let (reinstalled, defaults) = device(cloud: cloud)
         #expect(reinstalled.save == first.save && stored(defaults) == first.save)
-        #expect(!reinstalled.needsTutorial && reinstalled.nextLevel(in: .shallowReef) == 2)
+        #expect(!reinstalled.needsTutorial(.adventure) && reinstalled.nextLevel(in: .shallowReef) == 2)
     }
 
     /// A fresh install with nothing to back up writes nothing: an empty save never goes up to iCloud.
     @Test func aFreshInstallUploadsNothing() {
         let cloud = FakeCloud()
         let (progress, _) = device(cloud: cloud)
-        #expect(cloud.writes == 0 && cloud.values.isEmpty && progress.needsTutorial)
-        progress.sawTutorial()
+        #expect(cloud.writes == 0 && cloud.values.isEmpty && progress.needsTutorial(.adventure))
+        progress.sawTutorial(.adventure)
         #expect(cloud.save?.hasSeenTutorial == true)
     }
 
@@ -369,7 +370,7 @@ struct ArcadeCloudSaveTests {
             progress.clear(.shallowReef, 2, seconds: 40)
             progress.clear(.shallowReef, 2, seconds: 35)
             progress.sawJellyLesson()
-            progress.sawTutorial()
+            progress.sawTutorial(.adventure)
             progress.sawUnlock(.shallowReef)
             progress.reset(.jellyBloom)
         }

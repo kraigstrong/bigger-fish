@@ -179,9 +179,15 @@ final class GameScene: SKScene {
         return "Stage \(openWater.leg.stage) · \(openWater.leg.world.title) · \(mealsEaten) fish · "
             + (openWater.pearls == 1 ? "1 pearl" : "\(openWater.pearls) pearls")
     }
-    /// The first-launch tutorial (`ArcadeTutorial`) instead of a level: its beats bring their own fish, nothing is
-    /// recorded as cleared, and it ends by leaving for the map.
-    let isTutorial: Bool
+    /// A tutorial (`ArcadeTutorial`) instead of a level: its beats bring their own fish, nothing is recorded as cleared,
+    /// and it ends by leaving for its way to play.
+    let tutorialCourse: ArcadeTutorial.Course?
+    var isTutorial: Bool { tutorialCourse != nil }
+    /// The beat the tutorial opens with: its first meal, for a player who already knows how to rise and fall.
+    private let tutorialOpening: ArcadeTutorial.Beat
+    /// The tutorial was left from its pause menu (Home), not finished or skipped: it goes home, not on into its way to
+    /// play.
+    private(set) var leftTutorialForHome = false
     /// The world being played. The Open Water moves from world to world as it goes.
     private(set) var arcadeWorld: ArcadeWorld
     private var levelIndex: Int {
@@ -315,10 +321,13 @@ final class GameScene: SKScene {
     private var audio: ArcadeAudio { .shared }
     private var settings: ArcadeSettings { .shared }
 
+    /// `knowsControls`: the tutorial skips rising and falling (learned in the other tutorial, a level, or a run).
     init(world: ArcadeWorld = .shallowReef, levelIndex: Int = 0,
-         showsJellyLesson: Bool = true, tutorial: Bool = false) {
+         showsJellyLesson: Bool = true, tutorial: ArcadeTutorial.Course? = nil, knowsControls: Bool = false) {
         arcadeWorld = world
-        isTutorial = tutorial
+        tutorialCourse = tutorial
+        tutorialOpening = tutorial?.opening(knowsControls: knowsControls) ?? .holdToRise
+        tutorialCheckpoint = tutorialOpening
         self.levelIndex = min(max(0, levelIndex), world.levelCount - 1)
         worldLevel = world.level(self.levelIndex)
         self.showsJellyLesson = showsJellyLesson
@@ -668,7 +677,7 @@ final class GameScene: SKScene {
         lastCameraX = player.position.x
         capturePresentation()
         // A tutorial retry past its opening goes straight back in; its opening waits for your first touch.
-        setPhase(startPlaying || (isTutorial && tutorialCheckpoint != .holdToRise) ? .playing : .ready)
+        setPhase(startPlaying || (isTutorial && tutorialCheckpoint != tutorialOpening) ? .playing : .ready)
         buildLevelIndicator()
         buildOpenWaterCounts()
         _ = render()
@@ -776,7 +785,7 @@ final class GameScene: SKScene {
         pauseMenu.isHidden = newPhase != .paused
         // The pause menu names the level itself.
         levelIndicator.isHidden = newPhase == .paused
-        openWaterCounts.isHidden = newPhase == .paused || openWater == nil
+        openWaterCounts.isHidden = newPhase == .paused || !showsOpenWaterCounts
         if newPhase == .paused {
             refreshSoundToggles()
             configurePauseAccessibility()
@@ -785,8 +794,8 @@ final class GameScene: SKScene {
         case .ready:
             resultPanel = nil
             if isTutorial {
-                // No card: the finger shows you, and your first touch starts it and lifts you.
-                hideMessage()
+                // Just what it's about: the finger shows you how, and your first touch starts it and lifts you.
+                showTutorialGoal()
                 if let caption = tutorialCaptionPending {
                     tutorialCaptionPending = nil
                     showTutorialCaption(caption)
@@ -1114,6 +1123,7 @@ final class GameScene: SKScene {
                     #if DEBUG
                     finishRunRecording("level_map")
                     #endif
+                    leftTutorialForHome = isTutorial
                     onExit?()
                     return
                 }
@@ -1631,7 +1641,7 @@ final class GameScene: SKScene {
 
     /// The beat playing, the one a retry starts from, and when it started.
     private var tutorialBeat: ArcadeTutorial.Beat = .holdToRise
-    private var tutorialCheckpoint: ArcadeTutorial.Beat = .holdToRise
+    private var tutorialCheckpoint: ArcadeTutorial.Beat
     private var tutorialBeatStart: CGFloat = 0
     /// The beat's fish, by the part each plays.
     private var tutorialMeal: Int?
@@ -1661,6 +1671,10 @@ final class GameScene: SKScene {
     private var tutorialPaths: [Int: (path: TutorialPath, start: CGFloat, leaves: Bool)] = [:]
     private let tutorialCaption = SKLabelNode(fontNamed: "AvenirNext-Heavy")
     private let tutorialCaptionPill = SKShapeNode()
+    /// Under the last beat's line: the fish still to eat.
+    private let tutorialFishLeft = SKLabelNode(fontNamed: "AvenirNext-DemiBold")
+    /// Pearls taken in the Open Water's tutorial: counted as a run counts them, and never kept.
+    private var tutorialPearls = 0
     /// A beat's line, shown once you're playing (not behind the card before the first tap).
     private var tutorialCaptionPending: String?
 
@@ -1684,7 +1698,8 @@ final class GameScene: SKScene {
 
     /// Starts the tutorial (or a retry) from its checkpoint, with you the size the earlier beats made you.
     private func startTutorial() {
-        if tutorialCheckpoint == .holdToRise { analytics?.tutorial(.started) }
+        // The stats count Adventure's (the first-launch tutorial's events, from before there were others).
+        if tutorialCourse == .adventure && tutorialCheckpoint == tutorialOpening { analytics?.tutorial(.started) }
         tutorialPaths.removeAll()
         tutorialMeal = nil; tutorialBigFish = nil; tutorialMissedFish = nil; tutorialMissedMeals = []
         tutorialWall = []; tutorialWallBreach = nil; tutorialWallMeals = []; tutorialSwims = [:]
@@ -1692,6 +1707,8 @@ final class GameScene: SKScene {
         tutorialComesRoundAt = nil
         tutorialCaptionPending = nil
         tutorialLowest = nil
+        tutorialPearls = 0
+        mealsEaten = ArcadeTutorial.meals(before: tutorialCheckpoint)
         if tutorialHint.parent == nil {
             tutorialHint.zPosition = 6
             uiLayer.addChild(tutorialHint)
@@ -1707,9 +1724,17 @@ final class GameScene: SKScene {
             tutorialCaptionPill.strokeColor = .clear
             tutorialCaptionPill.zPosition = -1
             tutorialCaption.addChild(tutorialCaptionPill)
+            tutorialFishLeft.fontSize = T.tutorialCaptionSize * 0.6
+            tutorialFishLeft.fontColor = .white
+            tutorialFishLeft.verticalAlignmentMode = .center
+            tutorialFishLeft.position = CGPoint(x: 0, y: -T.tutorialCaptionSize * 1.55)
+            tutorialCaption.addChild(tutorialFishLeft)
             uiLayer.addChild(tutorialCaption)
         }
-        tutorialCaption.position = CGPoint(x: size.width / 2, y: size.height - 30 - T.tutorialCaptionSize / 2)
+        tutorialFishLeft.text = nil
+        // Under the fish and pearls counted at the top, in the Open Water's.
+        let top: CGFloat = showsOpenWaterCounts ? 64 : 30
+        tutorialCaption.position = CGPoint(x: size.width / 2, y: size.height - top - T.tutorialCaptionSize / 2)
         tutorialCaption.removeAllActions()
         tutorialCaption.alpha = 0
         beginTutorialBeat(tutorialCheckpoint)
@@ -1788,7 +1813,35 @@ final class GameScene: SKScene {
                 swim.dashUntil = simClock + dash
                 tutorialSwims[id] = swim
             }
+        case .gatherPearls:
+            tutorialCaptionPending = beat.caption
+            spawnTutorialPearl(low: false)
         }
+    }
+
+    /// The Open Water's pearl beat: a pearl ahead of you, and a bigger fish swimming slowly at you just the other side of
+    /// the middle, so you go round it to take the pearl, as a run's pearls sit by its big fish. `low`: the other way up.
+    private func spawnTutorialPearl(low: Bool) {
+        for entry in openWaterPearls { entry.node.removeFromParent() }
+        let water = waterTop - waterBottom
+        let share = low ? 1 - T.tutorialPearlShare : T.tutorialPearlShare
+        let spot = CGPoint(x: world.wrap(player.position.x + T.tutorialPearlAhead * size.width / zoom), y: waterBottom + share * water)
+        let node = pearlNode(T.openWaterPearlLook(arcadeWorld))
+        // A ring pulsing round it, as round the tutorial's meals.
+        let ring = SKShapeNode(circleOfRadius: T.openWaterPearlRadius * 2.2)
+        ring.strokeColor = SKColor(white: 1, alpha: 0.8)
+        ring.fillColor = .clear
+        ring.lineWidth = 2
+        ring.zPosition = 0.2
+        ring.run(.repeatForever(.sequence([.group([.scale(to: 1.35, duration: 0.8), .fadeOut(withDuration: 0.8)]),
+                                           .scale(to: 1, duration: 0), .fadeAlpha(to: 1, duration: 0)])))
+        node.addChild(ring)
+        fishLayer.addChild(node)
+        openWaterPearls = [(OpenWaterPearl(position: spot, phase: 0), node)]
+        var guarding = T.tutorialPearlGuard
+        if low { guarding.home = 1 - guarding.home }
+        var generator = SeededGenerator(seed: T.spawnSeed &+ UInt64(T.tutorialBigFish.rounded()) &* 7_919)
+        tutorialBigFish = spawnTutorialSwimmer(T.tutorialBigFish, style: FishStyle.random(using: &generator), swim: guarding)
     }
 
     /// The fish that got away comes round the reef again: in from ahead of you on its side of the water, turning
@@ -1811,7 +1864,9 @@ final class GameScene: SKScene {
         }
         let elapsed = tutorialTime(since: tutorialBeatStart)
         if let at = tutorialNextBeatAt {
-            if simClock >= at, let next = ArcadeTutorial.Beat(rawValue: tutorialBeat.rawValue + 1) { beginTutorialBeat(next) }
+            if simClock >= at {
+                if let next = tutorialCourse?.beat(after: tutorialBeat) { beginTutorialBeat(next) } else { finishTutorial() }
+            }
             return
         }
         func gone(_ id: Int?) -> Bool { id.map { fishByID[$0] == nil } ?? true }
@@ -1899,20 +1954,39 @@ final class GameScene: SKScene {
         case .lastFish:
             let rest = tutorialWall.compactMap { fishByID[$0] }
             if rest.isEmpty && swallows.isEmpty {
-                // The last fish swimming: the tutorial is done.
-                hideTutorialCaption()
-                analytics?.tutorial(.completed)
-                onTutorialFinished?()
-                win()
+                // Every fish eaten: the tutorial is done.
+                finishTutorial()
                 return
             }
+            let left = rest.filter { $0.state == .swimming }.count
+            tutorialFishLeft.text = left > 0 ? ArcadeTutorial.fishLeft(left) : nil
             // One that got past you comes round the reef again: in from off screen ahead, swimming away from you.
             for f in rest where f.state == .swimming && world.delta(from: player.position.x, to: f.position.x) < -size.width * 0.45 / zoom {
                 f.position = CGPoint(x: world.wrap(player.position.x + 0.85 * size.width / zoom), y: f.position.y)
                 f.velocity = CGVector(dx: T.tutorialFleeSpeed, dy: 0)
                 previousPresentation[f.id] = FishPresentation(f)
             }
+        case .gatherPearls:
+            takeTouchedOpenWaterPearls()
+            if tutorialPearls > 0 {
+                // Taken: what pearls are for, a moment, and it's done.
+                showTutorialCaption(ArcadeTutorial.pearlsAreFor)
+                next(after: T.tutorialPearlsAreForSeconds)
+            } else if let pearl = openWaterPearls.first?.pearl,
+                      world.delta(from: player.position.x, to: pearl.position.x) < TutorialPath.leaves * size.width / zoom {
+                // Missed: another, the other way up, once the fish by this one has gone by too.
+                if let id = tutorialBigFish, let guarding = fishByID[id], guarding.state == .swimming { removeFish(guarding) }
+                spawnTutorialPearl(low: pearl.position.y > waterBottom + (waterTop - waterBottom) / 2)
+            }
         }
+    }
+
+    /// The last beat's done: its closing line, then off to its way to play.
+    private func finishTutorial() {
+        hideTutorialCaption()
+        if tutorialCourse == .adventure { analytics?.tutorial(.completed) }
+        onTutorialFinished?()
+        win()
     }
 
     private func spawnTutorialFish(_ radius: CGFloat, style: FishStyle? = nil, path: TutorialPath, leaves: Bool = true,
@@ -2036,6 +2110,7 @@ final class GameScene: SKScene {
         noteHitch(.card, "tutorial caption")
         #endif
         tutorialCaption.text = text
+        tutorialFishLeft.text = nil
         let pill = CGSize(width: tutorialCaption.frame.width + T.tutorialCaptionSize * 1.4, height: T.tutorialCaptionSize * 1.9)
         tutorialCaptionPill.path = CGPath(roundedRect: CGRect(x: -pill.width / 2, y: -pill.height / 2, width: pill.width, height: pill.height),
                                           cornerWidth: pill.height / 2, cornerHeight: pill.height / 2, transform: nil)
@@ -2054,7 +2129,7 @@ final class GameScene: SKScene {
         #endif
         messageNode.removeAllActions()
         messageNode.removeAllChildren()
-        let line = label(ArcadeTutorial.finale, fontSize: 34, heavy: true)
+        let line = label(tutorialCourse?.finale ?? "", fontSize: 34, heavy: true)
         let maxWidth = size.width - 80
         if line.frame.width > maxWidth { line.fontSize *= maxWidth / line.frame.width }
         let panel = SKShapeNode(rectOf: CGSize(width: line.frame.width + 70, height: 84), cornerRadius: 24)
@@ -2071,10 +2146,44 @@ final class GameScene: SKScene {
                                    .group([.fadeIn(withDuration: 0.35), .scale(to: 1, duration: 0.35)])]))
     }
 
-    /// Leaves the tutorial for the map (its skip control).
+    /// What the tutorial's way to play is about, big until your first touch (`ArcadeTutorial.Course.goal`): right of
+    /// your fish and its arrows, under the beat's line and over the finger that shows you how (or, after a tutorial
+    /// before, a word on how to start).
+    private func showTutorialGoal() {
+        #if DEBUG
+        noteHitch(.card, "tutorial goal")
+        #endif
+        messageNode.removeAllActions()
+        messageNode.removeAllChildren()
+        let line = label(tutorialCourse?.goal ?? "", fontSize: 30, heavy: true)
+        let maxWidth = size.width * 0.6
+        if line.frame.width > maxWidth { line.fontSize *= maxWidth / line.frame.width }
+        var height: CGFloat = 72
+        if tutorialOpening != .holdToRise {
+            let start = label("Tap to start", fontSize: 18, heavy: false)
+            start.alpha = 0.85
+            start.position = CGPoint(x: 0, y: -26)
+            line.position = CGPoint(x: 0, y: 11)
+            messageNode.addChild(start)
+            height = 96
+        }
+        let panel = SKShapeNode(rectOf: CGSize(width: line.frame.width + 70, height: height), cornerRadius: 24)
+        panel.fillColor = SKColor(white: 0, alpha: 0.3)
+        panel.strokeColor = .clear
+        // Under its lines: the scene ignores sibling order.
+        panel.zPosition = -1
+        messageNode.addChild(panel)
+        messageNode.addChild(line)
+        let captionBottom = tutorialCaption.position.y - T.tutorialCaptionSize * 0.95
+        messageNode.position = CGPoint(x: size.width * 0.64, y: captionBottom - 12 - height / 2)
+        messageNode.alpha = 0
+        messageNode.run(.fadeIn(withDuration: 0.25))
+    }
+
+    /// Leaves the tutorial for its way to play (its skip control).
     func skipTutorial() {
         guard isTutorial else { return }
-        analytics?.tutorial(.skipped)
+        if tutorialCourse == .adventure { analytics?.tutorial(.skipped) }
         #if DEBUG
         finishRunRecording("level_map")
         #endif
@@ -2867,6 +2976,8 @@ final class GameScene: SKScene {
             if openWater != nil {
                 if prey.id == openWaterFinale { openWater?.finished = true }
                 updateOpenWaterCounts()
+            } else if showsOpenWaterCounts {
+                updateOpenWaterCounts()
             }
         }
         // Every meal is felt: a light tap, or a sharper one for a close call.
@@ -3233,6 +3344,7 @@ final class GameScene: SKScene {
                 #if DEBUG
                 scene.finishRunRecording("level_map")
                 #endif
+                scene.leftTutorialForHome = scene.isTutorial
                 scene.onExit?()
             },
             element(effectsButton, "Sound effects", value: settings.soundEffectsOn ? "On" : "Off") { $0.toggleSound(effects: true) },
@@ -3647,12 +3759,12 @@ final class GameScene: SKScene {
     /// before it make you). `lag`: a slower player, who steers for where things were that many seconds ago, and holds
     /// at least `lag` before changing their mind. `eatenOn`: on that beat, swims into the nearest bigger fish (how far you
     /// jump in a frame once caught is in `debugCaughtStep`). `letsTheLastFishGo`: doesn't chase the wall's last two.
-    /// Ends when it's won or lost.
+    /// `missesThePearl`: keeps clear of the pearl beat's pearls. Ends when it's won or lost.
     func debugPlayTutorial(limit: CGFloat = 90, greedy: Bool = false, missesAWallMeal: Bool = false,
-                           from start: ArcadeTutorial.Beat = .holdToRise, lag: CGFloat = 0, eatenOn: ArcadeTutorial.Beat? = nil,
-                           letsTheLastFishGo: Bool = false,
+                           from start: ArcadeTutorial.Beat? = nil, lag: CGFloat = 0, eatenOn: ArcadeTutorial.Beat? = nil,
+                           letsTheLastFishGo: Bool = false, missesThePearl: Bool = false,
                            onFrame: (() -> Void)? = nil) -> (finished: Bool, beats: [(beat: ArcadeTutorial.Beat, at: CGFloat)], seconds: CGFloat) {
-        tutorialCheckpoint = start
+        tutorialCheckpoint = start ?? tutorialOpening
         resetGame(startPlaying: true)
         debugCaughtStep = 0
         var lastX = player.position.x
@@ -3668,6 +3780,10 @@ final class GameScene: SKScene {
             } else if tutorialBeat == eatenOn, let threat = fish.filter({ !$0.isPlayer && $0.state == .swimming && $0.radius > player.radius })
                         .min(by: { abs(world.delta(from: player.position.x, to: $0.position.x)) < abs(world.delta(from: player.position.x, to: $1.position.x)) }) {
                 target = threat.position.y
+            } else if tutorialBeat == .gatherPearls, let pearl = openWaterPearls.first?.pearl {
+                // To it, or as far from it as the water goes.
+                let high = pearl.position.y > (waterBottom + waterTop) / 2
+                target = !missesThePearl ? pearl.position.y : high ? waterBottom + player.radius : waterTop - player.radius
             } else if tutorialBeat == .lastFish && letsTheLastFishGo {
                 target = (waterBottom + waterTop) / 2
             } else if tutorialBeat == .lastFish, let prey = fish.filter({ !$0.isPlayer && $0.state == .swimming && $0.radius < player.radius
@@ -3722,6 +3838,15 @@ final class GameScene: SKScene {
         (tutorialWallMeals.compactMap { fishByID[$0] }, tutorialWall.compactMap { fishByID[$0] }, tutorialPaths.count)
     }
     var debugTutorialBeat: ArcadeTutorial.Beat { tutorialBeat }
+    /// The pearl beat's pearls in the water, the ones taken, and the counts at the top (fish, pearls) as drawn.
+    var debugTutorialPearls: (inWater: [OpenWaterPearl], taken: Int) { (openWaterPearls.map(\.pearl), tutorialPearls) }
+    var debugCounts: (shown: Bool, fish: String?, pearls: String?) {
+        (!openWaterCounts.isHidden && !openWaterCounts.children.isEmpty,
+         (openWaterCounts.childNode(withName: "fishCount") as? SKLabelNode)?.text,
+         (openWaterCounts.childNode(withName: "pearlCount") as? SKLabelNode)?.text)
+    }
+    /// The tutorial's line at the top, and the fish left under it.
+    var debugTutorialCaption: (line: String?, fishLeft: String?) { (tutorialCaption.text, tutorialFishLeft.text) }
     /// The fish that got away, while it's around.
     var debugMissedFish: Fish? { tutorialMissedFish.flatMap { fishByID[$0] } }
     var debugPlayerRadius: CGFloat { player.targetRadius }
@@ -4448,32 +4573,38 @@ extension GameScene {
         guard openWater != nil, let plan = level.meetingPlan else { return }
         let look = T.openWaterPearlLook(arcadeWorld)
         openWaterPearls = OpenWater.pearls(plan).map { pearl in
-            let node = SKNode()
-            // Over the kelp's front fronds (26) and, at the fish layer's 10, Midnight Zone's dark (39.5), so it glints there;
-            // under your fish (30).
-            node.zPosition = Self.openWaterPearlDepth
-            let glow = SKSpriteNode(texture: ArcadeArt.glow, size: CGSize(width: 34, height: 34))
-            glow.color = look.fill
-            glow.colorBlendFactor = 1
-            glow.blendMode = .add
-            glow.alpha = look.glow
-            glow.zPosition = -0.1
-            let ball = SKShapeNode(circleOfRadius: T.openWaterPearlRadius)
-            ball.fillColor = look.fill
-            ball.strokeColor = look.rim
-            ball.lineWidth = 1.5
-            let shine = SKShapeNode(circleOfRadius: 2.2)
-            shine.fillColor = .white
-            shine.strokeColor = .clear
-            shine.position = CGPoint(x: -2.5, y: 2.5)
-            shine.zPosition = 0.1
-            for part in [glow, ball, shine] as [SKNode] { node.addChild(part) }
-            node.isHidden = true
+            let node = pearlNode(look)
             fishLayer.addChild(node)
             return (pearl, node)
         }
     }
     private static let openWaterPearlDepth: CGFloat = 29.7
+
+    /// A pearl, hidden until it's drawn where it sits.
+    private func pearlNode(_ look: (fill: SKColor, rim: SKColor, glow: CGFloat)) -> SKNode {
+        let node = SKNode()
+        // Over the kelp's front fronds (26) and, at the fish layer's 10, Midnight Zone's dark (39.5), so it glints there;
+        // under your fish (30).
+        node.zPosition = Self.openWaterPearlDepth
+        let glow = SKSpriteNode(texture: ArcadeArt.glow, size: CGSize(width: 34, height: 34))
+        glow.color = look.fill
+        glow.colorBlendFactor = 1
+        glow.blendMode = .add
+        glow.alpha = look.glow
+        glow.zPosition = -0.1
+        let ball = SKShapeNode(circleOfRadius: T.openWaterPearlRadius)
+        ball.fillColor = look.fill
+        ball.strokeColor = look.rim
+        ball.lineWidth = 1.5
+        let shine = SKShapeNode(circleOfRadius: 2.2)
+        shine.fillColor = .white
+        shine.strokeColor = .clear
+        shine.position = CGPoint(x: -2.5, y: 2.5)
+        shine.zPosition = 0.1
+        for part in [glow, ball, shine] as [SKNode] { node.addChild(part) }
+        node.isHidden = true
+        return node
+    }
 
     /// Touching a pearl takes it: it counts, and that's all (it doesn't grow you or slow you down).
     private func takeTouchedOpenWaterPearls() {
@@ -4482,7 +4613,8 @@ extension GameScene {
         for index in openWaterPearls.indices.reversed() where world.distance(player.position, openWaterPearls[index].pearl.position) < reach {
             let taken = openWaterPearls.remove(at: index)
             openWater?.pearls += 1
-            onPearl?()
+            // The Open Water's tutorial counts its pearl, and never keeps it.
+            if isTutorial { tutorialPearls += 1 } else { onPearl?() }
             // The run's first pearl makes it one of the day's free runs.
             if openWater?.pearls == 1 { onOpenWaterRunCounted?() }
             // A gulp: your mouth snaps open (and closes as after any bite), and the pearl goes into it.
@@ -4523,10 +4655,13 @@ extension GameScene {
     }
     #endif
 
-    /// The run's fish eaten and pearls, top middle: a fish and a pearl, each with its count.
+    /// The run's fish eaten and pearls, top middle: a fish and a pearl, each with its count. The Open Water's tutorial
+    /// counts them too.
+    private var showsOpenWaterCounts: Bool { openWater != nil || tutorialCourse == .openWater }
+
     fileprivate func buildOpenWaterCounts() {
         openWaterCounts.removeAllChildren()
-        guard openWater != nil else { return }
+        guard showsOpenWaterCounts else { return }
         let fishIcon = SKSpriteNode(texture: Self.openWaterFishIcon)
         fishIcon.position = CGPoint(x: -46, y: 0)
         let pearl = PearlShopArt.pearlIcon(radius: 7)
@@ -4547,7 +4682,7 @@ extension GameScene {
 
     fileprivate func updateOpenWaterCounts() {
         (openWaterCounts.childNode(withName: "fishCount") as? SKLabelNode)?.text = "\(mealsEaten)"
-        (openWaterCounts.childNode(withName: "pearlCount") as? SKLabelNode)?.text = "\(openWater?.pearls ?? 0)"
+        (openWaterCounts.childNode(withName: "pearlCount") as? SKLabelNode)?.text = "\(openWater?.pearls ?? tutorialPearls)"
     }
 
     private static let openWaterFishIcon: SKTexture = {

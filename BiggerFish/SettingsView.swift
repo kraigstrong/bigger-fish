@@ -7,14 +7,15 @@ enum ArcadeLinks {
     static let support = URL(string: "https://biggerfish.app/support")!
 }
 
-/// Settings, from the gear on the home screen: sound, music, and vibration; replaying the tutorial; restoring the
+/// Settings, from the gear on the home screen: sound, music, and vibration; how to play (each tutorial again); restoring the
 /// unlock; the privacy policy and support; the credits, played as a little game (`CreditsScene`); and the version.
 struct SettingsView: View {
     @ObservedObject var settings = ArcadeSettings.shared
     @ObservedObject var purchases: ArcadePurchases
     /// Counts how a restore here goes (the paywall funnel).
     var analytics: ArcadeAnalytics? = nil
-    let onReplayTutorial: () -> Void
+    /// A tutorial again (Kraig picked one row each, played at once, 2026-10-27).
+    let onHowToPlay: (ArcadeTutorial.Course) -> Void
     let onPlayCredits: () -> Void
     let onClose: () -> Void
     @Environment(\.openURL) private var openURL
@@ -52,8 +53,12 @@ struct SettingsView: View {
                         toggle("Sound effects", symbol: "speaker.wave.2.fill", isOn: $settings.soundEffectsOn)
                         toggle("Music", symbol: "music.note", isOn: $settings.musicOn)
                         toggle("Vibration", symbol: "iphone.radiowaves.left.and.right", isOn: $settings.vibrationOn)
-                        heading("Play").padding(.top, 6)
-                        row("Replay the tutorial", symbol: "arrow.counterclockwise", action: onReplayTutorial)
+                        heading("How to play").padding(.top, 6)
+                        HStack(spacing: 8) {
+                            ForEach(ArcadeTutorial.Course.allCases, id: \.self) { course in
+                                howToPlay(course)
+                            }
+                        }
                     }
                     .frame(maxWidth: 320)
                     VStack(alignment: .leading, spacing: 8) {
@@ -130,6 +135,21 @@ struct SettingsView: View {
         }
         .tint(DeepEndColors.gold)
         .frame(minHeight: 40)
+    }
+
+    /// One of How to play's three, side by side: what it's for, and its symbol on the home screen.
+    private func howToPlay(_ course: ArcadeTutorial.Course) -> some View {
+        Button { onHowToPlay(course) } label: {
+            VStack(spacing: 4) {
+                Image(systemName: course.symbol).font(.system(size: 17, weight: .bold))
+                Text(course.title).font(.custom("AvenirNext-DemiBold", size: 13)).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity).frame(minHeight: 56)
+            .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.08)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("How to play \(course.title)")
     }
 
     private func row(_ title: String, symbol: String, trailing: String? = nil, action: @escaping () -> Void) -> some View {

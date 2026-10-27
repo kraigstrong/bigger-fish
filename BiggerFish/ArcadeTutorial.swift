@@ -2,12 +2,74 @@ import CoreGraphics
 import FishKit
 import SpriteKit
 
-/// Bigger Fish's first-launch tutorial: eight short beats, the same every time, that teach the race at the heart of
-/// the game. Hold to rise and let go to fall, as Math Reef teaches it; eat smaller fish, steer clear of bigger ones, and eat on your first pass: a fish you miss keeps eating,
-/// swims on round the reef, and comes back bigger. Then the gates every level has: eat enough to get through, played
-/// like a level, and how a level is won: be the last fish swimming. The early fish swim scripted paths, but every bite is the game's own (the same collisions, swallows,
+/// Bigger Fish's tutorials, one for each part of the home screen, each the first time you open it (Kraig, 2026-10-27:
+/// "break out into 3 separate tutorials"). Adventure's teaches the race at the heart of a level and how a level is won.
+/// Hold to rise and let go to fall, as Math Reef teaches it; eat smaller fish, steer clear of bigger ones, and eat on
+/// your first pass: a fish you miss keeps eating, swims on round the reef, and comes back bigger. Then the gates every
+/// level has: eat enough to get through, played like a level, and how a level is won: eat every fish. The Open Water's
+/// is short: eat smaller, avoid bigger, and gather pearls. The Shop's is a few words and arrows over the shop
+/// (`ShopHints`). The early fish swim scripted paths, but every bite is the game's own (the same collisions, swallows,
 /// and growth as a level), so you watch a missed fish's real size change.
 enum ArcadeTutorial {
+    /// A tutorial, for one part of the home screen.
+    enum Course: String, CaseIterable {
+        case adventure
+        case openWater
+        /// Played over the shop, not in the water (`ShopHints`).
+        case shop
+
+        /// Its beats, in order. Rising and falling come first, unless you've learned them already (`opening`).
+        var beats: [Beat] {
+            switch self {
+            case .adventure: [.holdToRise, .letGoToFall, .eatSmaller, .dodgeBigger, .missedFishEats, .catchItBack, .eatEnough, .lastFish]
+            case .openWater: [.holdToRise, .letGoToFall, .eatSmaller, .dodgeBigger, .gatherPearls]
+            case .shop: []
+            }
+        }
+
+        /// The beat it opens with: its first meal for a player who has already learned to rise and fall (in the other
+        /// tutorial, a level, or a run).
+        func opening(knowsControls: Bool) -> Beat { knowsControls ? .eatSmaller : .holdToRise }
+
+        func beat(after beat: Beat) -> Beat? {
+            guard let index = beats.firstIndex(of: beat), index + 1 < beats.count else { return nil }
+            return beats[index + 1]
+        }
+
+        /// What the way to play is about, in the middle of the screen until your first touch: Adventure's says it as its
+        /// card on the home screen does.
+        var goal: String {
+            switch self {
+            case .adventure: ArcadeHome.winRule
+            case .openWater, .shop: "How far can you get?"
+            }
+        }
+
+        /// The line it ends on, before it leaves.
+        var finale: String {
+            switch self {
+            case .adventure: "You ate every fish. You win!"
+            case .openWater, .shop: "Now see how far you can get!"
+            }
+        }
+
+        /// Its button in Settings' How to play: the name and symbol of its part of the home screen.
+        var title: String {
+            switch self {
+            case .adventure: "Adventure"
+            case .openWater: "Open Water"
+            case .shop: "Shop"
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .adventure: "map.fill"
+            case .openWater: "infinity"
+            case .shop: "bag.fill"
+            }
+        }
+    }
+
     enum Beat: Int, CaseIterable {
         /// A finger presses open water: touching anywhere lifts you (your first touch starts the tutorial).
         case holdToRise
@@ -24,9 +86,11 @@ enum ArcadeTutorial {
         /// Played like a level: two meals swimming freely, then a wall of three fish a little bigger than you swimming
         /// at you. Eat both and you eat your way through; miss one and the wall eats you (one tap tries it again).
         case eatEnough
-        /// Through the wall, the other two (smaller than you now) bolt ahead and tire: catch them both, and you're the
-        /// last fish swimming. A level is won the same way.
+        /// Through the wall, the other two (smaller than you now) bolt ahead and tire: catch them both, and you've eaten
+        /// every fish. A level is won the same way.
         case lastFish
+        /// The Open Water's: a pearl ahead, with a bigger fish beside it as pearls have in a run. Touch it to take it.
+        case gatherPearls
 
         /// The one short line shown with the beat.
         var caption: String {
@@ -38,7 +102,8 @@ enum ArcadeTutorial {
             case .missedFishEats: "Fish you miss keep eating"
             case .catchItBack: "Grow, then catch it"
             case .eatEnough: "Eat enough to get through"
-            case .lastFish: "Be the last fish swimming to win"
+            case .lastFish: ArcadeHome.winRule
+            case .gatherPearls: "Gather pearls"
             }
         }
 
@@ -52,17 +117,33 @@ enum ArcadeTutorial {
         }
     }
 
-    /// The line it ends on before fading to the home screen.
-    static let finale = "Now you're ready to play!"
+    /// Under the last beat's line, the fish still to eat.
+    static func fishLeft(_ count: Int) -> String { count == 1 ? "1 fish left" : "\(count) fish left" }
+
+    /// Once the pearl's taken, before the Open Water's tutorial ends: what pearls are for.
+    static let pearlsAreFor = "Spend pearls in the Shop"
 
     /// Your radius at the start of a beat, eating what the beats before it fed you.
     static func radius(startingAt beat: Beat) -> CGFloat {
         let base = GameTuning.baseRadius
-        guard beat.rawValue > Beat.eatSmaller.rawValue else { return base }
         let afterFirst = grow(base, eating: GameTuning.tutorialFirstMeal)
-        guard beat.rawValue >= Beat.eatEnough.rawValue else { return afterFirst }
-        let afterLast = grow(afterFirst, eating: lastMeal(you: afterFirst, rival: missedFishGrown))
-        return grow(afterLast, eating: missedFishGrown)
+        switch beat {
+        case .holdToRise, .letGoToFall, .eatSmaller: return base
+        case .dodgeBigger, .missedFishEats, .catchItBack, .gatherPearls: return afterFirst
+        case .eatEnough, .lastFish:
+            let afterLast = grow(afterFirst, eating: lastMeal(you: afterFirst, rival: missedFishGrown))
+            return grow(afterLast, eating: missedFishGrown)
+        }
+    }
+
+    /// Fish you've eaten at the start of a beat (the Open Water's tutorial counts them, as a run does).
+    static func meals(before beat: Beat) -> Int {
+        switch beat {
+        case .holdToRise, .letGoToFall, .eatSmaller: 0
+        case .dodgeBigger, .missedFishEats, .catchItBack, .gatherPearls: 1
+        case .eatEnough: 3
+        case .lastFish: 6
+        }
     }
 
     /// The missed fish after eating its two meals.
