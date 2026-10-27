@@ -60,7 +60,7 @@ struct StoreCaptureTests {
             for world in ArcadeWorld.campaign where world != .shallowReef {
                 #expect(progress.clearedCounts(in: world) == (main: 0, deepEnd: 0))
             }
-            #expect(!progress.needsTutorial && progress.save.hasSeenJellyLesson)
+            #expect(!progress.needsTutorial(.adventure) && progress.save.hasSeenJellyLesson)
             #expect(progress.unseenUnlock == (moment == .deepEnd ? .shallowReef : nil))
         }
     }

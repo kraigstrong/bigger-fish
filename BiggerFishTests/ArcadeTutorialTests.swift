@@ -5,8 +5,8 @@ import SpriteKit
 import Testing
 @testable import BiggerFish
 
-/// The first-launch tutorial teaches the race: the sizes have to tell that story, and a player has to be able to
-/// play it through quickly.
+/// Adventure's tutorial teaches the race: the sizes have to tell that story, and a player has to be able to play it
+/// through quickly. The Open Water's teaches eating, avoiding, and pearls; each plays once, for someone new to it.
 @MainActor
 struct ArcadeTutorialTests {
     @Test func sizesTellTheRace() {
@@ -81,7 +81,7 @@ struct ArcadeTutorialTests {
     }
 
     @Test func youCantEatTheMissedFishsMealsWhileItEatsThem() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         // Even going straight for its meals, you hold your height while it eats, so it eats both and grows.
@@ -95,7 +95,7 @@ struct ArcadeTutorialTests {
     /// The wall plays like a level: two meals and the wall swim freely (nothing scripted), coming in from off screen
     /// ahead, and the meals wander up and down rather than run on rails.
     @Test func theWallPlaysLikeALevel() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         scene.debugStartTutorial(at: .eatEnough)
@@ -128,7 +128,7 @@ struct ArcadeTutorialTests {
 
     /// Miss a meal and the wall eats you; the card offers just Retry, which starts the wall again at once.
     @Test func missingAMealGetsYouEatenAndRetryStartsTheWallAgain() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         let run = scene.debugPlayTutorial(missesAWallMeal: true, from: .eatEnough)
@@ -148,7 +148,7 @@ struct ArcadeTutorialTests {
     /// Through the wall, the other two (smaller than you now) bolt ahead, one further than the other, and tire: you
     /// catch them both and you're the last fish swimming, which ends it, as it ends a level.
     @Test func throughTheWallYouBecomeTheLastFishSwimming() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         var frames = 0, ahead: [CGFloat] = []
@@ -168,7 +168,7 @@ struct ArcadeTutorialTests {
     /// One of the last two that gets past you comes round again from off screen ahead, swimming away, so it can still
     /// be caught (it's never left behind for good, and it doesn't pop up in view).
     @Test func aLastFishThatGetsPastYouComesRoundAgain() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         var last: [Int: CGFloat] = [:], cameRound: [CGFloat] = []
@@ -187,7 +187,7 @@ struct ArcadeTutorialTests {
 
     /// The meals wander, but gently: a first-time player who's slow on the controls still catches both.
     @Test func aSlowPlayerStillGetsThroughTheWall() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         let run = scene.debugPlayTutorial(from: .eatEnough, lag: 0.5)
@@ -198,7 +198,7 @@ struct ArcadeTutorialTests {
     /// The fish that got away swims smoothly round to you while you eat your meal and catch it: eating doesn't stop
     /// it in its tracks and then snap it back along its path.
     @Test func theMissedFishSwimsSmoothlyWhileYouEat() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         // Its place on screen in screen widths, across and up.
@@ -222,7 +222,7 @@ struct ArcadeTutorialTests {
 
     /// "Hold anywhere to rise" wants a clear rise, not a trip to the top: one short hold does it.
     @Test func aShortHoldIsEnoughToRise() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         scene.debugStartTutorial(at: .holdToRise)
@@ -243,7 +243,7 @@ struct ArcadeTutorialTests {
     /// measured from you, and you're carried along by the fish that caught you, so each chased the other ahead.)
     @Test func beingCaughtDoesntSweepTheScreenAhead() {
         for beat in [ArcadeTutorial.Beat.dodgeBigger, .catchItBack] {
-            let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+            let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
             let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
             view.presentScene(scene)
             let run = scene.debugPlayTutorial(eatenOn: beat)
@@ -257,7 +257,7 @@ struct ArcadeTutorialTests {
     /// A fish whose scripted path ends mid-meal finishes eating before it leaves; and a fish taken out mid-swallow lets
     /// the other go. Before, the swallow was orphaned: its prey waited forever, and if that was you, the run never ended.
     @Test func aFishLeavingMidSwallowLeavesNothingStuck() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         scene.debugStartTutorial(at: .holdToRise)
@@ -282,23 +282,138 @@ struct ArcadeTutorialTests {
             return ArcadeProgress(defaults: defaults)
         }
         let new = progress(nil)
-        #expect(new.needsTutorial)
-        new.sawTutorial()
-        #expect(!new.needsTutorial && new.save.hasSeenTutorial == true)
+        #expect(new.needsTutorial(.adventure))
+        new.sawTutorial(.adventure)
+        #expect(!new.needsTutorial(.adventure) && new.save.hasSeenTutorial == true)
         // A save from before the tutorial: someone who has cleared a level skips it; someone who hasn't sees it.
-        #expect(!progress(#"{"clearedLevels":["shallow-reef.1"],"bestTimes":{},"hasSeenJellyLesson":false}"#).needsTutorial)
-        #expect(progress(#"{"clearedLevels":[],"bestTimes":{},"hasSeenJellyLesson":false}"#).needsTutorial)
+        #expect(!progress(#"{"clearedLevels":["shallow-reef.1"],"bestTimes":{},"hasSeenJellyLesson":false}"#).needsTutorial(.adventure))
+        #expect(progress(#"{"clearedLevels":[],"bestTimes":{},"hasSeenJellyLesson":false}"#).needsTutorial(.adventure))
     }
 
     @Test func aPlayerFinishesItInUnderAMinute() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         let run = scene.debugPlayTutorial()
         print("TUTORIAL finished=\(run.finished) seconds=\(String(format: "%.1f", run.seconds)) beats=\(run.beats.map { "\($0.beat)@\(String(format: "%.1f", $0.at))" })")
         #expect(run.finished, "beats reached: \(run.beats.map { "\($0.beat) at \(String(format: "%.1f", $0.at))" })")
-        #expect(run.beats.map(\.beat) == ArcadeTutorial.Beat.allCases)
+        #expect(run.beats.map(\.beat) == ArcadeTutorial.Course.adventure.beats)
         #expect(run.seconds < 60)
         withExtendedLifetime(view) {}
+    }
+
+    /// The last beat says how a level is won, and counts down the fish still to eat under it.
+    @Test func theLastBeatCountsTheFishLeft() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        var shown: [String] = [], line: String?
+        let run = scene.debugPlayTutorial(from: .eatEnough) {
+            guard scene.debugTutorialBeat == .lastFish else { return }
+            let caption = scene.debugTutorialCaption
+            line = caption.line
+            if let left = caption.fishLeft, shown.last != left { shown.append(left) }
+        }
+        #expect(run.finished)
+        #expect(line == "Eat every fish to win" && line == ArcadeHome.winRule)
+        #expect(shown == ["2 fish left", "1 fish left"], "shown: \(shown)")
+        withExtendedLifetime(view) {}
+    }
+
+    /// The Open Water's: rise and fall, eat a smaller fish, avoid a bigger one, and take the pearl by the next big fish,
+    /// with the fish and pearls counted at the top as in a run. Quick, and it never keeps the pearl.
+    @Test func theOpenWatersTutorialEndsOnAPearl() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .openWater)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        var pearled = 0
+        scene.onPearl = { pearled += 1 }
+        let run = scene.debugPlayTutorial()
+        print("OPEN WATER TUTORIAL finished=\(run.finished) seconds=\(String(format: "%.1f", run.seconds))")
+        #expect(run.finished, "beats reached: \(run.beats.map { "\($0.beat) at \(String(format: "%.1f", $0.at))" })")
+        #expect(run.beats.map(\.beat) == ArcadeTutorial.Course.openWater.beats)
+        #expect(run.seconds < 35)
+        #expect(scene.debugTutorialPearls.taken == 1 && scene.debugTutorialPearls.inWater.isEmpty)
+        let counts = scene.debugCounts
+        #expect(counts.fish == "1" && counts.pearls == "1")
+        #expect(pearled == 0)
+        withExtendedLifetime(view) {}
+    }
+
+    /// The pearl's big fish swims beside it, not through it: going straight for the pearl never meets the fish.
+    @Test func thePearlsBigFishLeavesRoomToTakeIt() {
+        typealias T = GameTuning
+        let water = T.playfieldSize.height - T.waterTopMargin - T.waterBottomMargin
+        let you = ArcadeTutorial.radius(startingAt: .gatherPearls)
+        let reach = (you + T.tutorialBigFish) * T.collisionScale
+        // Anywhere you can touch the pearl from, with the fish anywhere it wanders.
+        let gap = (T.tutorialPearlShare - T.tutorialPearlGuard.home - T.tutorialPearlGuard.wander) * water - you - T.openWaterPearlRadius
+        #expect(gap > reach, "gap \(gap), reach \(reach)")
+        #expect(GameRules.playerEncounter(you, T.tutorialBigFish) == .secondEatsFirst)
+    }
+
+    /// Miss the pearl and another comes, the other way up, with its own big fish; you're never stuck.
+    @Test func aMissedPearlComesAgainTheOtherWayUp() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .openWater)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        var heights: [Bool] = []
+        let run = scene.debugPlayTutorial(limit: 14, from: .gatherPearls, missesThePearl: true) {
+            guard let pearl = scene.debugTutorialPearls.inWater.first else { return }
+            let high = pearl.position.y > GameTuning.playfieldSize.height / 2
+            if heights.last != high { heights.append(high) }
+        }
+        #expect(!run.finished && scene.debugResultTitles.isEmpty, "eaten or done after \(run.seconds) s")
+        #expect(heights.count >= 3 && heights.prefix(2) == [true, false], "pearls: \(heights)")
+        #expect(scene.debugTutorialPearls.taken == 0)
+        withExtendedLifetime(view) {}
+    }
+
+    /// Eaten by the pearl's big fish: Retry starts the pearl again at once.
+    @Test func beingEatenByThePearlsFishTriesThePearlAgain() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .openWater)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        let run = scene.debugPlayTutorial(from: .gatherPearls, eatenOn: .gatherPearls)
+        #expect(!run.finished && scene.debugResultTitles == ["Retry"])
+        scene.debugTapResult(.tryAgain)
+        #expect(scene.debugTutorialBeat == .gatherPearls && scene.debugTutorialPearls.inWater.count == 1)
+        #expect(scene.debugCounts.fish == "1" && scene.debugCounts.pearls == "0")
+        #expect(scene.debugResultTitles.isEmpty)
+        withExtendedLifetime(view) {}
+    }
+
+    /// Someone who learned to rise and fall in the other tutorial (or a level, or a run) starts at the first meal, after
+    /// a tap, with what the way to play is about in the middle until then.
+    @Test func aPlayerWhoKnowsTheControlsStartsAtTheFirstMeal() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .openWater, knowsControls: true)
+        let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+        view.presentScene(scene)
+        #expect(scene.debugTutorialBeat == .eatSmaller && scene.debugPhase == .ready)
+        let run = scene.debugPlayTutorial()
+        #expect(run.finished && run.beats.map(\.beat) == [.eatSmaller, .dodgeBigger, .gatherPearls])
+        withExtendedLifetime(view) {}
+    }
+
+    /// Each plays the first time its part of the home screen is opened, once, and only for someone new to it. Rising
+    /// and falling, once learned anywhere, aren't taught again.
+    @Test func eachTutorialIsForSomeoneNewToIt() {
+        func progress(_ json: String?) -> ArcadeProgress {
+            let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
+            if let json { defaults.set(Data(json.utf8), forKey: ArcadeProgress.key) }
+            return ArcadeProgress(defaults: defaults)
+        }
+        let new = progress(nil)
+        #expect(ArcadeTutorial.Course.allCases.allSatisfy(new.needsTutorial) && !new.knowsControls)
+        new.sawTutorial(.openWater)
+        #expect(!new.needsTutorial(.openWater) && new.needsTutorial(.adventure) && new.needsTutorial(.shop) && new.knowsControls)
+        new.sawTutorial(.shop)
+        #expect(!new.needsTutorial(.shop) && new.save.hasSeenShopTutorial == true && new.save.hasSeenOpenWaterTutorial == true)
+        // A 1.1 beta save: runs and pearls, so no Open Water tutorial; a look bought, so no Shop's; no level cleared.
+        let tester = progress(#"{"clearedLevels":[],"bestTimes":{},"hasSeenJellyLesson":false,"hasSeenTutorial":true,"openWaterBest":12,"pearlsEarned":{"a":30},"ownedLooks":["hat.beanie"]}"#)
+        #expect(!tester.needsTutorial(.adventure) && !tester.needsTutorial(.openWater) && !tester.needsTutorial(.shop))
+        // Pearls without a best (a run quit early) count too; looked but bought nothing: the Shop's still plays.
+        let pearls = progress(#"{"clearedLevels":["shallow-reef.1"],"bestTimes":{},"hasSeenJellyLesson":false,"pearlsEarned":{"a":1}}"#)
+        #expect(!pearls.needsTutorial(.openWater) && pearls.needsTutorial(.shop) && pearls.knowsControls)
     }
 }

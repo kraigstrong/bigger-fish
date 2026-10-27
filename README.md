@@ -5,8 +5,10 @@ There's always a bigger fish.
 Arcade game: a one-touch game for iPhone and iPad (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
-A new player starts with the tutorial (`ArcadeTutorial.swift`), which teaches the rules by playing them. The world
-map then has five worlds, each with ten levels to conquer and then The Deep End, five more at its hardest:
+A new player starts on the home screen, and each part of it has a tutorial the first time it's opened
+(`ArcadeTutorial.swift`): Adventure's teaches the rules by playing them and how a level is won (eat every fish), the
+Open Water's eating, avoiding, and pearls, then starts the run, and the Shop's is a few words and arrows over the shop
+(`ShopHints.swift`). Settings' How to play plays any of them again. Adventure's world map has five worlds, each with ten levels to conquer and then The Deep End, five more at its hardest:
 **Shallow Reef** (fish only), **Jelly Bloom** (drifting jellyfish: bounce off their domes, dodge their tentacles),
 **Kelp Forest** (kelp slows you, and fish in it are shadows), **Sunset Cove** (boats lower baited hooks: leave the
 bait; `FishHooks.swift`, its knobs under `// MARK: Sunset Cove` in `GameTuning`), and **Midnight Zone** (dark water
@@ -79,7 +81,7 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     (`UIRequiresFullScreen`), so it doesn't join Split View or resize in Stage Manager. An iPhone Duo still resizes
     the app as it opens and closes: the same fitting draws a level on either screen, and a level in play pauses
     (`GameScene.screenDidResize`)
-  - `SettingsView.swift` — Settings from the home screen's gear: sound, music, vibration, replaying the tutorial,
+  - `SettingsView.swift` — Settings from the home screen's gear: sound, music, vibration, how to play (each tutorial),
     restoring the unlock, the privacy policy and support (biggerfish.app), the credits, and the version
   - `CreditsScene.swift` / `ArcadeCredits.swift` / `Credits.json` — the credits, played: from Settings, a calm swim
     where every name is a fish to eat (design, the play-testers, then the music and sound credits), with a thank-you for each
@@ -344,9 +346,10 @@ Add `-arcadeResult passed` or `-arcadeResult failed` to preview its result panel
 clear. Remove the arguments to return to the normal home screen and real campaign progress.
 
 To check a screen's layout at a device's size (an iPad, a small phone), `-arcadeScreen <screen>` opens it at launch:
-`home`, `new-player` (the home screen as the tutorial leaves a new player on it), `worlds`, `settings`, `unlock`,
-`conquered`, `credits`, `tutorial`, `shop`, or `pause` (with `-arcadePlaytest` for the level to pause). It plays in a staged save of its own (`biggerFish.screen`: Shallow Reef conquered, the tutorial
-seen), which never syncs to iCloud. Add `-arcadeMap <world ID>` for a level map, `-arcadeUnlocked YES` or `NO` for
+`home`, `new-player` (the home screen as a new player first sees it), `worlds`, `settings`, `unlock`,
+`conquered`, `credits`, `tutorial` (Adventure's), `open-water-tutorial`, `shop`, `shop-hints` (the Shop's tutorial), or
+`pause` (with `-arcadePlaytest` for the level to pause). It plays in a staged save of its own (`biggerFish.screen`:
+Shallow Reef conquered, the tutorial seen), which never syncs to iCloud. Add `-arcadeMap <world ID>` for a level map, `-arcadeUnlocked YES` or `NO` for
 either side of the unlock, or `-arcadePlaytest` with `-arcadeResult` for a result card. `-arcadeScreenCapture <name>`
 saves the screen once it settles, at full resolution, to the app's `Documents/ScreenCheck/<name>.png`: an iPad
 simulator held upright shows the landscape-only game shrunk to fit, in its own screenshots too.

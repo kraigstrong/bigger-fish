@@ -64,7 +64,7 @@ struct WorldProgressTests {
         #expect(card(.kelpForest, 0, cleared: [0]) == ["Level 1", "Tap to start"])
         #expect(card(.kelpForest, 3, cleared: [0, 1, 2]) == ["Level 4", "Tap to start"])
         // Shallow Reef's first card says how a level is won, for players who skipped the tutorial, until it's beaten.
-        #expect(card(.shallowReef, 0, cleared: []) == ["Level 1", "Be the last fish swimming.", "Tap to start"])
+        #expect(card(.shallowReef, 0, cleared: []) == ["Level 1", "Eat every fish to win.", "Tap to start"])
         #expect(card(.shallowReef, 0, cleared: [0]) == ["Level 1", "Tap to start"])
         #expect(card(.shallowReef, 1, cleared: [0]) == ["Level 2", "Tap to start"])
 
@@ -99,7 +99,7 @@ struct WorldProgressTests {
 
     /// The tutorial has no world to conquer.
     @Test func theTutorialShowsNoProgress() {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         #expect(scene.debugProgressCaption == nil)

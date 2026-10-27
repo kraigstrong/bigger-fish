@@ -8,8 +8,11 @@ import SwiftUI
 /// own to wear it, or something you don't to try it on your fish first and buy it there. Buying puts it on.
 struct PearlShopView: View {
     @ObservedObject var progress: ArcadeProgress
+    /// The Shop's tutorial over it (`ShopHints`), until it's tapped away (`onHintsSeen`).
+    var showsHints = false
     /// A look bought here (for the stats' visit).
     var onBought: (PearlItem) -> Void = { _ in }
+    var onHintsSeen: () -> Void = {}
     let onClose: () -> Void
     /// What's on the shelf: a kind's looks, or your saved outfits.
     private enum Shelf: Hashable {
@@ -35,12 +38,20 @@ struct PearlShopView: View {
             ScreenScaled { size, _ in
                 ZStack(alignment: .topTrailing) {
                     HStack(alignment: .top, spacing: 16) {
-                        rail.frame(width: 100)
+                        rail.frame(width: 100).shopHintPart(.rail)
                         fitting.frame(width: min(270, size.width * 0.3))
-                        shelfView
+                        shelfView.shopHintPart(.shelf)
                     }
                     .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 10)
                     closeButton
+                }
+                .overlayPreferenceValue(ShopHintFrames.self) { anchors in
+                    if showsHints {
+                        GeometryReader { proxy in
+                            ShopHints(frames: anchors.mapValues { proxy[$0] }, onDone: onHintsSeen)
+                        }
+                        .transition(.opacity)
+                    }
                 }
             }
         }
@@ -117,6 +128,7 @@ struct PearlShopView: View {
             }
             .padding(.horizontal, 16).frame(height: 36)
             .background(Capsule().fill(.white.opacity(0.12)))
+            .shopHintPart(.pearls)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(progress.pearls) pearls")
             SpriteView(scene: preview, options: [.allowsTransparency])
@@ -126,10 +138,11 @@ struct PearlShopView: View {
                                    startPoint: .top, endPoint: .bottom)))
                 .clipShape(RoundedRectangle(cornerRadius: 18))
                 .accessibilityHidden(true)
-            action
+            // Out of the way of the Shop's tutorial's words.
+            action.opacity(showsHints ? 0 : 1)
             #if DEBUG
             Button("+\(GameTuning.pearlShopTestGift) pearls (Xcode builds)") { progress.earnPearls(GameTuning.pearlShopTestGift) }
-                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.6)
+                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints ? 0 : 0.6)
                 .buttonStyle(.plain)
             // Round the seasons, then back to the real date.
             Button("Season: \(pretendSeason?.name ?? "today's date") (Xcode builds)") {
@@ -138,7 +151,7 @@ struct PearlShopView: View {
                 pretendSeason = next < seasons.count ? seasons[next] : nil
                 PearlSeason.pretend = pretendSeason
             }
-            .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.6)
+            .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints ? 0 : 0.6)
             .buttonStyle(.plain)
             #endif
         }

@@ -70,11 +70,15 @@ enum ArcadePlaytest {
     }
 
     /// A screen to open at launch, to check its layout at a device's size (an iPad, a small phone):
-    /// -arcadeScreen home, new-player (the home screen as the tutorial leaves a new player on it), worlds (Adventure's
-    /// world map), settings, unlock, conquered, credits, tutorial, shop (the pearl shop), or pause (with
+    /// -arcadeScreen home, new-player (the home screen as a new player first sees it), worlds (Adventure's world map),
+    /// settings, unlock, conquered, credits, tutorial (Adventure's), open-water-tutorial, shop (the pearl shop),
+    /// shop-hints (the Shop's tutorial over it), or pause (with
     /// -arcadePlaytest for the level to pause). Add -arcadeMap <world ID> for a level map, -arcadeUnlocked YES or NO for either side of the
     /// unlock ("conquered" shows the unlock's offer without it), or -arcadePlaytest with -arcadeResult for a result card.
-    enum Screen: String { case home, newPlayer = "new-player", worlds, settings, unlock, conquered, credits, tutorial, pause, shop }
+    enum Screen: String {
+        case home, newPlayer = "new-player", worlds, settings, unlock, conquered, credits, tutorial
+        case openWaterTutorial = "open-water-tutorial", pause, shop, shopHints = "shop-hints"
+    }
 
     static let screen: Screen? = argument("-arcadeScreen").flatMap(Screen.init(rawValue:))
 
@@ -113,7 +117,7 @@ enum ArcadePlaytest {
     /// A screen check's own saved state, wiped and staged at launch as the App Store captures stage theirs: Shallow
     /// Reef conquered with a best time on each level, the tutorial and every "conquered" screen seen; for the pearl
     /// shop, a few pearls and two looks bought and on; for the home screen, Jelly Bloom's Deep End too, a best run,
-    /// pearls, and a look on; for a new player, only the tutorial seen. Never backed up to iCloud
+    /// pearls, and a look on; for a new player, nothing at all. Never backed up to iCloud
     /// (`ArcadeProgress.backup`).
     static let screenSuiteName = "biggerFish.screen"
 
@@ -121,11 +125,8 @@ enum ArcadePlaytest {
         let defaults = UserDefaults(suiteName: screenSuiteName)!
         defaults.removePersistentDomain(forName: screenSuiteName)
         var save = StoreCapture.stagedSave(for: .conquered)
-        if screen == .newPlayer {
-            save = ArcadeSave()
-            save.hasSeenTutorial = true
-        }
-        if screen == .shop {
+        if screen == .newPlayer { save = ArcadeSave() }
+        if screen == .shop || screen == .shopHints {
             save.pearlsEarned = ["screen": 160]
             save.pearlsSpent = ["screen": 115]
             save.ownedLooks = ["color.gold", "hat.beanie"]

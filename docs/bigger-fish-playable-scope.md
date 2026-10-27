@@ -30,7 +30,8 @@ scope of this build.
 
 ## Playable slice
 
-First launch: the tutorial. Then world map -> level path -> level card -> play -> win/retry/next level/level map.
+First launch: the home screen. Adventure's first open plays its tutorial, then world map -> level path -> level card ->
+play -> win/retry/next level/level map. The Open Water's and the Shop's first opens play theirs.
 Results use Math Reef's choices: Next level / Play again / Levels after a clear, or Try again / Levels
 after a loss. The final level offers Play again / Levels. Only buttons advance the game.
 Pausing offers Resume, Restart, and Level map. Cleared levels remain replayable. World completion
@@ -40,7 +41,7 @@ A clear means becoming the last fish swimming, with no meal quota or replenishme
 `GameTuning`. Beating a world's level 10 conquers it and opens its Deep End. The original seeded campaigns, with
 their spawner, food refills, and meal counter, are retired; an endless mode could start from them in git history.
 
-Settings (the world map's gear) has sound, music, and vibration switches, replaying the tutorial, restoring the
+Settings (the home screen's gear) has sound, music, and vibration switches, how to play (each tutorial), restoring the
 unlock, and the privacy policy and support pages on biggerfish.app.
 
 ## Privacy
