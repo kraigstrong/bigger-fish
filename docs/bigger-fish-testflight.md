@@ -6,7 +6,7 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
 ## What the build already has
 
 - Bundle ID `com.kraigstrong.biggerfish`, team `MKACSCQ588`, automatic signing.
-- Version 1.0.0 (see the build log at the end). iPhone and iPad (full screen), landscape.
+- Version 1.1.0 (see the build log at the end). iPhone and iPad (full screen), landscape.
 - App icon (no alpha), loading screen, and launch color.
 - `ITSAppUsesNonExemptEncryption = NO`: the only encryption is the system's HTTPS, so App Store
   Connect won't ask the export-compliance question on each upload.
@@ -22,8 +22,9 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
 - Anonymous gameplay counts are on (`ArcadeAnalytics.isEnabled`), sent to
   `brightbench.app/api/bigger-fish/events` and tagged `testflight` for beta installs.
 - Privacy policy: https://biggerfish.app/privacy
-- The Release build has none of the debug tools: no tuner, run recorder, playtest shortcuts, planner,
-  or progress reset.
+- The Release build has none of the debug tools: no tuner, run recorder, playtest shortcuts, or progress reset.
+  From 1.1 it has the planner, for the Open Water alone: its levels are new every run, so they're planned on the
+  device. The campaign still plays only its frozen plans.
 
 ## Uploading a build
 
@@ -73,6 +74,22 @@ Since 0.3:
   too), Replay tutorial, Privacy Policy and Support (biggerfish.app), Credits, and the version.
 - Meals, close calls, bounces, stings, being eaten, and wins are felt (with Vibration on). Vibration off stops them.
 - The screen sleeps on the maps, cards, and pause menu as it normally would, but not while you play.
+
+Since 1.1:
+
+- **Open Water** (the world map's button): a run goes round all five worlds, a new level each time; eating a level's
+  last gate shrinks you for the next world, and being eaten ends the run. The card shows the fish eaten, the pearls,
+  the best, and Shop.
+- **Pearls** sit beside big fish: touching one takes it (no growth) and it's kept at once. The map's pearl button and
+  the card's Shop show the total.
+- **The pearl shop:** buying puts a look on, and it shows everywhere (the maps, the campaign, the credits). The
+  Christmas looks (Dec 1 – Jan 6) and the Valentine's ones (Feb 1 – 15) show dimmed out of season, to try on only.
+  Earned looks show what earns them.
+- **Without the unlock:** the map's Open Water button says "5 left"; a run counts once it takes its first pearl;
+  with none left the button says "Tomorrow", the card offers Unlock all in place of Retry, and both open the unlock
+  screen headed "5 more runs tomorrow". Buying makes Open Water unlimited.
+- **The world map:** the title is in the bottom-left beside "Choose a world"; each world shows its ring, crown, and
+  name (no "levels to conquer" line). Check an iPhone SE and the iPhone Duo's outer screen: nothing overlaps.
 
 ### Progress in iCloud
 
@@ -124,52 +141,41 @@ Smoke check, without the unlock:
 
 ## Test Information (paste into App Store Connect)
 
-**Beta App Description**
+**Beta App Description** (as App Store Connect has it from 1.1.0)
 
-> Bigger Fish is an arcade game about working your way up the food chain. Hold to rise, release to
-> fall. Eat fish smaller than you, avoid the bigger ones, and grow until you're the last fish
-> swimming. This beta has five worlds of ten levels each: Shallow Reef; Jelly Bloom, where
-> jellyfish domes bounce you and their tentacles sting; Kelp Forest, where kelp slows you down and
-> hides what's inside it; Sunset Cove, where boats pass overhead dangling baited hooks, so the
-> easiest meal in the water is a trap; and Midnight Zone, where it's dark but for your headlamp, and
-> every other fish carries the same little light, so you can't tell how big one is until your beam
-> lands on it. Play the worlds in any order, and beat a world's tenth level to open its Deep End:
-> five extra-hard levels for when you can't get enough.
+> Bigger Fish is an arcade game about working your way up the food chain. Hold to rise, release to fall. Eat fish smaller than you, avoid the bigger ones, and grow until you’re the last fish swimming. This beta has the full game, all five worlds: Shallow Reef; Jelly Bloom, where jellyfish domes bounce you and their tentacles sting; Kelp Forest; Sunset Cove, with fishing hooks to dodge; and Midnight Zone, where your headlamp is the only light. Then take on the Open Water: an endless run round all five worlds, with pearls to collect for looks in the pearl shop. Bigger Fish launches on the App Store on November 3.
 
-**What to Test**
+**What to Test** (1.1.0)
 
-> Thanks for playing! This is Bigger Fish 1.0, the version going on the App Store on November 3.
+> Thanks for playing! This is Bigger Fish 1.1, a beta of what's coming after the App Store launch.
 >
-> New in 1.0:
-> - The unlock is on sale. All of Shallow Reef and the first two levels of every other world are free, and one
->   purchase opens the rest of every world: levels still open in order, and each world's Deep End opens once
->   you beat its level 10. In TestFlight, buying is free, so please try it: tap a padlocked level or Unlock
->   all, buy, and check the padlocks are gone. Then delete the app and reinstall it: your progress and the
->   unlock should come back on their own, with nothing to restore.
-> - Kelp Forest: deep in the kelp, fish hide. Only their bubbles show until you get close.
-> - Midnight Zone: your fish carries a lure, and your light shines from it.
+> New in 1.1:
+> - Open Water, an endless run. Tap Open Water on the world map. You go round all five worlds, a brand-new level each time, until a bigger fish eats you. Eat a level's last big fish to move on. Your score is how many fish you eat.
+> - Pearls sit right beside the big fish. Swim close enough to take one. They're only earned by playing, never sold.
+> - The pearl shop: the pearl button on the map, or Shop after a run. It has colors, patterns, hats, faces and trails for your fish, and your fish wears them everywhere. A few looks are earned instead, like reaching Kelp Forest in a run or conquering a world. Some are seasonal: the Christmas looks are on sale Dec 1 – Jan 6, and the Valentine's ones Feb 1 – 15.
+> - Without the unlock, Open Water has 5 runs a day. A run counts once it takes its first pearl. The unlock makes it unlimited. Buying is free in TestFlight, so if you can, play a day or two without buying first and tell us how the limit feels.
+> - A tidier world map: the title is in the bottom corner, and each world's ring shows how far you've got.
 >
-> If you'd cleared levels past the free ones, they're padlocked until you unlock. Your progress is still
-> there. We'd love to hear:
-> - Whether buying works, whether the unlock comes back after a reinstall, and whether the unlock screen makes
->   sense.
-> - Whether Kelp Forest's hidden fish feel fair: do the bubbles tell you enough?
-> - Bugs, crashes, or sound problems.
+> We'd love to hear: Is Open Water fun, and how far do you get? Did anything feel unfair? Do pearls and the shop make you want to keep playing? How do 5 runs a day feel? And any bugs, crashes or slowdowns, especially on older or smaller iPhones and on the iPhone Duo.
 >
-> To send feedback, take a screenshot while playing and share it with TestFlight, or use Send Beta Feedback in
-> the TestFlight app. The beta sends anonymous gameplay counts, like which levels were cleared, with no names
-> or device IDs.
+> To send feedback, take a screenshot while playing and share it with TestFlight, or use Send Beta Feedback in the TestFlight app. The beta sends anonymous counts, like how far a run got and which looks were bought, with no names or device IDs.
 
 **Feedback Email:** the address you want testers' feedback to reach.
 
 **Privacy Policy URL:** https://biggerfish.app/privacy
 
-**Beta App Review:** your name, phone, and email as the contact. Sign-in isn't required. Notes:
+**Beta App Review:** your name, phone, and email as the contact. Sign-in isn't required. Notes (1.1.0; list every
+limited-edition look and its dates whenever they change, App Review guideline 2.5.19):
 
-> No account or sign-in. Tap a world, then a level, and hold anywhere to rise. From 1.0, a one-time
-> in-app purchase opens the rest of every world (free in TestFlight); levels still open in order, and a
-> world's Deep End opens once its level 10 is beaten. To reach the purchase, tap Unlock all on the world
-> map, or a padlocked level such as Jelly Bloom 3. Restore purchase is on the same screen.
+> No account or sign-in. Hold anywhere to rise, release to fall. New in 1.1: Open Water, an endless mode, from the Open Water button on the world map.
+>
+> Pearls are earned only by playing. They can't be bought and have no real-money value. They buy cosmetic looks for your fish in the pearl shop, from the pearl button on the map or Shop after a run.
+>
+> Five looks are limited editions. Outside their dates they're shown dimmed with their dates, and can be tried on but not bought:
+> - Santa hat, Reindeer antlers and Red nose: Dec 1 – Jan 6.
+> - Heart glasses and the Hearts trail: Feb 1 – 15.
+>
+> Without the one-time in-app purchase (free in TestFlight), Open Water allows 5 runs a day, and the purchase removes the limit. The purchase screen opens from Unlock all on the world map, from a padlocked level such as Jelly Bloom 3, or from Open Water once the day's runs are used up.
 
 ## Build log
 
@@ -181,3 +187,5 @@ Smoke check, without the unlock:
 | 0.4.0 (1) | 2026-10-12 | `19a652f` (`bigger-fish-v0.4-beta.1`) | Sunset Cove (world four of five: boats, baited hooks), every level frozen; progress backed up to iCloud; full-screen iPad; the credits game; the pause menu in Settings' style; a touch shows on the frame it lands; 60 fps while the screen is recorded. The unlock still isn't on sale. |
 | 0.4.1 (1) | 2026-10-13 | `fd163a8` (`bigger-fish-v0.4.1-beta.1`) | Sunset Cove 12's green gate fish (16) a little smaller, 32.2 to 30.9, so the six meals you can reach before it eat it (in 0.4.0 only a glitch got past it). |
 | 1.0.0 (1) | 2026-10-14 | `6fc9a83` (`bigger-fish-v1.0.0-rc.1`) | The first 1.0 candidate. The unlock on sale (free in TestFlight) with the paywall analytics on (#192); Kelp Forest hides fish deep in the kelp but for their bubbles (#196); the unlock screen's Kelp Forest and Midnight Zone clips re-recorded (#197); Midnight Zone's beam shines from your own lure (#195). Internal testers first; external once 0.4.1 is out of Beta App Review. |
+| 1.0.1 (1) | 2026-10-25 | `aa91cee` (`bigger-fish-v1.0.1-rc.1`) | The first build from Xcode 27.1, filling an iPhone Duo's screens (#226). Friends and Family only, for a friend's Duo smoke test. |
+| 1.1.0 (1) | 2026-10-26 | `9088a9c` (`bigger-fish-v1.1.0-beta.1`) | Open Water and the pearl shop in the shipped game, planned on the device (#237); 5 free runs a day without the unlock, counted at a run's first pearl (#239); Valentine's looks, earned looks kept, retired looks (#236); a level that won't plan cleanly deals again (#237); the world map's title in the bottom corner and its stops without their detail line (#240). Soaked 10 minutes on an iPhone 16 Pro: 120 fps, memory flat. Friends and Family only: "Marketing site" gets no more builds (Kraig, 2026-10-26). |
