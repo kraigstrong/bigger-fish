@@ -46,7 +46,7 @@ build), #58 (privacy), #59 (smoke test), and #61 (feedback).
 
 On a physical iPhone, with a fresh install and again as an update over the last build:
 
-- The loading screen shows, then the world map. No black screen.
+- The loading screen shows, then the home screen. No black screen.
 - Play a level in each world, win one, and lose one, both eaten and stung.
 - Progress is kept after force-quitting and reopening.
 - Sound plays with the phone on silent. The Sound effects and Music switches work on the map and in
@@ -58,7 +58,7 @@ Since 0.3:
 
 - **Fresh install:** the tutorial plays first: hold to rise, let go to fall, eat a smaller fish, dodge a bigger
   one, watch a missed fish grow and catch it back, then eat through the wall to be the last fish swimming. Missing
-  a wall meal gets you eaten, and Retry starts the wall again. It ends on the world map. Settings > Replay
+  a wall meal gets you eaten, and Retry starts the wall again. It ends on the home screen. Settings > Replay
   tutorial plays it again.
 - **Update over 0.3:** no tutorial (you have cleared levels); progress, Deep End rings, and best times are kept.
 - Every world is open from the start (the unlock isn't sold yet, so everyone plays as if they'd bought it), five
@@ -70,26 +70,30 @@ Since 0.3:
   show only on its first level, until it's cleared. Retry skips the card.
 - The world map rings and the level map's bar fill in as you clear levels; the card after a win shows the pips
   filling. Beating a world's level 10 shows its conquered screen with The Deep End.
-- The world map's gear opens Settings: Sound effects, Music, and Vibration (remembered, and in the pause menu
+- The home screen's gear opens Settings: Sound effects, Music, and Vibration (remembered, and in the pause menu
   too), Replay tutorial, Privacy Policy and Support (biggerfish.app), Credits, and the version.
 - Meals, close calls, bounces, stings, being eaten, and wins are felt (with Vibration on). Vibration off stops them.
 - The screen sleeps on the maps, cards, and pause menu as it normally would, but not while you play.
 
 Since 1.1:
 
-- **Open Water** (the world map's button): a run goes round all five worlds, a new level each time; eating a level's
+- **Open Water** (on the home screen): a run goes round all five worlds, a new level each time; eating a level's
   last gate shrinks you for the next world, and being eaten ends the run. The card shows the fish eaten, the pearls,
   the best, and Shop.
-- **Pearls** sit beside big fish: touching one takes it (no growth) and it's kept at once. The map's pearl button and
+- **Pearls** sit beside big fish: touching one takes it (no growth) and it's kept at once. The home screen's Shop and
   the card's Shop show the total.
 - **The pearl shop:** buying puts a look on, and it shows everywhere (the maps, the campaign, the credits). The
   Christmas looks (Dec 1 – Jan 6) and the Valentine's ones (Feb 1 – 15) show dimmed out of season, to try on only.
   Earned looks show what earns them.
-- **Without the unlock:** the map's Open Water button says "5 left"; a run counts once it takes its first pearl;
-  with none left the button says "Tomorrow", the card offers Unlock all in place of Retry, and both open the unlock
+- **Without the unlock:** Open Water on the home screen says "5 runs left today"; a run counts once it takes its
+  first pearl; with none left it says "More runs tomorrow", the card offers Unlock all in place of Retry, and both open the unlock
   screen headed "5 more runs tomorrow". Buying makes Open Water unlimited.
-- **The world map:** the title is in the bottom-left beside "Choose a world"; each world shows its ring, crown, and
-  name (no "levels to conquer" line). Check an iPhone SE and the iPhone Duo's outer screen: nothing overlaps.
+- **The home screen** (from 1.1.0 (2)): your fish in its look with Shop under it on the left (tapping the fish opens
+  the shop too); Adventure and Open Water on the right. Adventure shows a crown per world (outlined, silver, gold),
+  and until Shallow Reef 1 is beaten, "Start here" and "Eat every fish to win". It opens the world map (Back and
+  "Adventure" along the top), scrolled to your fish; Back comes home. Open Water says "How far can you get?" until a
+  run, then your best. In Open Water and the tutorial, the pause menu's way out and a run card's say Home; a level's
+  say Level map and Levels. Check an iPhone SE and the iPhone Duo's outer screen: every name on one line.
 
 ### Progress in iCloud
 
@@ -133,7 +137,7 @@ Smoke check, without the unlock:
 
 - Every world on the map is open. Shallow Reef plays levels 1–10; every other world plays levels 1 and 2,
   and levels 3–10 show a gold padlock and "Unlock". Every Deep End says "Unlock every world to dive in."
-- "Unlock all" on the world map, a padlocked level, and Next level after a world's level 2 each show the unlock
+- "Unlock all" on the home screen or the world map, a padlocked level, and Next level after a world's level 2 each show the unlock
   screen: a looping clip of Jelly Bloom, Kelp Forest, and Midnight Zone, the price, Restore purchase, and Not now.
 - Beating Shallow Reef's level 10 shows "Shallow Reef conquered!" with the same offer.
 - Buying (or Restore purchase after buying on another device) shows "Every world is open!" and removes every
@@ -145,18 +149,18 @@ Smoke check, without the unlock:
 
 > Bigger Fish is an arcade game about working your way up the food chain. Hold to rise, release to fall. Eat fish smaller than you, avoid the bigger ones, and grow until you’re the last fish swimming. This beta has the full game, all five worlds: Shallow Reef; Jelly Bloom, where jellyfish domes bounce you and their tentacles sting; Kelp Forest; Sunset Cove, with fishing hooks to dodge; and Midnight Zone, where your headlamp is the only light. Then take on the Open Water: an endless run round all five worlds, with pearls to collect for looks in the pearl shop. Bigger Fish launches on the App Store on November 3.
 
-**What to Test** (1.1.0)
+**What to Test** (1.1.0 (2); build 1 had the same without the home screen)
 
 > Thanks for playing! This is Bigger Fish 1.1, a beta of what's coming after the App Store launch.
 >
 > New in 1.1:
-> - Open Water, an endless run. Tap Open Water on the world map. You go round all five worlds, a brand-new level each time, until a bigger fish eats you. Eat a level's last big fish to move on. Your score is how many fish you eat.
+> - A new home screen with two ways to play. Adventure is the five worlds, with a crown for each one you conquer. Open Water is the new endless run. Your fish sits on the left in whatever it's wearing, with the Shop under it.
+> - Open Water: you go round all five worlds, a brand-new level each time, until a bigger fish eats you. Eat a level's last big fish to move on. Your score is how many fish you eat.
 > - Pearls sit right beside the big fish. Swim close enough to take one. They're only earned by playing, never sold.
-> - The pearl shop: the pearl button on the map, or Shop after a run. It has colors, patterns, hats, faces and trails for your fish, and your fish wears them everywhere. A few looks are earned instead, like reaching Kelp Forest in a run or conquering a world. Some are seasonal: the Christmas looks are on sale Dec 1 – Jan 6, and the Valentine's ones Feb 1 – 15.
+> - The Shop: on the home screen (or tap your fish), or Shop after a run. It has colors, patterns, hats, faces and trails for your fish, and your fish wears them everywhere. A few looks are earned instead, like reaching Kelp Forest in a run or conquering a world. Some are seasonal: the Christmas looks are on sale Dec 1 – Jan 6, and the Valentine's ones Feb 1 – 15.
 > - Without the unlock, Open Water has 5 runs a day. A run counts once it takes its first pearl. The unlock makes it unlimited. Buying is free in TestFlight, so if you can, play a day or two without buying first and tell us how the limit feels.
-> - A tidier world map: the title is in the bottom corner, and each world's ring shows how far you've got.
 >
-> We'd love to hear: Is Open Water fun, and how far do you get? Did anything feel unfair? Do pearls and the shop make you want to keep playing? How do 5 runs a day feel? And any bugs, crashes or slowdowns, especially on older or smaller iPhones and on the iPhone Duo.
+> We'd love to hear: Is it clear where to start? Is Open Water fun, and how far do you get? Did anything feel unfair? Do pearls and the shop make you want to keep playing? How do 5 runs a day feel? And any bugs, crashes or slowdowns, especially on older or smaller iPhones and on the iPhone Duo.
 >
 > To send feedback, take a screenshot while playing and share it with TestFlight, or use Send Beta Feedback in the TestFlight app. The beta sends anonymous counts, like how far a run got and which looks were bought, with no names or device IDs.
 
@@ -164,18 +168,18 @@ Smoke check, without the unlock:
 
 **Privacy Policy URL:** https://biggerfish.app/privacy
 
-**Beta App Review:** your name, phone, and email as the contact. Sign-in isn't required. Notes (1.1.0; list every
+**Beta App Review:** your name, phone, and email as the contact. Sign-in isn't required. Notes (1.1.0 (2); list every
 limited-edition look and its dates whenever they change, App Review guideline 2.5.19):
 
-> No account or sign-in. Hold anywhere to rise, release to fall. New in 1.1: Open Water, an endless mode, from the Open Water button on the world map.
+> No account or sign-in. Hold anywhere to rise, release to fall. New in 1.1: a home screen with two modes, Adventure (the campaign's worlds) and Open Water, an endless mode.
 >
-> Pearls are earned only by playing. They can't be bought and have no real-money value. They buy cosmetic looks for your fish in the pearl shop, from the pearl button on the map or Shop after a run.
+> Pearls are earned only by playing. They can't be bought and have no real-money value. They buy cosmetic looks for your fish in the pearl shop, from Shop on the home screen or Shop after a run.
 >
 > Five looks are limited editions. Outside their dates they're shown dimmed with their dates, and can be tried on but not bought:
 > - Santa hat, Reindeer antlers and Red nose: Dec 1 – Jan 6.
 > - Heart glasses and the Hearts trail: Feb 1 – 15.
 >
-> Without the one-time in-app purchase (free in TestFlight), Open Water allows 5 runs a day, and the purchase removes the limit. The purchase screen opens from Unlock all on the world map, from a padlocked level such as Jelly Bloom 3, or from Open Water once the day's runs are used up.
+> Without the one-time in-app purchase (free in TestFlight), Open Water allows 5 runs a day, and the purchase removes the limit. The purchase screen opens from Unlock all on the home screen or the world map, from a padlocked level such as Jelly Bloom 3, or from Open Water once the day's runs are used up.
 
 ## Build log
 
@@ -189,3 +193,4 @@ limited-edition look and its dates whenever they change, App Review guideline 2.
 | 1.0.0 (1) | 2026-10-14 | `6fc9a83` (`bigger-fish-v1.0.0-rc.1`) | The first 1.0 candidate. The unlock on sale (free in TestFlight) with the paywall analytics on (#192); Kelp Forest hides fish deep in the kelp but for their bubbles (#196); the unlock screen's Kelp Forest and Midnight Zone clips re-recorded (#197); Midnight Zone's beam shines from your own lure (#195). Internal testers first; external once 0.4.1 is out of Beta App Review. |
 | 1.0.1 (1) | 2026-10-25 | `aa91cee` (`bigger-fish-v1.0.1-rc.1`) | The first build from Xcode 27.1, filling an iPhone Duo's screens (#226). Friends and Family only, for a friend's Duo smoke test. |
 | 1.1.0 (1) | 2026-10-26 | `9088a9c` (`bigger-fish-v1.1.0-beta.1`) | Open Water and the pearl shop in the shipped game, planned on the device (#237); 5 free runs a day without the unlock, counted at a run's first pearl (#239); Valentine's looks, earned looks kept, retired looks (#236); a level that won't plan cleanly deals again (#237); the world map's title in the bottom corner and its stops without their detail line (#240). Soaked 10 minutes on an iPhone 16 Pro: 120 fps, memory flat. Friends and Family only: "Marketing site" gets no more builds (Kraig, 2026-10-26). |
+| 1.1.0 (2) | 2026-10-26 | `64dd1e1` (`bigger-fish-v1.1.0-beta.2`) | The home screen (#242): your fish and Shop on the left, Adventure (a crown per world; opens the world map) and Open Water on the right; "Start here" and "Eat every fish to win" for a new player; Home, not Level map, to leave the Open Water and the tutorial; new Adventure and Open Water pictures. In Family (internal, every build) at once, and added to Friends and Family, but Apple takes no build of a version for beta review while another is waiting (`ANOTHER_BUILD_IN_REVIEW`): build 2 is submitted once build 1's review finishes. |
