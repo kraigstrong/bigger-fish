@@ -93,6 +93,10 @@ final class GameScene: SKScene {
     /// of its own, until you're eaten. No campaign progress: its pearls and best runs are the app's (`onPearl`,
     /// `onOpenWaterRun`), and its runs are reported their own way (`openWaterMetrics`).
     private var openWater: OpenWaterRun?
+    #if DEBUG
+    /// The run as it started, for an App Store capture to play again from its first level (`debugCaptureRestart`).
+    private var debugOpenWaterStart: OpenWaterRun?
+    #endif
     /// The next run, its first levels planned while this run's result shows so Retry starts at once.
     private var nextOpenWaterRun: OpenWaterRun?
     /// Levels being planned off the main thread (`planOpenWaterLevelAhead`), each by its run's seed and its index.
@@ -4305,6 +4309,7 @@ extension GameScene {
         openWater = run
         #if DEBUG
         debugPracticeRun = true
+        debugOpenWaterStart = run
         #endif
     }
 
@@ -5103,6 +5108,13 @@ extension GameScene {
 
     /// The level from the start, playing at once, as a first touch starts it.
     func debugCaptureRestart() {
+        // An Open Water run plays from its first level again, its pearls and planned levels as they started: starting
+        // a level over keeps where the run had got to, so each of a capture's runs would begin where the last ended.
+        if var start = debugOpenWaterStart {
+            plannerLevel = start.plan(start.index).level
+            arcadeWorld = start.leg.world
+            openWater = start
+        }
         resetGame(startPlaying: false)
         startRun()
     }

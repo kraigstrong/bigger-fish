@@ -72,6 +72,21 @@ struct StoreCaptureTests {
         }
     }
 
+    /// Each of a capture's runs plays an Open Water run from its first level, with no pearls, as it started: the frame a
+    /// run picked comes again on the run that saves it.
+    @Test func eachCaptureRunStartsTheOpenWaterOver() throws {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
+        scene.startOpenWater(seed: 1)
+        _ = scene.debugPlayOpenWater(untilLevel: 0)
+        #expect(try #require(scene.debugTakeFirstPearl()).pearls == 1)
+        scene.debugFinishOpenWaterLevel()
+        #expect(scene.debugOpenWaterIndex == 1)
+        scene.debugCaptureRestart()
+        #expect(scene.debugOpenWaterIndex == 0 && scene.arcadeWorld == GameTuning.openWaterWorlds[0])
+        _ = scene.debugPlayOpenWater(untilLevel: 0)
+        #expect(try #require(scene.debugTakeFirstPearl()).pearls == 1)
+    }
+
     /// An Open Water run's moment: a pearl ahead in the water by the big fish it sits beside, once a pearl or more is
     /// counted at the top.
     @Test func anOpenWaterRunShowsAPearlByABigFish() {

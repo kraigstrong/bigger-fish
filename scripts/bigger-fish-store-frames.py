@@ -96,6 +96,13 @@ def main():
         sys.exit(f"missing captures: {', '.join(missing)}")
     only = set(args.only.split(",")) if args.only else None
     args.out.mkdir(parents=True, exist_ok=True)
+    if not only:
+        # A folder framed for an older listing keeps its shots under their old numbers; push.py media uploads every PNG
+        # in it, so whatever isn't in this listing goes.
+        current = {f"{index:02d}-{name}.png" for index, (name, _) in enumerate(SHOTS, 1)}
+        for stale in args.out.glob("[0-9][0-9]-*.png"):
+            if stale.name not in current:
+                stale.unlink()
     for index, (name, caption) in enumerate(SHOTS, 1):
         if only and name not in only:
             continue
