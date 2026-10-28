@@ -175,6 +175,9 @@ enum StoreFootage {
             if scene.debugOpenWaterIndex != leg {
                 leg = scene.debugOpenWaterIndex
                 pearls = scene.debugOpenWaterPearls.count
+                // A new level's clock starts again at zero, so the bot decides again now, not once it's caught up with
+                // the last level's.
+                nextDecision = 0
                 openWater.append(String(format: "%.2fs level %d: %@", CGFloat(frame) * step, (leg ?? 0) + 1,
                                         scene.debugOpenWaterLeg?.world.title ?? "?"))
             } else if scene.debugOpenWaterPearls.count < pearls {
