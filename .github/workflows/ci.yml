@@ -64,11 +64,19 @@ jobs:
           if $fishkit; then
             jobs+=('{"name": "FishKit", "dir": "Packages/FishKit", "target": "-scheme FishKit"}')
           fi
+          # PROBE: each job on both iPhones side by side, so runner load hits both alike.
+          paired=()
+          for job in "${jobs[@]}"; do
+            for device in "iPhone Duo" "iPhone 17"; do
+              paired+=("${job%\}}, \"device\": \"$device\"}")
+            done
+          done
+          jobs=("${paired[@]}")
           matrix="[$(IFS=,; echo "${jobs[*]}")]"
           echo "matrix=$matrix" | tee -a "$GITHUB_OUTPUT"
 
   test:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.name }} on ${{ matrix.device }}
     needs: changes
     if: needs.changes.outputs.matrix != '[]'
     # GitHub's Xcode 27 image (a preview in October 2026): macos-26 stops at Xcode 26.6. Its newest simulator
@@ -97,16 +105,22 @@ jobs:
           xcodebuild -version
 
       - name: Pick an iPhone simulator
+        env:
+          DEVICE: ${{ matrix.device }}
         run: |
           xcrun simctl list devices available -j > "$RUNNER_TEMP/devices.json"
           id=$(python3 - "$RUNNER_TEMP/devices.json" <<'EOF'
-          import json, re, sys
+          import json, os, re, sys
           devices = json.load(open(sys.argv[1]))["devices"]
           def version(runtime):
               return [int(n) for n in re.findall(r"\d+", runtime.split("iOS")[-1])]
           ios = sorted((r for r in devices if "iOS" in r), key=version, reverse=True)
-          # PROBE (draft, don't merge): iOS 27.0's iPhone 17 instead of iOS 27.1's iPhone Duo, to time start-up.
-          print(next(d["udid"] for r in ios for d in devices[r] if d["name"] == "iPhone 17" and version(r)[:2] == [27, 0]))
+          # PROBE (draft, don't merge): iOS 27.0's iPhone 17 or iOS 27.1's iPhone Duo, to time start-up.
+          def match(r, d):
+              if os.environ["DEVICE"] == "iPhone 17":
+                  return d["name"] == "iPhone 17" and version(r)[:2] == [27, 0]
+              return d["name"].startswith("iPhone")
+          print(next(d["udid"] for r in ios for d in devices[r] if match(r, d)))
           EOF
           )
           xcrun simctl list devices | grep "$id"
@@ -153,5 +167,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.name }} test results
+          name: ${{ matrix.name }} on ${{ matrix.device }} test results
           path: ${{ runner.temp }}/tests.xcresult
