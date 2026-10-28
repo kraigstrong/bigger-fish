@@ -258,9 +258,9 @@ With `--ipad`, `screenshots-ipad-13/NN-<moment>.png` at 2752×2064, App Store Co
 bands of water above and below the playfield included, as an iPad shows them. With `--duo`,
 `screenshots-duo/NN-<moment>.png` at 2853×2007, the iPhone Duo's inside screen, which App Store Connect takes in its
 iPhone Duo slot; open the simulator first in Xcode's Device Hub (its pose isn't a simctl command).
-The moments, in the listing's order (`StoreCapture.Moment.listing`): `dodge` (Shallow Reef 9), `home` (the home
-screen, Jelly Bloom conquered too, a best Open Water run, and a look on), `open-water` (seed 1003: a pearl ahead by a big
-fish, the counts hidden for the caption), `eat` (Shallow Reef 5), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp
+The moments, in the listing's order (`StoreCapture.Moment.listing`): `dodge` (Shallow Reef 9), `eat` (Shallow Reef 5),
+`home` (the home screen, Jelly Bloom conquered too, a best Open Water run, and a look on), `open-water` (seed 1003: a
+pearl ahead by a big fish, the counts hidden for the caption), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp
 Forest 8), `sunset-hooks` (Sunset Cove 7: a baited hook ahead, under its boat), `midnight-light` (Midnight Zone 5),
 `shop` (the pearl shop, 640 pearls, gold with a party hat and confetti), and `deep-end` (the screen that opens Shallow
 Reef's Deep End). 1.0's `missed` and `conquered` are still moments, captured by launching with `-storeCapture <moment>`.
@@ -287,13 +287,17 @@ themselves instead. The 6.5" size isn't uploaded: App Store Connect scales the 6
 The universal creative (iOS 27's product page header and search results image, 5244×2950) is gameplay drawn big
 enough by the footage recorder, then cropped and captioned. The header gets its own, with the game drawn smaller: an
 iPhone shows only the middle half of the header and its top 60% or so, which at full size is a close-up of one fish.
+The search results show all of the image, so theirs is drawn closer instead (Kraig, for 1.1: "too much around the edge
+open"): a frame recorded at FOOTAGE_SCALE=3, framed a little low so the fish clear the tagline.
 
 ```bash
 FOOTAGE_SCALE=2.4461 scripts/bigger-fish-footage.sh shallow-reef.9 collector 15.21 15.22
-scripts/bigger-fish-creative.py build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
-  build/footage/bigger-fish-universal-creative.png
 scripts/bigger-fish-creative.py --scale 0.7 build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
   build/footage/bigger-fish-header.png
+rm -rf build/footage/shallow-reef.9-collector-15.21-15.22
+FOOTAGE_SCALE=3 scripts/bigger-fish-footage.sh shallow-reef.9 collector 15.21 15.22
+scripts/bigger-fish-creative.py --middle 0.59 build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
+  build/footage/bigger-fish-search-results.png
 ```
 
 That's the dodge screenshot's moment (`[StoreCapture] dodge: collector bot, step 913`, 913/60 seconds in).
@@ -335,7 +339,8 @@ The App Store cut differs from the site's in two places (shots and captions mark
 TABLES." shot is a different bite. And it ends on Shallow Reef 11's eating run in slow motion, with "Bigger Fish / Eat fast. Stay alive." landing under it
 before the blur. That's for the poster frame, the one frame the App Store shows until the preview plays: it can only
 be a frame of the video, so the video has to hold the picture. The poster is 26.67 s in, mouth open with the next
-meal just ahead (mid-swallow read as two fish bumping): `appstore/push.py media --preview ... --poster 00:00:26:20`.
+meal just ahead (mid-swallow read as two fish bumping): `appstore/push.py media --preview ... --ipad-preview ...
+--poster 00:00:26:20`.
 
 ## Tuning
 

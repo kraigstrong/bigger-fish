@@ -13,7 +13,7 @@ struct StoreCaptureTests {
 
     @Test func momentsTellTheGameInTheListingsOrder() throws {
         #expect(StoreCapture.Moment.listing.map(\.rawValue)
-                == ["dodge", "home", "open-water", "eat", "jelly-tops", "kelp-shadows", "sunset-hooks", "midnight-light",
+                == ["dodge", "eat", "home", "open-water", "jelly-tops", "kelp-shadows", "sunset-hooks", "midnight-light",
                     "shop", "deep-end"])
         // At most ten, Apple's limit for a device.
         #expect(StoreCapture.Moment.listing.count <= 10 && Set(StoreCapture.Moment.listing).count == StoreCapture.Moment.listing.count)

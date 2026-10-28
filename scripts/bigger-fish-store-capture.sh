@@ -44,9 +44,9 @@ else
     SHOTS=screenshots SIZE=2868x1320 SIZE_NAME='6.9" iPhone'
 fi
 BUNDLE=com.kraigstrong.biggerfish
-# The listing's order (StoreCapture.Moment.listing): the dodge, the two ways to play, each world's idea, the
-# shop, then where it goes.
-MOMENTS=(dodge home open-water eat jelly-tops kelp-shadows sunset-hooks midnight-light shop deep-end)
+# The listing's order (StoreCapture.Moment.listing): the dodge and the eat, the two ways to play, each world's
+# idea, the shop, then where it goes.
+MOMENTS=(dodge eat home open-water jelly-tops kelp-shadows sunset-hooks midnight-light shop deep-end)
 
 usage() { sed -n '2,7p' "$0"; exit 1; }
 

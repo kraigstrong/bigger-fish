@@ -62,9 +62,10 @@ enum StoreCapture {
         var plays: Bool { level != nil || openWaterSeed != nil }
 
         /// The listing's screenshots, in its order, which the script captures (Kraig, 2026-10-27, for 1.1: the dodge
-        /// first, as the strongest single image, then the home screen and the Open Water, the worlds, the shop, and The
-        /// Deep End). 1.0's `missed` and `conquered` can still be captured by name.
-        static let listing: [Moment] = [.dodge, .home, .openWater, .eat, .jellyTops, .kelpShadows, .sunsetHooks,
+        /// first, as the strongest single image, and the eat beside it, "they need to be back to back"; then the home
+        /// screen and the Open Water, the worlds, the shop, and The Deep End). 1.0's `missed` and `conquered` can still
+        /// be captured by name.
+        static let listing: [Moment] = [.dodge, .eat, .home, .openWater, .jellyTops, .kelpShadows, .sunsetHooks,
                                         .midnightLight, .shop, .deepEnd]
 
         /// The level map it shows, if any. (The Deep End's screen shows over the world map, as it does for a player
