@@ -2,10 +2,10 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
-  # Nightly, or by hand from the Actions tab: Bigger Fish re-plans every Shallow Reef spec, where a pull
-  # request checks a sample (MeetingPlannerTests).
+  # Nothing runs on a push to main: a pull request already tested its merge into main. Nightly, or by hand from
+  # the Actions tab, main runs every test with coverage, which catches two pull requests that pass alone but
+  # break together, and Bigger Fish re-plans every Shallow Reef spec, where a pull request checks a sample
+  # (MeetingPlannerTests).
   schedule:
     - cron: '17 9 * * *'
   workflow_dispatch:
@@ -15,9 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Which apps to test. A pull request tests only the app it changes; FishKit, the project, CI, or any file this
-  # doesn't know tests everything, and notes, docs, art sources, and scripts aren't built, so they test nothing.
-  # A push to main tests everything, and the nightly run tests Bigger Fish.
+  # Which apps to test. A pull request tests only the app it changes; the project tests both apps; FishKit, CI,
+  # or any file this doesn't know tests everything; and notes, docs, art sources, scripts, and App Store listing
+  # text aren't built, so they test nothing. The nightly run tests everything.
   changes:
     name: Changes
     runs-on: ubuntu-latest
@@ -40,13 +40,18 @@ jobs:
                 case "$file" in
                   "") ;;
                   MathReef/*|MathReefTests/*|MathReef.storekit|MathReef-Info.plist) math_reef=true ;;
+                  BiggerFish.xcodeproj/xcshareddata/xcschemes/MathReef.xcscheme) math_reef=true ;;
                   BiggerFish/*|BiggerFishTests/*|BiggerFish.storekit|BiggerFish-Info.plist) bigger_fish=true ;;
-                  *.md|docs/*|Art/*|scripts/*|LICENSE) ;;
+                  BiggerFish.xcodeproj/xcshareddata/xcschemes/BiggerFish.xcscheme) bigger_fish=true ;;
+                  # StoreCaptureTests checks the script captures the game's moments.
+                  scripts/bigger-fish-store-capture.sh) bigger_fish=true ;;
+                  # FishKit's own tests don't build from the project.
+                  BiggerFish.xcodeproj/*) math_reef=true bigger_fish=true ;;
+                  *.md|docs/*|Art/*|scripts/*|appstore/*|LICENSE|.gitignore) ;;
                   *) math_reef=true bigger_fish=true fishkit=true ;;
                 esac
               done <<< "$changed"
               ;;
-            schedule|workflow_dispatch) bigger_fish=true ;;
             *) math_reef=true bigger_fish=true fishkit=true ;;
           esac
           jobs=()
@@ -69,16 +74,20 @@ jobs:
     # GitHub's Xcode 27 image (a preview in October 2026): macos-26 stops at Xcode 26.6. Its newest simulator
     # runtime, iOS 27.1, has only the iPhone Duo, so that's the iPhone the tests run on.
     runs-on: xcode-27
-    timeout-minutes: 30
+    # The nightly run's Debug build, coverage, and every Shallow Reef spec take longer.
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 20 || 45 }}
     strategy:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.changes.outputs.matrix) }}
     env:
-      # Coverage slows the tests, so only a push to main measures it.
-      COVERAGE: ${{ github.event_name == 'push' && 'YES' || 'NO' }}
+      # A pull request tests an optimized build: the planner's tests run about 3.5 times as fast, the build
+      # takes only seconds longer, and no app code uses assert(), which -O drops. The nightly run tests the
+      # Debug build as Xcode builds it, and measures coverage, which slows the tests.
+      OPTIMIZATION: ${{ github.event_name == 'pull_request' && '-O' || '-Onone' }}
+      COVERAGE: ${{ github.event_name != 'pull_request' && 'YES' || 'NO' }}
       # xcodebuild passes TEST_RUNNER_ variables to the tests without the prefix.
-      TEST_RUNNER_BIGGER_FISH_FULL_PLANNER_TESTS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '0' }}
+      TEST_RUNNER_BIGGER_FISH_FULL_PLANNER_TESTS: ${{ github.event_name != 'pull_request' && '1' || '0' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -101,20 +110,32 @@ jobs:
           )
           xcrun simctl list devices | grep "$id"
           echo "SIMULATOR_ID=$id" >> "$GITHUB_ENV"
+          # It boots while the build runs, instead of after it.
+          (xcrun simctl boot "$id" > /dev/null 2>&1 &)
 
       # Warnings fail the build. Xcode builds the FishKit dependency with warnings suppressed, which conflicts
       # with treating them as errors, so CI turns that off too: FishKit is held to the same standard.
-      - name: Test
+      - name: Build
         working-directory: ${{ matrix.dir }}
         run: |
-          xcodebuild test ${{ matrix.target }} \
+          xcodebuild build-for-testing ${{ matrix.target }} \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID,arch=arm64" \
             -enableCodeCoverage "$COVERAGE" \
-            -resultBundlePath "$RUNNER_TEMP/tests.xcresult" \
             -quiet \
+            SWIFT_OPTIMIZATION_LEVEL="$OPTIMIZATION" \
             CODE_SIGNING_ALLOWED=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
             SWIFT_SUPPRESS_WARNINGS=NO
+
+      - name: Test
+        working-directory: ${{ matrix.dir }}
+        run: |
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b > /dev/null
+          xcodebuild test-without-building ${{ matrix.target }} \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID,arch=arm64" \
+            -enableCodeCoverage "$COVERAGE" \
+            -resultBundlePath "$RUNNER_TEMP/tests.xcresult" \
+            -quiet
 
       - name: Coverage summary
         if: always() && env.COVERAGE == 'YES'
@@ -138,7 +159,7 @@ jobs:
           EOF
 
       - name: Upload test results
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.name }} test results

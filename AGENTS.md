@@ -27,9 +27,12 @@ folder as shown.
 test runs, app runs, and screenshots alike. Simulators left running cost Kraig money: in October 2026
 they ran up his Upstash bill. Leave alone any simulator you didn't boot.
 
-CI (`.github/workflows/ci.yml`) tests only the app a pull request changes: FishKit, the project, or CI
-changes test all three, and docs alone test nothing. A push to main tests all three. CI uses the Xcode in
-`.xcode-version` and treats warnings as errors, so keep the build warning-free.
+CI (`.github/workflows/ci.yml`) tests only the app a pull request changes: the project tests both apps,
+FishKit or CI changes test all three, and docs, scripts, and App Store listing text alone test nothing. A
+pull request tests an optimized build (`-O`), so don't rely on `assert()`: use `precondition()` or a test.
+A push to main runs nothing, since its pull request tested the merge; the nightly run tests all three in
+Debug with coverage. CI uses the Xcode in `.xcode-version` and treats warnings as errors, so keep the build
+warning-free.
 
 The Bigger Fish planner tests re-plan a sample of Shallow Reef specs; CI re-plans every spec nightly. To
 re-plan them all locally, put `TEST_RUNNER_BIGGER_FISH_FULL_PLANNER_TESTS=1` in xcodebuild's environment.
