@@ -43,8 +43,11 @@ struct PearlItem: Identifiable, Equatable {
     /// Gone from the shop: never sold or earned again, and shown only to those who have it, who keep it and wear it. How
     /// a look is taken out of the shop, since a player may own it.
     let retired: Bool
+    /// The retired look this one took the place of, by ID: whoever has that has this too, as it was paid for.
+    let replaces: String?
 
-    init(_ id: String, _ kind: Kind, _ name: String, price: Int, season: PearlSeason? = nil, retired: Bool = false) {
+    init(_ id: String, _ kind: Kind, _ name: String, price: Int, season: PearlSeason? = nil, retired: Bool = false,
+         replaces: String? = nil) {
         self.id = id
         self.kind = kind
         self.name = name
@@ -52,6 +55,7 @@ struct PearlItem: Identifiable, Equatable {
         self.season = season
         earnedBy = nil
         self.retired = retired
+        self.replaces = replaces
     }
 
     init(_ id: String, _ kind: Kind, _ name: String, earnedBy goal: PearlGoal, retired: Bool = false) {
@@ -62,6 +66,7 @@ struct PearlItem: Identifiable, Equatable {
         season = nil
         earnedBy = goal
         self.retired = retired
+        replaces = nil
     }
 
     static func item(_ id: String) -> PearlItem? { GameTuning.pearlShop.first { $0.id == id } }
@@ -300,6 +305,8 @@ enum PearlShopArt {
         "color.birthday-cake": (SKColor(red: 1.00, green: 0.97, blue: 0.92, alpha: 1), SKColor(red: 1.00, green: 0.62, blue: 0.80, alpha: 1)),
         "color.galaxy": (SKColor(red: 0.17, green: 0.13, blue: 0.38, alpha: 1), SKColor(red: 1.00, green: 0.42, blue: 0.78, alpha: 1)),
         "color.pearl": (SKColor(red: 0.95, green: 0.92, blue: 0.97, alpha: 1), SKColor(red: 0.98, green: 0.74, blue: 0.87, alpha: 1)),
+        // White under its black stripes (`coat`), with black fins.
+        "color.zebra": (SKColor(white: 0.97, alpha: 1), SKColor(white: 0.12, alpha: 1)),
         "color.rainbow": (SKColor(red: 0.98, green: 0.97, blue: 1.00, alpha: 1), SKColor(red: 0.70, green: 0.50, blue: 0.95, alpha: 1)),
     ]
 
@@ -315,6 +322,7 @@ enum PearlShopArt {
         case "color.cotton-candy": swirl()
         case "color.galaxy": galaxy()
         case "color.rainbow": rainbow()
+        case "color.zebra": zebraStripes()
         default: nil
         }
     }
@@ -549,8 +557,9 @@ enum PearlShopArt {
         return node
     }
 
-    /// A zebra's coat: white all over your body (your color stays on your fins), black stripes slanting back across it.
-    /// On its own your color showed between the stripes, and an orange fish looked like a tiger.
+    /// The old Zebra pattern (retired for the Zebra color): white all over your body (your color stays on your fins),
+    /// black stripes slanting back across it. On its own your color showed between the stripes, and an orange fish
+    /// looked like a tiger.
     private static func zebra() -> SKNode {
         let node = SKNode()
         // All of the body, just inside its outline.
@@ -559,6 +568,13 @@ enum PearlShopArt {
         coat.fillColor = SKColor(white: 0.97, alpha: 1)
         coat.strokeColor = .clear
         node.addChild(coat)
+        node.addChild(zebraStripes())
+        return node
+    }
+
+    /// A zebra's black stripes, slanting back across the body.
+    private static func zebraStripes() -> SKNode {
+        let node = SKNode()
         for (index, (center, width)) in [(0.62 * R, 0.1 * R), (0.3 * R, 0.13 * R), (-0.04 * R, 0.14 * R), (-0.38 * R, 0.13 * R),
                                           (-0.7 * R, 0.11 * R), (-0.98 * R, 0.08 * R)].enumerated() {
             let stripe = SKShapeNode(path: band(center - width / 2, center + width / 2, slant: 0.14 * R))

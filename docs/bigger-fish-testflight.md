@@ -178,9 +178,9 @@ limited-edition look and its dates whenever they change, App Review guideline 2.
 >
 > Pearls are earned only by playing. They can't be bought and have no real-money value. They buy cosmetic looks for your fish in the pearl shop, from Shop on the home screen or Shop after a run.
 >
-> Five looks are limited editions. Outside their dates they're shown dimmed with their dates, and can be tried on but not bought:
+> Six looks are limited editions. Outside their dates they're shown dimmed with their dates, and can be tried on but not bought:
 > - Santa hat, Reindeer antlers and Red nose: Dec 1 – Jan 6.
-> - Heart glasses and the Hearts trail: Feb 1 – 15.
+> - Heart glasses, Polka hearts and the Hearts trail: Feb 1 – 15.
 >
 > Without the one-time in-app purchase (free in TestFlight), Open Water allows 5 runs a day, and the purchase removes the limit. The purchase screen opens from Unlock all on the home screen or the world map, from a padlocked level such as Jelly Bloom 3, or from Open Water once the day's runs are used up.
 
