@@ -117,8 +117,8 @@ enum ArcadeTutorial {
         }
     }
 
-    /// Under the last beat's line, the fish still to eat.
-    static func fishLeft(_ count: Int) -> String { count == 1 ? "1 fish left" : "\(count) fish left" }
+    /// Under the last beat's line, the fish still to eat; an Adventure level counts down the same way at the top.
+    static func fishLeft(_ count: Int) -> String { count == 1 ? "Last fish!" : "\(count) fish left" }
 
     /// Once the pearl's taken, before the Open Water's tutorial ends: what pearls are for.
     static let pearlsAreFor = "Spend pearls in the Shop"
