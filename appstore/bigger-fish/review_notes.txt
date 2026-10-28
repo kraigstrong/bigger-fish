@@ -8,4 +8,4 @@ Six looks are limited editions. Outside their dates they're shown dimmed with th
 - Santa hat, Reindeer antlers and Red nose: Dec 1 – Jan 6.
 - Heart glasses, Polka hearts and the Hearts trail: Feb 1 – 15.
 
-The app sends anonymous gameplay counts (levels started and cleared, how runs end, how far Open Water runs get, which looks are bought and worn, and how often the unlock is offered, bought or restored), with no identifiers, as described in the privacy policy at https://biggerfish.app/privacy.
+The app sends anonymous gameplay counts via a first-party service (levels started and cleared, how runs end, how far Open Water runs get, which looks are bought and worn, and how often the unlock is offered, bought or restored), with no identifiers, as described in the privacy policy at https://biggerfish.app/privacy.
