@@ -56,7 +56,7 @@ On a physical iPhone, with a fresh install and again as an update over the last 
 
 Since 0.3:
 
-- **Fresh install:** the home screen first. Adventure's first tap plays its tutorial ("Eat every fish to win"): hold
+- **Fresh install:** the home screen first. Adventure's first tap plays its tutorial, opening on "Hold anywhere to rise": hold
   to rise, let go to fall, eat a smaller fish, dodge a bigger one, watch a missed fish grow and catch it back, then
   eat through the wall and catch the last two ("2 fish left"). Missing a wall meal gets you eaten, and Retry starts
   the wall again. It ends on the world map. Open Water's first tap plays its own (eat smaller, avoid bigger, gather a
@@ -90,7 +90,7 @@ Since 1.1:
   Earned looks show what earns them.
 - **Without the unlock:** Open Water on the home screen says "5 runs left today"; a run counts once it takes its
   first pearl; with none left it says "More runs tomorrow", the card offers Unlock all in place of Retry, and both open the unlock
-  screen headed "5 more runs tomorrow". Buying makes Open Water unlimited.
+  screen. Buying makes Open Water unlimited.
 - **The home screen** (from 1.1.0 (2)): your fish in its look with Shop under it on the left (tapping the fish opens
   the shop too); Adventure and Open Water on the right. Adventure shows a crown per world (outlined, silver, gold),
   and until Shallow Reef 1 is beaten, "Start here" and "Eat every fish to win". It opens the world map (Back and
@@ -140,9 +140,10 @@ Smoke check, without the unlock:
 
 - Every world on the map is open. Shallow Reef plays levels 1–10; every other world plays levels 1 and 2,
   and levels 3–10 show a gold padlock and "Unlock". Every Deep End says "Unlock every world to dive in."
-- "Unlock all" on the home screen or the world map, a padlocked level, and Next level after a world's level 2 each show the unlock
-  screen: a looping clip of Jelly Bloom, Kelp Forest, and Midnight Zone, the price, Restore purchase, and Not now.
-- Beating Shallow Reef's level 10 shows "Shallow Reef conquered!" with the same offer.
+- "Unlock all" on the home screen or the world map, a padlocked level, Next level after a world's level 2, beating Shallow
+  Reef's level 10, and the Open Water with the day's runs used up all show the same unlock screen (from 1.1.0 (4)): "Unlock
+  it all", a looping clip of each locked world with its name, The Deep End's line and the Open Water's, the price, Restore
+  purchase, and Not now.
 - Buying (or Restore purchase after buying on another device) shows "Every world is open!" and removes every
   padlock. Beating a world's level 10 then shows its conquered screen with just The Deep End.
 
@@ -178,9 +179,9 @@ limited-edition look and its dates whenever they change, App Review guideline 2.
 >
 > Pearls are earned only by playing. They can't be bought and have no real-money value. They buy cosmetic looks for your fish in the pearl shop, from Shop on the home screen or Shop after a run.
 >
-> Five looks are limited editions. Outside their dates they're shown dimmed with their dates, and can be tried on but not bought:
+> Six looks are limited editions. Outside their dates they're shown dimmed with their dates, and can be tried on but not bought:
 > - Santa hat, Reindeer antlers and Red nose: Dec 1 – Jan 6.
-> - Heart glasses and the Hearts trail: Feb 1 – 15.
+> - Heart glasses, Polka hearts and the Hearts trail: Feb 1 – 15.
 >
 > Without the one-time in-app purchase (free in TestFlight), Open Water allows 5 runs a day, and the purchase removes the limit. The purchase screen opens from Unlock all on the home screen or the world map, from a padlocked level such as Jelly Bloom 3, or from Open Water once the day's runs are used up.
 
@@ -197,3 +198,5 @@ limited-edition look and its dates whenever they change, App Review guideline 2.
 | 1.0.1 (1) | 2026-10-25 | `aa91cee` (`bigger-fish-v1.0.1-rc.1`) | The first build from Xcode 27.1, filling an iPhone Duo's screens (#226). Friends and Family only, for a friend's Duo smoke test. |
 | 1.1.0 (1) | 2026-10-26 | `9088a9c` (`bigger-fish-v1.1.0-beta.1`) | Open Water and the pearl shop in the shipped game, planned on the device (#237); 5 free runs a day without the unlock, counted at a run's first pearl (#239); Valentine's looks, earned looks kept, retired looks (#236); a level that won't plan cleanly deals again (#237); the world map's title in the bottom corner and its stops without their detail line (#240). Soaked 10 minutes on an iPhone 16 Pro: 120 fps, memory flat. Friends and Family only: "Marketing site" gets no more builds (Kraig, 2026-10-26). |
 | 1.1.0 (2) | 2026-10-26 | `64dd1e1` (`bigger-fish-v1.1.0-beta.2`) | The home screen (#242): your fish and Shop on the left, Adventure (a crown per world; opens the world map) and Open Water on the right; "Start here" and "Eat every fish to win" for a new player; Home, not Level map, to leave the Open Water and the tutorial; new Adventure and Open Water pictures. In Family (internal, every build) at once. Apple takes no build of a version for beta review while another is waiting (`ANOTHER_BUILD_IN_REVIEW`), so 1.1.0 (1), still waiting, was expired (Kraig's call) and build 2 submitted for Friends and Family. The 1.0.0 App Store review wasn't touched. |
+| 1.1.0 (3) | 2026-10-27 | `08be316` (`bigger-fish-v1.1.0-rc.1`) | The launch candidate, if 1.1.0 replaces 1.0.0 in App Review (the SE and the Duo checked out on build 2). Three tutorials, one for each part of the home screen (#246); Adventure levels count down their last 10 fish (#249); buying a look plays a sound and buzzes (#250); a droopy starfish and a pirate hat the right way up (#251); Zebra is a color, Polka hearts is a Valentine's look, and the shop's button says Buy (#252). In Family (internal) at once, and in Friends and Family with build 2's What to Test, approved in beta review the same night; the Beta App Review notes now list Polka hearts with the Valentine's looks. 1.0.0 is still waiting for App Review. |
+| 1.1.0 (4) | 2026-10-27 | `79475b0` (`bigger-fish-v1.1.0-rc.2`) | The launch candidate in place of build 3. Each tutorial opens on "Hold anywhere to rise", with no goal over it (#254); one unlock screen every way in, "Unlock it all", naming the Open Water as well as the worlds, without the worlds' one-liners (#255). Kraig played both as a new player first (a Debug build with `-arcadeScreen new-player`). In Family at once, and in Friends and Family with build 2's What to Test, for beta review; build 3 had been approved by then, so it wasn't expired. 1.0.0 is still waiting for App Review. |

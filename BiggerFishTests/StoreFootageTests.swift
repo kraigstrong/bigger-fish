@@ -17,6 +17,20 @@ struct StoreFootageTests {
         #expect(StoreFootage.request(in: level) == nil)
     }
 
+    /// An Open Water run records as a level does, from its seed.
+    @Test func anOpenWaterRunRecordsToo() {
+        #expect(StoreFootage.request(in: ["BiggerFish", "-openWater", "1003", "-storeFootage", "collector",
+                                          "-storeFootageFrom", "10.5", "-storeFootageTo", "15.5"])
+                == .init(policy: .collector, from: 10.5, to: 15.5))
+    }
+
+    /// Your fish hatches plain in the footage unless a look is asked for: the shop's items, one of each kind.
+    @Test func aLookDressesYourFish() {
+        #expect(StoreFootage.look(in: level).isEmpty)
+        #expect(StoreFootage.look(in: level + ["-storeFootageLook", "color.galaxy,hat.party,hat.nonsense,trail.confetti"])
+                == ["color": "color.galaxy", "hat": "hat.party", "trail": "trail.confetti"])
+    }
+
     @Test func optionsPickTheSecondsEveryNthFrameAndTheSize() {
         let base = level + ["-storeFootage", "cautious"]
         #expect(StoreFootage.request(in: base + ["-storeFootageFrom", "2.5", "-storeFootageTo", "9",

@@ -107,6 +107,9 @@ final class GameScene: SKScene {
     #if DEBUG
     /// The game's way of planning, for a test of a headless study (`plansOpenWaterAhead`).
     var debugPlansOpenWaterAhead = false
+    /// Each level planned as it's reached, as a headless study plans: for footage drawn a frame at a time
+    /// (`StoreFootage`), which a plan made off the main thread couldn't reach until it's done.
+    var debugPlansOpenWaterInline = false
     #endif
     /// The level's last gate, which ends it once you eat it; other fish can't eat it, nor it them.
     private var openWaterFinale: Int?
@@ -360,6 +363,8 @@ final class GameScene: SKScene {
     private let pauseButton = SKNode()
     private let pauseMenu = SKNode()
     private let levelIndicator = SKNode()
+    /// An Adventure level's fish still to eat, top middle, once `fishLeftShownFrom` or fewer are left.
+    private let fishLeftLabel = SKLabelNode(fontNamed: "AvenirNext-Heavy")
     private var resumeButton = MenuButtonRow(title: "Resume", symbol: "play.fill", style: .primary, theme: .arcade)
     private var restartButton = MenuButtonRow(title: "Restart level", symbol: "arrow.counterclockwise", style: .secondary, theme: .arcade)
     private var effectsButton = MenuSwitchRow(title: "Sound effects", symbol: "speaker.wave.2.fill", isOn: true, theme: .arcade)
@@ -567,6 +572,7 @@ final class GameScene: SKScene {
             uiLayer.addChild(pauseMenu)
             uiLayer.addChild(levelIndicator)
             uiLayer.addChild(openWaterCounts)
+            uiLayer.addChild(fishLeftLabel)
             NotificationCenter.default.addObserver(
                 self, selector: #selector(appWillResignActive),
                 name: UIApplication.willResignActiveNotification, object: nil
@@ -680,6 +686,7 @@ final class GameScene: SKScene {
         setPhase(startPlaying || (isTutorial && tutorialCheckpoint != tutorialOpening) ? .playing : .ready)
         buildLevelIndicator()
         buildOpenWaterCounts()
+        buildFishLeft()
         _ = render()
         // Now that your fish is drawn, the opening's arrows can sit by it.
         if isTutorial { followTutorialHint() }
@@ -786,6 +793,7 @@ final class GameScene: SKScene {
         // The pause menu names the level itself.
         levelIndicator.isHidden = newPhase == .paused
         openWaterCounts.isHidden = newPhase == .paused || !showsOpenWaterCounts
+        fishLeftLabel.isHidden = newPhase == .paused || fishLeftLabel.text == nil
         if newPhase == .paused {
             refreshSoundToggles()
             configurePauseAccessibility()
@@ -794,8 +802,8 @@ final class GameScene: SKScene {
         case .ready:
             resultPanel = nil
             if isTutorial {
-                // Just what it's about: the finger shows you how, and your first touch starts it and lifts you.
-                showTutorialGoal()
+                // The beat's line and the finger that shows you how: your first touch starts it and lifts you.
+                showTutorialStart()
                 if let caption = tutorialCaptionPending {
                     tutorialCaptionPending = nil
                     showTutorialCaption(caption)
@@ -1274,6 +1282,7 @@ final class GameScene: SKScene {
         advanceTutorial()
         if phase == .playing {
             resolveCollisions()
+            updateFishLeft()
             if hasWon { win() }
             if openWater != nil { advanceOpenWater() }
             #if DEBUG
@@ -2146,38 +2155,18 @@ final class GameScene: SKScene {
                                    .group([.fadeIn(withDuration: 0.35), .scale(to: 1, duration: 0.35)])]))
     }
 
-    /// What the tutorial's way to play is about, big until your first touch (`ArcadeTutorial.Course.goal`): right of
-    /// your fish and its arrows, under the beat's line and over the finger that shows you how (or, after a tutorial
-    /// before, a word on how to start).
-    private func showTutorialGoal() {
-        #if DEBUG
-        noteHitch(.card, "tutorial goal")
-        #endif
-        messageNode.removeAllActions()
-        messageNode.removeAllChildren()
-        let line = label(tutorialCourse?.goal ?? "", fontSize: 30, heavy: true)
-        let maxWidth = size.width * 0.6
-        if line.frame.width > maxWidth { line.fontSize *= maxWidth / line.frame.width }
-        var height: CGFloat = 72
-        if tutorialOpening != .holdToRise {
-            let start = label("Tap to start", fontSize: 18, heavy: false)
-            start.alpha = 0.85
-            start.position = CGPoint(x: 0, y: -26)
-            line.position = CGPoint(x: 0, y: 11)
-            messageNode.addChild(start)
-            height = 96
+    /// Until your first touch, only the beat's line and the finger that shows you how (Kraig, 2026-10-27: "Just start
+    /// with 'hold anywhere to rise'"). After a tutorial before, with no finger to follow, Tap to start under the line,
+    /// right of your fish and its arrows.
+    private func showTutorialStart() {
+        guard tutorialOpening != .holdToRise else {
+            messageNode.removeAllActions()
+            messageNode.removeAllChildren()
+            return
         }
-        let panel = SKShapeNode(rectOf: CGSize(width: line.frame.width + 70, height: height), cornerRadius: 24)
-        panel.fillColor = SKColor(white: 0, alpha: 0.3)
-        panel.strokeColor = .clear
-        // Under its lines: the scene ignores sibling order.
-        panel.zPosition = -1
-        messageNode.addChild(panel)
-        messageNode.addChild(line)
+        showStartPrompt()
         let captionBottom = tutorialCaption.position.y - T.tutorialCaptionSize * 0.95
-        messageNode.position = CGPoint(x: size.width * 0.64, y: captionBottom - 12 - height / 2)
-        messageNode.alpha = 0
-        messageNode.run(.fadeIn(withDuration: 0.25))
+        messageNode.position = CGPoint(x: size.width * 0.64, y: captionBottom - 12 - 24)
     }
 
     /// Leaves the tutorial for its way to play (its skip control).
@@ -3229,6 +3218,36 @@ final class GameScene: SKScene {
         levelIndicator.position = CGPoint(x: 64, y: size.height - 36)
     }
 
+    /// An Adventure level counts its fish down; a tutorial has its own count, and the Open Water counts what you eat.
+    private var showsFishLeft: Bool { !isTutorial && !isOpenWater }
+
+    /// The fish still to eat before you win: every one alive, whoever eats it, and every one still to swim in.
+    private var fishLeft: Int { fish.filter { !$0.isPlayer && $0.isAlive }.count + waitingFish.count }
+
+    private func buildFishLeft() {
+        fishLeftLabel.fontSize = 15
+        fishLeftLabel.fontColor = .white
+        fishLeftLabel.verticalAlignmentMode = .center
+        fishLeftLabel.horizontalAlignmentMode = .center
+        fishLeftLabel.alpha = 0.9
+        fishLeftLabel.position = CGPoint(x: size.width / 2, y: size.height - 36)
+        fishLeftLabel.text = nil
+        updateFishLeft()
+    }
+
+    /// Shows the count once it's down to `fishLeftShownFrom`, each meal popping it, and hides it at zero (the win).
+    private func updateFishLeft() {
+        let left = showsFishLeft ? fishLeft : 0
+        let text = left > 0 && left <= T.fishLeftShownFrom ? ArcadeTutorial.fishLeft(left) : nil
+        fishLeftLabel.isHidden = phase == .paused || text == nil
+        guard text != fishLeftLabel.text else { return }
+        fishLeftLabel.text = text
+        guard text != nil else { return }
+        fishLeftLabel.removeAction(forKey: "pop")
+        fishLeftLabel.setScale(left == 1 ? 1.45 : 1.25)
+        fishLeftLabel.run(.scale(to: 1, duration: 0.2), withKey: "pop")
+    }
+
     private func buildPauseButton() {
         pauseButton.removeAllChildren()
         let circle = SKShapeNode(circleOfRadius: 20)
@@ -3838,6 +3857,8 @@ final class GameScene: SKScene {
         (tutorialWallMeals.compactMap { fishByID[$0] }, tutorialWall.compactMap { fishByID[$0] }, tutorialPaths.count)
     }
     var debugTutorialBeat: ArcadeTutorial.Beat { tutorialBeat }
+    /// An Adventure level's count at the top as drawn (nil when it isn't showing), and the fish it counts.
+    var debugFishLeft: (shown: String?, count: Int) { (fishLeftLabel.isHidden ? nil : fishLeftLabel.text, fishLeft) }
     /// The pearl beat's pearls in the water, the ones taken, and the counts at the top (fish, pearls) as drawn.
     var debugTutorialPearls: (inWater: [OpenWaterPearl], taken: Int) { (openWaterPearls.map(\.pearl), tutorialPearls) }
     var debugCounts: (shown: Bool, fish: String?, pearls: String?) {
@@ -4161,6 +4182,21 @@ final class GameScene: SKScene {
     func debugClearLevel() {
         for f in fish where !f.isPlayer { f.state = .removed }
         waitingFish.removeAll()
+        simulate(1.0 / 30)
+    }
+
+    /// Takes `count` of the fish still to eat out of the level as if eaten (swimming ones first, then ones still to swim
+    /// in), and plays a step.
+    func debugRemoveFish(_ count: Int) {
+        var left = count
+        for f in fish where !f.isPlayer && f.isAlive && left > 0 {
+            f.state = .removed
+            left -= 1
+        }
+        while left > 0, !waitingFish.isEmpty {
+            waitingFish.removeFirst()
+            left -= 1
+        }
         simulate(1.0 / 30)
     }
 
@@ -4696,7 +4732,7 @@ extension GameScene {
     /// it instead, so they play the same however fast they run.
     private var plansOpenWaterAhead: Bool {
         #if DEBUG
-        return !simulationHeadless || debugPlansOpenWaterAhead
+        return (!simulationHeadless || debugPlansOpenWaterAhead) && !debugPlansOpenWaterInline
         #else
         return true
         #endif
@@ -5068,8 +5104,15 @@ extension GameScene {
         startRun()
     }
 
-    /// No pause button, level name, or card over the frame.
-    func debugHideInterface() { uiLayer.isHidden = true }
+    /// No pause button, level name, or card over the frame. An Open Water run keeps its fish and pearls counted at the
+    /// top, where they show pearls being taken.
+    func debugHideInterface() {
+        guard openWater != nil else {
+            uiLayer.isHidden = true
+            return
+        }
+        for node in uiLayer.children where node !== openWaterCounts { node.isHidden = true }
+    }
 
     /// One display frame of `seconds`, played and drawn as `update` does, specks and sun rays included: for footage
     /// recorded a frame at a time (`StoreFootage`).

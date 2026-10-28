@@ -40,6 +40,10 @@ struct PearlShopTests {
         for item in items {
             #expect(item.earnedBy == nil ? item.price > 0 : item.price == 0 && item.season == nil && !item.onSale(), "\(item.id)")
         }
+        // A look replaces only one that's been retired.
+        for item in items {
+            if let old = item.replaces { #expect(PearlItem.item(old)?.retired == true, "\(item.id)") }
+        }
     }
 
     /// Every look the shop has had. A player may own any of them, so none ever leaves `GameTuning.pearlShop`: retire one
@@ -47,7 +51,7 @@ struct PearlShopTests {
     /// with it.
     static let everyLook: Set<String> = [
         "color.copper", "color.mint", "color.cotton-candy", "color.purple", "color.gold", "color.ruby",
-        "color.blue-raspberry", "color.birthday-cake", "color.galaxy", "color.pearl", "color.rainbow",
+        "color.blue-raspberry", "color.birthday-cake", "color.galaxy", "color.pearl", "color.rainbow", "color.zebra",
         "pattern.spots", "pattern.stripes", "pattern.zebra", "pattern.bands", "pattern.hearts", "pattern.stars",
         "pattern.champion",
         "hat.beanie", "hat.party", "hat.bow", "hat.flower", "hat.baseball", "hat.sailor", "hat.cowboy", "hat.cone",
@@ -81,6 +85,24 @@ struct PearlShopTests {
         let owner = device(#"{"ownedLooks":["hat.old-cone"],"earnedLooks":["hat.old-fin"]}"#, cloud: nil)
         #expect(owner.owns(cone) && owner.owns(shark))
         #expect(owner.shelf(.hat, catalog: catalog) == [beanie, cone, shark])
+    }
+
+    /// A look moved to another kind needs a new ID, since an ID says its kind: the old one is retired, and whoever had
+    /// it has the new one too. Zebra was a pattern until Kraig made it a color (2026-10-27).
+    @Test func whoeverHadAReplacedLookHasItsReplacement() throws {
+        let pattern = try item("pattern.zebra"), color = try item("color.zebra")
+        #expect(pattern.retired && !pattern.onSale() && color.replaces == pattern.id && color.onSale())
+        let owner = device(#"{"ownedLooks":["pattern.zebra"],"pearlsEarned":{"a":100},"wornLook":{"items":{"pattern":"pattern.zebra"},"changed":0}}"#,
+                           cloud: nil)
+        #expect(owner.owns(color) && !owner.buy(color) && owner.pearls == 100)
+        // The old one stays on until the new one goes on in its place.
+        #expect(owner.look[.pattern] == pattern)
+        owner.wear(owner.look.without(.pattern).wearing(color))
+        #expect(owner.look[.color] == color && owner.look[.pattern] == nil)
+        #expect(owner.shelf(.pattern).contains(pattern) && owner.shelf(.color).contains(color))
+        let newcomer = device(#"{"pearlsEarned":{"a":100}}"#, cloud: nil)
+        #expect(!newcomer.owns(color) && !newcomer.shelf(.pattern).contains(pattern))
+        #expect(newcomer.buy(color) && newcomer.pearls == 25 && newcomer.look[.color] == color)
     }
 
     /// Nothing you wear makes your fish look bigger: colors and patterns stay inside your body, and a hat stays inside
@@ -161,8 +183,8 @@ struct PearlShopTests {
         let santa = try item("hat.santa"), antlers = try item("hat.antlers")
         #expect(santa.season == .christmas && antlers.season == .christmas)
         #expect(try item("face.heartglasses").season == .valentines && item("trail.hearts").season == .valentines)
+        #expect(try item("pattern.hearts").season == .valentines)
         #expect(try item("hat.baseball").season == nil && item("trail.cropduster").season == nil)
-        #expect(try item("pattern.hearts").season == nil)
         let progress = device(cloud: nil)
         progress.earnPearls(300)
         #expect(!progress.buy(santa, today: day(2027, 6, 1)) && !progress.owns(santa) && progress.pearls == 300)

@@ -2,14 +2,13 @@ import AVFoundation
 import SwiftUI
 import UIKit
 
-/// What the unlock opens: a clip of each world it adds, The Deep End, its price, and restore. Shown when a player taps
-/// a level past the free ones (or plays up to one), taps Unlock on the home screen or the world map, or beats Shallow Reef without it.
+/// What the unlock opens, both ways to play: a clip of each world it adds, The Deep End, and the Open Water without its
+/// daily limit; then its price, and restore. Shown when a player taps a level past the free ones (or plays up to one),
+/// taps Unlock all on the home screen or the world map, beats Shallow Reef without it, or has used up the day's Open
+/// Water runs. It's the same screen every way in (Kraig, 2026-10-27: "should emphasize both modes. not just
+/// adventure", then "use that unlock screen on all unlock paths. Nothing should be specialized").
 struct UnlockView: View {
     @ObservedObject var purchases: ArcadePurchases
-    /// The world the player was trying to get into, ringed in its color.
-    var featured: ArcadeWorld? = nil
-    /// The world just beaten, when this stands in for its "conquered" screen.
-    var conquered: ArcadeWorld? = nil
     /// What opened this screen, for counting how buying and restoring go here; nil (a tuner preview) isn't counted.
     var source: ArcadeAnalytics.OfferSource? = nil
     var analytics: ArcadeAnalytics? = nil
@@ -58,16 +57,6 @@ struct UnlockView: View {
         .task { await purchases.loadProduct() }
     }
 
-    /// What the screen says first: a world conquered, the day's free Open Water runs used up, or the unlock itself.
-    private var headline: (title: String, line: String) {
-        if let conquered { return ("\(conquered.title) conquered!", "Ready for bigger water? Unlock every world.") }
-        if source == .openWaterLimit {
-            return ("\(GameTuning.freeOpenWaterRunsPerDay) more runs tomorrow",
-                    "Or unlock every world, and swim the Open Water as much as you like.")
-        }
-        return ("Unlock every world", "Swim anywhere you like, whenever you like.")
-    }
-
     /// Spread over the screen's height. On a screen taller than a phone's (an iPad), the clips grow a little and it
     /// sits in the middle, no more spread out than that.
     private func offer(in size: CGSize) -> some View {
@@ -78,30 +67,37 @@ struct UnlockView: View {
         let margin: CGFloat = 12
         return VStack(spacing: 0) {
             VStack(spacing: 2) {
-                Text(headline.title)
+                Text("Unlock it all")
                     .font(.custom("AvenirNext-Heavy", size: 27))
-                Text(headline.line)
+                Text("Every world in Adventure, and the Open Water as much as you like.")
                     .font(.custom("AvenirNext-DemiBold", size: 14)).opacity(0.85)
             }
             .multilineTextAlignment(.center)
             Spacer(minLength: 8)
             HStack(alignment: .top, spacing: gap) {
                 ForEach(worlds) { world in
-                    WorldClipCard(world: world, width: cardWidth, featured: world == featured)
+                    WorldClipCard(world: world, width: cardWidth)
                 }
             }
             Spacer(minLength: 8)
-            HStack(spacing: 8) {
-                DeepEndBadge(size: 30)
-                Text("Plus The Deep End in every world: \(ArcadeUnlock.deepEndLevels) extra-hard levels.")
-                    .font(.custom("AvenirNext-DemiBold", size: 13))
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    DeepEndBadge(size: 30)
+                    Text("Plus The Deep End in every world: \(ArcadeUnlock.deepEndLevels) extra-hard levels.")
+                }
+                HStack(spacing: 8) {
+                    // The Open Water's symbol on the home screen.
+                    Image(systemName: "infinity").font(.system(size: 17, weight: .heavy)).frame(width: 30, height: 30)
+                    Text("Plus the Open Water, as many runs a day as you like.")
+                }
             }
+            .font(.custom("AvenirNext-DemiBold", size: 13))
             Spacer(minLength: 8)
             GoldButton(title: purchases.displayPrice.map { "Unlock all for \($0)" } ?? "Unlock all", action: buy)
             HStack(spacing: 22) {
                 Text("One-time purchase. No ads.").opacity(0.6)
                 Button("Restore purchase", action: restore).buttonStyle(.plain).opacity(0.85)
-                Button(conquered == nil ? "Not now" : "Maybe later", action: onClose).buttonStyle(.plain).opacity(0.85)
+                Button("Not now", action: onClose).buttonStyle(.plain).opacity(0.85)
             }
             .font(.custom("AvenirNext-DemiBold", size: 13))
             .padding(.top, 8)
@@ -160,11 +156,11 @@ struct UnlockView: View {
     }
 }
 
-/// One world on the unlock screen: a looping clip of it being played, its name, and its one line.
+/// One world on the unlock screen: a looping clip of it being played and its name. Its one line is for VoiceOver only:
+/// the clip says it (Kraig, 2026-10-27: "given they can play 2 levels, I think it's self-explanatory").
 private struct WorldClipCard: View {
     let world: ArcadeWorld
     let width: CGFloat
-    let featured: Bool
 
     var body: some View {
         // The clips are cut to the playfield's shape.
@@ -173,12 +169,10 @@ private struct WorldClipCard: View {
             WorldClip(world: world)
                 .frame(width: width, height: height)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(world.color.opacity(featured ? 1 : 0.6), lineWidth: featured ? 3 : 1.5))
-                .shadow(color: world.color.opacity(featured ? 0.7 : 0.3), radius: featured ? 16 : 8)
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(world.color.opacity(0.6), lineWidth: 1.5))
+                .shadow(color: world.color.opacity(0.3), radius: 8)
             Text(world.title).font(.custom("AvenirNext-Heavy", size: 17)).foregroundStyle(world.color)
                 .padding(.top, 4)
-            Text(world.subtitle).font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.85)
-                .multilineTextAlignment(.center).lineLimit(2).fixedSize(horizontal: false, vertical: true)
         }
         .frame(width: width)
         .accessibilityElement(children: .ignore)

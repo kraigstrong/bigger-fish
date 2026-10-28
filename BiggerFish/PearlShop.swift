@@ -43,8 +43,11 @@ struct PearlItem: Identifiable, Equatable {
     /// Gone from the shop: never sold or earned again, and shown only to those who have it, who keep it and wear it. How
     /// a look is taken out of the shop, since a player may own it.
     let retired: Bool
+    /// The retired look this one took the place of, by ID: whoever has that has this too, as it was paid for.
+    let replaces: String?
 
-    init(_ id: String, _ kind: Kind, _ name: String, price: Int, season: PearlSeason? = nil, retired: Bool = false) {
+    init(_ id: String, _ kind: Kind, _ name: String, price: Int, season: PearlSeason? = nil, retired: Bool = false,
+         replaces: String? = nil) {
         self.id = id
         self.kind = kind
         self.name = name
@@ -52,6 +55,7 @@ struct PearlItem: Identifiable, Equatable {
         self.season = season
         earnedBy = nil
         self.retired = retired
+        self.replaces = replaces
     }
 
     init(_ id: String, _ kind: Kind, _ name: String, earnedBy goal: PearlGoal, retired: Bool = false) {
@@ -62,6 +66,7 @@ struct PearlItem: Identifiable, Equatable {
         season = nil
         earnedBy = goal
         self.retired = retired
+        replaces = nil
     }
 
     static func item(_ id: String) -> PearlItem? { GameTuning.pearlShop.first { $0.id == id } }
@@ -300,6 +305,8 @@ enum PearlShopArt {
         "color.birthday-cake": (SKColor(red: 1.00, green: 0.97, blue: 0.92, alpha: 1), SKColor(red: 1.00, green: 0.62, blue: 0.80, alpha: 1)),
         "color.galaxy": (SKColor(red: 0.17, green: 0.13, blue: 0.38, alpha: 1), SKColor(red: 1.00, green: 0.42, blue: 0.78, alpha: 1)),
         "color.pearl": (SKColor(red: 0.95, green: 0.92, blue: 0.97, alpha: 1), SKColor(red: 0.98, green: 0.74, blue: 0.87, alpha: 1)),
+        // White under its black stripes (`coat`), with black fins.
+        "color.zebra": (SKColor(white: 0.97, alpha: 1), SKColor(white: 0.12, alpha: 1)),
         "color.rainbow": (SKColor(red: 0.98, green: 0.97, blue: 1.00, alpha: 1), SKColor(red: 0.70, green: 0.50, blue: 0.95, alpha: 1)),
     ]
 
@@ -315,6 +322,7 @@ enum PearlShopArt {
         case "color.cotton-candy": swirl()
         case "color.galaxy": galaxy()
         case "color.rainbow": rainbow()
+        case "color.zebra": zebraStripes()
         default: nil
         }
     }
@@ -549,8 +557,9 @@ enum PearlShopArt {
         return node
     }
 
-    /// A zebra's coat: white all over your body (your color stays on your fins), black stripes slanting back across it.
-    /// On its own your color showed between the stripes, and an orange fish looked like a tiger.
+    /// The old Zebra pattern (retired for the Zebra color): white all over your body (your color stays on your fins),
+    /// black stripes slanting back across it. On its own your color showed between the stripes, and an orange fish
+    /// looked like a tiger.
     private static func zebra() -> SKNode {
         let node = SKNode()
         // All of the body, just inside its outline.
@@ -559,6 +568,13 @@ enum PearlShopArt {
         coat.fillColor = SKColor(white: 0.97, alpha: 1)
         coat.strokeColor = .clear
         node.addChild(coat)
+        node.addChild(zebraStripes())
+        return node
+    }
+
+    /// A zebra's black stripes, slanting back across the body.
+    private static func zebraStripes() -> SKNode {
+        let node = SKNode()
         for (index, (center, width)) in [(0.62 * R, 0.1 * R), (0.3 * R, 0.13 * R), (-0.04 * R, 0.14 * R), (-0.38 * R, 0.13 * R),
                                           (-0.7 * R, 0.11 * R), (-0.98 * R, 0.08 * R)].enumerated() {
             let stripe = SKShapeNode(path: band(center - width / 2, center + width / 2, slant: 0.14 * R))
@@ -978,20 +994,35 @@ enum PearlShopArt {
         return node
     }
 
-    /// A black pirate's hat, its brim turned up into points at front and back, gold along its edge, and a skull and
-    /// crossbones on the front.
+    /// A black pirate's hat, right way up (Kraig, 2026-10-27: "The pirate hat looks upside down?"): it sits on your head,
+    /// its brim's points curl up at front and back with the crown rounding up between them, gold runs along its top
+    /// edge, and a skull and crossbones is on the front. Its points had stood out halfway up, over a rounded bottom.
     private static func pirateHat() -> SKNode {
         let node = SKNode()
-        let hat = CGMutablePath()
-        hat.move(to: CGPoint(x: -14, y: 8))
-        hat.addQuadCurve(to: CGPoint(x: 0, y: 17), control: CGPoint(x: -11, y: 17))
-        hat.addQuadCurve(to: CGPoint(x: 14, y: 8), control: CGPoint(x: 11, y: 17))
-        hat.addQuadCurve(to: CGPoint(x: -14, y: 8), control: CGPoint(x: 0, y: -11))
+        // The top edge, from the back point: down and up over the crown, then down and up to the front point.
+        let back = CGPoint(x: -18.5, y: 10)
+        let edge = [(to: CGPoint(x: -5.5, y: 10.5), control: CGPoint(x: -10, y: 6)),
+                    (to: CGPoint(x: 5.5, y: 10), control: CGPoint(x: 0, y: 22)),
+                    (to: CGPoint(x: 17.5, y: 9), control: CGPoint(x: 11, y: 5))]
+        let hat = CGMutablePath(), trim = CGMutablePath()
+        hat.move(to: CGPoint(x: -14.5, y: -2))
+        hat.addLine(to: back)
+        trim.move(to: back)
+        for (to, control) in edge {
+            hat.addQuadCurve(to: to, control: control)
+            trim.addQuadCurve(to: to, control: control)
+        }
+        // Down to its front foot, and back along your head.
+        hat.addQuadCurve(to: CGPoint(x: 13.5, y: -3.8), control: CGPoint(x: 14, y: 3))
+        hat.addQuadCurve(to: CGPoint(x: -14.5, y: -2), control: CGPoint(x: -0.5, y: 2.5))
         hat.closeSubpath()
-        let gold = SKColor(red: 0.95, green: 0.75, blue: 0.25, alpha: 1)
-        node.addChild(shape(hat, fill: SKColor(white: 0.12, alpha: 1), stroke: gold, line: 1.4, z: 0))
-        for (index, (from, to)) in [(CGPoint(x: -4.4, y: 5.4), CGPoint(x: 4.4, y: 12)),
-                                    (CGPoint(x: -4.4, y: 12), CGPoint(x: 4.4, y: 5.4))].enumerated() {
+        node.addChild(shape(hat, fill: SKColor(white: 0.12, alpha: 1), stroke: SKColor(white: 0.02, alpha: 1), line: 1.4, z: 0))
+        let gold = shape(trim, fill: .clear, stroke: SKColor(red: 0.95, green: 0.75, blue: 0.25, alpha: 1), line: 1.8, z: 0.05)
+        gold.lineCap = .round
+        gold.lineJoin = .round
+        node.addChild(gold)
+        for (index, (from, to)) in [(CGPoint(x: -4.4, y: 2.6), CGPoint(x: 4.4, y: 9.2)),
+                                    (CGPoint(x: -4.4, y: 9.2), CGPoint(x: 4.4, y: 2.6))].enumerated() {
             let bone = CGMutablePath()
             bone.move(to: from)
             bone.addLine(to: to)
@@ -999,10 +1030,10 @@ enum PearlShopArt {
             line.lineCap = .round
             node.addChild(line)
         }
-        node.addChild(ball(3.1, at: CGPoint(x: 0, y: 8.8), fill: .white, z: 0.2))
+        node.addChild(ball(3.1, at: CGPoint(x: 0, y: 6), fill: .white, z: 0.2))
         for (index, x) in [CGFloat(-1.15), 1.15].enumerated() {
             let socket = SKShapeNode(circleOfRadius: 0.85)
-            socket.position = CGPoint(x: x, y: 9.2)
+            socket.position = CGPoint(x: x, y: 6.4)
             socket.fillColor = SKColor(white: 0.12, alpha: 1)
             socket.strokeColor = .clear
             socket.zPosition = 0.3 + CGFloat(index) * 0.01
@@ -1052,23 +1083,65 @@ enum PearlShopArt {
         return node
     }
 
-    /// A starfish sitting on your head at a tilt, its arms dotted.
+    /// A chubby starfish flopped over your head, its top toward you: its legs droop down your head and hang behind your
+    /// eye, where a flat star had stood stiffly on top (Kraig, 2026-10-27: "more droopy", then "thicker legs",
+    /// "rounded tips", and "less droopy").
     private static func starfish() -> SKNode {
         let node = SKNode()
-        let star = shape(starPath(points: 5, outer: 10, inner: 4.6), fill: SKColor(red: 1, green: 0.55, blue: 0.42, alpha: 1),
-                         stroke: SKColor(red: 0.7, green: 0.25, blue: 0.2, alpha: 1), line: 1.3, z: 0)
-        star.position = CGPoint(x: 0, y: 7)
-        star.zRotation = 0.25
-        node.addChild(star)
-        for i in 0..<5 {
-            let angle = CGFloat(i) * 2 * .pi / 5 + .pi / 2 + 0.25
-            let dot = SKShapeNode(circleOfRadius: 1)
-            dot.position = CGPoint(x: cos(angle) * 5.4, y: 7 + sin(angle) * 5.4)
-            dot.fillColor = SKColor(red: 1, green: 0.85, blue: 0.75, alpha: 1)
-            dot.strokeColor = .clear
-            dot.zPosition = 0.1 + CGFloat(i) * 0.01
-            node.addChild(dot)
+        let starfish = SKNode()
+        starfish.position = CGPoint(x: -5.5, y: 3.6)
+        node.addChild(starfish)
+        // Each leg reaches `reach` from the middle to its round tip's center: `root` is the middle's radius, where the
+        // legs leave it, and `tip` is a tip's.
+        let reach: CGFloat = 11, root: CGFloat = 4.5, tip: CGFloat = 2.6, span = reach + tip
+        // Laid over your head: the farther out a part is, the more it sags; the lower legs hang straighter, and the top
+        // leg flops back.
+        let droop = { (point: CGPoint) -> CGPoint in
+            let up = max(point.y, 0), down = max(-point.y, 0)
+            let x = point.x * (1 - 0.4 * down / span) - 0.3 * up * up / span
+            return CGPoint(x: x, y: point.y - 0.4 * x * x / span)
         }
+        // Each leg is the hull of the middle's circle and its tip's, and the legs together are the starfish.
+        let side = acos((root - tip) / reach)
+        let legs = (0..<5).map { i -> CGPath in
+            let angle = CGFloat(i) * 2 * .pi / 5 + .pi / 2
+            let leg = CGMutablePath()
+            leg.addArc(center: .zero, radius: root, startAngle: angle + side, endAngle: angle - side + 2 * .pi, clockwise: false)
+            leg.addArc(center: CGPoint(x: cos(angle) * reach, y: sin(angle) * reach), radius: tip, startAngle: angle - side,
+                       endAngle: angle + side, clockwise: false)
+            leg.closeSubpath()
+            return leg
+        }
+        let drooped = CGMutablePath()
+        legs.dropFirst().reduce(legs[0]) { $0.union($1) }.flattened(threshold: 0.1).applyWithBlock { element in
+            let points = element.pointee.points
+            switch element.pointee.type {
+            case .moveToPoint: drooped.move(to: droop(points[0]))
+            case .addLineToPoint: drooped.addLine(to: droop(points[0]))
+            case .closeSubpath: drooped.closeSubpath()
+            default: break
+            }
+        }
+        let body = shape(drooped, fill: SKColor(red: 1, green: 0.55, blue: 0.42, alpha: 1),
+                         stroke: SKColor(red: 0.7, green: 0.25, blue: 0.2, alpha: 1), line: 1.3, z: 0)
+        body.lineJoin = .round
+        starfish.addChild(body)
+        for i in 0..<5 {
+            let angle = CGFloat(i) * 2 * .pi / 5 + .pi / 2
+            for (step, (along, size)) in [(CGFloat(0.45), CGFloat(1.2)), (0.8, 0.95)].enumerated() {
+                let dot = SKShapeNode(circleOfRadius: size)
+                dot.position = droop(CGPoint(x: cos(angle) * reach * along, y: sin(angle) * reach * along))
+                dot.fillColor = SKColor(red: 1, green: 0.85, blue: 0.75, alpha: 1)
+                dot.strokeColor = .clear
+                dot.zPosition = 0.1 + CGFloat(i * 2 + step) * 0.01
+                starfish.addChild(dot)
+            }
+        }
+        let middle = SKShapeNode(circleOfRadius: 1.8)
+        middle.fillColor = SKColor(red: 0.95, green: 0.4, blue: 0.32, alpha: 1)
+        middle.strokeColor = .clear
+        middle.zPosition = 0.3
+        starfish.addChild(middle)
         return node
     }
 

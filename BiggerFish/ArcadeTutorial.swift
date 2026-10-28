@@ -36,15 +36,6 @@ enum ArcadeTutorial {
             return beats[index + 1]
         }
 
-        /// What the way to play is about, in the middle of the screen until your first touch: Adventure's says it as its
-        /// card on the home screen does.
-        var goal: String {
-            switch self {
-            case .adventure: ArcadeHome.winRule
-            case .openWater, .shop: "How far can you get?"
-            }
-        }
-
         /// The line it ends on, before it leaves.
         var finale: String {
             switch self {
@@ -117,8 +108,8 @@ enum ArcadeTutorial {
         }
     }
 
-    /// Under the last beat's line, the fish still to eat.
-    static func fishLeft(_ count: Int) -> String { count == 1 ? "1 fish left" : "\(count) fish left" }
+    /// Under the last beat's line, the fish still to eat; an Adventure level counts down the same way at the top.
+    static func fishLeft(_ count: Int) -> String { count == 1 ? "Last fish!" : "\(count) fish left" }
 
     /// Once the pearl's taken, before the Open Water's tutorial ends: what pearls are for.
     static let pearlsAreFor = "Spend pearls in the Shop"

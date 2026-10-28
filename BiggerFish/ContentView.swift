@@ -75,14 +75,14 @@ struct ContentView: View {
             } else if showsWorlds {
                 ArcadeWorldMap(progress: progress, unlocked: unlocked, onSelect: { selectedWorld = $0; returnedFrom = nil },
                                onUnlock: { world in
-                                   withAnimation { offer = UnlockOffer(featured: world, source: world == nil ? .unlockAll : .lockedWorld) }
+                                   withAnimation { offer = UnlockOffer(source: world == nil ? .unlockAll : .lockedWorld) }
                                },
                                onBack: { showsWorlds = false })
             } else {
                 ArcadeHome(progress: progress, unlocked: unlocked,
                            openWaterRunsLeft: limitsOpenWater ? openWaterRuns.left() : nil,
                            onAdventure: openAdventure, onOpenWater: { playOpenWater() }, onShop: { openShop(from: .map) },
-                           onUnlock: { withAnimation { offer = UnlockOffer(featured: nil, source: .unlockAll) } },
+                           onUnlock: { withAnimation { offer = UnlockOffer(source: .unlockAll) } },
                            onSettings: { withAnimation { showsSettings = true } })
             }
         }
@@ -101,7 +101,7 @@ struct ContentView: View {
         .overlay {
             if scene == nil, let world = celebrating {
                 if let celebrationOffer {
-                    UnlockView(purchases: purchases, conquered: world, source: celebrationOffer.source, analytics: analytics,
+                    UnlockView(purchases: purchases, source: celebrationOffer.source, analytics: analytics,
                                onClose: { withAnimation { celebrating = nil } })
                         .transition(.opacity)
                 } else {
@@ -114,7 +114,7 @@ struct ContentView: View {
         }
         .overlay {
             if scene == nil, let offer {
-                UnlockView(purchases: purchases, featured: offer.featured, source: offer.source, analytics: analytics,
+                UnlockView(purchases: purchases, source: offer.source, analytics: analytics,
                            onClose: { withAnimation { self.offer = nil } })
                     .transition(.opacity)
             }
@@ -144,7 +144,7 @@ struct ContentView: View {
             }
             .font(.caption.bold()).buttonStyle(.borderedProminent)
             .padding(.trailing, 12).padding(.bottom, 4)
-            .opacity(StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil
+            .opacity(StoreCapture.moment == nil && StoreFootage.request == nil && !StoreFootage.shopTour && ArcadePlaytest.screen == nil
                      && credits == nil ? 1 : 0)
         }
         .sheet(isPresented: $showsTuning) {
@@ -162,7 +162,7 @@ struct ContentView: View {
             .replayingTutorialWall { playTutorial(.adventure, from: .eatEnough) }
             .previewingUnlock {
                 scene = nil
-                withAnimation { offer = UnlockOffer(featured: nil, source: nil) }
+                withAnimation { offer = UnlockOffer(source: nil) }
             }
         }
         .onChange(of: hitchScreen, initial: true) { _, screen in HitchLog.shared?.show(screen) }
@@ -222,6 +222,7 @@ struct ContentView: View {
                 playPlanner(planner.spec, variation: planner.variation)
             }
             if scene == nil, let seed = ArcadePlaytest.openWaterSeed { playOpenWater(seed: seed, from: ArcadePlaytest.openWaterStart) }
+            if StoreFootage.shopTour { openShop(from: .map) }
             if let screen = ArcadePlaytest.screen { open(screen) }
             #endif
         }
@@ -235,7 +236,7 @@ struct ContentView: View {
         case .home, .newPlayer: break
         case .worlds: showsWorlds = true
         case .settings: showsSettings = true
-        case .unlock: offer = UnlockOffer(featured: .jellyBloom, source: nil)
+        case .unlock: offer = UnlockOffer(source: nil)
         case .conquered:
             selectedWorld = .shallowReef
             celebrate(.shallowReef, preview: true)
@@ -262,7 +263,7 @@ struct ContentView: View {
     /// its Deep End included. `preview` (Xcode builds, from the tuner) shows it without counting it.
     private func celebrate(_ world: ArcadeWorld, preview: Bool = false) {
         let offersUnlock = ArcadeUnlock.needsUnlock(world, ArcadeWorld.mainLevelCount, unlocked: purchases.isUnlocked)
-        celebrationOffer = offersUnlock ? UnlockOffer(featured: nil, source: preview ? nil : .conquered) : nil
+        celebrationOffer = offersUnlock ? UnlockOffer(source: preview ? nil : .conquered) : nil
         if offersUnlock { review.sawOffer() }
         if let source = celebrationOffer?.source { analytics.offerShown(source) }
         withAnimation { celebrating = world }
@@ -292,7 +293,7 @@ struct ContentView: View {
         if credits != nil { return HitchContext(.credits) }
         if let scene { return HitchContext(scene.isTutorial ? .tutorial : .level) }
         if showsTuning { return HitchContext(.tuning) }
-        if let offer { return HitchContext(.unlock, detail: offer.featured?.rawValue ?? "") }
+        if let offer { return HitchContext(.unlock, detail: offer.source?.rawValue ?? "") }
         if let celebrating { return HitchContext(celebrationOffer == nil ? .conquered : .unlock, detail: celebrating.rawValue) }
         if showsSettings { return HitchContext(.settings) }
         if let selectedWorld { return HitchContext(.levelMap, detail: selectedWorld.rawValue) }
@@ -364,7 +365,7 @@ struct ContentView: View {
         guard !startingOpenWater else { return }
         // The day's free runs used up: what the unlock opens, and when more come.
         if limitsOpenWater && openWaterRuns.left() == 0 {
-            withAnimation { offer = UnlockOffer(featured: nil, source: .openWaterLimit) }
+            withAnimation { offer = UnlockOffer(source: .openWaterLimit) }
             return
         }
         let planning = Task.detached(priority: .userInitiated) {
@@ -398,6 +399,9 @@ struct ContentView: View {
     private func showOpenWater(seed: UInt64, from start: Int, plan: MeetingPlan, seconds: Double) {
         let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
         game.startOpenWater(seed: seed, firstLevel: plan, from: start, planSeconds: seconds)
+        #if DEBUG
+        StoreFootage.attach(game)
+        #endif
         game.analytics = analytics
         // Each pearl's kept as it's taken, however the run ends.
         game.onPearl = { progress.earnPearls(1) }
@@ -410,7 +414,7 @@ struct ContentView: View {
         game.onExit = { [weak game] in
             game?.exitMetrics()
             scene = nil
-            if game?.leftForUnlock == true { withAnimation { offer = UnlockOffer(featured: nil, source: .openWaterLimit) } }
+            if game?.leftForUnlock == true { withAnimation { offer = UnlockOffer(source: .openWaterLimit) } }
         }
         show(game)
     }
@@ -510,7 +514,7 @@ struct ContentView: View {
         offersUnlock = ArcadePlaytest.selection == nil
         #endif
         if offersUnlock && ArcadeUnlock.needsUnlock(world, index, unlocked: purchases.isUnlocked) {
-            withAnimation { offer = UnlockOffer(featured: world, source: .padlockedLevel) }
+            withAnimation { offer = UnlockOffer(source: .padlockedLevel) }
             return
         }
         #if DEBUG
@@ -576,7 +580,7 @@ struct ContentView: View {
             if game?.leftForUnlock == true {
                 // Next level was past the free ones: the map waits on it, under what the unlock opens.
                 returnedFrom = game.map { $0.currentLevelIndex + 1 }
-                withAnimation { offer = UnlockOffer(featured: world, source: .nextLevel) }
+                withAnimation { offer = UnlockOffer(source: .nextLevel) }
             }
             if let world = conquered {
                 conquered = nil
@@ -609,8 +613,6 @@ struct SkipButton: View {
 
 /// What the unlock's screen was opened for.
 private struct UnlockOffer {
-    /// The world the player was trying to get into, if any.
-    var featured: ArcadeWorld?
     /// Where it was opened from, for the paywall funnel (`ArcadeAnalytics.offerShown`); nil for a tuner preview, which
     /// isn't counted.
     var source: ArcadeAnalytics.OfferSource?

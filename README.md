@@ -300,15 +300,23 @@ interface hidden, one frame at a time, so the footage never stutters and the sam
 recording writes a report beside it listing every bite: yours, with the meal's size then and at its biggest (a fish
 that had been three times your size is a "turn the tables" moment), and the other fish's on screen, with where.
 
+An Open Water run records the same way, named `open-water.<seed>`: its levels are planned as it reaches them, its
+fish and pearl counts stay on screen, and the report adds each pearl taken and each level reached. `--shop` records
+the pearl shop live instead (`StoreFootage.shopTour`: three looks tried on and bought on a fixed schedule), cropped of
+the simulator's camera cutout in the cut. Your fish hatches plain in all of it unless `FOOTAGE_LOOK` dresses it.
+
 ```bash
 scripts/bigger-fish-footage.sh --look sunset-cove.7 opportunist    # the whole run, to pick from
 scripts/bigger-fish-footage.sh sunset-cove.7 opportunist 1.5 10    # 1.5-10 s of it, 60 fps
+scripts/bigger-fish-footage.sh --look open-water.1003 collector    # an Open Water run
+scripts/bigger-fish-footage.sh --shop                              # the pearl shop's tour
 scripts/bigger-fish-trailer.sh                                     # the trailer and App Store preview
 ```
 
 `scripts/bigger-fish-trailer.sh` rebuilds the trailer from `scripts/trailer/edl.json`: it records whatever footage
 the cut needs that isn't in `build/footage/` yet, renders the captions in Avenir Next, and composes each shot with a
-slow camera move over the game's music (cut to its 120 BPM bars, the world montage on its drop). It writes
+slow camera move over the game's music (cut to its 120 BPM bars, Adventure's world montage on its drop, then the Open
+Water, its pearls, and the Shop). It writes
 `build/trailer/bigger-fish-trailer.mp4` (60 fps, with the release line, for biggerfish.app) and
 `bigger-fish-app-preview.mp4` (30 fps, no dates, 29.5 s: the App Store preview at the 6.9" iPhone size, 1920×886). A
 level that isn't frozen can play differently after a change, so delete its recording to record it again. It needs

@@ -23,6 +23,8 @@ struct PearlShopView: View {
     /// Something not yet owned, tried on in the preview.
     @State private var trying: PearlItem?
     @State private var shown = false
+    /// Looks bought on this visit: each one buzzes.
+    @State private var bought = 0
     @State private var preview = PearlShopPreviewScene()
     #if DEBUG
     /// Xcode builds: a season's limited editions on sale, whatever the date (`PearlSeason.pretend`).
@@ -62,8 +64,29 @@ struct PearlShopView: View {
             withAnimation(.easeOut(duration: 0.2)) { shown = true }
         }
         .onChange(of: shownLook) { _, look in preview.look = look }
+        // Here, not on the buy button, which a purchase replaces.
+        .sensoryFeedback(.success, trigger: bought) { _, _ in ArcadeSettings.shared.vibrationOn }
         .onDisappear { sawShelf() }
+        #if DEBUG
+        .task { if StoreFootage.shopTour { await tour() } }
+        #endif
     }
+
+    #if DEBUG
+    /// Footage of the shop (`StoreFootage.shopTour`): each look's shelf, the look tried on, then bought.
+    private func tour() async {
+        for step in StoreFootage.shopTourSteps {
+            try? await Task.sleep(for: .seconds(step.wait))
+            guard let item = PearlItem.item(step.item) else { continue }
+            if step.buys {
+                if progress.buy(item) { trying = nil }
+            } else {
+                if shelf != .kind(item.kind) { shelf = .kind(item.kind) }
+                trying = item
+            }
+        }
+    }
+    #endif
 
     // MARK: The rail
 
@@ -95,6 +118,9 @@ struct PearlShopView: View {
             guard !selected else { return }
             sawShelf()
             shelf = target
+            // What was tried on comes off: its button would stay, about a look on another shelf (Kraig, 2026-10-27:
+            // the heart glasses' "Valentine's only" still showed on Trails).
+            trying = nil
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: symbol).font(.system(size: 18, weight: .bold))
@@ -131,7 +157,9 @@ struct PearlShopView: View {
             .shopHintPart(.pearls)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(progress.pearls) pearls")
-            SpriteView(scene: preview, options: [.allowsTransparency])
+            // As often as the game draws: SpriteView's own 60 looked choppy on a 120 Hz screen.
+            SpriteView(scene: preview, preferredFramesPerSecond: PearlShopPreviewScene.framesPerSecond,
+                       options: [.allowsTransparency])
                 .frame(height: 150)
                 .background(RoundedRectangle(cornerRadius: 18).fill(
                     LinearGradient(colors: [Color(red: 0.12, green: 0.55, blue: 0.66), Color(red: 0.04, green: 0.24, blue: 0.4)],
@@ -142,7 +170,7 @@ struct PearlShopView: View {
             action.opacity(showsHints ? 0 : 1)
             #if DEBUG
             Button("+\(GameTuning.pearlShopTestGift) pearls (Xcode builds)") { progress.earnPearls(GameTuning.pearlShopTestGift) }
-                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints ? 0 : 0.6)
+                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints || StoreFootage.shopTour ? 0 : 0.6)
                 .buttonStyle(.plain)
             // Round the seasons, then back to the real date.
             Button("Season: \(pretendSeason?.name ?? "today's date") (Xcode builds)") {
@@ -151,7 +179,7 @@ struct PearlShopView: View {
                 pretendSeason = next < seasons.count ? seasons[next] : nil
                 PearlSeason.pretend = pretendSeason
             }
-            .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints ? 0 : 0.6)
+            .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints || StoreFootage.shopTour ? 0 : 0.6)
             .buttonStyle(.plain)
             #endif
         }
@@ -172,11 +200,15 @@ struct PearlShopView: View {
             Button {
                 if progress.buy(item) {
                     trying = nil
+                    ArcadeAudio.shared.play(.buy)
+                    bought += 1
                     onBought(item)
                 }
             } label: {
+                // Not "Buy Mint chocolate chip": a long name wrapped to two lines (Kraig, 2026-10-27: "Let's just say
+                // 'Buy'"). The tile tried on says what it is.
                 HStack(spacing: 8) {
-                    Text(short > 0 ? "\(short) more pearls" : "Buy \(item.name)")
+                    Text(short > 0 ? "\(short) more pearls" : "Buy")
                     if short <= 0 {
                         PearlIcon(size: 15)
                         Text("\(item.price)").monospacedDigit()
@@ -189,6 +221,7 @@ struct PearlShopView: View {
             }
             .buttonStyle(.plain)
             .disabled(short > 0)
+            .accessibilityLabel(short > 0 ? "\(item.name): \(short) more pearls" : "Buy \(item.name) for \(item.price) pearls")
         } else {
             Text("Tap a look to wear it or try it on.")
                 .font(.custom("AvenirNext-DemiBold", size: 14)).opacity(0.7)
@@ -449,8 +482,11 @@ final class PearlShopPreviewScene: SKScene {
     }
     private var fish: FishNode?
     private let motes = PearlTrailMotes()
+    /// The last frame's time, for a fish dressed between frames.
+    private var time: CGFloat = 0
     /// How fast the water seems to pass (points a second), as your fish swims.
     private static let swim: CGFloat = 170
+    static let framesPerSecond = 120
 
     override init() {
         super.init(size: CGSize(width: 300, height: 150))
@@ -469,16 +505,24 @@ final class PearlShopPreviewScene: SKScene {
         node.zPosition = 10
         addChild(node)
         fish = node
+        // In its place now: left to the next frame, a new look flashed in the scene's corner first.
+        swim(node)
     }
 
-    override func update(_ currentTime: TimeInterval) {
-        guard let fish else { return }
-        let time = CGFloat(currentTime)
+    /// Your fish in its place at `time`, swimming: where it is, and its radius.
+    @discardableResult private func swim(_ fish: FishNode) -> (spot: CGPoint, radius: CGFloat) {
         let radius = min(size.height * 0.24, 40)
         let spot = CGPoint(x: size.width * 0.6, y: size.height / 2 + sin(time * 2) * 5)
         fish.position = spot
         fish.apply(radius: radius, facing: 1, tilt: cos(time * 2) * 0.08, stretchX: 1, stretchY: 1, mouthOpen: 0,
                    time: time, tailRate: 14)
+        return (spot, radius)
+    }
+
+    override func update(_ currentTime: TimeInterval) {
+        guard let fish else { return }
+        time = CGFloat(currentTime)
+        let (spot, radius) = swim(fish)
         // The water goes by: where your fish is in it, and where a mote let go there is now.
         let swum = time * Self.swim
         if let trail = look.trail {

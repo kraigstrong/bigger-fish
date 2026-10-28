@@ -88,6 +88,8 @@ enum GameTuning {
     static let effectVolume: Float = 0.7
     /// The level-clear chime is fuller than the other effects, so it plays a little quieter.
     static let clearSoundVolume: Float = 0.55
+    /// Buying a look (Kraig, 2026-10-27: "Video game treasure") is as full as the chime, so it plays as quietly.
+    static let buySoundVolume: Float = 0.55
     /// A jellyfish bounce reuses the gulp, sped up (and pitched up) by this much.
     static let bounceSoundRate: Float = 1.35
     /// Music sits under the effects; both tracks are normalized to -18 LUFS before this.
@@ -176,6 +178,9 @@ enum GameTuning {
     static let conqueredExitDelay: CGFloat = 1.6
     /// Seconds after a win/loss before a tap restarts (avoids accidental restarts from a held finger).
     static let restartDelay: CGFloat = 0.8
+    /// An Adventure level counts its fish down at the top once this many are left, so the end is in sight without a
+    /// long count from the start (Kraig, 2026-10-27: from 10, and the last one is "Last fish!").
+    static let fishLeftShownFrom = 10
 
     // MARK: Jelly Bloom
 
@@ -959,17 +964,22 @@ enum GameTuning {
         PearlItem("color.gold", .color, "Gold", price: 75),
         PearlItem("color.ruby", .color, "Watermelon", price: 75),
         PearlItem("color.blue-raspberry", .color, "Blue raspberry", price: 75),
+        // Kraig, 2026-10-27: "Zebra shouldn't be a pattern as it is right now. It should be a color. It displaces
+        // everything." Whoever had the pattern has this too.
+        PearlItem("color.zebra", .color, "Zebra", price: 75, replaces: "pattern.zebra"),
         PearlItem("color.birthday-cake", .color, "Birthday cake", price: 100),
         PearlItem("color.galaxy", .color, "Galaxy", price: 120),
         PearlItem("color.pearl", .color, "Pearl", price: 150),
         PearlItem("color.rainbow", .color, "Rainbow", price: 200),
         PearlItem("pattern.spots", .pattern, "Spots", price: 25),
         PearlItem("pattern.stripes", .pattern, "Stripes", price: 25),
-        PearlItem("pattern.zebra", .pattern, "Zebra", price: 75),
+        // Its white coat covered whatever color you wore: now a color (`color.zebra`).
+        PearlItem("pattern.zebra", .pattern, "Zebra", price: 75, retired: true),
         PearlItem("pattern.bands", .pattern, "Clown bands", price: 75),
-        PearlItem("pattern.hearts", .pattern, "Polka hearts", price: 90),
         PearlItem("pattern.stars", .pattern, "Stars", price: 120),
         PearlItem("pattern.champion", .pattern, "Champion glow", earnedBy: .fishInOneRun(100)),
+        // Kraig, 2026-10-27: "polka hearts should be valentines only".
+        PearlItem("pattern.hearts", .pattern, "Polka hearts", price: 90, season: .valentines),
         PearlItem("hat.beanie", .hat, "Beanie", price: 40),
         PearlItem("hat.party", .hat, "Party hat", price: 40),
         PearlItem("hat.bow", .hat, "Bow", price: 40),
@@ -1016,10 +1026,11 @@ enum GameTuning {
     static let pearlTrailSeconds: [PearlTrail: CGFloat] = [.bubbles: 0.5, .sparkles: 0.5, .rainbow: 0.5, .cropDuster: 1,
                                                             .comet: 0.45, .notes: 0.9, .hearts: 0.8, .confetti: 0.7]
     /// The looks of the shop's first release (1.1): before a save remembers what's been seen there, these count as seen,
-    /// so a player's first visit has nothing marked new, and only looks added since are. Never add to it.
+    /// so a player's first visit has nothing marked new, and only looks added since are. Never add to it once 1.1 is on
+    /// the App Store (the Zebra color joined while 1.1 was in TestFlight).
     static let pearlShopFirstLooks: Set<String> = [
         "color.copper", "color.mint", "color.cotton-candy", "color.purple", "color.gold", "color.ruby",
-        "color.blue-raspberry", "color.birthday-cake", "color.galaxy", "color.pearl", "color.rainbow",
+        "color.blue-raspberry", "color.birthday-cake", "color.galaxy", "color.pearl", "color.rainbow", "color.zebra",
         "pattern.spots", "pattern.stripes", "pattern.zebra", "pattern.bands", "pattern.hearts", "pattern.stars",
         "pattern.champion",
         "hat.beanie", "hat.party", "hat.bow", "hat.flower", "hat.baseball", "hat.sailor", "hat.cowboy", "hat.cone",
