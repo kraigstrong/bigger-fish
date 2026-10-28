@@ -48,9 +48,10 @@ What's New, so push the text next: a pull first would empty `promotional_text.tx
 `media` replaces the editable version's screenshots (each folder's PNGs in name order, one folder per device size)
 and its product page header (`--header`) and search results asset (`--search`), each a 5244×2950 image; `--creative`
 puts one image in both. Check the header in App Store Connect's preview on an iPhone, which crops it hard.
-`--preview` replaces the app preview video on the app's iPhone sizes: the 6.9" and 6.3" for Bigger Fish, and the 6.5"
-for Math Reef, whose iPhone screenshots are there too (`preview_groups` in `push.py`'s `APPS`). `--poster` picks the
-frame the App Store shows until it plays (a timecode into the video, HH:MM:SS:FF; it can only be a frame of the
+`--preview` replaces the app preview video on the app's iPhone sizes: the 6.9", 6.3", and iPhone Duo for Bigger Fish
+(the Duo's slot takes the same 1920×886 video), and the 6.5" for Math Reef, whose iPhone screenshots are there too
+(`preview_groups` in `push.py`'s `APPS`). `--ipad-preview` puts a 1600×1200 video in the 13-inch iPad's slot.
+`--poster` picks the frame the App Store shows until they play (a timecode into the video, HH:MM:SS:FF; it can only be a frame of the
 video). It goes through Apple's App Asset Library: each file is uploaded and processed first, and the old placements are swapped
 out only once all of them are ready, so a failure leaves the listing as it was. A screenshot's device size comes from
 its dimensions, matched against Apple's reference data. For Bigger Fish, the files come from

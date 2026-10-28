@@ -11,7 +11,7 @@ import UIKit
 /// bot's policies to find the best frame, then again to stop there. Progress is staged in its own saved state, so
 /// real progress, purchases, and analytics are untouched.
 enum StoreCapture {
-    /// The screenshots, in the order the listing tells the game (kraigstrong/bigger-fish#142).
+    /// The screenshots. The listing's are `listing`, in its order.
     enum Moment: String, CaseIterable {
         /// Eating a smaller fish, mid-bite, with more around.
         case eat
@@ -32,6 +32,13 @@ enum StoreCapture {
         case conquered
         /// The screen for conquering Shallow Reef, which opens its Deep End.
         case deepEnd = "deep-end"
+        /// The home screen: Adventure with its crowns, the Open Water with a best run, and your fish in its look over
+        /// the Shop.
+        case home
+        /// An Open Water run: a pearl ahead by the big fish it sits beside, with the fish and pearls counted at the top.
+        case openWater = "open-water"
+        /// The pearl shop, your fish in the looks it has bought.
+        case shop
 
         /// The level it's played on (world, level index), for the moments in play: picked by eye from every level's
         /// best frame. (`-arcadePlaytest` picks another, to try one.)
@@ -44,16 +51,29 @@ enum StoreCapture {
             case .kelpShadows: (.kelpForest, 7)
             case .sunsetHooks: (.sunsetCove, 6)
             case .midnightLight: (.midnightZone, 4)
-            case .conquered, .deepEnd: nil
+            case .conquered, .deepEnd, .home, .openWater, .shop: nil
             }
         }
+
+        /// The Open Water run it's played on: the trailer's, which reaches Jelly Bloom with pearls taken on the way.
+        var openWaterSeed: UInt64? { self == .openWater ? 1003 : nil }
+
+        /// In play, with the bot: a level, or an Open Water run. The rest are the game's own screens.
+        var plays: Bool { level != nil || openWaterSeed != nil }
+
+        /// The listing's screenshots, in its order, which the script captures (Kraig, 2026-10-27, for 1.1: the dodge
+        /// first, as the strongest single image, and the eat beside it, "they need to be back to back"; then the home
+        /// screen and the Open Water, the worlds, the shop, and The Deep End). 1.0's `missed` and `conquered` can still
+        /// be captured by name.
+        static let listing: [Moment] = [.dodge, .eat, .home, .openWater, .jellyTops, .kelpShadows, .sunsetHooks,
+                                        .midnightLight, .shop, .deepEnd]
 
         /// The level map it shows, if any. (The Deep End's screen shows over the world map, as it does for a player
         /// who conquered a world before that screen existed.)
         var map: ArcadeWorld? { self == .conquered ? .shallowReef : nil }
 
         /// The bot's ways of playing to try; the frame comes from whichever plays the moment best.
-        var policies: [ArcadeSimulation.Policy] { level == nil ? [] : ArcadeSimulation.Policy.allCases }
+        var policies: [ArcadeSimulation.Policy] { plays ? ArcadeSimulation.Policy.allCases : [] }
     }
 
     /// The moment this launch captures, if any.
@@ -87,8 +107,9 @@ enum StoreCapture {
     }
 
     /// A player who has conquered Shallow Reef, with a best time on each level, and hasn't started its Deep End. The
-    /// tutorial and lessons are seen, and so is every "conquered" screen, except Shallow Reef's for the Deep End's
-    /// moment: the game shows it once at launch.
+    /// tutorials and lessons are seen, and so is every "conquered" screen, except Shallow Reef's for the Deep End's
+    /// moment: the game shows it once at launch. The home screen's player has conquered Jelly Bloom too, has a best Open
+    /// Water run, and wears a look; the shop's has pearls to spend and wears the trailer's.
     static func stagedSave(for moment: Moment) -> ArcadeSave {
         var save = ArcadeSave()
         let bestTimes: [Double] = [24, 27, 31, 29, 34, 33, 38, 36, 41, 44]
@@ -98,9 +119,29 @@ enum StoreCapture {
             save.bestTimes[id] = seconds
         }
         save.hasSeenTutorial = true
+        save.hasSeenOpenWaterTutorial = true
+        save.hasSeenShopTutorial = true
         save.hasSeenJellyLesson = true
         let seen = ArcadeWorld.campaign.filter { moment != .deepEnd || $0 != .shallowReef }
         save.seenUnlocks = Set(seen.map(\.rawValue))
+        switch moment {
+        case .home:
+            for index in 0..<ArcadeWorld.jellyBloom.levelCount { save.clearedLevels.insert(ArcadeWorld.jellyBloom.levelID(index)) }
+            save.pearlsEarned = ["capture": 283]
+            save.pearlsSpent = ["capture": 115]
+            save.openWaterBest = 142
+            save.ownedLooks = ["color.cotton-candy", "pattern.stars", "hat.flower"]
+            save.wornLook = ArcadeSave.WornLook(items: ["color": "color.cotton-candy", "pattern": "pattern.stars", "hat": "hat.flower"],
+                                                changed: 0)
+        case .shop:
+            save.pearlsEarned = ["capture": 1240]
+            save.pearlsSpent = ["capture": 600]
+            save.ownedLooks = ["color.gold", "hat.party", "trail.confetti"]
+            save.wornLook = ArcadeSave.WornLook(items: ["color": "color.gold", "hat": "hat.party", "trail": "trail.confetti"],
+                                                changed: 0)
+        default:
+            break
+        }
         return save
     }
 
@@ -148,6 +189,10 @@ enum StoreCapture {
         var lastBounce: CGFloat? = nil
         /// Sunset Cove's hooks you haven't passed yet.
         var hooks: [Hook] = []
+        /// An Open Water run's pearls in the water, and the fish and pearls counted at the top.
+        var pearls: [CGPoint] = []
+        var fishCounted = 0
+        var pearlsCounted = 0
 
         /// Wholly on screen, `margin` points clear of every edge, tail and all.
         func shows(_ fish: Swimmer, margin: CGFloat = 16) -> Bool {
@@ -261,7 +306,21 @@ enum StoreCapture {
                 return 50 + Double(min(shown.count, 6)) * 6 - Double(centered) * 40
                     - Double(view.playerOffCenter) * 20 - edges
             }.max()
-        case .conquered, .deepEnd:
+        case .openWater:
+            // A pearl in the water ahead, by the big fish it sits beside, with a pearl or more counted already and fish
+            // about: the further into the run, the better. (The counts themselves are hidden for the caption.)
+            guard view.pearlsCounted >= 1, shown.count >= 3, view.playerOffCenter <= 0.6 else { return nil }
+            return view.pearls.compactMap { pearl -> Double? in
+                let width = view.size.width, height = view.size.height
+                guard pearl.x > player.center.x + player.radius * 3, pearl.x < width * 0.85,
+                      pearl.y > height * 0.15, pearl.y < height * 0.85,
+                      shown.contains(where: { $0.radius > player.radius * 1.2
+                          && hypot($0.center.x - pearl.x, $0.center.y - pearl.y) < $0.radius * 4 }) else { return nil }
+                let centered = abs(pearl.x - width * 0.6) / width
+                return 50 + Double(min(shown.count, 7)) * 6 + Double(min(view.pearlsCounted, 8)) * 4
+                    + Double(min(view.fishCounted, 40)) * 2 + Double(view.playerGrowth) * 15 - Double(centered) * 40 - Double(view.playerOffCenter) * 20 - edges
+            }.max()
+        case .conquered, .deepEnd, .home, .shop:
             return nil
         }
     }
@@ -306,9 +365,10 @@ enum StoreCapture {
         takes.filter { eatenAt == nil || $0.step < eatenAt! - lastStepsBeforeEaten }.max { $0.score < $1.score }
     }
 
-    /// For a level in play: plays it to its moment once the scene is on screen, then saves the frame.
+    /// For a level or an Open Water run in play: plays it to its moment once the scene is on screen, then saves the
+    /// frame.
     @MainActor static func attach(_ scene: GameScene) {
-        guard let moment, moment.level != nil else { return }
+        guard let moment, moment.plays else { return }
         Task { @MainActor in
             while scene.view == nil { try? await Task.sleep(for: .milliseconds(50)) }
             // Past the loading screen's fade.
@@ -319,16 +379,18 @@ enum StoreCapture {
 
     /// For a screen out of play: saves the frame once it has settled.
     @MainActor static func begin() {
-        guard let moment, moment.level == nil else { return }
+        guard let moment, !moment.plays else { return }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(GameTuning.launchMinimumSeconds + 2.5))
-            save(moment, note: moment.map.map { "\($0.title) map" } ?? "conquered screen")
+            save(moment, note: moment.map.map { "\($0.title) map" } ?? "\(moment.rawValue) screen")
         }
     }
 
     @MainActor private static func capture(_ moment: Moment, in scene: GameScene) async {
-        // The bot plays between frames; nothing moves on its own meanwhile.
+        // The bot plays between frames; nothing moves on its own meanwhile. An Open Water run plans each level as it
+        // reaches it (`StoreFootage.record`).
         scene.isPaused = true
+        scene.debugPlansOpenWaterInline = true
         guard let take = bestTake(moment, in: scene, policies: moment.policies) else {
             fail(moment, "no frame showed the moment in \(moment.policies.count) runs of \(Int(runLimit)) seconds")
             return
@@ -340,7 +402,8 @@ enum StoreCapture {
             return step < take.step
         }
         scene.debugRender()
-        scene.debugHideInterface()
+        // The caption goes across the top, where an Open Water run counts its fish and pearls.
+        scene.debugHideInterface(keepingCounts: false)
         // Drawn on screen before the frame is saved.
         try? await Task.sleep(for: .seconds(0.5))
         save(moment, note: "\(take.policy.rawValue) bot, step \(take.step), score \(String(format: "%.1f", take.score))")
@@ -374,9 +437,15 @@ enum StoreCapture {
         let interval = decisionInterval(policy)
         var nextDecision: CGFloat = 0
         var step = 0
+        var level = scene.debugOpenWaterIndex
         while CGFloat(step) * GameTuning.simulationStep < runLimit {
             let view = scene.debugCaptureView
             guard view.playing else { return }
+            // An Open Water run's next level starts its clock at zero: the bot decides afresh then, as the footage's does.
+            if scene.debugOpenWaterIndex != level {
+                level = scene.debugOpenWaterIndex
+                nextDecision = 0
+            }
             if view.time >= nextDecision {
                 scene.debugHold(scene.debugBotHolds(policy))
                 nextDecision = view.time + interval

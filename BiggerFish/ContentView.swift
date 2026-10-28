@@ -209,8 +209,15 @@ struct ContentView: View {
             #if DEBUG
             StoreCapture.begin()
             StoreFootage.begin()
-            // App Store captures and footage open on the world map, as 1.0's did: never the home screen.
-            if StoreCapture.moment != nil || StoreFootage.request != nil { showsWorlds = true }
+            // App Store captures and footage open on the world map, as 1.0's did, but for the captures of the home
+            // screen, the shop, and an Open Water run.
+            switch StoreCapture.moment {
+            case .home: break
+            case .shop: openShop(from: .map)
+            case .openWater: playOpenWater(seed: StoreCapture.moment?.openWaterSeed ?? 1)
+            case .some: showsWorlds = true
+            case nil: if StoreFootage.request != nil { showsWorlds = true }
+            }
             if scene == nil, let world = ArcadePlaytest.mapSelection {
                 selectedWorld = world
             }
@@ -400,6 +407,7 @@ struct ContentView: View {
         let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
         game.startOpenWater(seed: seed, firstLevel: plan, from: start, planSeconds: seconds)
         #if DEBUG
+        StoreCapture.attach(game)
         StoreFootage.attach(game)
         #endif
         game.analytics = analytics

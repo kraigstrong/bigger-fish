@@ -13,7 +13,8 @@ The product page header needs `--scale 0.7`. On an iPhone it shows only the midd
 60% or so (the title card covers the rest), so at full size it's a close-up of one fish (Kraig: "the header image is
 zoomed"). Scaled, the game sits at the top of the image, smaller, with the water carried on around it and deeper below,
 and the iPhone's crop holds the whole moment. (At 0.6 it sat high over a band of empty deep water, where iOS's blur
-behind the Dynamic Island picked up the purple fish.) Search results show all of it, so they take the full-size version.
+behind the Dynamic Island picked up the purple fish.) Search results show all of it, so they take the full-size version, drawn closer: a frame recorded at FOOTAGE_SCALE=3
+is about 1.23 times as close at the same size, and `--zoom` goes closer still.
 """
 import argparse
 import math
@@ -76,6 +77,9 @@ def main():
     parser.add_argument("out")
     parser.add_argument("--center", type=float, default=0.45, help="the crop's middle, as a fraction of the width")
     parser.add_argument("--scale", type=float, default=1, help="draw the game smaller (0.7 for the header)")
+    parser.add_argument("--zoom", type=float, default=1, help="draw the game closer, about the crop's middle")
+    parser.add_argument("--middle", type=float, default=0.5,
+                        help="the crop's middle, as a fraction of the height, for a frame taller than the image")
     parser.add_argument("--tagline", default="Eat fast. Stay alive.")
     args = parser.parse_args()
 
@@ -83,8 +87,13 @@ def main():
     if frame.height < H or frame.width < W:
         raise SystemExit(f"{args.frame} is {frame.width}x{frame.height}; record it at FOOTAGE_SCALE=2.4461 for {W}x{H}")
     left = min(max(round(args.center * frame.width - W / 2), 0), frame.width - W)
-    top = (frame.height - H) // 2
+    top = min(max(round(args.middle * frame.height - H / 2), 0), frame.height - H)
     image = frame.crop((left, top, left + W, top + H))
+    if args.zoom > 1:
+        # Closer in on the middle of the crop: the search results show all of it, and at full size the fish sit in a lot
+        # of open water there (Kraig: "too much around the edge open").
+        zw, zh = round(W / args.zoom), round(H / args.zoom)
+        image = image.crop(((W - zw) // 2, (H - zh) // 2, (W - zw) // 2 + zw, (H - zh) // 2 + zh)).resize((W, H), Image.LANCZOS)
     if args.scale < 1:
         image = smaller(image, args.scale)
 

@@ -16,21 +16,23 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 FONT = ("/System/Library/Fonts/Avenir Next.ttc", 8)  # Avenir Next Heavy, as in the game
 
-# (capture, caption), in listing order: the strongest single image first, then the game in order, each world's
-# idea, and where it goes. The app's own screens (in INSET) have their titles at the top, where an overlaid caption would
-# land, so they're shrunk a little over a blur of themselves instead.
+# (capture, caption), in listing order: the strongest single image first and its pair, the two ways to play, each
+# world's idea, the
+# shop, and where it goes. The app's own screens (in INSET) have their titles at the top, where an overlaid caption
+# would land, so they're shrunk a little over a blur of themselves instead.
 SHOTS = [
     ("dodge", "DODGE BIGGER FISH"),
     ("eat", "EAT SMALLER ONES"),
-    ("missed", "WIN THE FOOD RACE"),
+    ("home", "TWO WAYS TO PLAY"),
+    ("open-water", "GATHER PEARLS IN THE OPEN WATER"),
     ("jelly-tops", "BOUNCE OFF JELLYFISH"),
     ("kelp-shadows", "WHAT'S HIDING IN THE KELP?"),
     ("sunset-hooks", "LEAVE THE BAIT"),
     ("midnight-light", "LIGHT THE WAY"),
-    ("conquered", "CONQUER FIVE WORLDS"),
-    ("deep-end", "THEN GO DEEPER"),
+    ("shop", "CUSTOMIZE YOUR FISH"),
+    ("deep-end", "CONQUER EACH WORLD"),
 ]
-INSET = {"conquered", "deep-end"}
+INSET = {"home", "shop", "deep-end"}
 
 
 def font_for(caption, size, width):
@@ -94,6 +96,13 @@ def main():
         sys.exit(f"missing captures: {', '.join(missing)}")
     only = set(args.only.split(",")) if args.only else None
     args.out.mkdir(parents=True, exist_ok=True)
+    if not only:
+        # A folder framed for an older listing keeps its shots under their old numbers; push.py media uploads every PNG
+        # in it, so whatever isn't in this listing goes.
+        current = {f"{index:02d}-{name}.png" for index, (name, _) in enumerate(SHOTS, 1)}
+        for stale in args.out.glob("[0-9][0-9]-*.png"):
+            if stale.name not in current:
+                stale.unlink()
     for index, (name, caption) in enumerate(SHOTS, 1):
         if only and name not in only:
             continue

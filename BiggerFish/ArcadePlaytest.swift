@@ -124,22 +124,13 @@ enum ArcadePlaytest {
     private static let screenDefaults: UserDefaults? = screen.map { screen in
         let defaults = UserDefaults(suiteName: screenSuiteName)!
         defaults.removePersistentDomain(forName: screenSuiteName)
-        var save = StoreCapture.stagedSave(for: .conquered)
+        var save = StoreCapture.stagedSave(for: screen == .home ? .home : .conquered)
         if screen == .newPlayer { save = ArcadeSave() }
         if screen == .shop || screen == .shopHints {
             save.pearlsEarned = ["screen": 160]
             save.pearlsSpent = ["screen": 115]
             save.ownedLooks = ["color.gold", "hat.beanie"]
             save.wornLook = ArcadeSave.WornLook(items: ["color": "color.gold", "hat": "hat.beanie"], changed: 0)
-        }
-        if screen == .home {
-            for index in 0..<ArcadeWorld.jellyBloom.levelCount { save.clearedLevels.insert(ArcadeWorld.jellyBloom.levelID(index)) }
-            save.pearlsEarned = ["screen": 283]
-            save.pearlsSpent = ["screen": 115]
-            save.openWaterBest = 142
-            save.ownedLooks = ["color.cotton-candy", "pattern.stars", "hat.flower"]
-            save.wornLook = ArcadeSave.WornLook(items: ["color": "color.cotton-candy", "pattern": "pattern.stars", "hat": "hat.flower"],
-                                                changed: 0)
         }
         if let data = try? JSONEncoder().encode(save) {
             defaults.set(data, forKey: ArcadeProgress.key)

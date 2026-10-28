@@ -44,8 +44,11 @@ API = "https://api.appstoreconnect.apple.com"
 # Each app: where its Apple ID comes from, its in-app purchases (folder under iap/ -> product ID), and the iPhone
 # sizes its app preview goes to (PREVIEW_GROUPS unless it says otherwise).
 APPS = {
+    # Bigger Fish's iPhone preview also fills the iPhone Duo's slot, which takes the same 1920x886 video.
     "bigger-fish": {"app_id_env": "ASCC_APP_ID_BIGGER_FISH",
-                    "iap": {"allworlds": "com.kraigstrong.biggerfish.allworlds"}},
+                    "iap": {"allworlds": "com.kraigstrong.biggerfish.allworlds"},
+                    "preview_groups": ("IPHONE_DYNAMIC_ISLAND_LARGE_PROFILE", "IPHONE_DYNAMIC_ISLAND_MEDIUM_PROFILE",
+                                       "IPHONE_DUO_PROFILE")},
     # Math Reef's iPhone screenshots and preview are in the 6.5" slot, which Apple scales for the other iPhones.
     "math-reef": {"app_id_env": "ASCC_APP_ID_MATH_REEF",
                   "iap": {"fullreef": "com.kraigstrong.mathreef.fullreef"},
@@ -492,6 +495,8 @@ SCREENSHOT, HEADER, SEARCH = "APP_SCREENSHOT", "PRODUCT_PAGE_HEADER_ASSET", "APP
 PREVIEW = "APP_PREVIEW"
 # The app preview goes to the 6.9" and 6.3" iPhones; Apple fills in smaller sizes from these.
 PREVIEW_GROUPS = ("IPHONE_DYNAMIC_ISLAND_LARGE_PROFILE", "IPHONE_DYNAMIC_ISLAND_MEDIUM_PROFILE")
+# The 13-inch iPad's preview, 1600x1200, which App Store Connect uses for the smaller iPads too.
+IPAD_PREVIEW_GROUP = "IPAD_13_PROFILE"
 VIDEO_SUFFIXES = {".mp4", ".m4v", ".mov"}
 
 
@@ -513,7 +518,7 @@ def png_info(path: Path) -> tuple[int, int, bool]:
 
 
 def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path], preview: Path | None,
-          poster: str | None, dry_run: bool) -> int:
+          poster: str | None, dry_run: bool, ipad_preview: Path | None = None) -> int:
     """Replaces the editable version's screenshots (each folder's PNGs, in name order), its product page header and
     search results asset (`creatives`, by placement type), and its app preview video, with `poster` as the frame shown
     before it plays. New files are uploaded and processed first; the old placements are only swapped out once every
@@ -566,6 +571,10 @@ def media(app: str, locale: str, folders: list[Path], creatives: dict[str, Path]
             raise SystemExit(f"--poster {poster}: a timecode into the video, HH:MM:SS:FF (FF is the frame)")
         for group in APPS[app].get("preview_groups", PREVIEW_GROUPS):
             plan[(PREVIEW, group)] = [preview]
+    if ipad_preview:
+        if ipad_preview.suffix.lower() not in VIDEO_SUFFIXES:
+            raise SystemExit(f"{ipad_preview}: an app preview is a .mp4, .m4v or .mov")
+        plan[(PREVIEW, IPAD_PREVIEW_GROUP)] = [ipad_preview]
     for (kind, group), files in plan.items():
         if kind == SCREENSHOT and len(files) > 10:
             raise SystemExit(f"{group}: {len(files)} screenshots, over Apple's 10")
@@ -827,7 +836,8 @@ def main() -> int:
     images.add_argument("--header", type=Path, help="a 5244x2950 PNG for the product page header only")
     images.add_argument("--search", type=Path, help="a 5244x2950 PNG for the search results asset only")
     images.add_argument("--preview", type=Path, help="the app preview video (1920x886), for the app's iPhone sizes")
-    images.add_argument("--poster", help="the preview's poster frame, the still shown before it plays (HH:MM:SS:FF)")
+    images.add_argument("--ipad-preview", type=Path, help="the iPad's app preview video (1600x1200)")
+    images.add_argument("--poster", help="the previews' poster frame, the still shown before they play (HH:MM:SS:FF)")
     images.add_argument("--dry-run", action="store_true", help="show what would change; write nothing")
     buy = sub.add_parser("purchase", help="create the app's in-app purchases and fill in what they're missing")
     buy.add_argument("--app", choices=APPS, required=True)
@@ -839,13 +849,14 @@ def main() -> int:
     if args.command == "media":
         creatives = {kind: path for kind, path in ((HEADER, args.header or args.creative),
                                                    (SEARCH, args.search or args.creative)) if path}
-        if args.poster and not args.preview:
+        if args.poster and not (args.preview or args.ipad_preview):
             raise SystemExit("--poster sets the frame of the --preview video it comes with")
-        if not args.screenshots and not creatives and not args.preview:
+        if not args.screenshots and not creatives and not args.preview and not args.ipad_preview:
             raise SystemExit("nothing to do: give --screenshots folders, a --creative (or --header, --search) image, "
                              "or a --preview video")
         try:
-            return media(args.app, args.locale, args.screenshots, creatives, args.preview, args.poster, args.dry_run)
+            return media(args.app, args.locale, args.screenshots, creatives, args.preview, args.poster, args.dry_run,
+                         args.ipad_preview)
         except RuntimeError as error:
             print(f"error: {error}", file=sys.stderr)
             return 2
