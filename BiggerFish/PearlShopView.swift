@@ -23,6 +23,8 @@ struct PearlShopView: View {
     /// Something not yet owned, tried on in the preview.
     @State private var trying: PearlItem?
     @State private var shown = false
+    /// Looks bought on this visit: each one buzzes.
+    @State private var bought = 0
     @State private var preview = PearlShopPreviewScene()
     #if DEBUG
     /// Xcode builds: a season's limited editions on sale, whatever the date (`PearlSeason.pretend`).
@@ -62,6 +64,8 @@ struct PearlShopView: View {
             withAnimation(.easeOut(duration: 0.2)) { shown = true }
         }
         .onChange(of: shownLook) { _, look in preview.look = look }
+        // Here, not on the buy button, which a purchase replaces.
+        .sensoryFeedback(.success, trigger: bought) { _, _ in ArcadeSettings.shared.vibrationOn }
         .onDisappear { sawShelf() }
         #if DEBUG
         .task { if StoreFootage.shopTour { await tour() } }
@@ -191,6 +195,8 @@ struct PearlShopView: View {
             Button {
                 if progress.buy(item) {
                     trying = nil
+                    ArcadeAudio.shared.play(.buy)
+                    bought += 1
                     onBought(item)
                 }
             } label: {
