@@ -88,6 +88,8 @@ enum GameTuning {
     static let effectVolume: Float = 0.7
     /// The level-clear chime is fuller than the other effects, so it plays a little quieter.
     static let clearSoundVolume: Float = 0.55
+    /// Buying a look (Kraig, 2026-10-27: "Video game treasure") is as full as the chime, so it plays as quietly.
+    static let buySoundVolume: Float = 0.55
     /// A jellyfish bounce reuses the gulp, sped up (and pitched up) by this much.
     static let bounceSoundRate: Float = 1.35
     /// Music sits under the effects; both tracks are normalized to -18 LUFS before this.
