@@ -481,9 +481,10 @@ final class ArcadeProgress: ObservableObject {
     /// Whether this player has bought a look with pearls (on any of their devices).
     var hasBoughtALook: Bool { !(save.ownedLooks ?? []).isEmpty }
 
-    /// Bought, or earned (and kept, even if it's sold now or retired).
+    /// Bought, or earned (and kept, even if it's sold now or retired), or the look it replaced is.
     func owns(_ item: PearlItem) -> Bool {
         save.ownedLooks?.contains(item.id) == true || save.earnedLooks?.contains(item.id) == true || earnsNow(item)
+            || item.replaces.flatMap(PearlItem.item).map(owns) == true
     }
 
     /// The shop's shelf of `kind` (from `catalog`, the shop's): everything but a retired look this player doesn't have.
