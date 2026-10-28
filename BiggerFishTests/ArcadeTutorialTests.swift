@@ -316,7 +316,7 @@ struct ArcadeTutorialTests {
         }
         #expect(run.finished)
         #expect(line == "Eat every fish to win" && line == ArcadeHome.winRule)
-        #expect(shown == ["2 fish left", "1 fish left"], "shown: \(shown)")
+        #expect(shown == ["2 fish left", "Last fish!"], "shown: \(shown)")
         withExtendedLifetime(view) {}
     }
 
