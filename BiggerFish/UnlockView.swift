@@ -12,6 +12,9 @@ struct UnlockView: View {
     var conquered: ArcadeWorld? = nil
     /// What opened this screen, for counting how buying and restoring go here; nil (a tuner preview) isn't counted.
     var source: ArcadeAnalytics.OfferSource? = nil
+    /// Opened from the home screen's Unlock all, beside both ways to play: it says it opens both, Adventure's worlds and
+    /// the Open Water without its daily limit (Kraig, 2026-10-27: "should emphasize both modes. not just adventure").
+    var bothModes = false
     var analytics: ArcadeAnalytics? = nil
     let onClose: () -> Void
 
@@ -58,13 +61,15 @@ struct UnlockView: View {
         .task { await purchases.loadProduct() }
     }
 
-    /// What the screen says first: a world conquered, the day's free Open Water runs used up, or the unlock itself.
+    /// What the screen says first: a world conquered, the day's free Open Water runs used up, or the unlock itself (both
+    /// ways to play, from the home screen).
     private var headline: (title: String, line: String) {
         if let conquered { return ("\(conquered.title) conquered!", "Ready for bigger water? Unlock every world.") }
         if source == .openWaterLimit {
             return ("\(GameTuning.freeOpenWaterRunsPerDay) more runs tomorrow",
                     "Or unlock every world, and swim the Open Water as much as you like.")
         }
+        if bothModes { return ("Unlock it all", "Every world in Adventure, and the Open Water as much as you like.") }
         return ("Unlock every world", "Swim anywhere you like, whenever you like.")
     }
 
@@ -91,11 +96,20 @@ struct UnlockView: View {
                 }
             }
             Spacer(minLength: 8)
-            HStack(spacing: 8) {
-                DeepEndBadge(size: 30)
-                Text("Plus The Deep End in every world: \(ArcadeUnlock.deepEndLevels) extra-hard levels.")
-                    .font(.custom("AvenirNext-DemiBold", size: 13))
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    DeepEndBadge(size: 30)
+                    Text("Plus The Deep End in every world: \(ArcadeUnlock.deepEndLevels) extra-hard levels.")
+                }
+                if bothModes {
+                    HStack(spacing: 8) {
+                        // The Open Water's symbol on the home screen.
+                        Image(systemName: "infinity").font(.system(size: 17, weight: .heavy)).frame(width: 30, height: 30)
+                        Text("Plus the Open Water, as many runs a day as you like.")
+                    }
+                }
             }
+            .font(.custom("AvenirNext-DemiBold", size: 13))
             Spacer(minLength: 8)
             GoldButton(title: purchases.displayPrice.map { "Unlock all for \($0)" } ?? "Unlock all", action: buy)
             HStack(spacing: 22) {

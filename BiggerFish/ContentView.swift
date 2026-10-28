@@ -82,7 +82,7 @@ struct ContentView: View {
                 ArcadeHome(progress: progress, unlocked: unlocked,
                            openWaterRunsLeft: limitsOpenWater ? openWaterRuns.left() : nil,
                            onAdventure: openAdventure, onOpenWater: { playOpenWater() }, onShop: { openShop(from: .map) },
-                           onUnlock: { withAnimation { offer = UnlockOffer(featured: nil, source: .unlockAll) } },
+                           onUnlock: { withAnimation { offer = UnlockOffer(featured: nil, source: .unlockAll, bothModes: true) } },
                            onSettings: { withAnimation { showsSettings = true } })
             }
         }
@@ -114,8 +114,8 @@ struct ContentView: View {
         }
         .overlay {
             if scene == nil, let offer {
-                UnlockView(purchases: purchases, featured: offer.featured, source: offer.source, analytics: analytics,
-                           onClose: { withAnimation { self.offer = nil } })
+                UnlockView(purchases: purchases, featured: offer.featured, source: offer.source, bothModes: offer.bothModes,
+                           analytics: analytics, onClose: { withAnimation { self.offer = nil } })
                     .transition(.opacity)
             }
         }
@@ -237,6 +237,7 @@ struct ContentView: View {
         case .worlds: showsWorlds = true
         case .settings: showsSettings = true
         case .unlock: offer = UnlockOffer(featured: .jellyBloom, source: nil)
+        case .unlockAll: offer = UnlockOffer(featured: nil, source: nil, bothModes: true)
         case .conquered:
             selectedWorld = .shallowReef
             celebrate(.shallowReef, preview: true)
@@ -618,4 +619,6 @@ private struct UnlockOffer {
     /// Where it was opened from, for the paywall funnel (`ArcadeAnalytics.offerShown`); nil for a tuner preview, which
     /// isn't counted.
     var source: ArcadeAnalytics.OfferSource?
+    /// From the home screen's Unlock all: the screen says it opens both ways to play (`UnlockView.bothModes`).
+    var bothModes = false
 }

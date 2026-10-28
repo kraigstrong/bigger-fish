@@ -71,13 +71,14 @@ enum ArcadePlaytest {
 
     /// A screen to open at launch, to check its layout at a device's size (an iPad, a small phone):
     /// -arcadeScreen home, new-player (the home screen as a new player first sees it), worlds (Adventure's world map),
-    /// settings, unlock, conquered, credits, tutorial (Adventure's), open-water-tutorial, shop (the pearl shop),
+    /// settings, unlock, unlock-all (the home screen's Unlock all, both ways to play), conquered, credits, tutorial
+    /// (Adventure's), open-water-tutorial, shop (the pearl shop),
     /// shop-hints (the Shop's tutorial over it), or pause (with
     /// -arcadePlaytest for the level to pause). Add -arcadeMap <world ID> for a level map, -arcadeUnlocked YES or NO for either side of the
     /// unlock ("conquered" shows the unlock's offer without it), or -arcadePlaytest with -arcadeResult for a result card.
     enum Screen: String {
         case home, newPlayer = "new-player", worlds, settings, unlock, conquered, credits, tutorial
-        case openWaterTutorial = "open-water-tutorial", pause, shop, shopHints = "shop-hints"
+        case openWaterTutorial = "open-water-tutorial", pause, shop, shopHints = "shop-hints", unlockAll = "unlock-all"
     }
 
     static let screen: Screen? = argument("-arcadeScreen").flatMap(Screen.init(rawValue:))
