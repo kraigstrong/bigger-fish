@@ -4,8 +4,8 @@ Free to try: Shallow Reef's ten levels, the first two levels of each other world
 
 Pearls are earned only by playing. They can't be bought and have no real-money value. They buy cosmetic looks for your fish in the pearl shop, from Shop on the home screen or Shop after a run.
 
-Five looks are limited editions. Outside their dates they're shown dimmed with their dates, and can be tried on but not bought:
+Six looks are limited editions. Outside their dates they're shown dimmed with their dates, and can be tried on but not bought:
 - Santa hat, Reindeer antlers and Red nose: Dec 1 – Jan 6.
-- Heart glasses and the Hearts trail: Feb 1 – 15.
+- Heart glasses, Polka hearts and the Hearts trail: Feb 1 – 15.
 
 The app sends anonymous gameplay counts (levels started and cleared, how runs end, how far Open Water runs get, which looks are bought and worn, and how often the unlock is offered, bought or restored), with no identifiers, as described in the privacy policy at https://biggerfish.app/privacy.
