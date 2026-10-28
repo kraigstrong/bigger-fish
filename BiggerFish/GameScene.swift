@@ -802,8 +802,8 @@ final class GameScene: SKScene {
         case .ready:
             resultPanel = nil
             if isTutorial {
-                // Just what it's about: the finger shows you how, and your first touch starts it and lifts you.
-                showTutorialGoal()
+                // The beat's line and the finger that shows you how: your first touch starts it and lifts you.
+                showTutorialStart()
                 if let caption = tutorialCaptionPending {
                     tutorialCaptionPending = nil
                     showTutorialCaption(caption)
@@ -2155,38 +2155,18 @@ final class GameScene: SKScene {
                                    .group([.fadeIn(withDuration: 0.35), .scale(to: 1, duration: 0.35)])]))
     }
 
-    /// What the tutorial's way to play is about, big until your first touch (`ArcadeTutorial.Course.goal`): right of
-    /// your fish and its arrows, under the beat's line and over the finger that shows you how (or, after a tutorial
-    /// before, a word on how to start).
-    private func showTutorialGoal() {
-        #if DEBUG
-        noteHitch(.card, "tutorial goal")
-        #endif
-        messageNode.removeAllActions()
-        messageNode.removeAllChildren()
-        let line = label(tutorialCourse?.goal ?? "", fontSize: 30, heavy: true)
-        let maxWidth = size.width * 0.6
-        if line.frame.width > maxWidth { line.fontSize *= maxWidth / line.frame.width }
-        var height: CGFloat = 72
-        if tutorialOpening != .holdToRise {
-            let start = label("Tap to start", fontSize: 18, heavy: false)
-            start.alpha = 0.85
-            start.position = CGPoint(x: 0, y: -26)
-            line.position = CGPoint(x: 0, y: 11)
-            messageNode.addChild(start)
-            height = 96
+    /// Until your first touch, only the beat's line and the finger that shows you how (Kraig, 2026-10-27: "Just start
+    /// with 'hold anywhere to rise'"). After a tutorial before, with no finger to follow, Tap to start under the line,
+    /// right of your fish and its arrows.
+    private func showTutorialStart() {
+        guard tutorialOpening != .holdToRise else {
+            messageNode.removeAllActions()
+            messageNode.removeAllChildren()
+            return
         }
-        let panel = SKShapeNode(rectOf: CGSize(width: line.frame.width + 70, height: height), cornerRadius: 24)
-        panel.fillColor = SKColor(white: 0, alpha: 0.3)
-        panel.strokeColor = .clear
-        // Under its lines: the scene ignores sibling order.
-        panel.zPosition = -1
-        messageNode.addChild(panel)
-        messageNode.addChild(line)
+        showStartPrompt()
         let captionBottom = tutorialCaption.position.y - T.tutorialCaptionSize * 0.95
-        messageNode.position = CGPoint(x: size.width * 0.64, y: captionBottom - 12 - height / 2)
-        messageNode.alpha = 0
-        messageNode.run(.fadeIn(withDuration: 0.25))
+        messageNode.position = CGPoint(x: size.width * 0.64, y: captionBottom - 12 - 24)
     }
 
     /// Leaves the tutorial for its way to play (its skip control).

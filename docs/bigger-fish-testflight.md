@@ -56,7 +56,7 @@ On a physical iPhone, with a fresh install and again as an update over the last 
 
 Since 0.3:
 
-- **Fresh install:** the home screen first. Adventure's first tap plays its tutorial ("Eat every fish to win"): hold
+- **Fresh install:** the home screen first. Adventure's first tap plays its tutorial, opening on "Hold anywhere to rise": hold
   to rise, let go to fall, eat a smaller fish, dodge a bigger one, watch a missed fish grow and catch it back, then
   eat through the wall and catch the last two ("2 fish left"). Missing a wall meal gets you eaten, and Retry starts
   the wall again. It ends on the world map. Open Water's first tap plays its own (eat smaller, avoid bigger, gather a
@@ -90,7 +90,7 @@ Since 1.1:
   Earned looks show what earns them.
 - **Without the unlock:** Open Water on the home screen says "5 runs left today"; a run counts once it takes its
   first pearl; with none left it says "More runs tomorrow", the card offers Unlock all in place of Retry, and both open the unlock
-  screen headed "5 more runs tomorrow". Buying makes Open Water unlimited.
+  screen. Buying makes Open Water unlimited.
 - **The home screen** (from 1.1.0 (2)): your fish in its look with Shop under it on the left (tapping the fish opens
   the shop too); Adventure and Open Water on the right. Adventure shows a crown per world (outlined, silver, gold),
   and until Shallow Reef 1 is beaten, "Start here" and "Eat every fish to win". It opens the world map (Back and
@@ -140,9 +140,10 @@ Smoke check, without the unlock:
 
 - Every world on the map is open. Shallow Reef plays levels 1–10; every other world plays levels 1 and 2,
   and levels 3–10 show a gold padlock and "Unlock". Every Deep End says "Unlock every world to dive in."
-- "Unlock all" on the home screen or the world map, a padlocked level, and Next level after a world's level 2 each show the unlock
-  screen: a looping clip of Jelly Bloom, Kelp Forest, and Midnight Zone, the price, Restore purchase, and Not now.
-- Beating Shallow Reef's level 10 shows "Shallow Reef conquered!" with the same offer.
+- "Unlock all" on the home screen or the world map, a padlocked level, Next level after a world's level 2, beating Shallow
+  Reef's level 10, and the Open Water with the day's runs used up all show the same unlock screen (from 1.1.0 (4)): "Unlock
+  it all", a looping clip of each locked world with its name, The Deep End's line and the Open Water's, the price, Restore
+  purchase, and Not now.
 - Buying (or Restore purchase after buying on another device) shows "Every world is open!" and removes every
   padlock. Beating a world's level 10 then shows its conquered screen with just The Deep End.
 

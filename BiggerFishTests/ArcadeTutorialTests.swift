@@ -383,13 +383,27 @@ struct ArcadeTutorialTests {
         withExtendedLifetime(view) {}
     }
 
+    /// A new player's first screen is just the first beat's line, and the finger that shows how: no goal over it.
+    @Test func eachTutorialOpensOnHoldToRise() {
+        for course in [ArcadeTutorial.Course.adventure, .openWater] {
+            let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: course)
+            let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
+            view.presentScene(scene)
+            #expect(scene.debugTutorialBeat == .holdToRise && scene.debugPhase == .ready)
+            #expect(scene.debugTutorialCaption.line == "Hold anywhere to rise", "\(course)")
+            #expect(scene.debugCardTexts.isEmpty, "\(course): \(scene.debugCardTexts)")
+            withExtendedLifetime(view) {}
+        }
+    }
+
     /// Someone who learned to rise and fall in the other tutorial (or a level, or a run) starts at the first meal, after
-    /// a tap, with what the way to play is about in the middle until then.
+    /// a tap, with Tap to start under its line until then.
     @Test func aPlayerWhoKnowsTheControlsStartsAtTheFirstMeal() {
         let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .openWater, knowsControls: true)
         let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
         view.presentScene(scene)
         #expect(scene.debugTutorialBeat == .eatSmaller && scene.debugPhase == .ready)
+        #expect(scene.debugCardTexts == ["Tap to start"])
         let run = scene.debugPlayTutorial()
         #expect(run.finished && run.beats.map(\.beat) == [.eatSmaller, .dodgeBigger, .gatherPearls])
         withExtendedLifetime(view) {}
