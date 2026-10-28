@@ -105,7 +105,8 @@ jobs:
           def version(runtime):
               return [int(n) for n in re.findall(r"\d+", runtime.split("iOS")[-1])]
           ios = sorted((r for r in devices if "iOS" in r), key=version, reverse=True)
-          print(next(d["udid"] for r in ios for d in devices[r] if d["name"].startswith("iPhone")))
+          # PROBE (draft, don't merge): iOS 27.0's iPhone 17 instead of iOS 27.1's iPhone Duo, to time start-up.
+          print(next(d["udid"] for r in ios for d in devices[r] if d["name"] == "iPhone 17" and version(r)[:2] == [27, 0]))
           EOF
           )
           xcrun simctl list devices | grep "$id"
@@ -148,7 +149,8 @@ jobs:
           EOF
 
       - name: Upload test results
-        if: failure()
+        # PROBE: always upload, to read the start-up timings.
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.name }} test results
