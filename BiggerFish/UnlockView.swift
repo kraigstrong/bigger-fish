@@ -174,7 +174,8 @@ struct UnlockView: View {
     }
 }
 
-/// One world on the unlock screen: a looping clip of it being played, its name, and its one line.
+/// One world on the unlock screen: a looping clip of it being played and its name. Its one line is for VoiceOver only:
+/// the clip says it (Kraig, 2026-10-27: "given they can play 2 levels, I think it's self-explanatory").
 private struct WorldClipCard: View {
     let world: ArcadeWorld
     let width: CGFloat
@@ -191,8 +192,6 @@ private struct WorldClipCard: View {
                 .shadow(color: world.color.opacity(featured ? 0.7 : 0.3), radius: featured ? 16 : 8)
             Text(world.title).font(.custom("AvenirNext-Heavy", size: 17)).foregroundStyle(world.color)
                 .padding(.top, 4)
-            Text(world.subtitle).font(.custom("AvenirNext-DemiBold", size: 12)).opacity(0.85)
-                .multilineTextAlignment(.center).lineLimit(2).fixedSize(horizontal: false, vertical: true)
         }
         .frame(width: width)
         .accessibilityElement(children: .ignore)
