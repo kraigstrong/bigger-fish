@@ -29,6 +29,8 @@ struct PearlShopView: View {
     #if DEBUG
     /// Xcode builds: a season's limited editions on sale, whatever the date (`PearlSeason.pretend`).
     @State private var pretendSeason = PearlSeason.pretend
+    /// Footage or a screenshot for the App Store: the Xcode-only buttons stay hidden.
+    private var showsForTheStore: Bool { StoreFootage.shopTour || StoreCapture.moment != nil }
     #endif
 
     private var shownLook: PlayerLook { trying.map(progress.look.wearing) ?? progress.look }
@@ -170,7 +172,7 @@ struct PearlShopView: View {
             action.opacity(showsHints ? 0 : 1)
             #if DEBUG
             Button("+\(GameTuning.pearlShopTestGift) pearls (Xcode builds)") { progress.earnPearls(GameTuning.pearlShopTestGift) }
-                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints || StoreFootage.shopTour ? 0 : 0.6)
+                .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints || showsForTheStore ? 0 : 0.6)
                 .buttonStyle(.plain)
             // Round the seasons, then back to the real date.
             Button("Season: \(pretendSeason?.name ?? "today's date") (Xcode builds)") {
@@ -179,7 +181,7 @@ struct PearlShopView: View {
                 pretendSeason = next < seasons.count ? seasons[next] : nil
                 PearlSeason.pretend = pretendSeason
             }
-            .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints || StoreFootage.shopTour ? 0 : 0.6)
+            .font(.custom("AvenirNext-DemiBold", size: 12)).opacity(showsHints || showsForTheStore ? 0 : 0.6)
             .buttonStyle(.plain)
             #endif
         }

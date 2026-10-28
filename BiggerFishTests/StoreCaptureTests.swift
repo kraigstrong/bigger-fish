@@ -12,15 +12,17 @@ struct StoreCaptureTests {
     private let player = Swimmer(id: 0, center: CGPoint(x: 262, y: 201), radius: 20)
 
     @Test func momentsTellTheGameInTheListingsOrder() throws {
-        #expect(StoreCapture.Moment.allCases.map(\.rawValue)
-                == ["eat", "dodge", "missed", "jelly-tops", "kelp-shadows", "sunset-hooks", "midnight-light", "conquered",
-                    "deep-end"])
+        #expect(StoreCapture.Moment.listing.map(\.rawValue)
+                == ["dodge", "home", "open-water", "eat", "jelly-tops", "kelp-shadows", "sunset-hooks", "midnight-light",
+                    "shop", "deep-end"])
+        // At most ten, Apple's limit for a device.
+        #expect(StoreCapture.Moment.listing.count <= 10 && Set(StoreCapture.Moment.listing).count == StoreCapture.Moment.listing.count)
         // The script captures the same moments, in the same order.
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let script = try String(contentsOf: root.appendingPathComponent("scripts/bigger-fish-store-capture.sh"), encoding: .utf8)
         let line = try #require(script.split(separator: "\n").first(where: { $0.hasPrefix("MOMENTS=(") }))
         #expect(line.dropFirst("MOMENTS=(".count).dropLast().split(separator: " ").map(String.init)
-                == StoreCapture.Moment.allCases.map(\.rawValue))
+                == StoreCapture.Moment.listing.map(\.rawValue))
     }
 
     @Test func aLaunchCapturesTheMomentItNames() {
@@ -40,15 +42,18 @@ struct StoreCaptureTests {
                 #expect(level.world == world)
                 #expect((0..<world.levelCount).contains(level.index))
                 #expect(moment.map == nil && !moment.policies.isEmpty)
+            } else if moment == .openWater {
+                #expect(moment.level == nil && moment.openWaterSeed != nil && moment.plays && !moment.policies.isEmpty)
             } else {
-                #expect(moment.level == nil && moment.policies.isEmpty)
+                #expect(moment.level == nil && !moment.plays && moment.policies.isEmpty)
             }
         }
         #expect(StoreCapture.Moment.conquered.map == .shallowReef)
     }
 
-    /// Staged progress loads like a real save: Shallow Reef conquered and its Deep End open, nothing else started, and
-    /// no tutorial. Only the Deep End's moment has Shallow Reef's "conquered" screen still to show.
+    /// Staged progress loads like a real save: Shallow Reef conquered and its Deep End open, nothing else started but
+    /// Jelly Bloom on the home screen, and no tutorial. Only the Deep End's moment has Shallow Reef's "conquered" screen
+    /// still to show.
     @Test func stagedProgressHasConqueredShallowReef() throws {
         for moment in StoreCapture.Moment.allCases {
             let defaults = UserDefaults(suiteName: "biggerFish.tests.\(UUID().uuidString)")!
@@ -58,11 +63,30 @@ struct StoreCaptureTests {
             #expect(progress.isOpen(.shallowReef, ArcadeWorld.mainLevelCount))
             #expect(progress.mapFocus(in: .shallowReef) == ArcadeWorld.mainLevelCount)
             for world in ArcadeWorld.campaign where world != .shallowReef {
-                #expect(progress.clearedCounts(in: world) == (main: 0, deepEnd: 0))
+                let jellyOnHome = moment == .home && world == .jellyBloom
+                #expect(progress.clearedCounts(in: world)
+                        == (main: jellyOnHome ? ArcadeWorld.mainLevelCount : 0, deepEnd: jellyOnHome ? world.deepEndCount : 0))
             }
-            #expect(!progress.needsTutorial(.adventure) && progress.save.hasSeenJellyLesson)
+            #expect(ArcadeTutorial.Course.allCases.allSatisfy { !progress.needsTutorial($0) } && progress.save.hasSeenJellyLesson)
             #expect(progress.unseenUnlock == (moment == .deepEnd ? .shallowReef : nil))
         }
+    }
+
+    /// An Open Water run's moment: a pearl ahead in the water by the big fish it sits beside, once a pearl or more is
+    /// counted at the top.
+    @Test func anOpenWaterRunShowsAPearlByABigFish() {
+        func view(pearl: CGPoint, counted: Int, bigFishBy: Bool = true) -> StoreCapture.SceneView {
+            var fish = [Swimmer(id: 2, center: CGPoint(x: 420, y: 120), radius: 12),
+                        Swimmer(id: 3, center: CGPoint(x: 330, y: 300), radius: 10)]
+            fish.append(Swimmer(id: 4, center: bigFishBy ? CGPoint(x: pearl.x + 40, y: pearl.y - 30) : CGPoint(x: 140, y: 90),
+                                radius: 34))
+            return StoreCapture.SceneView(player: player, fish: fish, pearls: [pearl], pearlsCounted: counted)
+        }
+        let ahead = CGPoint(x: 560, y: 220)
+        #expect(StoreCapture.score(.openWater, view(pearl: ahead, counted: 2)) != nil)
+        #expect(StoreCapture.score(.openWater, view(pearl: ahead, counted: 0)) == nil)
+        #expect(StoreCapture.score(.openWater, view(pearl: CGPoint(x: 200, y: 220), counted: 2)) == nil)
+        #expect(StoreCapture.score(.openWater, view(pearl: ahead, counted: 2, bigFishBy: false)) == nil)
     }
 
     @Test func eatingIsMidBiteOnAMealYouCanSee() throws {

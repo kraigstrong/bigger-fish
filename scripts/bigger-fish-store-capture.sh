@@ -3,10 +3,11 @@
 #
 #   scripts/bigger-fish-store-capture.sh [moment ...]          # default: every moment, in the listing's order
 #   scripts/bigger-fish-store-capture.sh --ipad [moment ...]   # the same moments on a 13-inch iPad
+#   scripts/bigger-fish-store-capture.sh --duo [moment ...]    # on an iPhone Duo, open (its inside screen)
 #
 # Builds a Debug build and launches it once per moment with `-storeCapture <moment>` (see
 # BiggerFish/StoreCapture.swift). The app plays the moment's real level with the diagnostics bot until the
-# moment comes (or opens a map), waits for the frame to settle, and saves the frame it draws, with the
+# moment comes (or opens a screen), waits for the frame to settle, and saves the frame it draws, with the
 # interface hidden; this script waits for that file. Progress is staged in the capture's own saved state,
 # so real progress, purchases, and analytics are untouched. A rerun gives the same frames: runs are
 # deterministic.
@@ -17,28 +18,35 @@
 #   screenshots-6.5/NN-<moment>.png  2778x1284, scaled and trimmed from those, for the 6.5" slot
 #   screenshots-ipad-13/NN-<moment>.png  with --ipad: 2752x2064, the 13-inch iPad size, which App Store
 #                                    Connect scales down for smaller iPads
+#   screenshots-duo/NN-<moment>.png  with --duo: 2853x2007, an iPhone Duo's inside screen, open
 #
 # STORE_CAPTURE_DEVICE picks the simulator (a name or UDID; default iPhone 17 Pro Max, whose screen is
-# the 6.9" size, or with --ipad iPad Pro 13-inch (M5)). STORE_CAPTURE_OUT moves the output. An iPad
-# simulator held upright shows the game shrunk to fit, but the app saves what it draws at full size.
+# the 6.9" size, with --ipad iPad Pro 13-inch (M5), or with --duo iPhone Duo). STORE_CAPTURE_OUT moves the
+# output. An iPad simulator held upright shows the game shrunk to fit, but the app saves what it draws at
+# full size. A Duo simulator has to be open first: its pose is a button in Xcode's Device Hub, not a
+# simctl command.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
 OUT="${STORE_CAPTURE_OUT:-$ROOT/build/store-capture/bigger-fish}"
 DERIVED="$ROOT/build/store-capture/DerivedData"
-IPAD=0
-if [ "${1:-}" = --ipad ]; then IPAD=1; shift; fi
+IPAD=0 DUO=0
+if [ "${1:-}" = --ipad ]; then IPAD=1; shift; elif [ "${1:-}" = --duo ]; then DUO=1; shift; fi
 if [ $IPAD = 1 ]; then
     DEVICE="${STORE_CAPTURE_DEVICE:-iPad Pro 13-inch (M5)}"
     SHOTS=screenshots-ipad-13 SIZE=2752x2064 SIZE_NAME='13-inch iPad'
+elif [ $DUO = 1 ]; then
+    DEVICE="${STORE_CAPTURE_DEVICE:-iPhone Duo}"
+    SHOTS=screenshots-duo SIZE=2853x2007 SIZE_NAME='iPhone Duo (open)'
 else
     DEVICE="${STORE_CAPTURE_DEVICE:-iPhone 17 Pro Max}"
     SHOTS=screenshots SIZE=2868x1320 SIZE_NAME='6.9" iPhone'
 fi
 BUNDLE=com.kraigstrong.biggerfish
-# The listing's order: the game, each world's idea, then where it goes (kraigstrong/bigger-fish#142).
-MOMENTS=(eat dodge missed jelly-tops kelp-shadows sunset-hooks midnight-light conquered deep-end)
+# The listing's order (StoreCapture.Moment.listing): the dodge, the two ways to play, each world's idea, the
+# shop, then where it goes.
+MOMENTS=(dodge home open-water eat jelly-tops kelp-shadows sunset-hooks midnight-light shop deep-end)
 
 usage() { sed -n '2,7p' "$0"; exit 1; }
 
@@ -81,7 +89,7 @@ capture() {
     local size
     size="$(sips -g pixelWidth -g pixelHeight "$OUT/$SHOTS/$name" | awk '/pixel/ { printf "%s%s", sep, $2; sep = "x" }')"
     [ "$size" = "$SIZE" ] || echo "$moment: $size, not the $SIZE_NAME size ($SIZE); is $DEVICE the right simulator?" >&2
-    if [ $IPAD = 0 ]; then
+    if [ $IPAD = 0 ] && [ $DUO = 0 ]; then
         # 6.5": scaled to its height, then trimmed to its width (a few points off each side).
         rm -f "$OUT"/screenshots-6.5/??-"$moment".png
         sips --resampleHeight 1284 "$OUT/$SHOTS/$name" --out "$OUT/screenshots-6.5/$name" >/dev/null
@@ -96,7 +104,7 @@ for moment in "${moments[@]}"; do
     [[ " ${MOMENTS[*]} " == *" $moment "* ]] || { echo "unknown moment: $moment (one of: ${MOMENTS[*]})" >&2; usage; }
 done
 mkdir -p "$OUT/$SHOTS"
-[ $IPAD = 1 ] || mkdir -p "$OUT/screenshots-6.5"
+[ $IPAD = 1 ] || [ $DUO = 1 ] || mkdir -p "$OUT/screenshots-6.5"
 build
 failed=0
 for moment in "${moments[@]}"; do

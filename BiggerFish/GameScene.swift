@@ -4927,7 +4927,10 @@ extension GameScene {
                                           let bait = screen(hookPosition(rig, time: simClock))
                                           let rod = HookMotion.rodX(rig.hook, time: simClock) - HookMotion.position(rig.hook, time: simClock).x
                                           return StoreCapture.Hook(bait: bait, rodX: bait.x + rod * zoom)
-                                      })
+                                      },
+                                      pearls: openWaterPearls.map { screen($0.pearl.position) },
+                                      fishCounted: Int(debugCounts.fish ?? "") ?? 0,
+                                      pearlsCounted: Int(debugCounts.pearls ?? "") ?? 0)
     }
 
     /// The diagnostics bot's call on the scene as it stands, seeing what it sees in `debugSimulate`.
@@ -5105,9 +5108,9 @@ extension GameScene {
     }
 
     /// No pause button, level name, or card over the frame. An Open Water run keeps its fish and pearls counted at the
-    /// top, where they show pearls being taken.
-    func debugHideInterface() {
-        guard openWater != nil else {
+    /// top, where they show pearls being taken, unless `keepingCounts` is false (a screenshot's caption goes there).
+    func debugHideInterface(keepingCounts: Bool = true) {
+        guard openWater != nil, keepingCounts else {
             uiLayer.isHidden = true
             return
         }

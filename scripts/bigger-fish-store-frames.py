@@ -16,21 +16,22 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 FONT = ("/System/Library/Fonts/Avenir Next.ttc", 8)  # Avenir Next Heavy, as in the game
 
-# (capture, caption), in listing order: the strongest single image first, then the game in order, each world's
-# idea, and where it goes. The app's own screens (in INSET) have their titles at the top, where an overlaid caption would
-# land, so they're shrunk a little over a blur of themselves instead.
+# (capture, caption), in listing order: the strongest single image first, the two ways to play, each world's idea, the
+# shop, and where it goes. The app's own screens (in INSET) have their titles at the top, where an overlaid caption
+# would land, so they're shrunk a little over a blur of themselves instead.
 SHOTS = [
     ("dodge", "DODGE BIGGER FISH"),
+    ("home", "TWO WAYS TO PLAY"),
+    ("open-water", "GATHER PEARLS IN THE OPEN WATER"),
     ("eat", "EAT SMALLER ONES"),
-    ("missed", "WIN THE FOOD RACE"),
     ("jelly-tops", "BOUNCE OFF JELLYFISH"),
     ("kelp-shadows", "WHAT'S HIDING IN THE KELP?"),
     ("sunset-hooks", "LEAVE THE BAIT"),
     ("midnight-light", "LIGHT THE WAY"),
-    ("conquered", "CONQUER FIVE WORLDS"),
-    ("deep-end", "THEN GO DEEPER"),
+    ("shop", "CUSTOMIZE YOUR FISH"),
+    ("deep-end", "CONQUER EACH WORLD"),
 ]
-INSET = {"conquered", "deep-end"}
+INSET = {"home", "shop", "deep-end"}
 
 
 def font_for(caption, size, width):

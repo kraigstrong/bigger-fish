@@ -249,17 +249,22 @@ progress of its own, silently, leaving real progress, purchases, and analytics a
 scripts/bigger-fish-store-capture.sh                 # every moment, about a minute
 scripts/bigger-fish-store-capture.sh dodge missed    # just these
 scripts/bigger-fish-store-capture.sh --ipad          # every moment on the iPad Pro 13-inch (M5) simulator
+scripts/bigger-fish-store-capture.sh --duo           # every moment on an iPhone Duo simulator, open
 ```
 
 Output goes to `build/store-capture/bigger-fish/` (ignored by git): `screenshots/NN-<moment>.png` at
 2868×1320 (6.9", no alpha) in the listing's order, and `screenshots-6.5/` scaled and trimmed to 2778×1284.
 With `--ipad`, `screenshots-ipad-13/NN-<moment>.png` at 2752×2064, App Store Connect's 13-inch iPad size,
-bands of water above and below the playfield included, as an iPad shows them.
-The moments: `eat` (Shallow Reef 5), `dodge` (Shallow Reef 9), `missed` (Shallow Reef 10: a fish that kept
-eating), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp Forest 8), `sunset-hooks` (Sunset Cove 7: a baited hook
-ahead, under its boat), `midnight-light` (Midnight Zone 5),
-`conquered` (Shallow Reef's map, conquered), and `deep-end` (the screen that opens its Deep End). The levels
-are `StoreCapture.Moment.level`; to try another in Xcode, add `-arcadePlaytest world.N` beside
+bands of water above and below the playfield included, as an iPad shows them. With `--duo`,
+`screenshots-duo/NN-<moment>.png` at 2853×2007, the iPhone Duo's inside screen, which App Store Connect takes in its
+iPhone Duo slot; open the simulator first in Xcode's Device Hub (its pose isn't a simctl command).
+The moments, in the listing's order (`StoreCapture.Moment.listing`): `dodge` (Shallow Reef 9), `home` (the home
+screen, Jelly Bloom conquered too, a best Open Water run, and a look on), `open-water` (seed 1003: a pearl ahead by a big
+fish, the counts hidden for the caption), `eat` (Shallow Reef 5), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp
+Forest 8), `sunset-hooks` (Sunset Cove 7: a baited hook ahead, under its boat), `midnight-light` (Midnight Zone 5),
+`shop` (the pearl shop, 640 pearls, gold with a party hat and confetti), and `deep-end` (the screen that opens Shallow
+Reef's Deep End). 1.0's `missed` and `conquered` are still moments, captured by launching with `-storeCapture <moment>`.
+The levels are `StoreCapture.Moment.level`; to try another in Xcode, add `-arcadePlaytest world.N` beside
 `-storeCapture <moment>`.
 
 Then caption them and send them to App Store Connect:
@@ -267,14 +272,16 @@ Then caption them and send them to App Store Connect:
 ```bash
 scripts/bigger-fish-store-frames.py build/store-capture/bigger-fish/screenshots build/store-capture/bigger-fish/captioned
 scripts/bigger-fish-store-frames.py build/store-capture/bigger-fish/screenshots-ipad-13 build/store-capture/bigger-fish/captioned-ipad-13
+scripts/bigger-fish-store-frames.py build/store-capture/bigger-fish/screenshots-duo build/store-capture/bigger-fish/captioned-duo
 python3 appstore/push.py media --app bigger-fish --dry-run \
   --screenshots build/store-capture/bigger-fish/captioned build/store-capture/bigger-fish/captioned-ipad-13 \
+                build/store-capture/bigger-fish/captioned-duo \
   --header build/footage/bigger-fish-header.png --search build/footage/bigger-fish-universal-creative.png
 ```
 
 The captions are the trailer's: 2–4 words in Avenir Next Heavy over a soft dark band, on full-size gameplay with no
-device frame, dodge first (it's the strongest single image, and search often shows only the first). The two app
-screens (conquered, The Deep End) have titles where the caption goes, so they're shrunk a little over a blur of
+device frame, dodge first (it's the strongest single image, and search often shows only the first). The app's own
+screens (home, the shop, The Deep End) have titles where the caption goes, so they're shrunk a little over a blur of
 themselves instead. The 6.5" size isn't uploaded: App Store Connect scales the 6.9" set down.
 
 The universal creative (iOS 27's product page header and search results image, 5244×2950) is gameplay drawn big
@@ -318,7 +325,9 @@ the cut needs that isn't in `build/footage/` yet, renders the captions in Avenir
 slow camera move over the game's music (cut to its 120 BPM bars, Adventure's world montage on its drop, then the Open
 Water, its pearls, and the Shop). It writes
 `build/trailer/bigger-fish-trailer.mp4` (60 fps, with the release line, for biggerfish.app) and
-`bigger-fish-app-preview.mp4` (30 fps, no dates, 29.5 s: the App Store preview at the 6.9" iPhone size, 1920×886). A
+`bigger-fish-app-preview.mp4` (30 fps, no dates, 29.5 s: the App Store preview at the 6.9" iPhone size, 1920×886, which
+the iPhone Duo's slot takes too), and `bigger-fish-app-preview-ipad.mp4` (the same at the 13-inch iPad's 1600×1200, full
+width over a soft blur of itself above and below). A
 level that isn't frozen can play differently after a change, so delete its recording to record it again. It needs
 ffmpeg and Python with Pillow and NumPy.
 
