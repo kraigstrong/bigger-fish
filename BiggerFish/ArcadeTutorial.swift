@@ -36,15 +36,6 @@ enum ArcadeTutorial {
             return beats[index + 1]
         }
 
-        /// What the way to play is about, in the middle of the screen until your first touch: Adventure's says it as its
-        /// card on the home screen does.
-        var goal: String {
-            switch self {
-            case .adventure: ArcadeHome.winRule
-            case .openWater, .shop: "How far can you get?"
-            }
-        }
-
         /// The line it ends on, before it leaves.
         var finale: String {
             switch self {

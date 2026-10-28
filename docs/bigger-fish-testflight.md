@@ -56,7 +56,7 @@ On a physical iPhone, with a fresh install and again as an update over the last 
 
 Since 0.3:
 
-- **Fresh install:** the home screen first. Adventure's first tap plays its tutorial ("Eat every fish to win"): hold
+- **Fresh install:** the home screen first. Adventure's first tap plays its tutorial, opening on "Hold anywhere to rise": hold
   to rise, let go to fall, eat a smaller fish, dodge a bigger one, watch a missed fish grow and catch it back, then
   eat through the wall and catch the last two ("2 fish left"). Missing a wall meal gets you eaten, and Retry starts
   the wall again. It ends on the world map. Open Water's first tap plays its own (eat smaller, avoid bigger, gather a
