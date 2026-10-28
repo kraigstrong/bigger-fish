@@ -23,7 +23,7 @@ SHOTS = [
     ("dodge", "DODGE BIGGER FISH"),
     ("home", "TWO WAYS TO PLAY"),
     ("open-water", "GATHER PEARLS IN THE OPEN WATER"),
-    ("eat", "EAT SMALLER ONES"),
+    ("eat", "EAT SMALLER FISH"),
     ("jelly-tops", "BOUNCE OFF JELLYFISH"),
     ("kelp-shadows", "WHAT'S HIDING IN THE KELP?"),
     ("sunset-hooks", "LEAVE THE BAIT"),
