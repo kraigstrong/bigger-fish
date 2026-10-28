@@ -4,7 +4,9 @@ Bigger Fish is a one-touch arcade game about the food chain, and how quickly it 
 
 But you're not the only one eating. Every fish around you is growing too, and it only takes one bigger fish to end your run. Eat fast, and stay one size ahead.
 
-FIVE WORLDS, 75 LEVELS
+ADVENTURE: FIVE WORLDS, 75 LEVELS
+A classic arcade challenge: every level is hand-built and plays out the same way every time, so each try teaches you more. Find the safe route, then conquer the world.
+
 • Shallow Reef: bright water and a fast food chain.
 • Jelly Bloom: bounce off jellyfish tops, dodge their stinging tentacles.
 • Kelp Forest: deep in the kelp, fish show only their bubbles until you get close.
