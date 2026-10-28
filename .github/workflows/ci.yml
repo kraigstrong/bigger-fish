@@ -110,32 +110,21 @@ jobs:
           )
           xcrun simctl list devices | grep "$id"
           echo "SIMULATOR_ID=$id" >> "$GITHUB_ENV"
-          # It boots while the build runs, instead of after it.
-          (xcrun simctl boot "$id" > /dev/null 2>&1 &)
 
       # Warnings fail the build. Xcode builds the FishKit dependency with warnings suppressed, which conflicts
       # with treating them as errors, so CI turns that off too: FishKit is held to the same standard.
-      - name: Build
+      - name: Test
         working-directory: ${{ matrix.dir }}
         run: |
-          xcodebuild build-for-testing ${{ matrix.target }} \
+          xcodebuild test ${{ matrix.target }} \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID,arch=arm64" \
             -enableCodeCoverage "$COVERAGE" \
+            -resultBundlePath "$RUNNER_TEMP/tests.xcresult" \
             -quiet \
             SWIFT_OPTIMIZATION_LEVEL="$OPTIMIZATION" \
             CODE_SIGNING_ALLOWED=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
             SWIFT_SUPPRESS_WARNINGS=NO
-
-      - name: Test
-        working-directory: ${{ matrix.dir }}
-        run: |
-          xcrun simctl bootstatus "$SIMULATOR_ID" -b > /dev/null
-          xcodebuild test-without-building ${{ matrix.target }} \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_ID,arch=arm64" \
-            -enableCodeCoverage "$COVERAGE" \
-            -resultBundlePath "$RUNNER_TEMP/tests.xcresult" \
-            -quiet
 
       - name: Coverage summary
         if: always() && env.COVERAGE == 'YES'
