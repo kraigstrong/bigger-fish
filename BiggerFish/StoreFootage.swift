@@ -3,7 +3,8 @@ import SpriteKit
 import UIKit
 
 /// Gameplay footage for the trailer and App Store previews, from Xcode builds only; `scripts/bigger-fish-footage.sh`
-/// drives it. Launched with `-arcadePlaytest <world>.<level> -storeFootage <bot policy>`, the app plays the level with
+/// drives it. Launched with `-arcadePlaytest <world>.<level> -storeFootage <bot policy>` (or `-openWater <seed>` for
+/// an Open Water run instead of a level), the app plays the level with
 /// the diagnostics bot (`ArcadeSimulation`) and saves the frames it draws, with the interface hidden, to
 /// Documents/StoreFootage/NNNNN.jpg, then `done.txt`. Frames are played and drawn one at a time rather than recorded
 /// live, so the footage never stutters, and a run is deterministic, so the same launch gives the same footage.
@@ -13,7 +14,10 @@ import UIKit
 /// `tail` seconds after it ends). `-storeFootageEvery <n>` keeps every nth frame. `-storeFootageScale` below 1 shrinks
 /// them, for a quick look at a whole run before recording the part that's wanted; above 1 (up to 3) draws them bigger
 /// than the screen, sharp, as PNGs (NNNNN.png), for App Store art (the universal creative is 5244 x 2950: about 2.45
-/// times).
+/// times). `-storeFootageLook <item IDs, comma separated>` dresses your fish (default: as it hatched).
+///
+/// `-storeFootageShop` instead opens the pearl shop over the home screen and tries on and buys a few looks on a fixed
+/// schedule (`shopTour`), for the script to record live with `simctl io recordVideo`.
 enum StoreFootage {
     struct Request: Equatable {
         var policy: ArcadeSimulation.Policy
@@ -21,6 +25,27 @@ enum StoreFootage {
         var to: CGFloat = StoreCapture.runLimit
         var every = 1
         var scale: CGFloat = 1
+    }
+
+    /// The pearl shop's tour for footage: what's on the shelf and what's tried on, then bought, each so many seconds
+    /// after the last.
+    static let shopTour = ProcessInfo.processInfo.arguments.contains("-storeFootageShop")
+    static let shopTourSteps: [(wait: Double, item: String, buys: Bool)] = [
+        (1.0, "color.cotton-candy", false), (0.55, "color.cotton-candy", true),
+        (0.6, "hat.party", false), (0.55, "hat.party", true),
+        (0.6, "trail.confetti", false), (0.55, "trail.confetti", true),
+    ]
+    /// Pearls to spend on the tour, with enough left over that the total still reads as a lot.
+    static let shopTourPearls = 640
+
+    /// What your fish wears in the footage: the items `-storeFootageLook` names, by kind.
+    static let look = look(in: ProcessInfo.processInfo.arguments)
+
+    /// The shop's items `-storeFootageLook` names in a launch's arguments, by kind (the last of a kind wins).
+    static func look(in arguments: [String]) -> [String: String] {
+        guard let flag = arguments.firstIndex(of: "-storeFootageLook"), arguments.indices.contains(flag + 1) else { return [:] }
+        let items = arguments[flag + 1].split(separator: ",").compactMap { PearlItem.item(String($0)) }
+        return Dictionary(items.map { ($0.kind.rawValue, $0.id) }) { $1 }
     }
 
     /// The footage this launch records, if any.
@@ -33,7 +58,7 @@ enum StoreFootage {
             guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
             return arguments[index + 1]
         }
-        guard ArcadePlaytest.level(in: arguments) != nil,
+        guard ArcadePlaytest.level(in: arguments) != nil || value("-openWater") != nil,
               let policy = value("-storeFootage").flatMap({ ArcadeSimulation.Policy(rawValue: $0) }) else { return nil }
         var request = Request(policy: policy)
         if let from = value("-storeFootageFrom").flatMap(Double.init), from >= 0 { request.from = CGFloat(from) }
@@ -51,14 +76,22 @@ enum StoreFootage {
     /// The footage's own saved state, apart from real progress and never backed up to iCloud (`ArcadeProgress.backup`).
     static let suiteName = "biggerFish.storeFootage"
 
-    /// Staged like a store capture's (`StoreCapture.stagedSave`): no tutorial or lesson over the level (nil when not
-    /// recording).
-    static let defaults: UserDefaults? = request.map { _ in
+    /// Staged like a store capture's (`StoreCapture.stagedSave`): no tutorial or lesson over the level, and your fish
+    /// in `look`. The shop's tour has pearls to spend and its hints seen (nil when not recording).
+    static let defaults: UserDefaults? = request != nil || shopTour ? {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
-        if let data = try? JSONEncoder().encode(StoreCapture.stagedSave(for: .eat)) { defaults.set(data, forKey: ArcadeProgress.key) }
+        var save = StoreCapture.stagedSave(for: .eat)
+        save.hasSeenOpenWaterTutorial = true
+        save.hasSeenShopTutorial = true
+        if !look.isEmpty {
+            save.ownedLooks = Set(look.values)
+            save.wornLook = ArcadeSave.WornLook(items: look, changed: 0)
+        }
+        if shopTour { save.pearlsEarned = ["footage": shopTourPearls] }
+        if let data = try? JSONEncoder().encode(save) { defaults.set(data, forKey: ArcadeProgress.key) }
         return defaults
-    }
+    }() : nil
 
     // MARK: Recording
 
@@ -74,7 +107,7 @@ enum StoreFootage {
     /// At launch: tells the script when `-storeFootage` can't record, rather than leave it waiting for frames.
     static func begin() {
         guard request == nil, ProcessInfo.processInfo.arguments.contains("-storeFootage") else { return }
-        fail("-storeFootage needs a level that exists (-arcadePlaytest <world>.<level>) and a bot: "
+        fail("-storeFootage needs a level that exists (-arcadePlaytest <world>.<level>) or -openWater <seed>, and a bot: "
              + ArcadeSimulation.Policy.allCases.map(\.rawValue).joined(separator: ", "))
     }
 
@@ -91,8 +124,10 @@ enum StoreFootage {
 
     /// Plays the level from the start with the bot, one display frame at a time, saving the frames the request wants.
     @MainActor private static func record(_ request: Request, in scene: GameScene) {
-        // The bot plays between frames; nothing moves on its own meanwhile.
+        // The bot plays between frames; nothing moves on its own meanwhile. An Open Water run plans each level as it
+        // reaches it: a plan made off the main thread couldn't come back while the frames are drawn.
         scene.isPaused = true
+        scene.debugPlansOpenWaterInline = true
         scene.debugCaptureRestart()
         let step = GameTuning.simulationStep
         let interval = StoreCapture.decisionInterval(request.policy)
@@ -108,6 +143,9 @@ enum StoreFootage {
         // yours, and where it is (fractions of the frame from the top left).
         var theirLastPrey: [Int: Int] = [:]
         var theirBites: [String] = []
+        // In the Open Water: each pearl taken, and each new level (its world).
+        var pearls = scene.debugOpenWaterPearls.count, leg = scene.debugOpenWaterIndex
+        var openWater: [String] = []
         while CGFloat(frame) * step < request.to {
             let view = scene.debugCaptureView
             if view.playing, view.time >= nextDecision {
@@ -134,6 +172,18 @@ enum StoreFootage {
                                          fish.radius / after.player.radius, fish.center.x / after.size.width,
                                          1 - fish.center.y / after.size.height))
             }
+            if scene.debugOpenWaterIndex != leg {
+                leg = scene.debugOpenWaterIndex
+                pearls = scene.debugOpenWaterPearls.count
+                // A new level's clock starts again at zero, so the bot decides again now, not once it's caught up with
+                // the last level's.
+                nextDecision = 0
+                openWater.append(String(format: "%.2fs level %d: %@", CGFloat(frame) * step, (leg ?? 0) + 1,
+                                        scene.debugOpenWaterLeg?.world.title ?? "?"))
+            } else if scene.debugOpenWaterPearls.count < pearls {
+                pearls = scene.debugOpenWaterPearls.count
+                openWater.append(String(format: "%.2fs pearl", CGFloat(frame) * step))
+            }
             if CGFloat(frame) * step >= request.from, frame % request.every == 0 {
                 scene.debugHideInterface()
                 guard let data = image(scene, scale: request.scale) else { return fail("couldn't draw frame \(frame)") }
@@ -151,7 +201,8 @@ enum StoreFootage {
             ?? "still playing"
         let summary = "\(saved) frames, \(request.policy.rawValue) bot, \(outcome), in \(Int(Date().timeIntervalSince(started)))s"
         let report = ([summary, "bites (time, meal against you, the most it had been):"] + bites
-                      + ["their bites on screen (time, fish, its size against you, where it is):"] + theirBites)
+                      + ["their bites on screen (time, fish, its size against you, where it is):"] + theirBites
+                      + (openWater.isEmpty ? [] : ["open water (pearls taken, levels reached):"] + openWater))
             .joined(separator: "\n")
         try? report.write(to: framesDirectory.appendingPathComponent("done.txt"), atomically: true, encoding: .utf8)
         print("[StoreFootage] \(summary)")

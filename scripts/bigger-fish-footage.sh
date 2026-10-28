@@ -3,6 +3,10 @@
 #
 #   scripts/bigger-fish-footage.sh <world>.<level> <policy> [from to]   # 60 fps at full size, from and to in seconds
 #   scripts/bigger-fish-footage.sh --look <world>.<level> <policy>      # a contact sheet of the whole run
+#   scripts/bigger-fish-footage.sh --shop                               # the pearl shop's tour, recorded live
+#
+# <world>.<level> can be open-water.<seed> for an Open Water run (its levels planned as it reaches them). FOOTAGE_LOOK
+# dresses your fish (item IDs, comma separated, like color.galaxy,hat.party): the name gets "-dressed".
 #
 # Builds a Debug build and launches it with `-arcadePlaytest <world>.<level> -storeFootage <policy>` (see
 # BiggerFish/StoreFootage.swift). The app plays the level with the diagnostics bot (collector, opportunist, or
@@ -16,7 +20,10 @@
 #   <world>.<level>-<policy>-<from>-<to>/        with FOOTAGE_SCALE above 1: the frames as PNGs that many times the
 #                                                screen's size, sharp, for App Store art (2.45 makes 5244 wide)
 #   <name>.txt                                   how the run went, and every bite: when, and the meal's size against
-#                                                yours then and at its biggest, for finding moments to record
+#                                                yours then and at its biggest, for finding moments to record (in the
+#                                                Open Water, each pearl taken and level reached too)
+#   shop-tour.mp4                                with --shop: the shop trying on and buying three looks, 60 fps, the
+#                                                same size as the gameplay
 #
 # Needs ffmpeg (brew install ffmpeg). FOOTAGE_DEVICE picks the simulator (default iPhone 17 Pro Max, 2868x1320, the
 # App Store's 6.9" size). FOOTAGE_NO_BUILD=1 reuses the last build, already installed.
@@ -31,8 +38,9 @@ BUNDLE=com.kraigstrong.biggerfish
 
 usage() { sed -n '2,5p' "$0"; exit 1; }
 
-LOOK=0
+LOOK=0 SHOP=0
 if [ "${1:-}" = --look ]; then LOOK=1; shift; fi
+if [ "${1:-}" = --shop ]; then SHOP=1; set -- shop.1 collector; fi
 [ $# -eq 2 ] || [ $# -eq 4 ] || usage
 LEVEL="$1" POLICY="$2" FROM="${3:-}" TO="${4:-}"
 [[ $LEVEL =~ ^[a-z-]+\.[0-9]+$ ]] || { echo "not a level: $LEVEL (like sunset-cove.10)" >&2; usage; }
@@ -52,8 +60,41 @@ if [ "${FOOTAGE_NO_BUILD:-0}" != 1 ] || ! xcrun simctl get_app_container "$DEVIC
     xcrun simctl install "$DEVICE" "$DERIVED/Build/Products/Debug-iphonesimulator/BiggerFish.app"
 fi
 
-args=(-arcadePlaytest "$LEVEL" -storeFootage "$POLICY" -arcadeDisableRunRecording)
+if [ $SHOP = 1 ]; then
+    # Live: the shop's tour plays on its own (StoreFootage.shopTour) while the simulator's screen is recorded. Its
+    # first seconds are the loading screen; the trailer starts the shot after them.
+    mkdir -p "$OUT"
+    raw="$OUT/shop-tour-raw.mov"
+    xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
+    xcrun simctl io "$DEVICE" recordVideo --codec=h264 --mask=ignored --force "$raw" >/dev/null 2>&1 &
+    recorder=$!
+    sleep 1
+    xcrun simctl launch "$DEVICE" "$BUNDLE" -storeFootageShop -arcadeDisableRunRecording >/dev/null
+    sleep 10
+    kill -INT $recorder
+    wait $recorder || true
+    xcrun simctl terminate "$DEVICE" "$BUNDLE" 2>/dev/null || true
+    # Landscape, at the gameplay's frame size and rate.
+    size=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$raw")
+    turn=""
+    [ "${size%,*}" -lt "${size#*,}" ] && turn="transpose=2,"
+    ffmpeg -v error -y -i "$raw" -vf "${turn}scale=2622:1206:flags=lanczos,fps=60" -c:v libx264 -preset slow -crf 14 \
+        -pix_fmt yuv420p -movflags +faststart "$OUT/shop-tour.mp4"
+    rm -f "$raw"
+    echo "$OUT/shop-tour.mp4"
+    exit 0
+fi
+
+if [[ $LEVEL == open-water.* ]]; then
+    args=(-openWater "${LEVEL#open-water.}" -storeFootage "$POLICY" -arcadeDisableRunRecording)
+else
+    args=(-arcadePlaytest "$LEVEL" -storeFootage "$POLICY" -arcadeDisableRunRecording)
+fi
 name="$LEVEL-$POLICY"
+if [ -n "${FOOTAGE_LOOK:-}" ]; then
+    args+=(-storeFootageLook "$FOOTAGE_LOOK")
+    name="$name-dressed"
+fi
 if [ $LOOK = 1 ]; then
     args+=(-storeFootageEvery 30 -storeFootageScale 0.25)
     name="$name-look"

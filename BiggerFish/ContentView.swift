@@ -144,7 +144,7 @@ struct ContentView: View {
             }
             .font(.caption.bold()).buttonStyle(.borderedProminent)
             .padding(.trailing, 12).padding(.bottom, 4)
-            .opacity(StoreCapture.moment == nil && StoreFootage.request == nil && ArcadePlaytest.screen == nil
+            .opacity(StoreCapture.moment == nil && StoreFootage.request == nil && !StoreFootage.shopTour && ArcadePlaytest.screen == nil
                      && credits == nil ? 1 : 0)
         }
         .sheet(isPresented: $showsTuning) {
@@ -222,6 +222,7 @@ struct ContentView: View {
                 playPlanner(planner.spec, variation: planner.variation)
             }
             if scene == nil, let seed = ArcadePlaytest.openWaterSeed { playOpenWater(seed: seed, from: ArcadePlaytest.openWaterStart) }
+            if StoreFootage.shopTour { openShop(from: .map) }
             if let screen = ArcadePlaytest.screen { open(screen) }
             #endif
         }
@@ -398,6 +399,9 @@ struct ContentView: View {
     private func showOpenWater(seed: UInt64, from start: Int, plan: MeetingPlan, seconds: Double) {
         let game = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false)
         game.startOpenWater(seed: seed, firstLevel: plan, from: start, planSeconds: seconds)
+        #if DEBUG
+        StoreFootage.attach(game)
+        #endif
         game.analytics = analytics
         // Each pearl's kept as it's taken, however the run ends.
         game.onPearl = { progress.earnPearls(1) }
