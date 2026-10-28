@@ -437,9 +437,15 @@ enum StoreCapture {
         let interval = decisionInterval(policy)
         var nextDecision: CGFloat = 0
         var step = 0
+        var level = scene.debugOpenWaterIndex
         while CGFloat(step) * GameTuning.simulationStep < runLimit {
             let view = scene.debugCaptureView
             guard view.playing else { return }
+            // An Open Water run's next level starts its clock at zero: the bot decides afresh then, as the footage's does.
+            if scene.debugOpenWaterIndex != level {
+                level = scene.debugOpenWaterIndex
+                nextDecision = 0
+            }
             if view.time >= nextDecision {
                 scene.debugHold(scene.debugBotHolds(policy))
                 nextDecision = view.time + interval
