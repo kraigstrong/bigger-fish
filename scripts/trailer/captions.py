@@ -16,8 +16,8 @@ HEAVY, DEMI = 8, 2  # faces in the collection
 WHITE = (255, 255, 255, 255)
 GOLD = (255, 211, 77, 255)
 
-# The end card's last line on biggerfish.app. The App Store preview leaves it off: no dates there.
-RELEASE_LINE = 'Coming to iPhone and iPad November 3'
+# The end card's last line on biggerfish.app, from launch day. The App Store preview leaves it off: nothing time-bound there.
+RELEASE_LINE = 'Out now on iPhone and iPad'
 
 BEATS = [('eat', 'EAT.'), ('grow', 'GROW.'), ('win-the-food-race', 'WIN THE FOOD RACE.'), ('turn-the-tables', 'TURN THE TABLES.'),
          ('five-worlds', 'FIVE WORLDS. 75 LEVELS.')]
