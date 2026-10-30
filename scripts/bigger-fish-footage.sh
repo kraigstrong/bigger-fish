@@ -6,7 +6,8 @@
 #   scripts/bigger-fish-footage.sh --shop                               # the pearl shop's tour, recorded live
 #
 # <world>.<level> can be open-water.<seed> for an Open Water run (its levels planned as it reaches them). FOOTAGE_LOOK
-# dresses your fish (item IDs, comma separated, like color.galaxy,hat.party): the name gets "-dressed".
+# dresses your fish (item IDs, comma separated, like color.galaxy,hat.party): the name gets "-dressed". FOOTAGE_CARD=1
+# ends on the run's result card ("New best!" in the Open Water), held 3 seconds: the name gets "-card".
 #
 # Builds a Debug build and launches it with `-arcadePlaytest <world>.<level> -storeFootage <policy>` (see
 # BiggerFish/StoreFootage.swift). The app plays the level with the diagnostics bot (collector, opportunist, or
@@ -94,6 +95,10 @@ name="$LEVEL-$POLICY"
 if [ -n "${FOOTAGE_LOOK:-}" ]; then
     args+=(-storeFootageLook "$FOOTAGE_LOOK")
     name="$name-dressed"
+fi
+if [ "${FOOTAGE_CARD:-0}" = 1 ]; then
+    args+=(-storeFootageCard)
+    name="$name-card"
 fi
 if [ $LOOK = 1 ]; then
     args+=(-storeFootageEvery 30 -storeFootageScale 0.25)
