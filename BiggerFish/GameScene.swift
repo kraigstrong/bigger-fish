@@ -902,9 +902,13 @@ final class GameScene: SKScene {
             panel.countShopPearls(from: max(0, pearlsToSpend - run.pearls), after: 0.5)
         }
         messageNode.alpha = 0
-        messageNode.run(.sequence([.wait(forDuration: passed ? 0.5 : 0.2), .fadeIn(withDuration: 0.2)]))
+        messageNode.run(.sequence([.wait(forDuration: Self.resultWait(passed: passed)), .fadeIn(withDuration: Self.resultFade)]))
         configureResultAccessibility(panel)
     }
+
+    /// How long the result card waits before it fades in (longer after a win), and how long the fade takes.
+    private static func resultWait(passed: Bool) -> TimeInterval { passed ? 0.5 : 0.2 }
+    private static let resultFade: TimeInterval = 0.2
 
     private func configureResultAccessibility(_ panel: ArcadeResultPanel) {
         guard let view else { return }
@@ -4318,6 +4322,8 @@ extension GameScene {
     var debugOpenWaterLeg: OpenWater.Leg? { openWater?.leg }
     var debugOpenWaterIndex: Int? { openWater?.index }
     var debugOpenWaterSeed: UInt64? { openWater?.seed }
+    /// The pearls the run has taken.
+    var debugOpenWaterRunPearls: Int { openWater?.pearls ?? 0 }
     var debugOpenWaterLevelDone: Bool { openWaterLevelDone }
     func debugOpenWaterHasPlan(_ index: Int) -> Bool { openWater?.hasPlan(index) == true }
     #endif
@@ -5127,6 +5133,25 @@ extension GameScene {
             return
         }
         for node in uiLayer.children where node !== openWaterCounts { node.isHidden = true }
+    }
+
+    /// Whether the run's result card is up.
+    var debugShowsResult: Bool { resultPanel != nil }
+
+    /// Puts the result card back over a frame `debugHideInterface` took it from, `seconds` after it came up: fading in
+    /// as `showResult` has it (its actions don't run in footage, which keeps the scene paused), with the run's pearls
+    /// already counted onto its Shop button.
+    func debugShowResult(seconds: CGFloat) {
+        guard let resultPanel else { return }
+        if uiLayer.isHidden {
+            uiLayer.isHidden = false
+            for node in uiLayer.children { node.isHidden = true }
+        }
+        messageNode.isHidden = false
+        messageNode.removeAllActions()
+        let wait = CGFloat(Self.resultWait(passed: phase == .won))
+        messageNode.alpha = min(1, max(0, (seconds - wait) / CGFloat(Self.resultFade)))
+        resultPanel.showShopPearls(pearlsToSpend)
     }
 
     /// One display frame of `seconds`, played and drawn as `update` does, specks and sun rays included: for footage

@@ -15,6 +15,8 @@ import UIKit
 /// them, for a quick look at a whole run before recording the part that's wanted; above 1 (up to 3) draws them bigger
 /// than the screen, sharp, as PNGs (NNNNN.png), for App Store art (the universal creative is 5244 x 2950: about 2.45
 /// times). `-storeFootageLook <item IDs, comma separated>` dresses your fish (default: as it hatched).
+/// `-storeFootageCard` ends on the run's result card, kept up `cardTail` seconds; an Open Water run's says "New best!"
+/// (its looks are staged as earned already, so none is announced instead).
 ///
 /// `-storeFootageShop` instead opens the pearl shop over the home screen and tries on and buys a few looks on a fixed
 /// schedule (`shopTour`), for the script to record live with `simctl io recordVideo`.
@@ -25,6 +27,7 @@ enum StoreFootage {
         var to: CGFloat = StoreCapture.runLimit
         var every = 1
         var scale: CGFloat = 1
+        var card = false
     }
 
     /// The pearl shop's tour for footage: what's on the shelf and what's tried on, then bought, each so many seconds
@@ -65,11 +68,16 @@ enum StoreFootage {
         if let to = value("-storeFootageTo").flatMap(Double.init), CGFloat(to) > request.from { request.to = CGFloat(to) }
         if let every = value("-storeFootageEvery").flatMap(Int.init), every >= 1 { request.every = every }
         if let scale = value("-storeFootageScale").flatMap(Double.init), scale > 0, scale <= 3 { request.scale = CGFloat(scale) }
+        request.card = arguments.contains("-storeFootageCard")
         return request
     }
 
     /// Seconds kept after the run ends, so a last bite, sting, or hook plays out.
     static let tail: CGFloat = 2
+    /// With `-storeFootageCard`, seconds kept after the result card comes up, to read it.
+    static let cardTail: CGFloat = 3
+    /// Pearls saved up before the run, for the card's Shop button.
+    static let cardPearls = 380
 
     // MARK: Staged progress
 
@@ -89,6 +97,10 @@ enum StoreFootage {
             save.wornLook = ArcadeSave.WornLook(items: look, changed: 0)
         }
         if shopTour { save.pearlsEarned = ["footage": shopTourPearls] }
+        if request?.card == true {
+            save.earnedLooks = Set(GameTuning.pearlShop.filter { $0.earnedBy != nil }.map(\.id))
+            save.pearlsEarned = ["footage": cardPearls]
+        }
         if let data = try? JSONEncoder().encode(save) { defaults.set(data, forKey: ArcadeProgress.key) }
         return defaults
     }() : nil
@@ -133,7 +145,7 @@ enum StoreFootage {
         let interval = StoreCapture.decisionInterval(request.policy)
         var nextDecision: CGFloat = 0
         var frame = 0, saved = 0
-        var endedAt: Int?
+        var endedAt: Int?, cardAt: Int?
         let started = Date()
         // Every bite, for picking moments: when, how big the meal was against your fish, and the biggest it had been.
         var biggest: [Int: CGFloat] = [:]
@@ -156,6 +168,7 @@ enum StoreFootage {
             frame += 1
             let after = scene.debugCaptureView
             if endedAt == nil, !after.playing { endedAt = frame }
+            if request.card, cardAt == nil, scene.debugShowsResult { cardAt = frame }
             for fish in after.fish where !fish.isEaten {
                 biggest[fish.id] = max(biggest[fish.id] ?? 0, fish.radius / after.player.radius)
             }
@@ -186,6 +199,12 @@ enum StoreFootage {
             }
             if CGFloat(frame) * step >= request.from, frame % request.every == 0 {
                 scene.debugHideInterface()
+                if let cardAt {
+                    // The app banks each pearl as it's taken (`onPearl`), but the total only reaches the scene once
+                    // SwiftUI runs, which it can't while this plays on the main actor.
+                    scene.pearlsToSpend = cardPearls + scene.debugOpenWaterRunPearls
+                    scene.debugShowResult(seconds: CGFloat(frame - cardAt) * step)
+                }
                 guard let data = image(scene, scale: request.scale) else { return fail("couldn't draw frame \(frame)") }
                 do {
                     let name = String(format: "%05d.%@", saved, request.scale > 1 ? "png" : "jpg")
@@ -195,7 +214,9 @@ enum StoreFootage {
                 }
                 saved += 1
             }
-            if let endedAt, CGFloat(frame - endedAt) * step >= tail { break }
+            if request.card {
+                if let cardAt, CGFloat(frame - cardAt) * step >= cardTail { break }
+            } else if let endedAt, CGFloat(frame - endedAt) * step >= tail { break }
         }
         let outcome = endedAt.map { "\(scene.debugCaptureView.won ? "won" : "lost") at \(String(format: "%.2f", CGFloat($0) * step))s" }
             ?? "still playing"

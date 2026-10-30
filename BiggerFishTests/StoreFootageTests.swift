@@ -24,6 +24,13 @@ struct StoreFootageTests {
                 == .init(policy: .collector, from: 10.5, to: 15.5))
     }
 
+    /// Footage can end on the run's result card, for showing a new best.
+    @Test func footageCanEndOnTheResultCard() {
+        #expect(StoreFootage.request(in: ["BiggerFish", "-openWater", "1003", "-storeFootage", "collector", "-storeFootageCard"])
+                == .init(policy: .collector, card: true))
+        #expect(StoreFootage.request(in: level + ["-storeFootage", "collector"])?.card == false)
+    }
+
     /// Your fish hatches plain in the footage unless a look is asked for: the shop's items, one of each kind.
     @Test func aLookDressesYourFish() {
         #expect(StoreFootage.look(in: level).isEmpty)
