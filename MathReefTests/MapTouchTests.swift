@@ -9,13 +9,15 @@ struct MapTouchTests {
     private let size = CGSize(width: 874, height: 402)
 
     /// Ten levels: the first three open, the rest locked.
-    private func levelMap(focus: Int = 0) -> (LevelMapNode, selected: () -> [Int], backs: () -> Int) {
+    private func levelMap(focus: Int = 0, corners: ReefCorners = ReefCorners())
+        -> (LevelMapNode, selected: () -> [Int], backs: () -> Int) {
         final class Log { var selected: [Int] = []; var backs = 0 }
         let log = Log()
         let stops = (0..<10).map { i in
             LevelStop(number: i + 1, title: "Level \(i + 1)", stars: 0, state: i < 3 ? .open : .locked, isCheckpoint: false)
         }
-        let map = LevelMapNode(size: size, title: "Test", color: .blue, levels: stops, stars: (0, 30), crown: .none, focus: focus)
+        let map = LevelMapNode(size: size, title: "Test", color: .blue, levels: stops, stars: (0, 30), crown: .none, focus: focus,
+                               corners: corners)
         map.onSelect = { log.selected.append($0) }
         map.onBack = { log.backs += 1 }
         return (map, { log.selected }, { log.backs })
@@ -73,6 +75,30 @@ struct MapTouchTests {
         tap(map, at: CGPoint(x: 46, y: size.height - 36))
         #expect(backs() == 1)
         #expect(selected().isEmpty)
+    }
+
+    /// With a camera in the top-left corner (a closed iPhone Duo's), the back button moves clear of it, and a tap on the
+    /// camera's spot isn't one on the button.
+    @Test func theBackButtonClearsACameraInTheCorner() {
+        let camera = CGRect(x: 29, y: size.height - 66, width: 37, height: 37)
+        let corners = ReefCorners(size: size, occlusions: [camera])
+        let (map, selected, backs) = levelMap(corners: corners)
+        tap(map, at: CGPoint(x: camera.midX, y: camera.midY))
+        #expect(backs() == 0)
+        tap(map, at: CGPoint(x: 46 + corners.left, y: size.height - 36))
+        #expect(backs() == 1)
+        #expect(selected().isEmpty)
+    }
+
+    /// Scrolled from outside, as when the screen changes size, the path still stops at both ends.
+    @Test func settingTheScrollStopsAtBothEnds() {
+        let (map, _, _) = levelMap()
+        map.scrollOffset = -100
+        #expect(map.scrollOffset == -100)
+        map.scrollOffset = 50
+        #expect(map.scrollOffset == 0)
+        map.scrollOffset = -100_000
+        #expect(map.scrollOffset > -100_000 && map.scrollOffset < 0)
     }
 
     @Test func aLaterLevelOpensScrolledIntoView() {

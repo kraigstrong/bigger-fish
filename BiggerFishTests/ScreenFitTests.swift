@@ -68,6 +68,55 @@ struct ScreenFitTests {
         withExtendedLifetime(scene) {}
     }
 
+    /// An iPhone Duo's screens in landscape, closed and open.
+    private static let duo = (closed: CGRect(x: 0, y: 0, width: 678, height: 466), open: CGRect(x: 0, y: 0, width: 951, height: 669))
+
+    /// Opening or closing an iPhone Duo resizes the screen under a level: a run in play pauses, as when the app is
+    /// interrupted. The first layout doesn't count, and the paused level stays paused.
+    @MainActor @Test func aRunPausesWhenTheScreenChangesSize() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0)
+        let container = PlayfieldView.Container(frame: Self.duo.closed)
+        container.sceneView.presentScene(scene)
+        scene.debugStart()
+        container.layoutIfNeeded()
+        #expect(scene.debugPhase == .playing)
+
+        container.frame = Self.duo.open
+        container.layoutIfNeeded()
+        #expect(scene.debugPhase == .paused)
+        container.frame = Self.duo.closed
+        container.layoutIfNeeded()
+        #expect(scene.debugPhase == .paused)
+        withExtendedLifetime(scene) {}
+    }
+
+    /// A level waiting on its card isn't running, so a resize leaves it waiting.
+    @MainActor @Test func aLevelNotYetStartedStaysOnItsCard() {
+        let scene = GameScene(world: .shallowReef, levelIndex: 0)
+        let container = PlayfieldView.Container(frame: Self.duo.closed)
+        container.sceneView.presentScene(scene)
+        container.layoutIfNeeded()
+        #expect(scene.debugPhase == .ready)
+
+        container.frame = Self.duo.open
+        container.layoutIfNeeded()
+        #expect(scene.debugPhase == .ready)
+        withExtendedLifetime(scene) {}
+    }
+
+    /// The map art draws at the screen's own resolution times the menus' scale, and follows the screen's resolution when
+    /// it changes, as an iPhone Duo's can between its two screens.
+    @MainActor @Test func theMapArtFollowsTheScreensResolution() {
+        let view = MapArtView.ScaledView(frame: CGRect(x: 0, y: 0, width: 300, height: 150))
+        // Another screen's resolution than the one the view started on.
+        let other: CGFloat = view.traitCollection.displayScale == 3 ? 2 : 3
+        view.traitOverrides.displayScale = other
+        view.updateTraitsIfNeeded()
+        #expect(view.contentScaleFactor == other)
+        view.menuScale = 1.5
+        #expect(view.contentScaleFactor == other * 1.5)
+    }
+
     /// Recording or mirroring the screen drops the game to 60 frames a second, so neither it nor the recording stutters,
     /// and stopping goes back to 120.
     @MainActor @Test func recordingTheScreenDrawsAt60() {

@@ -92,12 +92,15 @@ struct ReefAnalyticsTests {
             let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
             analytics.paywallShown()
             analytics.paywallShown()
+            analytics.unlockScreenShown()
+            analytics.unlockScreenShown()
             analytics.unlocked()
             ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true).unlocked()
-            #expect(milestones(analytics) == ["paywall_shown", "unlocked"])
+            #expect(milestones(analytics) == ["paywall_shown", "unlock_screen_shown", "unlocked"])
 
             let off = ReefAnalytics(defaults: UserDefaults(suiteName: "off.\(UUID().uuidString)")!, sender: StubSender(), enabled: false)
             off.paywallShown()
+            off.unlockScreenShown()
             off.unlocked()
             #expect(off.queue.isEmpty)
         }
@@ -319,18 +322,13 @@ struct ReefAnalyticsTests {
         }
     }
 
-    @Test func aDiscardedRoundIsNeverReported() {
+    /// Simulator builds, where these tests run, never record or send by default either.
+    @Test func simulatorBuildsNeverRecordOrSend() {
+        #expect(ReefAnalytics.isSimulator)
         withDefaults { defaults in
-            let analytics = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
-            analytics.roundStarted(level: exponents.levels[0], target: 10)
-            analytics.roundProgress(correct: 3)
-            analytics.appResignedActive()
-            analytics.roundDiscarded()
-            analytics.roundQuit()
-
-            let relaunched = ReefAnalytics(defaults: defaults, sender: StubSender(), enabled: true)
-            relaunched.appLaunched()
-            #expect(rounds(relaunched).isEmpty)
+            let analytics = ReefAnalytics(defaults: defaults)
+            analytics.appLaunched()
+            #expect(analytics.queue.isEmpty)
         }
     }
 

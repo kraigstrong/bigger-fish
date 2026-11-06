@@ -15,8 +15,32 @@ struct ArcadeSave: Codable, Equatable {
     var hasSeenJellyLesson = false
     /// Worlds whose "conquered" unlock screen has been shown.
     var seenUnlocks: Set<String>? = nil
-    /// The first-launch tutorial has been shown (finished, skipped, or left).
+    /// Adventure's tutorial (the first-launch tutorial, before the home screen) has been shown: finished, skipped, or
+    /// left.
     var hasSeenTutorial: Bool? = nil
+    /// The Open Water's pearls: taken and spent, each counted by the install that took or spent them
+    /// (`ArcadeProgress.install`), so two devices' pearls add up and spending on one can't be undone by the other.
+    var pearlsEarned: [String: Int]? = nil
+    var pearlsSpent: [String: Int]? = nil
+    /// The pearl shop's items bought (`PearlItem` IDs), and what's worn.
+    var ownedLooks: Set<String>? = nil
+    var wornLook: WornLook? = nil
+    /// The Open Water's best run: the most fish eaten in one.
+    var openWaterBest: Int? = nil
+    /// The furthest level any Open Water run has reached (counting from 0), for the looks it earns.
+    var openWaterFurthest: Int? = nil
+    /// The shop's looks seen there, so those added since are marked new. Before any, the first shop's
+    /// (`GameTuning.pearlShopFirstLooks`).
+    var seenLooks: Set<String>? = nil
+    /// Looks saved to wear again in a tap, by slot ("1", "2", "3"): what each wears and when it was saved, so the
+    /// latest save of a slot on any device is kept.
+    var savedOutfits: [String: WornLook]? = nil
+    /// The looks earned (`PearlItem.earnedBy`), kept from the moment each was, so one stays the player's whatever
+    /// becomes of its goal: made harder, sold instead, retired, or a crown's when a world joins the campaign.
+    var earnedLooks: Set<String>? = nil
+    /// The Open Water's tutorial and the Shop's hints have been shown (finished, skipped, or left).
+    var hasSeenOpenWaterTutorial: Bool? = nil
+    var hasSeenShopTutorial: Bool? = nil
     /// Fields this version doesn't know, from a later version, kept as they were.
     var laterFields: [String: SaveValue] = [:]
 
@@ -24,6 +48,25 @@ struct ArcadeSave: Codable, Equatable {
     /// saved and has a merge rule.
     enum CodingKeys: String, CodingKey, CaseIterable {
         case clearedLevels, bestTimes, hasSeenJellyLesson, seenUnlocks, hasSeenTutorial
+        case pearlsEarned, pearlsSpent, ownedLooks, wornLook
+        case openWaterBest, openWaterFurthest, seenLooks, savedOutfits, earnedLooks
+        case hasSeenOpenWaterTutorial, hasSeenShopTutorial
+    }
+
+    /// What's worn (`PlayerLook`): an item ID for each kind worn, and when it was last changed (seconds since 1970),
+    /// so the latest change on any device is what you wear everywhere.
+    struct WornLook: Codable, Equatable {
+        var items: [String: String]
+        var changed: Double
+
+        /// The later change; at the same moment, either way round the same one.
+        static func latest(_ a: WornLook, _ b: WornLook) -> WornLook {
+            if a.changed != b.changed { return a.changed > b.changed ? a : b }
+            let order = { (look: WornLook) in
+                look.items.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            }
+            return order(a) >= order(b) ? a : b
+        }
     }
 
     init() {}
@@ -35,6 +78,17 @@ struct ArcadeSave: Codable, Equatable {
         hasSeenJellyLesson = (try? values.decodeIfPresent(Bool.self, forKey: .hasSeenJellyLesson)) ?? false
         seenUnlocks = try? values.decodeIfPresent(Set<String>.self, forKey: .seenUnlocks)
         hasSeenTutorial = try? values.decodeIfPresent(Bool.self, forKey: .hasSeenTutorial)
+        pearlsEarned = try? values.decodeIfPresent([String: Int].self, forKey: .pearlsEarned)
+        pearlsSpent = try? values.decodeIfPresent([String: Int].self, forKey: .pearlsSpent)
+        ownedLooks = try? values.decodeIfPresent(Set<String>.self, forKey: .ownedLooks)
+        wornLook = try? values.decodeIfPresent(WornLook.self, forKey: .wornLook)
+        openWaterBest = try? values.decodeIfPresent(Int.self, forKey: .openWaterBest)
+        openWaterFurthest = try? values.decodeIfPresent(Int.self, forKey: .openWaterFurthest)
+        seenLooks = try? values.decodeIfPresent(Set<String>.self, forKey: .seenLooks)
+        savedOutfits = try? values.decodeIfPresent([String: WornLook].self, forKey: .savedOutfits)
+        earnedLooks = try? values.decodeIfPresent(Set<String>.self, forKey: .earnedLooks)
+        hasSeenOpenWaterTutorial = try? values.decodeIfPresent(Bool.self, forKey: .hasSeenOpenWaterTutorial)
+        hasSeenShopTutorial = try? values.decodeIfPresent(Bool.self, forKey: .hasSeenShopTutorial)
         let all = try decoder.container(keyedBy: SaveKey.self)
         for key in all.allKeys where CodingKeys(stringValue: key.stringValue) == nil {
             laterFields[key.stringValue] = try? all.decode(SaveValue.self, forKey: key)
@@ -54,14 +108,28 @@ struct ArcadeSave: Codable, Equatable {
             case .hasSeenJellyLesson: try container.encode(hasSeenJellyLesson, forKey: field)
             case .seenUnlocks: try container.encodeIfPresent(seenUnlocks, forKey: field)
             case .hasSeenTutorial: try container.encodeIfPresent(hasSeenTutorial, forKey: field)
+            case .pearlsEarned: try container.encodeIfPresent(pearlsEarned, forKey: field)
+            case .pearlsSpent: try container.encodeIfPresent(pearlsSpent, forKey: field)
+            case .ownedLooks: try container.encodeIfPresent(ownedLooks, forKey: field)
+            case .wornLook: try container.encodeIfPresent(wornLook, forKey: field)
+            case .openWaterBest: try container.encodeIfPresent(openWaterBest, forKey: field)
+            case .openWaterFurthest: try container.encodeIfPresent(openWaterFurthest, forKey: field)
+            case .seenLooks: try container.encodeIfPresent(seenLooks, forKey: field)
+            case .savedOutfits: try container.encodeIfPresent(savedOutfits, forKey: field)
+            case .earnedLooks: try container.encodeIfPresent(earnedLooks, forKey: field)
+            case .hasSeenOpenWaterTutorial: try container.encodeIfPresent(hasSeenOpenWaterTutorial, forKey: field)
+            case .hasSeenShopTutorial: try container.encodeIfPresent(hasSeenShopTutorial, forKey: field)
             }
         }
     }
 
     /// This save with iCloud's merged in. Merging only ever adds, so syncing can never un-clear a level: cleared levels
-    /// and seen "conquered" screens are united, each level keeps the faster best time, and a lesson or tutorial seen on
-    /// either side stays seen. It comes out the same whichever save is which, except for fields from a later version:
-    /// this version never changes those, so iCloud's (the latest any device wrote) is kept when both sides have one.
+    /// and seen "conquered" screens are united, each level keeps the faster best time, and a lesson or any of the
+    /// tutorials seen on either side stays seen. Each install's pearls taken and spent keep the larger count, things bought are united,
+    /// the look changed last is worn, the Open Water's better best run and further level are kept, looks seen in the shop
+    /// are united, each outfit slot keeps its latest save, and looks earned are united. It comes out the same whichever
+    /// save is which, except for fields from a later version: this version never changes those, so iCloud's (the latest
+    /// any device wrote) is kept when both sides have one.
     func merged(withCloud cloud: ArcadeSave) -> ArcadeSave {
         var merged = self
         for key in CodingKeys.allCases {
@@ -73,6 +141,32 @@ struct ArcadeSave: Codable, Equatable {
                 if let theirs = cloud.seenUnlocks { merged.seenUnlocks = (seenUnlocks ?? []).union(theirs) }
             case .hasSeenTutorial:
                 if let theirs = cloud.hasSeenTutorial { merged.hasSeenTutorial = hasSeenTutorial == true || theirs }
+            case .pearlsEarned:
+                if let theirs = cloud.pearlsEarned { merged.pearlsEarned = (pearlsEarned ?? [:]).merging(theirs, uniquingKeysWith: Swift.max) }
+            case .pearlsSpent:
+                if let theirs = cloud.pearlsSpent { merged.pearlsSpent = (pearlsSpent ?? [:]).merging(theirs, uniquingKeysWith: Swift.max) }
+            case .ownedLooks:
+                if let theirs = cloud.ownedLooks { merged.ownedLooks = (ownedLooks ?? []).union(theirs) }
+            case .wornLook:
+                if let theirs = cloud.wornLook { merged.wornLook = wornLook.map { WornLook.latest($0, theirs) } ?? theirs }
+            case .openWaterBest:
+                if let theirs = cloud.openWaterBest { merged.openWaterBest = Swift.max(openWaterBest ?? 0, theirs) }
+            case .openWaterFurthest:
+                if let theirs = cloud.openWaterFurthest { merged.openWaterFurthest = Swift.max(openWaterFurthest ?? 0, theirs) }
+            case .seenLooks:
+                if let theirs = cloud.seenLooks { merged.seenLooks = (seenLooks ?? []).union(theirs) }
+            case .savedOutfits:
+                if let theirs = cloud.savedOutfits {
+                    merged.savedOutfits = (savedOutfits ?? [:]).merging(theirs) { WornLook.latest($0, $1) }
+                }
+            case .earnedLooks:
+                if let theirs = cloud.earnedLooks { merged.earnedLooks = (earnedLooks ?? []).union(theirs) }
+            case .hasSeenOpenWaterTutorial:
+                if let theirs = cloud.hasSeenOpenWaterTutorial {
+                    merged.hasSeenOpenWaterTutorial = hasSeenOpenWaterTutorial == true || theirs
+                }
+            case .hasSeenShopTutorial:
+                if let theirs = cloud.hasSeenShopTutorial { merged.hasSeenShopTutorial = hasSeenShopTutorial == true || theirs }
             }
         }
         merged.laterFields.merge(cloud.laterFields) { _, theirs in theirs }
@@ -178,6 +272,8 @@ final class ArcadeProgress: ObservableObject {
         } else {
             save = ArcadeSave()
         }
+        // A save from before looks earned were kept has them kept now.
+        if keepEarnedLooks() { writeLocal() }
         guard let cloud else { return }
         // Every change merges, whatever its reason: another device's progress, the first download after an install,
         // or a change of Apple ID. None of them ever removes progress from this device.
@@ -275,12 +371,30 @@ final class ArcadeProgress: ObservableObject {
         persist()
     }
 
-    /// Only a new player sees the tutorial: someone updating with levels already cleared knows the game.
-    var needsTutorial: Bool { save.hasSeenTutorial != true && save.clearedLevels.isEmpty }
+    /// Each tutorial plays the first time its part of the home screen is opened, once. Only someone new to it: a player
+    /// updating with a level cleared knows Adventure, one with a run or a pearl the Open Water, and one with a look bought
+    /// the Shop.
+    func needsTutorial(_ course: ArcadeTutorial.Course) -> Bool {
+        switch course {
+        case .adventure: save.hasSeenTutorial != true && save.clearedLevels.isEmpty
+        case .openWater: save.hasSeenOpenWaterTutorial != true && openWaterBest == 0 && (save.pearlsEarned ?? [:]).isEmpty
+        case .shop: save.hasSeenShopTutorial != true && !hasBoughtALook
+        }
+    }
 
-    func sawTutorial() {
-        save.hasSeenTutorial = true
+    func sawTutorial(_ course: ArcadeTutorial.Course) {
+        switch course {
+        case .adventure: save.hasSeenTutorial = true
+        case .openWater: save.hasSeenOpenWaterTutorial = true
+        case .shop: save.hasSeenShopTutorial = true
+        }
         persist()
+    }
+
+    /// Rising and falling are learned (in either played tutorial, a level, or a run): the other tutorial starts at its
+    /// first meal.
+    var knowsControls: Bool {
+        save.hasSeenTutorial == true || save.hasSeenOpenWaterTutorial == true || !save.clearedLevels.isEmpty || openWaterBest > 0
     }
 
     func sawJellyLesson() {
@@ -288,8 +402,148 @@ final class ArcadeProgress: ObservableObject {
         persist()
     }
 
+    // MARK: Pearls
+
+    /// This install's name in the pearl counts (`ArcadeSave.pearlsEarned`): made once and kept on the device, it goes
+    /// nowhere but the player's own iCloud, with their progress.
+    private lazy var install: String = {
+        let key = Self.key + ".install"
+        if let id = defaults.string(forKey: key) { return id }
+        let id = UUID().uuidString
+        defaults.set(id, forKey: key)
+        return id
+    }()
+
+    /// Pearls to spend: every install's taken, less every install's spent.
+    var pearls: Int {
+        max(0, (save.pearlsEarned ?? [:]).values.reduce(0, +) - (save.pearlsSpent ?? [:]).values.reduce(0, +))
+    }
+
+    /// Pearls taken in the Open Water (or, in Xcode builds, the shop's gift).
+    func earnPearls(_ count: Int) {
+        guard count > 0 else { return }
+        save.pearlsEarned = (save.pearlsEarned ?? [:]).merging([install: count], uniquingKeysWith: +)
+        persist()
+    }
+
+    /// The Open Water's best run, in fish eaten: 0 before any.
+    var openWaterBest: Int { save.openWaterBest ?? 0 }
+
+    /// The furthest level an Open Water run has reached (counting from 0).
+    var openWaterFurthest: Int { save.openWaterFurthest ?? 0 }
+
+    /// An Open Water run's end, with its fish eaten and the furthest level it reached: kept if either is the best yet.
+    /// The looks it earned that weren't had before.
+    @discardableResult func recordOpenWaterRun(fish: Int, furthest: Int = 0) -> [PearlItem] {
+        guard fish > openWaterBest || furthest > openWaterFurthest else { return [] }
+        let before = Set(earnedLooks.map(\.id))
+        if fish > openWaterBest { save.openWaterBest = fish }
+        if furthest > openWaterFurthest { save.openWaterFurthest = furthest }
+        persist()
+        return earnedLooks.filter { !before.contains($0.id) }
+    }
+
+    /// Whether what `goal` asks has been done: an Open Water run's best, or a crown on the map. Owning what it earns
+    /// goes by `earnedLooks` instead: a look, once earned, is kept.
+    func hasDone(_ goal: PearlGoal) -> Bool {
+        func conquered(_ world: ArcadeWorld, deepEnd: Bool) -> Bool {
+            let main = ArcadeWorld.mainLevelCount
+            let levels = deepEnd ? main..<world.levelCount : 0..<min(main, world.levelCount)
+            return !levels.isEmpty && levels.allSatisfy { isCleared(world, $0) }
+        }
+        switch goal {
+        case .fishInOneRun(let fish): return openWaterBest >= fish
+        case .openWaterLevel(let level): return openWaterFurthest >= level
+        case .conquerAWorld: return ArcadeWorld.campaign.contains { conquered($0, deepEnd: false) }
+        case .conquerADeepEnd: return ArcadeWorld.campaign.contains { conquered($0, deepEnd: true) }
+        case .conquerEveryDeepEnd: return ArcadeWorld.campaign.allSatisfy { conquered($0, deepEnd: true) }
+        }
+    }
+
+    /// The looks earned, not bought: kept from when they were earned, or with their goal done now (and not retired).
+    var earnedLooks: [PearlItem] {
+        GameTuning.pearlShop.filter { $0.earnedBy != nil && (save.earnedLooks?.contains($0.id) == true || earnsNow($0)) }
+    }
+
+    /// A look still to be earned whose goal is done: retired, it's no longer earned.
+    private func earnsNow(_ item: PearlItem) -> Bool { !item.retired && item.earnedBy.map(hasDone) == true }
+
+    /// Keeps each look whose goal is done as earned, so nothing that later becomes of the goal takes it back. Whether
+    /// any is new.
+    @discardableResult private func keepEarnedLooks() -> Bool {
+        let kept = save.earnedLooks ?? []
+        let done = GameTuning.pearlShop.filter { !kept.contains($0.id) && earnsNow($0) }.map(\.id)
+        guard !done.isEmpty else { return false }
+        save.earnedLooks = kept.union(done)
+        return true
+    }
+
+    /// Whether this player has bought a look with pearls (on any of their devices).
+    var hasBoughtALook: Bool { !(save.ownedLooks ?? []).isEmpty }
+
+    /// Bought, or earned (and kept, even if it's sold now or retired), or the look it replaced is.
+    func owns(_ item: PearlItem) -> Bool {
+        save.ownedLooks?.contains(item.id) == true || save.earnedLooks?.contains(item.id) == true || earnsNow(item)
+            || item.replaces.flatMap(PearlItem.item).map(owns) == true
+    }
+
+    /// The shop's shelf of `kind` (from `catalog`, the shop's): everything but a retired look this player doesn't have.
+    func shelf(_ kind: PearlItem.Kind, catalog: [PearlItem] = GameTuning.pearlShop) -> [PearlItem] {
+        catalog.filter { $0.kind == kind && (!$0.retired || owns($0)) }
+    }
+
+    /// Buys `item` and puts it on, if there are pearls enough, it isn't owned already, and it's on sale `today` (a
+    /// limited edition only in its season). Whether it was bought.
+    @discardableResult func buy(_ item: PearlItem, now: Date = Date(), today: Date = PearlSeason.today) -> Bool {
+        guard !owns(item), item.onSale(today), pearls >= item.price else { return false }
+        save.pearlsSpent = (save.pearlsSpent ?? [:]).merging([install: item.price], uniquingKeysWith: +)
+        save.ownedLooks = (save.ownedLooks ?? []).union([item.id])
+        save.wornLook = ArcadeSave.WornLook(items: wornLook.wearing(item).ids, changed: now.timeIntervalSince1970)
+        persist()
+        return true
+    }
+
+    /// Puts on `look`, as much of it as is owned.
+    func wear(_ look: PlayerLook, now: Date = Date()) {
+        let ids = look.ids.filter { PearlItem.item($0.value).map(owns) == true }
+        guard ids != (save.wornLook?.items ?? [:]) else { return }
+        save.wornLook = ArcadeSave.WornLook(items: ids, changed: now.timeIntervalSince1970)
+        persist()
+    }
+
+    /// Whether the shop has a look the player hasn't seen there yet.
+    func isNew(_ item: PearlItem) -> Bool { !(save.seenLooks ?? GameTuning.pearlShopFirstLooks).contains(item.id) }
+
+    /// The shop's `items` seen, so they're no longer marked new.
+    func sawLooks(_ items: [PearlItem]) {
+        let seen = save.seenLooks ?? GameTuning.pearlShopFirstLooks
+        let all = seen.union(items.map(\.id))
+        guard all != save.seenLooks else { return }
+        save.seenLooks = all
+        persist()
+    }
+
+    /// The outfit saved in `slot` (from 1), as much of it as is owned: nil while it's empty.
+    func outfit(_ slot: Int) -> PlayerLook? {
+        save.savedOutfits?[String(slot)].map { PlayerLook(ids: $0.items.filter { PearlItem.item($0.value).map(owns) == true }) }
+    }
+
+    /// Saves what's worn now in outfit `slot` (from 1), over whatever was there.
+    func saveOutfit(_ slot: Int, now: Date = Date()) {
+        var outfits = save.savedOutfits ?? [:]
+        outfits[String(slot)] = ArcadeSave.WornLook(items: wornLook.ids, changed: now.timeIntervalSince1970)
+        save.savedOutfits = outfits
+        persist()
+    }
+
+    /// What your fish wears everywhere it swims.
+    var look: PlayerLook { wornLook }
+
+    private var wornLook: PlayerLook { PlayerLook(ids: save.wornLook?.items ?? [:]) }
+
     /// Saves on the device first, then backs up to iCloud, merged with anything there this device hasn't seen yet.
     private func persist() {
+        keepEarnedLooks()
         writeLocal()
         syncWithCloud()
     }
@@ -303,10 +557,12 @@ final class ArcadeProgress: ObservableObject {
         let merged = theirs.map(save.merged(withCloud:)) ?? save
         if merged != save {
             save = merged
+            // Another device's progress may have done a look's goal here.
+            keepEarnedLooks()
             writeLocal()
         }
         // Only what iCloud lacks is written: a fresh install with nothing to back up doesn't upload an empty save.
-        if merged != (theirs ?? ArcadeSave()) { write(merged, to: cloud) }
+        if save != (theirs ?? ArcadeSave()) { write(save, to: cloud) }
     }
 
     /// iCloud's save, or nil when it has none or one this version can't read. An unreadable one is set aside on the

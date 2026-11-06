@@ -35,6 +35,8 @@ final class ArcadeAudio {
     /// Raw values are the `.caf` files in Sounds/.
     enum Effect: String, CaseIterable {
         case eat = "pop", bounce = "gulp", sting = "zap", lose = "wrong", clear = "win"
+        /// A look bought in the Shop.
+        case buy = "treasure"
 
         #if DEBUG
         /// What it's for, for the hitch log.
@@ -45,13 +47,14 @@ final class ArcadeAudio {
             case .sting: "sting"
             case .lose: "lose"
             case .clear: "clear"
+            case .buy: "buy"
             }
         }
         #endif
     }
     /// Raw values are the `.m4a` files in Sounds/.
     enum Music: String, CaseIterable {
-        /// Under the world map and level maps.
+        /// Under the home screen and the maps.
         case menu = "menu-music"
         /// Under a level, from its ready screen to its result.
         case game = "game-music"
@@ -92,7 +95,11 @@ final class ArcadeAudio {
             voices[effect] = (0..<3).compactMap { _ in
                 guard let player = Self.player(effect.rawValue, "caf") else { return nil }
                 if effect == .bounce { player.enableRate = true; player.rate = GameTuning.bounceSoundRate }
-                player.volume = effect == .clear ? GameTuning.clearSoundVolume : GameTuning.effectVolume
+                player.volume = switch effect {
+                case .clear: GameTuning.clearSoundVolume
+                case .buy: GameTuning.buySoundVolume
+                default: GameTuning.effectVolume
+                }
                 player.prepareToPlay()
                 return player
             }

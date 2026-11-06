@@ -66,6 +66,8 @@ public final class FishNode: SKNode {
     private let mouthLine: SKShapeNode
     private let mouthGape: SKShapeNode
     private var headwear: SKNode?
+    private var markings: SKNode?
+    private var facewear: SKNode?
 
     public init(style: FishStyle, isPlayer: Bool, tailPhase: CGFloat) {
         let R = FishNode.referenceRadius
@@ -158,7 +160,7 @@ public final class FishNode: SKNode {
 
         let eyeRadius = 0.26 * R * style.eyeScale
         let eye = SKShapeNode(circleOfRadius: eyeRadius)
-        eye.position = CGPoint(x: 0.68 * R, y: 0.28 * R)
+        eye.position = FishNode.faceAnchor
         eye.fillColor = .white
         eye.strokeColor = SKColor(white: 0, alpha: 0.35)
         eye.lineWidth = 1.5
@@ -193,6 +195,35 @@ public final class FishNode: SKNode {
 
     /// Where headwear sits, in this node's coordinates at the reference radius facing right.
     public static let headwearAnchor = CGPoint(x: 0.55 * referenceRadius, y: 1.05 * referenceRadius)
+
+    /// Markings painted on the body (Bigger Fish's patterns), over its own pattern and under the fins and eye. Draw them
+    /// at the reference radius facing right, around the body's center, and keep them inside the body: an ellipse
+    /// `bodySize` across. They scale, flip, and tilt with the fish. Pass nil to take them off.
+    public func setMarkings(_ node: SKNode?) {
+        markings?.removeFromParent()
+        markings = node
+        guard let node else { return }
+        node.zPosition = 1.5
+        rig.addChild(node)
+    }
+
+    /// Something worn on the face (Bigger Fish's glasses, mustache, and nose), over the eye and mouth and under headwear.
+    /// Draw it at the reference radius facing right, around the eye's center (`faceAnchor`), and keep it inside the
+    /// body. It scales, flips, and tilts with the fish. Pass nil to take it off.
+    public func setFacewear(_ node: SKNode?) {
+        facewear?.removeFromParent()
+        facewear = node
+        guard let node else { return }
+        node.position = FishNode.faceAnchor
+        node.zPosition = 3.5
+        rig.addChild(node)
+    }
+
+    /// The eye's center, where facewear sits, in this node's coordinates at the reference radius facing right.
+    public static let faceAnchor = CGPoint(x: 0.68 * referenceRadius, y: 0.28 * referenceRadius)
+
+    /// The body's ellipse at the reference radius.
+    public static let bodySize = CGSize(width: 2.7 * referenceRadius, height: 1.9 * referenceRadius)
 
     /// - Parameters:
     ///   - facing: -1...1; negative mirrors the fish to face left.

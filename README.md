@@ -5,8 +5,10 @@ There's always a bigger fish.
 Arcade game: a one-touch game for iPhone and iPad (landscape, SwiftUI + SpriteKit, iOS 17+).
 Hold to rise. Release to fall. Eat fish smaller than you. Avoid fish larger than you. Become the last fish swimming.
 
-A new player starts with the tutorial (`ArcadeTutorial.swift`), which teaches the rules by playing them. The world
-map then has five worlds, each with ten levels to conquer and then The Deep End, five more at its hardest:
+A new player starts on the home screen, and each part of it has a tutorial the first time it's opened
+(`ArcadeTutorial.swift`): Adventure's teaches the rules by playing them and how a level is won (eat every fish), the
+Open Water's eating, avoiding, and pearls, then starts the run, and the Shop's is a few words and arrows over the shop
+(`ShopHints.swift`). Settings' How to play plays any of them again. Adventure's world map has five worlds, each with ten levels to conquer and then The Deep End, five more at its hardest:
 **Shallow Reef** (fish only), **Jelly Bloom** (drifting jellyfish: bounce off their domes, dodge their tentacles),
 **Kelp Forest** (kelp slows you, and fish in it are shadows), **Sunset Cove** (boats lower baited hooks: leave the
 bait; `FishHooks.swift`, its knobs under `// MARK: Sunset Cove` in `GameTuning`), and **Midnight Zone** (dark water
@@ -17,7 +19,23 @@ and backed up to the player's own iCloud, so they come back after a reinstall an
 device; the two copies merge so that syncing never un-clears a level.
 
 Free to try: all of Shallow Reef, plus two levels of each other world; a one-time purchase opens every world
-from the start and every Deep End (`ArcadeUnlock.swift`). No endless mode, pearls, or shop yet. See
+from the start and every Deep End (`ArcadeUnlock.swift`). From 1.1, the home screen (`ArcadeHome.swift`) offers two
+ways to play: **Adventure**, the campaign's world map, and the endless run, **Open Water** (`OpenWater.swift`; Xcode builds can launch with `-openWater <seed>`): round the worlds a stage at a time (`GameTuning.openWaterWorlds`), each a new level dealt like that world's level 5 on stage 1, 6 on stage 2, and on,
+planned as the run reaches it. Eating a level's last gate ends it and shrinks you back to your starting size for the
+next world; being eaten ends the run. Pearls sit beside the big fish, a few a level (`OpenWater.pearls`): touch one to take it. Fish eaten and pearls count at the top.
+A run's score is the fish it ate: the best is kept (`ArcadeProgress.openWaterBest`, synced with progress) and shown on
+the run's card and the home screen's Open Water button.
+Pearls are kept (`ArcadeProgress.pearls`, synced with progress) and spent in the **pearl shop** (`PearlShop.swift`,
+`PearlShopView.swift`, the list and prices in `GameTuning.pearlShop`), from the home screen's Shop button (or your fish
+there) or a run's card:
+body colors, patterns, hats, faces, and trails for your fish, worn everywhere it swims, never making it look bigger. Limited
+editions are on sale only in their season (`PearlSeason`; Christmas's Dec 1 – Jan 6, Valentine's Feb 1 – 15), and kept
+all year once bought. A look is never taken out of the shop, since a player may own it: retire it (`PearlItem.retired`:
+off sale, shown only to those who have it). Earned looks are saved as they're earned (`ArcadeSave.earnedLooks`), so
+changing a goal never takes one back.
+Some looks are never sold, only earned (`PearlGoal`): by an Open Water run, or as crowns like the map's (silver for a
+world conquered, gold for a Deep End, diamond for every Deep End). The shop's rail down the left has each kind of look
+and your saved outfits; looks added since you last looked are marked new. See
 [`docs/bigger-fish-playable-scope.md`](docs/bigger-fish-playable-scope.md) for the accepted scope and deferred vision.
 
 ## Running
@@ -35,8 +53,9 @@ xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish -destination 'p
 **Draw order.** Every SpriteView draws with `ignoresSiblingOrder`, so nodes at the same global depth come out in any
 order on a phone, though the simulator keeps the order they were added. Anything drawn over something else needs its own
 zPosition. `DrawOrderTests` walks every scene at the moments that matter (cards, play, pause, the result, the tutorial,
-the credits, the maps) with `DrawOrderAudit`, which reports overlapping nodes that share a depth. To check that a change
-of depths keeps the look, render the key moments before and after and compare:
+the credits, the maps) with `DrawOrderAudit`, which reports overlapping nodes that share a depth (Math Reef has a copy;
+see Math Reef's draw order below). To check that a change of depths keeps the look, render the key moments before and
+after and compare:
 
 ```bash
 TEST_RUNNER_DRAW_ORDER_RENDERS=before xcodebuild test -project BiggerFish.xcodeproj -scheme BiggerFish \
@@ -50,13 +69,19 @@ diff -rq build/draw-order/before build/draw-order/after
 This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj`), each with its own scheme:
 
 - `BiggerFish/` — **Bigger Fish**, the arcade game: campaign rules, levels, tuning, and scene.
-  - `ArcadeMaps.swift` — world selection and the level paths (one stop per level)
+  - `ArcadeHome.swift` — the home screen: your fish and the Shop on the left, Adventure (a crown per world; for a
+    new player, "Start here" and how a level is won) and the Open Water (your best, the day's free runs) on the
+    right. Its two pictures are drawn by `IconographyTests` (`ModeAdventure`, `ModeOpenWater`)
+  - `ArcadeMaps.swift` — Adventure's world map (scrolling sideways when the worlds don't fit the screen) and the level
+    paths (one stop per level)
   - `ScreenFit.swift` — the iPad: every level plays at the same fixed playfield (`GameTuning.playfieldSize`),
     fitted to the screen's width with its world's water in a band above and below (a touch in a band still
     steers), and the menus are laid out as on the biggest iPhone and scaled up to fill the screen (`ScreenScaled`).
     Every iPhone draws exactly as before. On an iPad the app takes the whole screen in landscape
-    (`UIRequiresFullScreen`), so it doesn't join Split View or resize in Stage Manager
-  - `SettingsView.swift` — Settings from the world map's gear: sound, music, vibration, replaying the tutorial,
+    (`UIRequiresFullScreen`), so it doesn't join Split View or resize in Stage Manager. An iPhone Duo still resizes
+    the app as it opens and closes: the same fitting draws a level on either screen, and a level in play pauses
+    (`GameScene.screenDidResize`)
+  - `SettingsView.swift` — Settings from the home screen's gear: sound, music, vibration, how to play (each tutorial),
     restoring the unlock, the privacy policy and support (biggerfish.app), the credits, and the version
   - `CreditsScene.swift` / `ArcadeCredits.swift` / `Credits.json` — the credits, played: from Settings, a calm swim
     where every name is a fish to eat (design, the play-testers, then the music and sound credits), with a thank-you for each
@@ -87,6 +112,9 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
   Checkpoint levels are skip tests: always playable, and passing one passes everything before it.
   Worlds sit on a reef map and levels along a scrolling path. A world earns a silver crown when every
   level is passed and a gold crown for three stars everywhere. Progress is saved on the device.
+  It runs on iPhone and iPad, in landscape. An iPad draws the app as the biggest iPhone does, only taller,
+  scaled up to fill the screen: the maps and cards use the extra height, and a round plays in a band of
+  water as tall as that iPhone's, with darker water above and below, so lanes and reach match every phone.
   - `MathFacts.swift` — facts, solutions, and plausible wrong answers
   - `Curriculum.swift` — worlds, levels, and fact decks
   - `Progress.swift` — stars, passing, and saved progress
@@ -99,13 +127,31 @@ This repo builds two separate apps from one Xcode project (`BiggerFish.xcodeproj
     successful round at least 90 days later (two requests total). Timing stays on-device. TestFlight
     and Xcode builds don't consume requests; Xcode has a gated review-sheet preview.
   - `ReefUnlock.swift` — the free sample (first 3 levels per world, 1 in Exponents) and the one-time StoreKit unlock; `MathReef.storekit` at the repo root backs it when running from Xcode
+  - `UnlockScreen.swift` — the grown-ups' unlock screen, behind the parental gate: each world in its color and
+    symbol with its grades, its first and hardest question, and a pip per level (the free ones white), then the free
+    levels against all of them, Family Sharing, and the App Store's price. Debug builds open on it with
+    `-unlockScreen`, and `-unlockPrice '$4.99'` stands in for the price outside Xcode, which has no StoreKit config
   - `PracticeScene.swift` — screen flow and gameplay; tuning is `ReefTuning` at the top
+  - `ReefScreen.swift` — the iPad: how much bigger the scene draws (`ReefScreen.scale`), the band of water
+    a round plays in (`ReefScreen.playfield`), and the scene's view (`ReefView`), which draws it bigger at
+    the screen's own resolution. Every iPhone draws exactly as before. On an iPhone Duo, opening or closing the
+    phone changes the scene's size mid-play: whatever is showing is drawn again where it was (`PracticeScene.relayout`),
+    and a round's next question waits for the kid's next hold. The controls in a top corner move clear of the closed
+    phone's camera (`ReefCorners`, from iOS 27.1's reserved regions, so only in a build from the iOS 27.1 SDK)
   - `Tutorial.swift` — the first-launch tutorial (Hold, Let go, Eat the answer with 1 + 1), played with the
     real movement before the reef map on a fresh install. It never fails or times out; a stuck kid
     sees the hint again. The first catch gets "Yes!", then "Ready to play!", then a fade to the map
     (Skip just fades). Saved as done the moment the 2 is eaten or Skip is tapped, and skipped for
-    players who already have progress. Xcode builds can replay it from Settings.
-  - `ReefAnalytics.swift` — anonymous first-party counts (milestones and round outcomes), queued on the device and sent in batches to brightbench.app (off during test runs)
+    players who already have progress. Settings can replay it.
+  - `RoundHint.swift` — the control hint at the start of a round: the tutorial's "Hold" step (finger,
+    "Hold to swim up", arrows over the fish and its question), drawn under the answer fish. A kid's first
+    3 rounds after install start with it (`ReefTuning.roundHintRounds`), and it goes at their first hold;
+    a round only counts once they've held, so a kid who hasn't found the control keeps seeing it.
+  - `ReefAudio.swift` / `ReefHaptics.swift` — sound effects, music, and haptics, each with its own
+    switch in Settings (Sound, Music, Vibration), saved on the device. A 1.0 install that turned sound
+    off keeps the music off too. Sound and music play on their own queue, as Bigger Fish's do, so a slow
+    start can't stall a frame
+  - `ReefAnalytics.swift` — anonymous first-party counts (milestones and round outcomes), queued on the device and sent in batches to brightbench.app (off during test runs and in Simulator builds)
   - `StoreCapture.swift` — debug-only staged scenes and an autopilot for App Store screenshots and the preview video
 - `Packages/FishKit/` — shared fish engine used by both apps:
   the fish model and drawing, hold/release movement (`PlayerMotion` + `MotionTuning`), wrapped world,
@@ -117,38 +163,78 @@ FishKit tests:
 cd Packages/FishKit && xcodebuild test -scheme FishKit -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
+**Math Reef's draw order.** Its view (`ReefView`) draws with `ignoresSiblingOrder` too, and asks for 120 frames a
+second, which a ProMotion iPhone allows only with the key in `MathReef-Info.plist` (the rest of its Info.plist is
+generated from build settings). `MathReefTests/DrawOrderTests` plays the app's one scene frame by frame, as a store
+capture does, through the moments that matter on an iPhone, the iPhone SE, and an iPad: the reef and every level path,
+Settings and the parental gate, the unlock, rounds answered right and wrong, a first round's control hint, the results
+and a crown, and the tutorial.
+It checks each with a copy of Bigger Fish's `DrawOrderAudit` (a fix to one belongs in the other). Its renders hash every
+moment the audit looks at, so a change of depths can be checked frame by frame:
+
+```bash
+TEST_RUNNER_DRAW_ORDER_RENDERS=before xcodebuild test -project BiggerFish.xcodeproj -scheme MathReef \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' '-only-testing:MathReefTests/DrawOrderTests/manualRenderDrawOrderMoments()'
+# change the depths, render again as `after`, then:
+diff build/math-reef-draw-order/before/hashes.txt build/math-reef-draw-order/after/hashes.txt
+```
+
 ## App Store screenshots and preview
 
 `scripts/store-capture.sh` builds Math Reef in Debug, then launches it on the iPhone 17 Pro Max
 simulator with `-storeCapture <scene>`. That stages believable progress in its own saved state,
-leaving real progress, purchases, and analytics alone, and lets an autopilot play. Output goes to
+leaving real progress, purchases, and analytics alone, and lets an autopilot play. Everything is
+drawn by the app itself, so nothing has the simulator's Dynamic Island over it. Output goes to
 `build/store-capture/` (ignored by git). It needs ffmpeg (`brew install ffmpeg`), and the video
 also needs NumPy (`python3 -m pip install numpy`).
 
 ```bash
 scripts/store-capture.sh screenshots
 STORE_CAPTURE_DEVICE='iPhone 13 Pro Max' STORE_CAPTURE_OUT="$PWD/build/store-capture-6.5" scripts/store-capture.sh screenshots
+STORE_CAPTURE_DEVICE='iPad Pro 13-inch (M5)' STORE_CAPTURE_OUT="$PWD/build/store-capture-ipad13" scripts/store-capture.sh screenshots
 scripts/store-capture.sh video
-python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-capture/video/preview.mp4 1.8-3.8 4.0-6.0 6.1-7.3 7.3-12.8 19.8-25.3 67.7-78.0
+python3 scripts/store-preview.py build/store-capture/video/full.mp4 build/store-capture/video/preview.mp4 0.2-2.3 2.6-4.7 5.1-11.0 17.8-23.4 65.6-77.4
+STORE_CAPTURE_DEVICE=<iPhone 17 Pro Max UDID> STORE_CAPTURE_SCALE=2.2348 STORE_CAPTURE_OUT="$PWD/build/store-creative" scripts/store-capture.sh screenshots play
+python3 scripts/store-creative.py build/store-creative/screenshots/play-28.png build/store-creative/search.png --center 0.52
+python3 scripts/store-creative.py build/store-creative/screenshots/play-28.png build/store-creative/header.png --center 0.52 --scale 0.7 --focus 0.454,0.321 --phone build/store-creative/header-phone.png
 ```
 
-- **Screenshots** are 2868×1320 PNGs (the 6.9" size) with no alpha, saved by the app itself
-  (simulator screenshots have the Dynamic Island drawn over them). Play scenes and the crown save
-  a burst of frames to pick from. Rounds use a fixed shuffle, so a retake shows the same questions.
-  For the 6.5" upload slot, the iPhone 13 Pro Max command above captures native 2778×1284 PNGs
-  in a separate output directory, preserving the original set.
-- **Video:** `video` records a full scripted run and rebuilds its soundtrack from the game's own
-  sounds (the simulator records no audio). `store-preview.py` cuts the chosen clips (in seconds)
-  into Apple's app preview format: 1920×886, 30 fps, H.264, stereo AAC, 15–30 seconds. The clip
-  times shift a little between runs, so check them against the full recording.
+`STORE_CAPTURE_DEVICE` takes a simulator's name or its UDID (`xcrun simctl list devices`). A name is looked up on
+the newest runtime, which in Xcode 27.1 has only the iPhone Duo, so give an older runtime's iPhone or iPad by UDID.
+
+- **Screenshots** are PNGs at the screen's full size with no alpha: 2868×1320 on the iPhone 17 Pro
+  Max (6.9"), 2752×2064 on the 13-inch iPad. Play scenes and the crown save a burst of frames to
+  pick from. Rounds use a fixed shuffle, so a retake shows the same questions. For the 6.5" upload
+  slot, the iPhone 13 Pro Max command above captures native 2778×1284 PNGs in a separate output
+  directory, preserving the original set.
+- **Frame by frame:** a capture plays as Bigger Fish's footage does: every frame is exactly a 60th
+  of a second of play, the scene's animations included, however long the simulator takes to save
+  one (`StoreCapture.Stepper` drives SpriteKit's clock and draws the frames). So the video is
+  smooth, and a burst catches the same moments at the same frame numbers on any device.
+- **Video:** `video` plays a scripted run (the reef, Multiplication's path, a round of × 7 with a
+  wrong answer, the results and silver crown) and saves 30 frames a second of play (about 8
+  minutes for the 86 seconds). The soundtrack is rebuilt from the game's own sounds (the simulator
+  records no audio), timed on the same clock. It comes out at Apple's app preview size: 1920×886 on an iPhone, 1600×1200 on an iPad.
+  `store-preview.py` cuts the chosen clips (in seconds) into the preview: 30 fps, H.264, stereo AAC,
+  15–30 seconds. Check the clip times against `full.mp4` after any change to the game or autopilot.
 - **Framed versions:** `scripts/store-frames.py` puts each chosen shot (from
   `build/store-capture/picks/`) on a world-color background under a caption in the game's font,
   matching the selected captures' dimensions. The shots, their order, and the captions are the
-  `SHOTS` list at its top. Pass the picks and output directories to frame an alternate device set.
-- **Dynamic Island:** the simulator draws it into its video, so the video fills it in from the
-  surrounding water and slides the level path so no stop sits under it.
-- **Autopilot:** it drifts around mid-water, sometimes eyes a wrong answer first, and heads for
-  the right one as the wave gets close, so it plays like a kid rather than a bot.
+  `SHOTS` list at its top. Pass the picks and output directories to frame an alternate device set,
+  with each pick saved under the iPhone's file name.
+- **Header and search results image:** the App Store's creative assets (iOS 27), each 5244×2950. With
+  `STORE_CAPTURE_SCALE`, screenshots are drawn that many times the screen's resolution and without the
+  corners' label and buttons; 2.2348 on the 6.9" iPhone makes them 2950 pixels tall. `scripts/store-creative.py`
+  crops one to 16:9 around `--center`. The search results take it full size, with the tagline ("Swim into the
+  right answer") in the water below: pick a frame whose answer fish stay clear of it. The header takes it at
+  `--scale 0.7` with no tagline: an iPhone shows only its middle half and top 60% or so, with the status bar's
+  blur and the back and share buttons over the top, so `--focus` (the middle of the question, the fish, and the
+  answers) goes in the clear water below them, and `--phone` saves what an iPhone shows to check before
+  uploading. Upload both with `push.py media --header … --search …`.
+- **Autopilot:** it drifts around mid-water, sometimes eyes a wrong answer first, and swoops into
+  the right one as the wave gets close (waiting off to one side, then diving or climbing through
+  it), so it plays like a kid rather than a bot. It steers clear of the other answers, so the only
+  wrong answers are the ones a scene plans.
 
 ### Bigger Fish screenshots
 
@@ -163,17 +249,22 @@ progress of its own, silently, leaving real progress, purchases, and analytics a
 scripts/bigger-fish-store-capture.sh                 # every moment, about a minute
 scripts/bigger-fish-store-capture.sh dodge missed    # just these
 scripts/bigger-fish-store-capture.sh --ipad          # every moment on the iPad Pro 13-inch (M5) simulator
+scripts/bigger-fish-store-capture.sh --duo           # every moment on an iPhone Duo simulator, open
 ```
 
 Output goes to `build/store-capture/bigger-fish/` (ignored by git): `screenshots/NN-<moment>.png` at
 2868×1320 (6.9", no alpha) in the listing's order, and `screenshots-6.5/` scaled and trimmed to 2778×1284.
 With `--ipad`, `screenshots-ipad-13/NN-<moment>.png` at 2752×2064, App Store Connect's 13-inch iPad size,
-bands of water above and below the playfield included, as an iPad shows them.
-The moments: `eat` (Shallow Reef 5), `dodge` (Shallow Reef 9), `missed` (Shallow Reef 10: a fish that kept
-eating), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp Forest 8), `sunset-hooks` (Sunset Cove 7: a baited hook
-ahead, under its boat), `midnight-light` (Midnight Zone 5),
-`conquered` (Shallow Reef's map, conquered), and `deep-end` (the screen that opens its Deep End). The levels
-are `StoreCapture.Moment.level`; to try another in Xcode, add `-arcadePlaytest world.N` beside
+bands of water above and below the playfield included, as an iPad shows them. With `--duo`,
+`screenshots-duo/NN-<moment>.png` at 2853×2007, the iPhone Duo's inside screen, which App Store Connect takes in its
+iPhone Duo slot; open the simulator first in Xcode's Device Hub (its pose isn't a simctl command).
+The moments, in the listing's order (`StoreCapture.Moment.listing`): `dodge` (Shallow Reef 9), `eat` (Shallow Reef 5),
+`home` (the home screen, Jelly Bloom conquered too, a best Open Water run, and a look on), `open-water` (seed 1003: a
+pearl ahead by a big fish, the counts hidden for the caption), `jelly-tops` (Jelly Bloom 2), `kelp-shadows` (Kelp
+Forest 8), `sunset-hooks` (Sunset Cove 7: a baited hook ahead, under its boat), `midnight-light` (Midnight Zone 5),
+`shop` (the pearl shop, 640 pearls, gold with a party hat and confetti), and `deep-end` (the screen that opens Shallow
+Reef's Deep End). 1.0's `missed` and `conquered` are still moments, captured by launching with `-storeCapture <moment>`.
+The levels are `StoreCapture.Moment.level`; to try another in Xcode, add `-arcadePlaytest world.N` beside
 `-storeCapture <moment>`.
 
 Then caption them and send them to App Store Connect:
@@ -181,26 +272,32 @@ Then caption them and send them to App Store Connect:
 ```bash
 scripts/bigger-fish-store-frames.py build/store-capture/bigger-fish/screenshots build/store-capture/bigger-fish/captioned
 scripts/bigger-fish-store-frames.py build/store-capture/bigger-fish/screenshots-ipad-13 build/store-capture/bigger-fish/captioned-ipad-13
+scripts/bigger-fish-store-frames.py build/store-capture/bigger-fish/screenshots-duo build/store-capture/bigger-fish/captioned-duo
 python3 appstore/push.py media --app bigger-fish --dry-run \
   --screenshots build/store-capture/bigger-fish/captioned build/store-capture/bigger-fish/captioned-ipad-13 \
+                build/store-capture/bigger-fish/captioned-duo \
   --header build/footage/bigger-fish-header.png --search build/footage/bigger-fish-universal-creative.png
 ```
 
 The captions are the trailer's: 2–4 words in Avenir Next Heavy over a soft dark band, on full-size gameplay with no
-device frame, dodge first (it's the strongest single image, and search often shows only the first). The two app
-screens (conquered, The Deep End) have titles where the caption goes, so they're shrunk a little over a blur of
+device frame, dodge first (it's the strongest single image, and search often shows only the first). The app's own
+screens (home, the shop, The Deep End) have titles where the caption goes, so they're shrunk a little over a blur of
 themselves instead. The 6.5" size isn't uploaded: App Store Connect scales the 6.9" set down.
 
 The universal creative (iOS 27's product page header and search results image, 5244×2950) is gameplay drawn big
 enough by the footage recorder, then cropped and captioned. The header gets its own, with the game drawn smaller: an
 iPhone shows only the middle half of the header and its top 60% or so, which at full size is a close-up of one fish.
+The search results show all of the image, so theirs is drawn closer instead (Kraig, for 1.1: "too much around the edge
+open"): a frame recorded at FOOTAGE_SCALE=3, framed a little low so the fish clear the tagline.
 
 ```bash
 FOOTAGE_SCALE=2.4461 scripts/bigger-fish-footage.sh shallow-reef.9 collector 15.21 15.22
-scripts/bigger-fish-creative.py build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
-  build/footage/bigger-fish-universal-creative.png
 scripts/bigger-fish-creative.py --scale 0.7 build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
   build/footage/bigger-fish-header.png
+rm -rf build/footage/shallow-reef.9-collector-15.21-15.22
+FOOTAGE_SCALE=3 scripts/bigger-fish-footage.sh shallow-reef.9 collector 15.21 15.22
+scripts/bigger-fish-creative.py --middle 0.59 build/footage/shallow-reef.9-collector-15.21-15.22/00000.png \
+  build/footage/bigger-fish-search-results.png
 ```
 
 That's the dodge screenshot's moment (`[StoreCapture] dodge: collector bot, step 913`, 913/60 seconds in).
@@ -214,17 +311,27 @@ interface hidden, one frame at a time, so the footage never stutters and the sam
 recording writes a report beside it listing every bite: yours, with the meal's size then and at its biggest (a fish
 that had been three times your size is a "turn the tables" moment), and the other fish's on screen, with where.
 
+An Open Water run records the same way, named `open-water.<seed>`: its levels are planned as it reaches them, its
+fish and pearl counts stay on screen, and the report adds each pearl taken and each level reached. `--shop` records
+the pearl shop live instead (`StoreFootage.shopTour`: three looks tried on and bought on a fixed schedule), cropped of
+the simulator's camera cutout in the cut. Your fish hatches plain in all of it unless `FOOTAGE_LOOK` dresses it.
+
 ```bash
 scripts/bigger-fish-footage.sh --look sunset-cove.7 opportunist    # the whole run, to pick from
 scripts/bigger-fish-footage.sh sunset-cove.7 opportunist 1.5 10    # 1.5-10 s of it, 60 fps
+scripts/bigger-fish-footage.sh --look open-water.1003 collector    # an Open Water run
+scripts/bigger-fish-footage.sh --shop                              # the pearl shop's tour
 scripts/bigger-fish-trailer.sh                                     # the trailer and App Store preview
 ```
 
 `scripts/bigger-fish-trailer.sh` rebuilds the trailer from `scripts/trailer/edl.json`: it records whatever footage
 the cut needs that isn't in `build/footage/` yet, renders the captions in Avenir Next, and composes each shot with a
-slow camera move over the game's music (cut to its 120 BPM bars, the world montage on its drop). It writes
+slow camera move over the game's music (cut to its 120 BPM bars, Adventure's world montage on its drop, then the Open
+Water, its pearls, and the Shop). It writes
 `build/trailer/bigger-fish-trailer.mp4` (60 fps, with the release line, for biggerfish.app) and
-`bigger-fish-app-preview.mp4` (30 fps, no dates, 29.5 s: the App Store preview at the 6.9" iPhone size, 1920×886). A
+`bigger-fish-app-preview.mp4` (30 fps, no dates, 29.5 s: the App Store preview at the 6.9" iPhone size, 1920×886, which
+the iPhone Duo's slot takes too), and `bigger-fish-app-preview-ipad.mp4` (the same at the 13-inch iPad's 1600×1200, full
+width over a soft blur of itself above and below). A
 level that isn't frozen can play differently after a change, so delete its recording to record it again. It needs
 ffmpeg and Python with Pillow and NumPy.
 
@@ -232,7 +339,8 @@ The App Store cut differs from the site's in two places (shots and captions mark
 TABLES." shot is a different bite. And it ends on Shallow Reef 11's eating run in slow motion, with "Bigger Fish / Eat fast. Stay alive." landing under it
 before the blur. That's for the poster frame, the one frame the App Store shows until the preview plays: it can only
 be a frame of the video, so the video has to hold the picture. The poster is 26.67 s in, mouth open with the next
-meal just ahead (mid-swallow read as two fish bumping): `appstore/push.py media --preview ... --poster 00:00:26:20`.
+meal just ahead (mid-swallow read as two fish bumping): `appstore/push.py media --preview ... --ipad-preview ...
+--poster 00:00:26:20`.
 
 ## Tuning
 
@@ -247,8 +355,9 @@ shipped as saved plans in the app.
 | Kelp Forest | `kelpSpecs` | `KelpPlans.json` | `kelpFrozen` |
 | Midnight Zone | `midnightSpecs` | `MidnightPlans.json` | `midnightFrozen` |
 
-The shipped game plays the saved plans and never plans on the device: the planner is in Xcode builds only, and a
-Release build with a level missing from its plans file stops at launch. `FrozenLevelTests` pins every frozen
+The shipped game plays the saved plans and never plans a campaign level on the device: a Release build with a level
+missing from its plans file stops at launch. The planner ships only for the Open Water, whose levels are new every run
+(`OpenWater.plan`, just in time, off the main thread). `FrozenLevelTests` pins every frozen
 level, so changing one is never a side effect. AGENTS.md has the workflow: iterate in code, freeze before
 publishing.
 
@@ -256,12 +365,13 @@ For a specific Debug level, add launch arguments `-arcadePlaytest jelly-bloom.4`
 plus one-based level). This bypasses the level lock and uses a separate `biggerFish.playtest` save, which never
 syncs to iCloud.
 Add `-arcadeResult passed` or `-arcadeResult failed` to preview its result panel without recording a
-clear. Remove the arguments to return to the normal world map and real campaign progress.
+clear. Remove the arguments to return to the normal home screen and real campaign progress.
 
 To check a screen's layout at a device's size (an iPad, a small phone), `-arcadeScreen <screen>` opens it at launch:
-`worlds`, `settings`, `unlock`, `conquered`, `credits`, `tutorial`, or `pause` (with `-arcadePlaytest` for the
-level to pause). It plays in a staged save of its own (`biggerFish.screen`: Shallow Reef conquered, the tutorial
-seen), which never syncs to iCloud. Add `-arcadeMap <world ID>` for a level map, `-arcadeUnlocked YES` or `NO` for
+`home`, `new-player` (the home screen as a new player first sees it), `worlds`, `settings`, `unlock`,
+`conquered`, `credits`, `tutorial` (Adventure's), `open-water-tutorial`, `shop`, `shop-hints` (the Shop's tutorial), or
+`pause` (with `-arcadePlaytest` for the level to pause). It plays in a staged save of its own (`biggerFish.screen`:
+Shallow Reef conquered, the tutorial seen), which never syncs to iCloud. Add `-arcadeMap <world ID>` for a level map, `-arcadeUnlocked YES` or `NO` for
 either side of the unlock, or `-arcadePlaytest` with `-arcadeResult` for a result card. `-arcadeScreenCapture <name>`
 saves the screen once it settles, at full resolution, to the app's `Documents/ScreenCheck/<name>.png`: an iPad
 simulator held upright shows the landscape-only game shrunk to fit, in its own screenshots too.
@@ -355,8 +465,23 @@ Bigger Fish, separate from Math Reef. `ArcadeAnalytics.isEnabled` controls colle
 on for the beta, with the endpoint, policy, and report live on brightbench.app.
 No player/install/session IDs, exact play timestamps, device information, or trajectories are sent.
 The paywall funnel (where the unlock's screen was shown from, purchase and restore outcomes, a milestone when a
-world's ten main levels are beaten, and whether each run had the unlock) is built but stays off behind
-`ArcadeAnalytics.sendsPaywallEvents` until brightbench.app accepts it and the privacy policy describes it.
+world's ten main levels are beaten, and whether each run had the unlock) went on with the unlock's sale
+(`ArcadeAnalytics.sendsPaywallEvents`).
+
+The Open Water and the pearl shop report behind `ArcadeAnalytics.sendsOpenWaterEvents` (on: brightbench.app accepts
+them, kraigstrong/BrightBench#85, and the privacy policy describes them): one `endless` summary per run from its first level
+(`ArcadeOpenWaterMetrics`: levels cleared, fish, pearls, game seconds, a new best, levels that waited on the next
+plan and for how long, the slowest plan, dressed), with Retry or leaving as its `decision` and once-per-install
+milestones for the first run and the first time round the worlds; one `shop` event per visit (door, pearls in hand,
+looks bought, and the Open Water runs before an install's first purchase); `earned` once per look; whether each
+campaign run was played `dressed`; and, at a launch's first run, the looks worn (`outfit`, counted piece by piece,
+never with a run). Every Open Water run shares one context (world `open-water`, seed `"0"`,
+`ArcadeAnalytics.openWaterRevision`): a run's own seed would make a stats row per run. Bump the revision when the
+run's worlds, ramp, dealing, or the planner change. Headless studies and runs started part-way in don't report.
+
+Events go in batches of `ArcadeAnalytics.batchSize` (25), when the app goes to the background or a level is
+interrupted, and at launch, not after every run: each send is a billed Redis write on brightbench.app, and the same
+counters in a batch add up into one. Simulator builds never collect.
 
 The schema records content identity (world, campaign/endless mode, displayed slot, original setup,
 seed, content revision, app version/build/channel), outcomes, local attempts-to-first-clear,

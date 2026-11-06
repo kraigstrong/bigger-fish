@@ -96,7 +96,7 @@ struct ArcadeSettingsTests {
         let was = ArcadeSettings.shared.vibrationOn
         defer { ArcadeSettings.shared.vibrationOn = was }
         func play() -> [GameScene.Haptic] {
-            let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+            let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
             let view = SKView(frame: CGRect(origin: .zero, size: GameTuning.playfieldSize))
             view.presentScene(scene)
             defer { withExtendedLifetime(view) {} }

@@ -28,6 +28,13 @@ WORLDS = [
     ('sunset-cove', 'Sunset Cove', 'Watch the boats. Leave the bait.', (255, 128, 143)),
     ('midnight-zone', 'Midnight Zone', 'Light the way. Mind the dark.', (255, 168, 77)),
 ]
+# From 1.1: the home screen's two ways to play, each in its card's color (lighter, to read over water), what it is under
+# it, and the pearls and Shop that go with the Open Water.
+MODES = [
+    ('mode-adventure', 'Adventure', 'Five worlds. 75 levels.', (110, 222, 214)),
+    ('mode-open-water', 'Open Water', 'An endless run. How far can you get?', (128, 186, 255)),
+]
+MODE_BEATS = [('gather-pearls', 'GATHER PEARLS.'), ('spend-them-on-looks', 'SPEND THEM ON LOOKS.')]
 
 
 def font(face, size):
@@ -111,6 +118,10 @@ def main():
     for slug, title, motto, color in WORLDS:
         caption([(title.upper(), HEAVY, 92, color + (255,)), (motto, DEMI, 42, WHITE)]).save(
             os.path.join(out, 'world-' + slug + '.png'))
+    for slug, title, motto, color in MODES:
+        caption([(title.upper(), HEAVY, 92, color + (255,)), (motto, DEMI, 42, WHITE)]).save(os.path.join(out, slug + '.png'))
+    for name, text in MODE_BEATS:
+        caption([(text, HEAVY, 104, WHITE)]).save(os.path.join(out, name + '.png'))
     end_card(RELEASE_LINE).save(os.path.join(out, 'end-site.png'))
     end_lockup().save(os.path.join(out, 'end-store.png'))
 

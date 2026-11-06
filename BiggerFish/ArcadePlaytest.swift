@@ -55,7 +55,7 @@ enum ArcadePlaytest {
     /// Play with or without the unlock, ignoring StoreKit: -arcadeUnlocked YES (or NO).
     static var unlockOverride: Bool? {
         // App Store captures and footage show every world open, with no price anywhere.
-        if StoreCapture.moment != nil || StoreFootage.request != nil { return true }
+        if StoreCapture.moment != nil || StoreFootage.request != nil || StoreFootage.shopTour { return true }
         let args = ProcessInfo.processInfo.arguments
         guard let flag = args.firstIndex(of: "-arcadeUnlocked"), args.indices.contains(flag + 1) else { return nil }
         return args[flag + 1] == "YES"
@@ -70,10 +70,15 @@ enum ArcadePlaytest {
     }
 
     /// A screen to open at launch, to check its layout at a device's size (an iPad, a small phone):
-    /// -arcadeScreen worlds, settings, unlock, conquered, credits, tutorial, or pause (with -arcadePlaytest for the
-    /// level to pause). Add -arcadeMap <world ID> for a level map, -arcadeUnlocked YES or NO for either side of the
+    /// -arcadeScreen home, new-player (the home screen as a new player first sees it), worlds (Adventure's world map),
+    /// settings, unlock, conquered, credits, tutorial (Adventure's), open-water-tutorial, shop (the pearl shop),
+    /// shop-hints (the Shop's tutorial over it), or pause (with
+    /// -arcadePlaytest for the level to pause). Add -arcadeMap <world ID> for a level map, -arcadeUnlocked YES or NO for either side of the
     /// unlock ("conquered" shows the unlock's offer without it), or -arcadePlaytest with -arcadeResult for a result card.
-    enum Screen: String { case worlds, settings, unlock, conquered, credits, tutorial, pause }
+    enum Screen: String {
+        case home, newPlayer = "new-player", worlds, settings, unlock, conquered, credits, tutorial
+        case openWaterTutorial = "open-water-tutorial", pause, shop, shopHints = "shop-hints"
+    }
 
     static let screen: Screen? = argument("-arcadeScreen").flatMap(Screen.init(rawValue:))
 
@@ -96,6 +101,13 @@ enum ArcadePlaytest {
         }
     }
 
+    /// `-openWater <seed>` (or `-openWater random`): straight into an Open Water run (`OpenWater`) with that seed, and
+    /// with `-openWaterLevel <n>`, from its nth level (from 1: 2 is stage 1's Jelly Bloom).
+    static var openWaterSeed: UInt64? {
+        argument("-openWater").map { UInt64($0) ?? .random(in: 1...UInt64(UInt32.max)) }
+    }
+    static var openWaterStart: Int { argument("-openWaterLevel").flatMap(Int.init).map { max(0, $0 - 1) } ?? 0 }
+
     private static func argument(_ flag: String) -> String? {
         let args = ProcessInfo.processInfo.arguments
         guard let index = args.firstIndex(of: flag), args.indices.contains(index + 1) else { return nil }
@@ -103,14 +115,24 @@ enum ArcadePlaytest {
     }
 
     /// A screen check's own saved state, wiped and staged at launch as the App Store captures stage theirs: Shallow
-    /// Reef conquered with a best time on each level, the tutorial and every "conquered" screen seen. Never backed up
-    /// to iCloud (`ArcadeProgress.backup`).
+    /// Reef conquered with a best time on each level, the tutorial and every "conquered" screen seen; for the pearl
+    /// shop, a few pearls and two looks bought and on; for the home screen, Jelly Bloom's Deep End too, a best run,
+    /// pearls, and a look on; for a new player, nothing at all. Never backed up to iCloud
+    /// (`ArcadeProgress.backup`).
     static let screenSuiteName = "biggerFish.screen"
 
-    private static let screenDefaults: UserDefaults? = screen.map { _ in
+    private static let screenDefaults: UserDefaults? = screen.map { screen in
         let defaults = UserDefaults(suiteName: screenSuiteName)!
         defaults.removePersistentDomain(forName: screenSuiteName)
-        if let data = try? JSONEncoder().encode(StoreCapture.stagedSave(for: .conquered)) {
+        var save = StoreCapture.stagedSave(for: screen == .home ? .home : .conquered)
+        if screen == .newPlayer { save = ArcadeSave() }
+        if screen == .shop || screen == .shopHints {
+            save.pearlsEarned = ["screen": 160]
+            save.pearlsSpent = ["screen": 115]
+            save.ownedLooks = ["color.gold", "hat.beanie"]
+            save.wornLook = ArcadeSave.WornLook(items: ["color": "color.gold", "hat": "hat.beanie"], changed: 0)
+        }
+        if let data = try? JSONEncoder().encode(save) {
             defaults.set(data, forKey: ArcadeProgress.key)
         }
         return defaults

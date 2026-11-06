@@ -3,11 +3,15 @@
 #
 #   scripts/bigger-fish-trailer.sh
 #
-# Records the footage scripts/trailer/edl.json needs that isn't in build/footage/ yet (scripts/bigger-fish-footage.sh),
+# Records the footage scripts/trailer/edl.json needs that isn't in build/footage/ yet (scripts/bigger-fish-footage.sh:
+# levels, Open Water runs as open-water.<seed>, and the pearl shop's tour as shop-tour),
 # renders the captions in the game's typeface (scripts/trailer/captions.py), and composes the cut over the game's
 # music (scripts/trailer/compose.py). Output goes to build/trailer/ (ignored by git):
 #   bigger-fish-trailer.mp4       1920x886, 60 fps, ending on the release line: for biggerfish.app
-#   bigger-fish-app-preview.mp4   1920x886, 30 fps, no release line: the App Store preview (the 6.9" iPhone size)
+#   bigger-fish-app-preview.mp4   1920x886, 30 fps, no release line: the App Store preview (the 6.9" iPhone size,
+#                                 which the iPhone Duo's slot takes too)
+#   bigger-fish-app-preview-ipad.mp4  1600x1200: the same preview for the 13-inch iPad, full width over a soft blur of
+#                                 itself above and below, as an iPad shows the game between bands of water
 #
 # Needs ffmpeg and Python 3 with Pillow and NumPy. Recordings are deterministic, but a level that's replanned (one
 # that isn't frozen yet) plays differently: delete its build/footage/<name>.mp4 to record it again, and check the
@@ -28,6 +32,10 @@ missing=$(python3 - "$EDL" "$FOOTAGE" <<'EOF'
 import json, os, re, sys
 edl, footage = sys.argv[1:3]
 for name in sorted({shot['footage'] for shot in json.load(open(edl))['shots']}):
+    if name == 'shop-tour':
+        if not os.path.exists(os.path.join(footage, name + '.mp4')):
+            print('shop - - -')
+        continue
     match = re.fullmatch(r'([a-z-]+\.\d+)-(collector|opportunist|cautious)-([\d.]+)-([\d.]+)', name)
     if not match:
         sys.exit(f'not a recording name: {name}')
@@ -38,8 +46,13 @@ EOF
 built=0
 while read -r level policy from to; do
     [ -n "$level" ] || continue
-    echo "recording $level ($policy bot, $from-${to}s)"
-    FOOTAGE_NO_BUILD=$built scripts/bigger-fish-footage.sh "$level" "$policy" "$from" "$to" >/dev/null </dev/null
+    if [ "$level" = shop ]; then
+        echo "recording the pearl shop's tour"
+        FOOTAGE_NO_BUILD=$built scripts/bigger-fish-footage.sh --shop >/dev/null </dev/null
+    else
+        echo "recording $level ($policy bot, $from-${to}s)"
+        FOOTAGE_NO_BUILD=$built scripts/bigger-fish-footage.sh "$level" "$policy" "$from" "$to" >/dev/null </dev/null
+    fi
     built=1
 done <<< "$missing"
 
@@ -47,3 +60,6 @@ mkdir -p "$OUT/captions"
 python3 scripts/trailer/captions.py "$OUT/captions"
 python3 scripts/trailer/compose.py "$EDL" "$FOOTAGE" "$OUT/captions" "$OUT/bigger-fish-trailer.mp4" --site
 python3 scripts/trailer/compose.py "$EDL" "$FOOTAGE" "$OUT/captions" "$OUT/bigger-fish-app-preview.mp4" --store --fps 30
+ffmpeg -v error -y -i "$OUT/bigger-fish-app-preview.mp4" -filter_complex \
+    "[0:v]split=2[bg][fg];[bg]scale=1600:1200:force_original_aspect_ratio=increase,crop=1600:1200,boxblur=40:2,eq=brightness=-0.12[soft];[fg]scale=1600:-2[wide];[soft][wide]overlay=(W-w)/2:(H-h)/2,format=yuv420p" \
+    -c:v libx264 -profile:v high -preset slow -crf 16 -r 30 -c:a copy -movflags +faststart "$OUT/bigger-fish-app-preview-ipad.mp4"

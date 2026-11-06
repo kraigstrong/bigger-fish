@@ -195,7 +195,8 @@ struct MeetingPlannerTests {
         for (level, trial, source) in [(0, "Midnight Zone 1", 0), (4, "Midnight Zone 2", 4), (8, "Midnight Zone 3", 9)] {
             var spec = GameTuning.reefLabSpecs[source]
             spec.name = trial
-            let played = (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }!
+            // Planned as they were, each meal as if standing still at its meeting point (`contactTimed`).
+            let played = (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, contactTimed: false) }.first { $0.issues.isEmpty && !$0.hasGiantWall }!
             #expect(plans[level].fish == played.fish && plans[level].seed == played.seed, "\(trial)")
         }
         // The last of 1.0's five worlds, after Sunset Cove.

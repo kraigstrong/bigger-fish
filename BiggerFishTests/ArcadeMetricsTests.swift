@@ -123,14 +123,15 @@ struct ArcadeMetricsTests {
         await withCheckedContinuation { continuation in
             DispatchQueue.main.async { continuation.resume() }
         }
-        let runs = a.queue.filter { $0.kind == .run }
-        // exitMetrics flushes; inspect the actual outgoing batch.
-        let death = try #require(sender.batches.flatMap(\.events).first { $0.kind == .run })
+        // Leaving doesn't send (events go in batches); what's sent and what waits make the whole.
+        #expect(sender.batches.isEmpty)
+        let events = sender.batches.flatMap(\.events) + a.queue
+        let death = try #require(events.first { $0.kind == .run })
         #expect(death.outcome == "death" && death.cause == "predator")
         #expect(death.summary?.fatalRatio == 2)
         #expect(death.summary?.snapshot.path != .unknown)
-        #expect(runs.isEmpty)
-        #expect(!sender.batches.flatMap(\.events).contains { $0.outcome == "quit" || $0.outcome == "abandoned" })
+        #expect(events.filter { $0.kind == .run }.count == 1)
+        #expect(!events.contains { $0.outcome == "quit" || $0.outcome == "abandoned" })
         withExtendedLifetime(view) {}
     }
 
@@ -158,7 +159,8 @@ struct ArcadeMetricsTests {
 
     @Test func payloadPinsTheApprovedGameplaySummaryKeys() throws {
         let d = defaults(), sender = Sender()
-        let analytics = ArcadeAnalytics(defaults: d, sender: sender, enabled: true)
+        // The campaign's own keys, with the Open Water's events (which add `dressed`) held off.
+        let analytics = ArcadeAnalytics(defaults: d, sender: sender, enabled: true, openWaterEvents: false)
         analytics.start(context)
         var accumulator = ArcadeMetricAccumulator()
         accumulator.advance(seconds: 3, circuits: 0.25)
@@ -187,7 +189,7 @@ struct ArcadeMetricsTests {
         // others. Every value is sent once here, so brightbench.app's fixture (bigger-fish-swift-paywall.json, copied
         // from the file written below) proves its allowlist takes them all.
         let paywallSender = Sender()
-        let paywall = ArcadeAnalytics(defaults: defaults(), sender: paywallSender, enabled: true, paywallEvents: true)
+        let paywall = ArcadeAnalytics(defaults: defaults(), sender: paywallSender, enabled: true, paywallEvents: true, openWaterEvents: false)
         let sources = ArcadeAnalytics.OfferSource.allCases
         paywall.hasUnlock = false
         for source in sources { paywall.offerShown(source) }
@@ -212,7 +214,7 @@ struct ArcadeMetricsTests {
         #expect(keys("restore") == [["kind", "outcome", "source"]])
         #expect(keys("milestone", "world_conquered") == [["kind", "name", "context"]])
         #expect(keys("run") == [["kind", "context", "outcome", "cause", "replay", "attempt", "summary", "unlocked"]])
-        let offerSources: Set = ["padlocked_level", "next_level", "unlock_all", "locked_world", "conquered"]
+        let offerSources: Set = ["padlocked_level", "next_level", "unlock_all", "locked_world", "conquered", "open_water_limit"]
         #expect(values("offer", "source") == offerSources)
         #expect(values("purchase", "outcome") == ["unlocked", "pending", "cancelled", "failed"])
         #expect(values("purchase", "source").isSubset(of: offerSources))

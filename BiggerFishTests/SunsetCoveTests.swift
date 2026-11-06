@@ -104,7 +104,8 @@ struct SunsetCoveTests {
         for (old, index) in [("Sunset Cove 1", 1), ("Sunset Cove 2", 4), ("Sunset Cove 3", 8)] {
             var spec = GameTuning.sunsetSpecs[index]
             spec.name = old
-            let trial = (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
+            // Planned as they were, each meal as if standing still at its meeting point (`contactTimed`).
+            let trial = (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, contactTimed: false) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
             #expect(plans[index].fish == trial?.fish, "\(plans[index].spec.name)")
             #expect(plans[index].hooks == trial?.hooks, "\(plans[index].spec.name)")
         }
@@ -116,9 +117,7 @@ struct SunsetCoveTests {
     @Test func everyHookKeepsClearOfTheReferenceRoute() {
         for (plan, level) in zip(plans, GameTuning.sunsetHooks) {
             let route = HookLayout.Route(fish: plan.fish, crossings: plan.predicted,
-                                         timeline: PlayerTimeline.reference(meals: plan.fish.filter(\.referenceMeal).map { ($0.meetingDistance, $0.radius) },
-                                             crossSeconds: CGFloat(plan.spec.crossSeconds),
-                                             until: GameTuning.playfieldSize.width * CGFloat(plan.spec.worldScreens) * 1.05))
+                                         timeline: plan.referenceTimeline)
             #expect(route.meals.count == plan.fish.filter(\.referenceMeal).count)
             // A hook retimed by hand is out of the way you can really swim, which isn't the reference route there.
             let retimed = GameTuning.sunsetHooksSweptHigh[plan.spec.name] ?? []

@@ -100,3 +100,62 @@ struct ArcadeMetricAccumulator {
     mutating func bounce() { summary.bounces = min(10000, summary.bounces + 1) }
     mutating func fatal(ratio: Double?) { summary.fatalRatio = ratio.map { min(1000, $0) } }
 }
+
+/// One Open Water run, start to end (`ArcadeAnalytics`' `endless` event): levels cleared, fish eaten (its score), pearls
+/// taken, game seconds across every level, whether it beat the best kept so far, the levels that waited on the next
+/// one's plan and the game seconds spent waiting, the slowest of its levels' plans (wall seconds, off the main thread),
+/// and whether your fish wore any look. Counts saturate as the run summaries' do; they never limit play.
+struct ArcadeOpenWaterMetrics: Codable, Equatable {
+    var levels = 0
+    var fish = 0
+    var pearls = 0
+    var seconds: Double = 0
+    var best = false
+    var waits = 0
+    var waitSeconds: Double = 0
+    var slowestPlan: Double = 0
+    var dressed = false
+}
+
+/// An Open Water run's numbers as it plays, in memory only. Each level's clock starts again at 0, so a cleared level's
+/// seconds are added up here.
+struct OpenWaterMetricAccumulator {
+    private(set) var levels = 0
+    private var clearedSeconds: Double = 0
+    private var waits = 0
+    private var waitSeconds: Double = 0
+    /// When (on the level's clock) the level was done and began waiting for the next one's plan.
+    private var waitingSince: Double?
+    private var slowestPlan: Double = 0
+
+    /// The level is done, but the next one isn't planned yet: it plays on until it is.
+    mutating func waiting(at seconds: Double) {
+        if waitingSince == nil { waitingSince = seconds }
+    }
+
+    /// The level was cleared `seconds` into it.
+    mutating func cleared(at seconds: Double) {
+        if let since = waitingSince {
+            waits += 1
+            waitSeconds += max(0, seconds - since)
+            waitingSince = nil
+        }
+        clearedSeconds += max(0, seconds)
+        levels += 1
+    }
+
+    /// One of the run's levels took `seconds` to plan.
+    mutating func planned(seconds: Double) {
+        if seconds.isFinite { slowestPlan = max(slowestPlan, seconds) }
+    }
+
+    /// The run so far, `seconds` into the level it's on. A wait still going counts as one.
+    func summary(at seconds: Double, fish: Int, pearls: Int, best: Bool, dressed: Bool) -> ArcadeOpenWaterMetrics {
+        let total = min(3600, clearedSeconds + max(0, seconds))
+        let open = waitingSince.map { max(0, seconds - $0) }
+        let levels = min(1000, levels)
+        return ArcadeOpenWaterMetrics(levels: levels, fish: min(10000, max(0, fish)), pearls: min(10000, max(0, pearls)),
+            seconds: total, best: best, waits: min(levels + 1, waits + (open == nil ? 0 : 1)),
+            waitSeconds: min(total, waitSeconds + (open ?? 0)), slowestPlan: min(600, slowestPlan), dressed: dressed)
+    }
+}

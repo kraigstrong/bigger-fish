@@ -66,7 +66,7 @@ struct RingBuffer<Element> {
 /// Where the player was when a frame was slow.
 struct HitchContext: Equatable {
     enum Screen: String {
-        case launch, worldMap = "world_map", levelMap = "level_map", settings, unlock, conquered, tuning
+        case launch, home, worldMap = "world_map", levelMap = "level_map", settings, unlock, conquered, tuning
         case level, tutorial, credits
 
         /// Shown as a sheet over a scene, which stays up underneath.

@@ -226,7 +226,7 @@ struct DrawOrderTests {
     }
 
     private static func tutorial(_ capture: @escaping Capture) {
-        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let scene = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let view = present(scene)
         defer { withExtendedLifetime(view) {} }
         shoot(scene, view, "tutorial ready", keyframe: true, capture)
@@ -242,7 +242,7 @@ struct DrawOrderTests {
         scene.debugAdvance(seconds: 1)
         shoot(scene, view, "tutorial finale later", keyframe: false, capture)
 
-        let wall = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let wall = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         let wallView = present(wall)
         defer { withExtendedLifetime(wallView) {} }
         _ = wall.debugPlayTutorial(missesAWallMeal: true, from: .eatEnough)

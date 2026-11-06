@@ -28,12 +28,13 @@ public enum OceanMapArt {
             (0.51, 18, SKColor(red: 0.62, green: 0.45, blue: 0.95, alpha: 0.9)),
             (0.93, 14, SKColor(red: 0.98, green: 0.45, blue: 0.55, alpha: 0.9)),
         ]
-        for coral in corals {
+        for (index, coral) in corals.enumerated() {
             let blob = SKShapeNode(ellipseOf: CGSize(width: coral.r * 2, height: coral.r * 2.4))
             blob.position = CGPoint(x: size.width * coral.x, y: size.height * 0.12 + coral.r * 0.6)
             blob.fillColor = coral.color
             blob.strokeColor = .clear
-            blob.zPosition = 1
+            // Each over the one before: neighbors meet on a narrow screen, and the apps ignore sibling order.
+            blob.zPosition = 1 + CGFloat(index) / 100
             node.addChild(blob)
         }
         return node

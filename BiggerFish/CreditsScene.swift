@@ -79,7 +79,7 @@ final class CreditsScene: SKScene, ObservableObject {
     private let settings: ArcadeSettings
     private var world = WrappedWorld(width: 1)
     private var player: Fish!
-    private let playerNode = FishNode(style: .player, isPlayer: true, tailPhase: 0)
+    private let playerNode: FishNode
     private var swimmers: [Swimmer] = []
     /// Names still to come, in order: a missed one goes back to the front.
     private var waiting: [Int] = []
@@ -126,8 +126,10 @@ final class CreditsScene: SKScene, ObservableObject {
     /// `GameScene.prepareHaptics`).
     private var hapticsWaitForWindow = false
 
+    /// `look`: what your fish wears (`PlayerLook`), its one thing of the player's.
     init(credits: ArcadeCredits = .shipped, reduceMotion: Bool = UIAccessibility.isReduceMotionEnabled,
-         settings: ArcadeSettings = .shared) {
+         settings: ArcadeSettings = .shared, look: PlayerLook = .plain) {
+        playerNode = look.fish()
         self.credits = credits
         names = credits.names
         self.reduceMotion = reduceMotion

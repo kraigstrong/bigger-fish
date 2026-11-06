@@ -38,8 +38,9 @@ final class WorldMapNode: SKNode {
     private let fish = FishNode(style: .player, isPlayer: true, tailPhase: 0)
     private var fishHome = CGPoint.zero
 
-    /// `fishCrown` is the focused world's crown, since the fish waits beside that world.
-    init(size: CGSize, worlds: [WorldStop], focus: Int, fishCrown crown: Crown) {
+    /// `fishCrown` is the focused world's crown, since the fish waits beside that world. `corners` moves the title clear of
+    /// a camera in the corner.
+    init(size: CGSize, worlds: [WorldStop], focus: Int, fishCrown crown: Crown, corners: ReefCorners = ReefCorners()) {
         super.init()
         fish.setHeadwear(fishCrown(crown))
         let bed = seabed(size: size)
@@ -48,7 +49,7 @@ final class WorldMapNode: SKNode {
 
         let title = reefLabel("Math Reef", fontSize: 30, heavy: true)
         title.horizontalAlignmentMode = .left
-        title.position = CGPoint(x: 40, y: size.height - 38)
+        title.position = CGPoint(x: 40 + corners.left, y: size.height - 38)
         addChild(title)
 
         // Clear of the Dynamic Island on either side (its landscape safe-area inset, the largest of any
@@ -61,9 +62,12 @@ final class WorldMapNode: SKNode {
         trail.zPosition = -1
         addChild(trail)
 
-        for (world, center) in zip(worlds, centers) {
+        for (index, (world, center)) in zip(worlds, centers).enumerated() {
             let stop = SKNode()
             stop.position = center
+            // Each over the one before: on a narrow screen a world's name meets the next world's circle, and the scene
+            // ignores sibling order.
+            stop.zPosition = CGFloat(index) / 100
             stop.alpha = world.comingSoon ? 0.5 : 1
 
             let circle = SKShapeNode(circleOfRadius: 40)
@@ -151,8 +155,9 @@ final class LevelMapNode: SKNode {
     private var dragging = false
 
     init(size: CGSize, title: String, color: SKColor, levels: [LevelStop], stars: (earned: Int, total: Int),
-         crown: Crown, focus: Int) {
-        backCenter = CGPoint(x: 46, y: size.height - 36)
+         crown: Crown, focus: Int, corners: ReefCorners = ReefCorners()) {
+        // The title and its tallies follow the back button clear of a camera in the corner.
+        backCenter = CGPoint(x: 46 + corners.left, y: size.height - 36)
         super.init()
         fish.setHeadwear(fishCrown(crown))
 
@@ -189,24 +194,6 @@ final class LevelMapNode: SKNode {
         addChild(header(size: size, title: title, stars: stars, crown: crown))
     }
 
-    #if DEBUG
-    /// Slides the path the least distance that leaves no stop within `clearance` of `x`. The
-    /// simulator draws the Dynamic Island there, and a store capture fills it in from the water.
-    func debugKeepClear(ofX x: CGFloat, clearance: CGFloat) {
-        let start = content.position.x
-        for step in 0...120 {
-            for shift in [CGFloat(step), -CGFloat(step)] {
-                let offset = start + shift
-                guard offset <= 0, offset >= minOffset else { continue }
-                if !centers.contains(where: { abs($0.x + offset - x) < clearance }) {
-                    content.position.x = offset
-                    return
-                }
-            }
-        }
-    }
-    #endif
-
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
@@ -217,8 +204,11 @@ final class LevelMapNode: SKNode {
         CGPoint(x: centers[index].x + content.position.x, y: centers[index].y)
     }
 
-    /// How far the path is scrolled: 0 at the start, negative as later levels come into view.
-    var scrollOffset: CGFloat { content.position.x }
+    /// How far the path is scrolled: 0 at the start, negative as later levels come into view. Set, it stops at both ends.
+    var scrollOffset: CGFloat {
+        get { content.position.x }
+        set { content.position.x = newValue.clamped(minOffset, 0) }
+    }
 
     func touchBegan(at point: CGPoint) {
         touchStart = point
@@ -297,7 +287,9 @@ final class LevelMapNode: SKNode {
             number = SKColor(white: 1, alpha: 0.7)
             let lock = padlock(size: r * 0.8)
             lock.position = CGPoint(x: r * 0.72, y: r * 0.72)
-            lock.zPosition = 2
+            // Over the number (1); its badge under the stars (2) of a level played before, and its symbol (+1) over
+            // them: the scene ignores sibling order.
+            lock.zPosition = 1.5
             stop.addChild(lock)
         }
         circle.lineWidth = 4

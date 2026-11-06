@@ -1,0 +1,11 @@
+No account or sign-in. Hold anywhere to rise, release to fall. Bigger Fish runs on iPhone, iPad, and iPhone Duo, folded or open. The home screen has two modes: Adventure (five worlds of levels; tap a world, then a level) and Open Water (an endless run through all five worlds, a new level each time).
+
+Free to try: Shallow Reef's ten levels, the first two levels of each other world, and 5 Open Water runs a day (a run counts once it takes its first pearl). The one-time in-app purchase (com.kraigstrong.biggerfish.allworlds, non-consumable) opens every world and Deep End and removes the Open Water limit. To reach it, tap Unlock all on the home screen or the world map, tap a padlocked level such as Jelly Bloom 3, or start an Open Water run once the day's runs are used up. Restore purchase is on the same screen and in Settings.
+
+Pearls are earned only by playing. They can't be bought and have no real-money value. They buy cosmetic looks for your fish in the pearl shop, from Shop on the home screen or Shop after a run.
+
+Six looks are limited editions. Outside their dates they're shown dimmed with their dates, and can be tried on but not bought:
+- Santa hat, Reindeer antlers and Red nose: Dec 1 – Jan 6.
+- Heart glasses, Polka hearts and the Hearts trail: Feb 1 – 15.
+
+The app sends anonymous gameplay counts via a first-party service (levels started and cleared, how runs end, how far Open Water runs get, which looks are bought and worn, and how often the unlock is offered, bought or restored), with no identifiers, as described in the privacy policy at https://biggerfish.app/privacy.

@@ -69,6 +69,15 @@ final class ReefAnalytics {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || NSClassFromString("XCTestCase") != nil
     }
+    /// Simulator builds never record or send either: runs there (Xcode's, agents', screenshots) aren't real play, and
+    /// each send is a write to brightbench.app's Redis, billed per command, so a simulator left running costs money.
+    static var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
     /// brightbench.app's analytics endpoint (kraigstrong/BrightBench, `apps/marketing`).
     static let endpoint = URL(string: "https://brightbench.app/api/math-reef/events")!
     /// Sent as `X-App-Key` to filter out stray bots. Not a secret: anyone can pull it out of the
@@ -108,7 +117,7 @@ final class ReefAnalytics {
     init(
         defaults: UserDefaults = .standard,
         sender: AnalyticsSender = URLSessionAnalyticsSender(),
-        enabled: Bool = ReefAnalytics.isEnabled && !ReefAnalytics.isRunningTests
+        enabled: Bool = ReefAnalytics.isEnabled && !ReefAnalytics.isRunningTests && !ReefAnalytics.isSimulator
     ) {
         self.defaults = defaults
         self.sender = sender
@@ -159,10 +168,18 @@ final class ReefAnalytics {
         }
     }
 
-    /// A locked level was tapped and the unlock prompt shown. Once per install.
+    /// A locked level was tapped and the unlock prompt shown: the kid-facing "ask a grown-up",
+    /// before the parental gate. Once per install.
     func paywallShown() {
         guard enabled else { return }
         reportOnce("paywall_shown")
+    }
+
+    /// A grown-up got past the parental gate to the unlock screen (price, buy, and restore), from
+    /// the unlock prompt or from Settings. Once per install.
+    func unlockScreenShown() {
+        guard enabled else { return }
+        reportOnce("unlock_screen_shown")
     }
 
     /// The full game became unlocked on this install: bought, restored, or through Family Sharing.
@@ -200,13 +217,6 @@ final class ReefAnalytics {
             defaults.set(data, forKey: pendingKey)
         }
         flush(completion: completion)
-    }
-
-    /// The round ended without being played out or quit (the scene rebuilt itself mid-round), so it
-    /// counts as nothing rather than as abandoned later.
-    func roundDiscarded() {
-        round = nil
-        defaults.removeObject(forKey: pendingKey)
     }
 
     /// Back from the background with the round still going, so it isn't abandoned.

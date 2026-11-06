@@ -23,9 +23,16 @@ cd Packages/FishKit && xcodebuild test -scheme FishKit -destination 'platform=iO
 The FishKit scheme inside the Xcode project can't run tests; run the package's tests from its own
 folder as shown.
 
-CI (`.github/workflows/ci.yml`) tests only the app a pull request changes: FishKit, the project, or CI
-changes test all three, and docs alone test nothing. A push to main tests all three. CI uses the Xcode in
-`.xcode-version` and treats warnings as errors, so keep the build warning-free.
+**Shut down every simulator you boot as soon as you're done with it** (`xcrun simctl shutdown <udid>`):
+test runs, app runs, and screenshots alike. Simulators left running cost Kraig money: in October 2026
+they ran up his Upstash bill. Leave alone any simulator you didn't boot.
+
+CI (`.github/workflows/ci.yml`) tests only the app a pull request changes: the project tests both apps,
+FishKit or CI changes test all three, and docs, scripts, and App Store listing text alone test nothing. A
+pull request tests an optimized build (`-O`), so don't rely on `assert()`: use `precondition()` or a test.
+A push to main runs nothing, since its pull request tested the merge; the nightly run tests all three in
+Debug with coverage. CI uses the Xcode in `.xcode-version` and treats warnings as errors, so keep the build
+warning-free.
 
 The Bigger Fish planner tests re-plan a sample of Shallow Reef specs; CI re-plans every spec nightly. To
 re-plan them all locally, put `TEST_RUNNER_BIGGER_FISH_FULL_PLANNER_TESTS=1` in xcodebuild's environment.
@@ -61,8 +68,9 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
   (`kelpFrozen`, `reefLabFrozen`, `jellyLabFrozen`, `midnightFrozen`, `sunsetFrozen`), regenerate the world's plans file with its marker (for Kelp
   Forest, `touch build/arcade-development/kelp-plans.request`, then run
   `MeetingPlannerTests/manualWriteKelpPlans()`), and commit the JSON. **Freeze every level before
-  publishing (TestFlight or the App Store):** the shipped game loads saved plans and never plans on the device,
-  and a planner change can't alter a level players have. To change a frozen level, take it out of the frozen
+  publishing (TestFlight or the App Store):** the shipped game loads saved plans and never plans a campaign level
+  on the device, and a planner change can't alter a level players have. (The Open Water's levels are new every run,
+  so they alone are planned on the device, just in time: `OpenWater.plan`.) To change a frozen level, take it out of the frozen
   set with Kraig's OK, tune it in code, and freeze it again.
 - **Tuning constants stay in one place per app:** `ReefTuning` at the top of
   `MathReef/PracticeScene.swift` and `BiggerFish/GameTuning.swift`.
@@ -102,4 +110,5 @@ Tests use Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Unit
 - **Releases:** each app archives from `main` at a tagged commit (`math-reef-v1.0.1`,
   `bigger-fish-v0.4-beta.1`). Unreleased work for one app can sit on `main` while the other ships: they're
   separate targets. From 1.0, Bigger Fish sells its unlock in every build (`ArcadeUnlock.isSelling`), TestFlight
-  in the sandbox.
+  in the sandbox. Archive with the Xcode in `.xcode-version` or newer: only a build with the iOS 27.1 SDK fills an
+  iPhone Duo's screens, and an older one runs there in a small 667×375 window.

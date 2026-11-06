@@ -41,7 +41,11 @@ struct PracticeSession {
         self.requeueGap = requeueGap
         self.pool = pool
         upcoming = facts
-        while upcoming.count < targetCorrect && appendFiller(avoiding: nil) {}
+        // A loop, not `while … && appendFiller(…)`: Xcode 27.1's compiler rejects a mutating call in an initializer's
+        // `&&` (its right side captures `self`).
+        while upcoming.count < targetCorrect {
+            if !appendFiller(avoiding: nil) { break }
+        }
     }
 
     var isComplete: Bool { result.correctAnswers >= targetCorrect }

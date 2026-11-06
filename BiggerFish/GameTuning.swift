@@ -62,6 +62,17 @@ enum GameTuning {
     static let launchBarThickness: CGFloat = 4
     static let launchBarSweepSeconds: Double = 0.55
 
+    /// The world map's stops are spread across the screen while that leaves them at least `worldMapTightestSpacing`
+    /// apart (in points): every iPhone's five worlds, the tightest an iPhone 16's at 118. Any closer, and a world's
+    /// name would run into the next world's ring, so they're `worldMapSpacing` apart instead, on a map that scrolls
+    /// sideways (`ArcadeWorldMap.stops`).
+    static let worldMapTightestSpacing: CGFloat = 116
+    static let worldMapSpacing: CGFloat = 130
+    /// The world map's two rows of worlds, as shares of its height up from the bottom: a little lower and closer
+    /// together than Math Reef's (0.60 and 0.38), so on the shortest phones your fish over a top-row world stays
+    /// clear of the title and buttons, and the bottom row's names clear "Choose a world".
+    static let worldMapRows: (upper: CGFloat, lower: CGFloat) = (0.56, 0.36)
+
     // MARK: Haptics (`GameScene.buzz`)
 
     /// Strengths (0–1): an ordinary meal's light tap, and a jellyfish bounce's bump. Close calls, stings, and being
@@ -77,6 +88,8 @@ enum GameTuning {
     static let effectVolume: Float = 0.7
     /// The level-clear chime is fuller than the other effects, so it plays a little quieter.
     static let clearSoundVolume: Float = 0.55
+    /// Buying a look (Kraig, 2026-10-27: "Video game treasure") is as full as the chime, so it plays as quietly.
+    static let buySoundVolume: Float = 0.55
     /// A jellyfish bounce reuses the gulp, sped up (and pitched up) by this much.
     static let bounceSoundRate: Float = 1.35
     /// Music sits under the effects; both tracks are normalized to -18 LUFS before this.
@@ -165,6 +178,9 @@ enum GameTuning {
     static let conqueredExitDelay: CGFloat = 1.6
     /// Seconds after a win/loss before a tap restarts (avoids accidental restarts from a held finger).
     static let restartDelay: CGFloat = 0.8
+    /// An Adventure level counts its fish down at the top once this many are left, so the end is in sight without a
+    /// long count from the start (Kraig, 2026-10-27: from 10, and the last one is "Last fish!").
+    static let fishLeftShownFrom = 10
 
     // MARK: Jelly Bloom
 
@@ -223,12 +239,18 @@ enum GameTuning {
     static let reviewRetryInterval: TimeInterval = 90 * 24 * 60 * 60
     /// How long after landing on the map the request waits, so it doesn't pop up mid-transition.
     static let reviewRequestDelay: TimeInterval = 1.0
+    /// A level beaten for the first time after this many deaths on it (in any number of sessions) is hard won: a high
+    /// point worth asking after.
+    static let reviewHardWonDeaths = 10
 
     // MARK: Free to try (`ArcadeUnlock`)
 
     /// Levels free without the unlock in each world after Shallow Reef (all ten of whose are free): a taste of what the
     /// unlock opens. 0 locks those worlds whole.
     static let freeLevelsPerWorld = 2
+    /// Open Water runs a day without the unlock (Kraig, 2026-10-26: "include it in the free mode, but limit to 5 runs per
+    /// day"), on each device. A run counts once it takes its first pearl ("first pearl is a great compromise!").
+    static let freeOpenWaterRunsPerDay = 5
 
     // MARK: Meeting planner
 
@@ -651,7 +673,7 @@ enum GameTuning {
         let spec = kelpSpecs[index]
         if let variation = kelpRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation) }
         guard ArcadeWorld.isDeepEnd(index) else { return MeetingPlanner.kelpPlan(spec) }
-        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall }
+        return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasGiantWall && !$0.hasWall }
             ?? MeetingPlanner.kelpPlan(spec)
     }
     #endif
@@ -659,6 +681,10 @@ enum GameTuning {
     /// points: room for you at the size you'd be) anywhere in the water.
     static let giantRadius: CGFloat = 60
     static let giantWallGap: CGFloat = 80
+    /// A wall, from the plan alone (`MeetingPlan.hasWall`): the plan's own route can't be swum with every fish, hook and
+    /// bell where the plan puts it, or its widest lane at its tightest is under this share of the water. 0: only a shut
+    /// route counts (what counts as too tight is Kraig's call; Heavyweights is 5.7% by the old measure and a favorite).
+    static let wallOpening: CGFloat = 0
     /// Levels re-rolled to another layout of the same settings. Kelp Forest 9's first had two giants just under
     /// the biggest you can grow in the opening; whichever ate first was out of reach for good.
     /// The Deep End is pinned to the layouts Kraig played (the first each with no planner complaints and no wall of
@@ -686,6 +712,9 @@ enum GameTuning {
     /// many seconds before the meeting.
     static let kelpTurnAwaySpeed: ClosedRange<CGFloat> = 0.45...0.7
     static let kelpTurnBefore: ClosedRange<CGFloat> = 0.55...0.9
+    /// On a jelly level (the Open Water's Jelly Bloom), a fish whose way in would cross a bell glides in from this much
+    /// higher or lower instead (screen points), nearest first, or swims straight in.
+    static let plannerJellyDetours: [CGFloat] = [60, 100, 140, 190]
     /// Columns start this many screens into the lap, so you start in open water, and stop as far before its end.
     static let kelpFirstColumnScreens: CGFloat = 0.8
     /// Kelp grows from this far below the bottom of the screen, so it's rooted in the seabed.
@@ -802,7 +831,7 @@ enum GameTuning {
     static let riptideLevels: [Level] = riptideSpecs.indices.map { index in
         let spec = riptideSpecs[index]
         let plan = riptideRerolls[spec.name].map { MeetingPlanner.kelpPlan(spec, variation: $0) }
-            ?? (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty }
+            ?? (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0) }.first { $0.issues.isEmpty && !$0.hasWall }
             ?? MeetingPlanner.kelpPlan(spec)
         var level = plan.level
         level.ecosystemSeedIndex = index
@@ -840,7 +869,7 @@ enum GameTuning {
         let spec = midnightSpecs[index], seedName = midnightSeedNames[spec.name]
         if let variation = midnightRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation, seedName: seedName) }
         return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
-            .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
+            .first { $0.issues.isEmpty && !$0.hasGiantWall && !$0.hasWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
     }
     #endif
     /// The dark multiplies everything outside your headlamp by this color: dim, not pitch black. Kraig's plays:
@@ -861,6 +890,160 @@ enum GameTuning {
     static let headlampMaxTilt: CGFloat = 0.6
     /// A soft glow around your lure, as a share of the beam's reach, so a fish right beside you is never invisible.
     static let headlampGlow: CGFloat = 0.14
+
+    // MARK: Open Water
+
+    /// The Open Water's worlds, in the order a stage takes you round them (`OpenWater`). Each plays a new level made
+    /// at the stage's difficulty with the world's own hazards, every one planned just in time (Jelly Bloom's jellies
+    /// too: `MeetingPlanner.kelpPlan` keeps the designer's bells and every fish's way in clear of them).
+    static let openWaterWorlds: [ArcadeWorld] = [.shallowReef, .jellyBloom, .kelpForest, .sunsetCove, .midnightZone]
+    /// Stage 1's levels are made like each world's level 5, stage 2's like its level 6, and on (Kraig, 2026-10-19:
+    /// "shallow reef 5, then jellyfish 5, then kelp 5 all the way through midnight zone 5, then shallow reef 6").
+    static let openWaterFirstLevel = 5
+    /// Past the Deep End's last level (15), its five again and again, each time round this much faster (your swim and
+    /// the fish's), up to `openWaterSpeedUpLimit`.
+    static let openWaterSpeedUp: Double = 0.05
+    static let openWaterSpeedUpLimit: Double = 0.15
+    /// How many times a level's segments are re-dealt (`OpenWater.spec`), and layouts of each tried, before taking
+    /// the deal that planned best.
+    static let openWaterDeals = 12
+    static let openWaterLayouts = 32
+    /// Rounds of those deals, each new, before a level plays one that didn't plan cleanly: about 1 level in 300 needs a
+    /// second (2026-10-26: 5 of 1,500, every one stage 3's Jelly Bloom). Each round can take as long as the first.
+    static let openWaterDealRounds = 4
+    /// When no deal fits every open-water big fish its template asks for, plan the level with one fewer rather than
+    /// play it with planner issues. Around Jelly Bloom's bells there's sometimes no room for them all.
+    static let openWaterFewerToFit = true
+    /// Between levels (Kraig, 2026-10-22: "I don't like it feeling like multiple scenes", "without the last slow motion
+    /// bite"): eating a level's last gate chimes and the next level starts at once, the camera easing back from your
+    /// fish over this many seconds as the world you left fades (`beginOpenWaterLevel`).
+    static let openWaterWashSeconds: CGFloat = 1.0
+    /// Pearls (`OpenWater.pearls`): one kind, looking a little different in each world, beside danger and never needed.
+    /// Up to this many a level, spread along it, none in its first seconds. Each sits this many screen points of water
+    /// from a big fish's body as you pass it (on the reference route), within reach of your way, with nothing else
+    /// that could hurt you that close for this many steps either side. Their radius on screen.
+    static let openWaterPearlsPerLevel = 4
+    static let openWaterPearlEarliest: CGFloat = 1.0
+    static let openWaterPearlGap: CGFloat = 14
+    static let openWaterPearlReach: CGFloat = 110
+    static let openWaterPearlClearSteps = 12
+    static let openWaterPearlRadius: CGFloat = 7
+    /// How far a pearl bobs up and down (screen points), and how fast (radians a second).
+    static let openWaterPearlBob: CGFloat = 2.5
+    static let openWaterPearlBobRate: CGFloat = 2.2
+    /// Seconds a pearl takes to slide into your mouth once you touch it.
+    static let openWaterPearlGulpSeconds: CGFloat = 0.16
+    /// Each world's pearl: its color and its rim, and how strongly it glows (brightly in Midnight Zone's dark).
+    static func openWaterPearlLook(_ world: ArcadeWorld) -> (fill: SKColor, rim: SKColor, glow: CGFloat) {
+        switch world {
+        case .jellyBloom: (SKColor(red: 0.99, green: 0.88, blue: 0.97, alpha: 1), SKColor(red: 0.78, green: 0.6, blue: 0.86, alpha: 1), 0.4)
+        case .kelpForest: (SKColor(red: 0.95, green: 0.97, blue: 0.84, alpha: 1), SKColor(red: 0.62, green: 0.72, blue: 0.5, alpha: 1), 0.35)
+        case .sunsetCove: (SKColor(red: 1, green: 0.87, blue: 0.78, alpha: 1), SKColor(red: 0.9, green: 0.56, blue: 0.5, alpha: 1), 0.4)
+        case .midnightZone: (SKColor(red: 0.88, green: 0.95, blue: 1, alpha: 1), SKColor(red: 0.55, green: 0.75, blue: 1, alpha: 1), 0.95)
+        case .shallowReef, .riptideReef: (SKColor(red: 0.97, green: 0.95, blue: 0.92, alpha: 1), SKColor(red: 0.8, green: 0.76, blue: 0.86, alpha: 1), 0.35)
+        }
+    }
+    /// "Stage 2" in the middle of the water as a new time round the worlds starts: how long it stays (seconds, fades
+    /// included). The worlds aren't named: you can see which one you're in.
+    static let openWaterBannerSeconds: Double = 1.6
+
+    // MARK: Pearl shop
+
+    /// What the Open Water's pearls buy (`PearlItem`), in the shop's order: looks for your fish, shown everywhere it
+    /// swims. Prices are steady (Kraig, 2026-10-22): the first thing in about two good runs, the dearest in about
+    /// fifteen. An ID is saved with what a player owns and wears, so never rename one or take one out: retire it
+    /// (`PearlItem.retired`). Names, prices, seasons, art, and order can change.
+    static let pearlShop: [PearlItem] = [
+        // Sweet treats and a rainbow (Kraig, 2026-10-25: "more approachable and kid friendly... We need a rainbow fish
+        // for sure"), with Gold and Pearl as they were ("the best colors"). Copper, Mint, Purple, and Ruby kept their
+        // IDs, so whoever bought Copper has the peanut butter and jelly fish.
+        PearlItem("color.copper", .color, "PB & J", price: 50),
+        PearlItem("color.mint", .color, "Mint chocolate chip", price: 60),
+        PearlItem("color.cotton-candy", .color, "Cotton candy", price: 60),
+        PearlItem("color.purple", .color, "Grape soda", price: 60),
+        PearlItem("color.gold", .color, "Gold", price: 75),
+        PearlItem("color.ruby", .color, "Watermelon", price: 75),
+        PearlItem("color.blue-raspberry", .color, "Blue raspberry", price: 75),
+        // Kraig, 2026-10-27: "Zebra shouldn't be a pattern as it is right now. It should be a color. It displaces
+        // everything." Whoever had the pattern has this too.
+        PearlItem("color.zebra", .color, "Zebra", price: 75, replaces: "pattern.zebra"),
+        PearlItem("color.birthday-cake", .color, "Birthday cake", price: 100),
+        PearlItem("color.galaxy", .color, "Galaxy", price: 120),
+        PearlItem("color.pearl", .color, "Pearl", price: 150),
+        PearlItem("color.rainbow", .color, "Rainbow", price: 200),
+        PearlItem("pattern.spots", .pattern, "Spots", price: 25),
+        PearlItem("pattern.stripes", .pattern, "Stripes", price: 25),
+        // Its white coat covered whatever color you wore: now a color (`color.zebra`).
+        PearlItem("pattern.zebra", .pattern, "Zebra", price: 75, retired: true),
+        PearlItem("pattern.bands", .pattern, "Clown bands", price: 75),
+        PearlItem("pattern.stars", .pattern, "Stars", price: 120),
+        PearlItem("pattern.champion", .pattern, "Champion glow", earnedBy: .fishInOneRun(100)),
+        // Kraig, 2026-10-27: "polka hearts should be valentines only".
+        PearlItem("pattern.hearts", .pattern, "Polka hearts", price: 90, season: .valentines),
+        PearlItem("hat.beanie", .hat, "Beanie", price: 40),
+        PearlItem("hat.party", .hat, "Party hat", price: 40),
+        PearlItem("hat.bow", .hat, "Bow", price: 40),
+        PearlItem("hat.flower", .hat, "Flower", price: 50),
+        PearlItem("hat.baseball", .hat, "Baseball cap", price: 50),
+        PearlItem("hat.sailor", .hat, "Sailor cap", price: 60),
+        PearlItem("hat.cowboy", .hat, "Cowboy hat", price: 70),
+        PearlItem("hat.cone", .hat, "Traffic cone", price: 80),
+        PearlItem("hat.pirate", .hat, "Pirate hat", price: 80),
+        PearlItem("hat.tiara", .hat, "Tiara", price: 120),
+        PearlItem("hat.wizard", .hat, "Wizard hat", price: 120),
+        PearlItem("hat.unicorn", .hat, "Unicorn horn", price: 150),
+        // Earned, never sold (Kraig, 2026-10-25). The crowns are the map's: the gold one sold for 200 pearls before, and
+        // whoever bought it keeps it.
+        PearlItem("hat.starfish", .hat, "Starfish", earnedBy: .openWaterLevel(2)),
+        PearlItem("hat.sharkfin", .hat, "Shark fin", earnedBy: .fishInOneRun(50)),
+        PearlItem("hat.crown.silver", .hat, "Silver crown", earnedBy: .conquerAWorld),
+        PearlItem("hat.crown", .hat, "Gold crown", earnedBy: .conquerADeepEnd),
+        PearlItem("hat.crown.diamond", .hat, "Diamond crown", earnedBy: .conquerEveryDeepEnd),
+        // Limited editions, after the rest of their kind (Kraig, 2026-10-24).
+        PearlItem("hat.santa", .hat, "Santa hat", price: 100, season: .christmas),
+        PearlItem("hat.antlers", .hat, "Reindeer antlers", price: 100, season: .christmas),
+        PearlItem("face.mustache", .face, "Mustache", price: 50),
+        PearlItem("face.sunglasses", .face, "Sunglasses", price: 60),
+        PearlItem("face.heartglasses", .face, "Heart glasses", price: 80, season: .valentines),
+        PearlItem("face.nose", .face, "Red nose", price: 100, season: .christmas),
+        PearlItem("trail.bubbles", .trail, "Bubbles", price: 50),
+        PearlItem("trail.cropduster", .trail, "Crop duster", price: 75),
+        PearlItem("trail.notes", .trail, "Music notes", price: 90),
+        PearlItem("trail.sparkles", .trail, "Sparkles", price: 100),
+        PearlItem("trail.confetti", .trail, "Confetti", price: 120),
+        PearlItem("trail.rainbow", .trail, "Rainbow", price: 180),
+        PearlItem("trail.comet", .trail, "Comet", earnedBy: .openWaterLevel(5)),
+        PearlItem("trail.hearts", .trail, "Hearts", price: 100, season: .valentines),
+    ]
+    /// How far a hat may stand above the top of your back fin, in your radius. Hats are only drawn, never part of what
+    /// eats or is eaten (Kraig, 2026-10-22: "the hats may need to be a bit taller. They should just not be part of the
+    /// hitbox").
+    static let pearlHatHeadroom: CGFloat = 0.4
+    /// A trail lets out a mote this often (seconds) as you swim.
+    static let pearlTrailEvery: [PearlTrail: CGFloat] = [.bubbles: 0.08, .sparkles: 0.05, .rainbow: 0.035, .cropDuster: 0.07,
+                                                          .comet: 0.025, .notes: 0.11, .hearts: 0.11, .confetti: 0.03]
+    /// How long a trail's motes last; the crop duster's clouds hang about.
+    static let pearlTrailSeconds: [PearlTrail: CGFloat] = [.bubbles: 0.5, .sparkles: 0.5, .rainbow: 0.5, .cropDuster: 1,
+                                                            .comet: 0.45, .notes: 0.9, .hearts: 0.8, .confetti: 0.7]
+    /// The looks of the shop's first release (1.1): before a save remembers what's been seen there, these count as seen,
+    /// so a player's first visit has nothing marked new, and only looks added since are. Never add to it once 1.1 is on
+    /// the App Store (the Zebra color joined while 1.1 was in TestFlight).
+    static let pearlShopFirstLooks: Set<String> = [
+        "color.copper", "color.mint", "color.cotton-candy", "color.purple", "color.gold", "color.ruby",
+        "color.blue-raspberry", "color.birthday-cake", "color.galaxy", "color.pearl", "color.rainbow", "color.zebra",
+        "pattern.spots", "pattern.stripes", "pattern.zebra", "pattern.bands", "pattern.hearts", "pattern.stars",
+        "pattern.champion",
+        "hat.beanie", "hat.party", "hat.bow", "hat.flower", "hat.baseball", "hat.sailor", "hat.cowboy", "hat.cone",
+        "hat.pirate", "hat.tiara", "hat.wizard", "hat.unicorn", "hat.starfish", "hat.sharkfin", "hat.crown.silver",
+        "hat.crown", "hat.crown.diamond", "hat.santa", "hat.antlers",
+        "face.mustache", "face.sunglasses", "face.heartglasses", "face.nose",
+        "trail.bubbles", "trail.cropduster", "trail.notes", "trail.sparkles", "trail.confetti", "trail.rainbow",
+        "trail.comet", "trail.hearts",
+    ]
+    /// Outfit slots in the shop: looks saved to wear again in a tap.
+    static let pearlShopOutfits = 3
+    /// Xcode builds only: the shop's button that adds this many pearls, to try things out.
+    static let pearlShopTestGift = 100
 
     // MARK: Sunset Cove (world 4)
 
@@ -964,7 +1147,7 @@ enum GameTuning {
         let spec = sunsetSpecs[index], seedName = sunsetSeedNames[spec.name]
         if let variation = sunsetRerolls[spec.name] { return MeetingPlanner.kelpPlan(spec, variation: variation, seedName: seedName) }
         return (0..<16).lazy.map { MeetingPlanner.kelpPlan(spec, variation: $0, seedName: seedName) }
-            .first { $0.issues.isEmpty && !$0.hasGiantWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
+            .first { $0.issues.isEmpty && !$0.hasGiantWall && !$0.hasWall } ?? MeetingPlanner.kelpPlan(spec, seedName: seedName)
     }
     #endif
     /// No hook is passed before this many screens into the lap, so each one swims in from the right with its boat.
@@ -1099,7 +1282,7 @@ enum GameTuning {
     static let shallowReefOrder = [0, 1, 4, 5, 2, 3, 6, 9, 8, 7, 10, 11, 12, 13, 14]
     static let shallowReefLevels: [Level] = shallowReefOrder.map { reefLabLevels[$0] }
 
-    // MARK: First-launch tutorial (`ArcadeTutorial`)
+    // MARK: Tutorials (`ArcadeTutorial`)
 
     /// Its fish (radius; you start at `baseRadius`, 16). The first meal takes you to 18.4; the fish you miss (14)
     /// eats two little ones (12) and reaches 20.7, clearly bigger than you; the last meal is sized so you end
@@ -1178,6 +1361,14 @@ enum GameTuning {
     static let tutorialRaceLane: CGFloat = 0.72
     static let tutorialHeldShare: CGFloat = 0.28
     static let tutorialHeldGlide: CGFloat = 220
+    /// The Open Water's pearl beat: the pearl sits `tutorialPearlAhead` screens ahead of you, `tutorialPearlShare` of the
+    /// way up the water, and a bigger fish (`tutorialBigFish`) swims slowly at you from just past it, nearer the
+    /// middle: close enough to feel it, with room to take the pearl over it. Missed, another comes the other way up. Once
+    /// it's taken, what pearls are for shows for `tutorialPearlsAreForSeconds` (at a pace of 1) before it ends.
+    static let tutorialPearlAhead: CGFloat = 1.0
+    static let tutorialPearlShare: CGFloat = 0.7
+    static let tutorialPearlGuard = TutorialSwim(ahead: 1.06, home: 0.42, wander: 0.03, heading: -1, speed: 16)
+    static let tutorialPearlsAreForSeconds: CGFloat = 1.6
     /// After the last catch: when its closing line fades in, and when it leaves for the map (seconds, real time).
     static let tutorialFinaleDelay: CGFloat = 0.5
     static let tutorialFinaleSeconds: CGFloat = 2.8

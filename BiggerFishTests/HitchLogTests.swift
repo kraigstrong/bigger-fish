@@ -101,7 +101,7 @@ struct HitchLogTests {
         #expect(order(["scene level", "card ready card", "phase playing", "pause ", "resume ", "swallow you're eaten",
                        "death eaten", "phase lost", "result lost"]), "noted \(noted)")
 
-        let tutorial = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: true)
+        let tutorial = GameScene(world: .shallowReef, levelIndex: 0, showsJellyLesson: false, tutorial: .adventure)
         tutorial.hitchLog = harness.log
         view.presentScene(tutorial)
         #expect(harness.log.context == HitchContext(.tutorial, detail: "holdToRise", phase: "ready"))

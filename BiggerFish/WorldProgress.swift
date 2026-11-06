@@ -1,3 +1,4 @@
+import FishKit
 import SpriteKit
 import SwiftUI
 import UIKit
@@ -21,6 +22,17 @@ enum WorldCrown {
         case .silver: DeepEndColors.silver
         case .gold: DeepEndColors.gold
         }
+    }
+}
+
+extension ArcadeProgress {
+    /// A world's crown, on the world map and the home screen: silver once its ten levels are beaten, gold once its Deep
+    /// End is too. None for a world that isn't open.
+    func crown(in world: ArcadeWorld, unlocked: Bool) -> WorldCrown {
+        guard ArcadeUnlock.isWorldOpen(world, unlocked: unlocked) else { return .none }
+        let cleared = clearedCounts(in: world)
+        return WorldCrown.earned(conquered: cleared.main >= min(world.levelCount, ArcadeWorld.mainLevelCount),
+                                 deepEndCleared: world.deepEndCount > 0 && cleared.deepEnd >= world.deepEndCount)
     }
 }
 
@@ -184,17 +196,5 @@ struct WorldProgressBar: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(progress.clearedCount) of \(progress.run.count) cleared. \(progress.caption)")
-    }
-}
-
-extension SKSpriteNode {
-    /// An SF Symbol as a sprite, drawn in `color`.
-    static func symbol(_ name: String, pointSize: CGFloat, weight: UIImage.SymbolWeight = .regular,
-                       color: UIColor = .white) -> SKSpriteNode? {
-        let config = UIImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
-        guard let image = UIImage(systemName: name, withConfiguration: config)?
-            .withTintColor(color, renderingMode: .alwaysOriginal) else { return nil }
-        let drawn = UIGraphicsImageRenderer(size: image.size).image { _ in image.draw(at: .zero) }
-        return SKSpriteNode(texture: SKTexture(image: drawn))
     }
 }
