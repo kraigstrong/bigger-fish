@@ -47,4 +47,11 @@ enum GameRules {
         guard let player = fish.first(where: \.isPlayer), player.isAlive else { return false }
         return fish.allSatisfy { $0.isPlayer || $0.state == .removed }
     }
+
+    /// You can't win any more: there are fish left (`others`, here or still to swim in, each at its full size), and
+    /// you're too small to eat any of them. No fish ever shrinks, hazards never take one, and you grow only by eating, so
+    /// once this is true it stays true. (No fish left at all is a win, not this.)
+    static func isTooSmallToWin(player: CGFloat, others: [CGFloat]) -> Bool {
+        !others.isEmpty && others.allSatisfy { playerEncounter(player, $0) != .firstEatsSecond }
+    }
 }
