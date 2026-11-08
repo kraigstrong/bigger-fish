@@ -285,6 +285,8 @@ final class GameScene: SKScene {
     var onJellyLesson: (() -> Void)?
     private var showsJellyLesson: Bool
     private var lossReason = "There was a bigger fish."
+    /// The round ended because every fish left was too big for you to eat (`endTooSmall`), not because you were caught.
+    private var endedTooSmall = false
     private var jellies: [BloomJelly] = []
     private var encounterLeases: [Int: EncounterLease] = [:]
     private var forwardDistance: CGFloat = 0
@@ -657,6 +659,7 @@ final class GameScene: SKScene {
         bounceRemaining = 0
         bounceCooldown = 0
         lossReason = "There was a bigger fish."
+        endedTooSmall = false
         winGlow?.removeFromParent()
         winGlow = nil
         dimNode.removeAllActions()
@@ -892,7 +895,8 @@ final class GameScene: SKScene {
         #endif
         let panel = ArcadeResultPanel(size: size, passed: passed, hasNext: !isFinalLevel && !isWorldFinale, detail: detail,
                                       progress: strip, retryOnly: isTutorial,
-                                      heading: passed ? nil : openWaterResultHeading, note: passed ? nil : openWaterResultNote,
+                                      heading: passed ? nil : openWaterResultHeading ?? tooSmallHeading,
+                                      note: passed ? nil : openWaterResultNote ?? tooSmallTip,
                                       shopPearls: openWaterShopPearls, outOfRuns: !passed && outOfOpenWaterRuns)
         panel.onSelect = { [weak self] action in self?.selectResult(action) }
         messageNode.addChild(panel)
@@ -1076,6 +1080,49 @@ final class GameScene: SKScene {
         winGlow = glow
     }
 
+    /// Every fish left, here or still to swim in, is too big for you to eat, so the level can't be won. Checked between
+    /// meals, since one in flight changes who's left and how big. Never in the tutorial (it brings missed fish round),
+    /// nor in an Open Water level that's done or has no last gate (it ends on its own), nor while your fish can't eat
+    /// (a headless study of the fish alone).
+    private var isTooSmallToWin: Bool {
+        guard !isTutorial, player.state == .swimming, swallows.isEmpty else { return false }
+        if isOpenWater && (openWaterFinale == nil || openWaterLevelDone) { return false }
+        #if DEBUG
+        if simulationEcologyProbe { return false }
+        #endif
+        let others = fish.filter { !$0.isPlayer && $0.state != .removed }.map { max($0.radius, $0.targetRadius) }
+            + waitingFish.map(\.radius)
+        return GameRules.isTooSmallToWin(player: max(player.radius, player.targetRadius), others: others)
+    }
+
+    /// The round ends when you're too small to win (Kraig, 2026-11-07: players swimming on with nothing they could eat
+    /// took it for a bug). It's a loss, with a tip: the water dims and your fish holds still, as at a win, while the
+    /// others swim on, then the result says why.
+    private func endTooSmall() {
+        endedTooSmall = true
+        lossReason = Self.tooSmallReason
+        // The stats server takes this cause from kraigstrong/BrightBench#122; before that it drops a batch with it.
+        metricDeathCause = "stuck"
+        if metricAccumulator != nil {
+            observeMetrics()
+            fatalMetrics = metricAccumulator?.summary
+        }
+        holdTouches.removeAll()
+        dimNode.run(.fadeAlpha(to: 0.35, duration: 0.6))
+        lose(resultDelay: T.tooSmallResultDelay)
+    }
+
+    /// The result after `endTooSmall`: what happened, and how to do better. The Open Water's card keeps its run's score
+    /// and best in the lines under its heading, and a run's earned looks or new best keep the heading.
+    private static let tooSmallReason = "Every fish left is bigger than you."
+    private var tooSmallHeading: String? {
+        guard endedTooSmall else { return nil }
+        return isOpenWater ? "Too small to go on" : "Too small to win"
+    }
+    private var tooSmallTip: String? {
+        endedTooSmall && !isOpenWater ? "Tip: eat more fish early to grow big enough." : nil
+    }
+
     /// `soundsAtResult`: a delayed result (a sting) sounds the loss when it appears; a hook has sounded it already.
     private func lose(resultDelay: CGFloat = 0, soundsAtResult: Bool = true) {
         if resultDelay > 0 { pendingLossResultAt = realClock + resultDelay }
@@ -1084,7 +1131,7 @@ final class GameScene: SKScene {
         if !isTutorial { onDeath?(levelIndex) }
         #if DEBUG
         finishRunRecording("lost", fields: ["reason": lossReason])
-        noteHitch(.death, resultDelay > 0 ? (reel != nil ? "hooked" : "stung") : "eaten")
+        noteHitch(.death, endedTooSmall ? "too small" : resultDelay > 0 ? (reel != nil ? "hooked" : "stung") : "eaten")
         #endif
         // A delayed result (a sting) sounds the loss when the result appears, after the zap.
         if resultDelay == 0 { playSound(.lose) }
@@ -1291,7 +1338,7 @@ final class GameScene: SKScene {
         if phase == .playing {
             resolveCollisions()
             updateFishLeft()
-            if hasWon { win() }
+            if hasWon { win() } else if isTooSmallToWin { endTooSmall() }
             if openWater != nil { advanceOpenWater() }
             #if DEBUG
             recordRunSnapshot()
@@ -1300,8 +1347,9 @@ final class GameScene: SKScene {
     }
 
     private func movePlayer(_ p: Fish, _ dt: CGFloat) {
-        // Keep the winner in place; rendering and the victory ring continue animating.
-        guard phase != .won else { p.velocity = .zero; return }
+        // Keep the winner in place; rendering and the victory ring continue animating. A round lost with you still
+        // swimming (every fish left too big: `endTooSmall`) holds you still the same way.
+        guard phase != .won && phase != .lost else { p.velocity = .zero; return }
         bounceRemaining = max(0, bounceRemaining - dt)
         bounceCooldown = max(0, bounceCooldown - dt)
         var motion = T.motion
@@ -3879,6 +3927,7 @@ final class GameScene: SKScene {
     /// The fish that got away, while it's around.
     var debugMissedFish: Fish? { tutorialMissedFish.flatMap { fishByID[$0] } }
     var debugPlayerRadius: CGFloat { player.targetRadius }
+    var debugPlayerPosition: CGPoint { player.position }
     /// How far up the water you are (0 the bottom, 1 the top), and holding on or off as a test's touch.
     var debugPlayerShare: CGFloat { waterShare(player.position.y) }
     func debugHold(_ on: Bool) { simulationHolding = on }
@@ -4193,11 +4242,12 @@ final class GameScene: SKScene {
         simulate(1.0 / 30)
     }
 
-    /// Takes `count` of the fish still to eat out of the level as if eaten (swimming ones first, then ones still to swim
-    /// in), and plays a step.
+    /// Takes `count` of the fish still to eat out of the level as if eaten (swimming ones first, biggest first so you're
+    /// never left too small to win, then ones still to swim in), and plays a step.
     func debugRemoveFish(_ count: Int) {
         var left = count
-        for f in fish where !f.isPlayer && f.isAlive && left > 0 {
+        let swimming = fish.filter { !$0.isPlayer && $0.isAlive }.sorted { $0.targetRadius > $1.targetRadius }
+        for f in swimming where left > 0 {
             f.state = .removed
             left -= 1
         }
@@ -4207,6 +4257,24 @@ final class GameScene: SKScene {
         }
         simulate(1.0 / 30)
     }
+
+    /// Takes away every fish you could eat, here and (unless `stillToSwimIn` is false) still to swim in, all but
+    /// `keeping` of them, leaving the bigger ones. Nothing is simulated.
+    func debugRemoveFishYouCanEat(keeping: Int = 0, stillToSwimIn: Bool = true) {
+        let you = max(player.radius, player.targetRadius)
+        func edible(_ radius: CGFloat) -> Bool { GameRules.playerEncounter(you, radius) == .firstEatsSecond }
+        var kept = 0, gone: [Fish] = []
+        for f in fish where !f.isPlayer && f.isAlive && edible(max(f.radius, f.targetRadius)) {
+            if kept < keeping { kept += 1 } else { gone.append(f) }
+        }
+        for f in gone { removeFish(f) }
+        waitingFish.removeAll { planned in
+            guard stillToSwimIn, edible(planned.radius) else { return false }
+            if kept < keeping { kept += 1; return false }
+            return true
+        }
+    }
+    var debugEndedTooSmall: Bool { endedTooSmall }
 
     /// Play a planned test level instead of this campaign slot. Call before the scene is shown.
     func debugUsePlanner(_ spec: MeetingSpec, variation: Int = 0) {

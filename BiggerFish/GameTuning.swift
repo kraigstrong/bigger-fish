@@ -178,6 +178,9 @@ enum GameTuning {
     static let conqueredExitDelay: CGFloat = 1.6
     /// Seconds after a win/loss before a tap restarts (avoids accidental restarts from a held finger).
     static let restartDelay: CGFloat = 0.8
+    /// Every fish left is too big for you to eat, so the round ends: this many seconds of the water dimming, your fish
+    /// holding still and the others swimming on, before the result card.
+    static let tooSmallResultDelay: CGFloat = 1.0
     /// An Adventure level counts its fish down at the top once this many are left, so the end is in sight without a
     /// long count from the start (Kraig, 2026-10-27: from 10, and the last one is "Last fish!").
     static let fishLeftShownFrom = 10
