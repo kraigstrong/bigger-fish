@@ -1080,19 +1080,20 @@ final class GameScene: SKScene {
         winGlow = glow
     }
 
-    /// Every fish left, here or still to swim in, is too big for you to eat, so the level can't be won. Checked between
-    /// meals, since one in flight changes who's left and how big. Never in the tutorial (it brings missed fish round),
-    /// nor in an Open Water level that's done or has no last gate (it ends on its own), nor while your fish can't eat
-    /// (a headless study of the fish alone).
+    /// Every fish left, here or still to swim in, is too big for you to eat, so the level can't be won. Checked only once
+    /// every meal has been swallowed and every fish has finished growing from it: a meal in flight changes who's left,
+    /// and a fish that's just eaten can still be caught at the size it's growing from, as contact goes by the size a fish
+    /// is now. Never in the tutorial (it brings missed fish round), nor in an Open Water level that's done or has no last
+    /// gate (it ends on its own), nor while your fish can't eat (a headless study of the fish alone).
     private var isTooSmallToWin: Bool {
-        guard !isTutorial, player.state == .swimming, swallows.isEmpty else { return false }
+        guard !isTutorial, player.state == .swimming, swallows.isEmpty,
+              fish.allSatisfy({ $0.state == .removed || $0.growElapsed >= T.growDuration }) else { return false }
         if isOpenWater && (openWaterFinale == nil || openWaterLevelDone) { return false }
         #if DEBUG
         if simulationEcologyProbe { return false }
         #endif
-        let others = fish.filter { !$0.isPlayer && $0.state != .removed }.map { max($0.radius, $0.targetRadius) }
-            + waitingFish.map(\.radius)
-        return GameRules.isTooSmallToWin(player: max(player.radius, player.targetRadius), others: others)
+        let others = fish.filter { !$0.isPlayer && $0.state != .removed }.map(\.radius) + waitingFish.map(\.radius)
+        return GameRules.isTooSmallToWin(player: player.radius, others: others)
     }
 
     /// The round ends when you're too small to win (Kraig, 2026-11-07: players swimming on with nothing they could eat
@@ -4275,6 +4276,16 @@ final class GameScene: SKScene {
         }
     }
     var debugEndedTooSmall: Bool { endedTooSmall }
+    /// Starts a fish you could eat growing to `times` your size, as if it had just eaten. False if there's none.
+    func debugGrowFishYouCanEat(to times: CGFloat) -> Bool {
+        let you = player.radius
+        guard let meal = fish.first(where: { !$0.isPlayer && $0.state == .swimming
+            && GameRules.playerEncounter(you, $0.radius) == .firstEatsSecond }) else { return false }
+        meal.growFrom = meal.radius
+        meal.targetRadius = you * times
+        meal.growElapsed = 0
+        return true
+    }
 
     /// Play a planned test level instead of this campaign slot. Call before the scene is shown.
     func debugUsePlanner(_ spec: MeetingSpec, variation: Int = 0) {

@@ -71,6 +71,19 @@ struct TooSmallToWinTests {
         withExtendedLifetime(view) {}
     }
 
+    /// A fish that's just eaten takes a moment to grow, and until it has it's caught at the size it is now: the round
+    /// goes on while the last fish you could eat grows, and ends once it's grown too big.
+    @Test func aFishStillGrowingIsStillAMeal() throws {
+        let (scene, view) = level(.shallowReef)
+        scene.debugRemoveFishYouCanEat(keeping: 1)
+        try #require(scene.debugGrowFishYouCanEat(to: 1.5))
+        scene.debugAdvance(seconds: GameTuning.growDuration / 2)
+        #expect(scene.debugPhase == .playing && !scene.debugEndedTooSmall)
+        scene.debugAdvance(seconds: GameTuning.growDuration)
+        #expect(scene.debugPhase == .lost && scene.debugEndedTooSmall)
+        withExtendedLifetime(view) {}
+    }
+
     /// A fish still to swim in counts even when every fish already here is too big: in the first Kelp Forest level that
     /// starts with a fish too big to eat in the water and one you could eat on its way.
     @Test func aFishStillToSwimInKeepsItGoing() throws {
